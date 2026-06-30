@@ -118,7 +118,7 @@
                                 </td>
                                 <td class="text-end px-4">
                                     <div class="btn-group gap-1">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="editTenant({{ t | tojson }})"><i class="bi bi-pencil"></i> Edit</button>
+                                        <button class="btn btn-sm btn-outline-primary" onclick='editTenant({{ t.dict() | tojson }})'><i class="bi bi-pencil"></i> Edit</button>
                                         <button class="btn btn-sm btn-outline-danger" onclick="deleteTenant({{ t.id }})"><i class="bi bi-trash"></i> Delete</button>
                                     </div>
                                 </td>
@@ -145,15 +145,15 @@
         
         const id = document.getElementById("tenant_id").value;
         const tenantData = {
-            Tenant_Name: document.getElementById("name").value,
-            Company: document.getElementById("company").value,
-            Phone: document.getElementById("phone").value,
-            Email: document.getElementById("email").value,
-            Permanent_Address: document.getElementById("address").value,
-            Room_Number: document.getElementById("room_number").value,
-            Occupation: document.getElementById("occupation").value,
-            Status: document.getElementById("status").value,
-            Notes: document.getElementById("notes").value
+            name: document.getElementById("name").value,
+            company: document.getElementById("company").value,
+            phone: document.getElementById("phone").value,
+            email: document.getElementById("email").value,
+            address: document.getElementById("address").value,
+            room_number: document.getElementById("room_number").value,
+            occupation: document.getElementById("occupation").value,
+            status: document.getElementById("status").value,
+            notes: document.getElementById("notes").value
         };
         
         const isEdit = !!id;

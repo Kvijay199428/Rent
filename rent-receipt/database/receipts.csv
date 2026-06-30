@@ -1,1 +1,2 @@
-Bill,Date,Month,Tenant,Previous,Current,Units,Rent,Additional,Water,Electricity,Total,PDF,Tenant_Phone,Tenant_Company,Tenant_Address
+Bill,Date,Month,Tenant,Previous,Current,Units,Rent,Additional,Water,Electricity,Total,PDF,Tenant_Phone,Tenant_Company,Tenant_Address,Rate
+001,30 June 2026,June 2026,L T Elevator,597.0,709.0,112.0,8000.0,2000.0,500.0,1680.0,12180.0,001.pdf,,,,15.0

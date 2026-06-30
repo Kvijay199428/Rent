@@ -1043,11 +1043,11 @@ if __name__ == "__main__":
 ```
 // File: backups/billing.json.bak
 {
-    "rent": 8000.0,
-    "water": 500.0,
-    "electricity_rate": 15.0,
-    "additional_person_charge": 1000.0,
-    "previous_meter_reading": 0.0,
+    "rent": 8000,
+    "water": 500,
+    "electricity_rate": 15,
+    "additional_person_charge": 1000,
+    "previous_meter_reading": 597,
     "next_bill_number": 1
 }
 ```
@@ -1055,11 +1055,21 @@ if __name__ == "__main__":
 ```
 // File: backups/landlord.json.bak
 {
-    "name": "",
-    "phone": "",
-    "email": "",
-    "address": ""
+    "name": "Vijay Kumar Sharma",
+    "phone": "9599130381",
+    "email": "sharmajiindia2012@gmail.com",
+    "address": "House No 1, Street No 1, E Block, Shiv Durga Vihar Lakkarpur, Surajkund Faridabad, Faridabad Haryana - 121009"
 }
+```
+
+```
+// File: backups/receipts.csv.bak
+Bill,Date,Month,Tenant,Previous,Current,Units,Rent,Additional,Water,Electricity,Total,PDF,Tenant_Phone,Tenant_Company,Tenant_Address
+```
+
+```
+// File: backups/tenants.csv.bak
+ID,Tenant Name,Company,Phone,Email,Permanent Address,Room Number,Occupation,Notes,Status
 ```
 
 ```json
@@ -1069,8 +1079,8 @@ if __name__ == "__main__":
     "water": 500,
     "electricity_rate": 15,
     "additional_person_charge": 1000,
-    "previous_meter_reading": 597,
-    "next_bill_number": 1
+    "previous_meter_reading": 709.0,
+    "next_bill_number": 2
 }
 ```
 
@@ -1093,12 +1103,14 @@ if __name__ == "__main__":
 
 ```
 // File: database/receipts.csv
-Bill,Date,Month,Tenant,Previous,Current,Units,Rent,Additional,Water,Electricity,Total,PDF,Tenant_Phone,Tenant_Company,Tenant_Address
+Bill,Date,Month,Tenant,Previous,Current,Units,Rent,Additional,Water,Electricity,Total,PDF,Tenant_Phone,Tenant_Company,Tenant_Address,Rate
+001,30 June 2026,June 2026,L T Elevator,597.0,709.0,112.0,8000.0,2000.0,500.0,1680.0,12180.0,001.pdf,,,,15.0
 ```
 
 ```
 // File: database/tenants.csv
 ID,Tenant Name,Company,Phone,Email,Permanent Address,Room Number,Occupation,Notes,Status
+1,L T Elevator,,,,,2nd Floor,,,Active
 ```
 
 ```
@@ -1154,18 +1166,15 @@ from typing import Optional
 
 class Tenant(BaseModel):
     id: Optional[int] = None
-    name: str = Field(..., alias="Tenant Name")
-    company: Optional[str] = Field("", alias="Company")
-    phone: Optional[str] = Field("", alias="Phone")
-    email: Optional[str] = Field("", alias="Email")
-    address: Optional[str] = Field("", alias="Permanent Address")
-    room_number: Optional[str] = Field("", alias="Room Number")
-    occupation: Optional[str] = Field("", alias="Occupation")
-    notes: Optional[str] = Field("", alias="Notes")
-    status: str = Field("Active", alias="Status") # Active or Inactive
-
-    class Config:
-        populate_by_name = True
+    name: str
+    company: Optional[str] = ""
+    phone: Optional[str] = ""
+    email: Optional[str] = ""
+    address: Optional[str] = ""
+    room_number: Optional[str] = ""
+    occupation: Optional[str] = ""
+    notes: Optional[str] = ""
+    status: str = "Active" # Active or Inactive
 ```
 
 ```text
@@ -1183,11 +1192,13 @@ pydantic
 // File: server.log
 INFO:     Will watch for changes in these directories: ['/root/rent/rent-receipt']
 INFO:     Uvicorn running on http://0.0.0.0:20081 (Press CTRL+C to quit)
-INFO:     Started reloader process [12220] using StatReload
-INFO:     Started server process [12233]
+INFO:     Started reloader process [12443] using StatReload
+INFO:     Started server process [12445]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     127.0.0.1:60320 - "GET / HTTP/1.1" 500 Internal Server Error
+INFO:     127.0.0.1:58044 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58044 - "GET /static/css/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58044 - "GET /tenants HTTP/1.1" 500 Internal Server Error
 ERROR:    Exception in ASGI application
 Traceback (most recent call last):
   File "/root/venv/lib/python3.13/site-packages/uvicorn/protocols/http/h11_impl.py", line 415, in run_asgi
@@ -1208,6 +1219,24 @@ Traceback (most recent call last):
     raise exc
   File "/root/venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 164, in __call__
     await self.app(scope, receive, _send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+                                   ~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/rent/rent-receipt/app.py", line 37, in add_theme_to_templates
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
   File "/root/venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
   File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
@@ -1240,266 +1269,459 @@ Traceback (most recent call last):
   File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
     return await dependant.call(**values)
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/rent/rent-receipt/app.py", line 31, in dashboard
-    return templates.TemplateResponse("index.html", {
-           ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^
-        "request": request,
-        ^^^^^^^^^^^^^^^^^^^
-    ...<2 lines>...
-        "last_tenant": last_tenant
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^
-    })
-    ^^
-  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 148, in TemplateResponse
-    template = self.get_template(name)
-  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 115, in get_template
-    return self.env.get_template(name)
-           ~~~~~~~~~~~~~~~~~~~~~^^^^^^
-  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 1016, in get_template
-    return self._load_template(name, globals)
-           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
-  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 964, in _load_template
-    template = self.cache.get(cache_key)
-  File "/root/venv/lib/python3.13/site-packages/jinja2/utils.py", line 477, in get
-    return self[key]
-           ~~~~^^^^^
-  File "/root/venv/lib/python3.13/site-packages/jinja2/utils.py", line 515, in __getitem__
-    rv = self._mapping[key]
-         ~~~~~~~~~~~~~^^^^^
-TypeError: unhashable type: 'dict'
-WARNING:  StatReload detected changes in 'app.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [12233]
-INFO:     Started server process [13128]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     127.0.0.1:35012 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35016 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35016 - "GET /static/css/style.css HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35020 - "GET /static/js/main.js HTTP/1.1" 200 OK
-INFO:     127.0.0.1:35020 - "GET /favicon.ico HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:56116 - "GET /api/config HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33688 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:33688 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:33702 - "GET /static/js/main.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:33702 - "GET /settings HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36986 - "POST /api/config HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36992 - "GET /billing HTTP/1.1" 200 OK
-INFO:     127.0.0.1:36992 - "GET /static/js/main.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:36998 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-WARNING:  Invalid HTTP request received.
-INFO:     127.0.0.1:35156 - "WebSocket /ws" 403
-INFO:     connection rejected (403 Forbidden)
-INFO:     connection closed
-INFO:     127.0.0.1:54606 - "POST /api/bill HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54606 - "GET /api/pdf/001 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54606 - "GET /billing HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54606 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:54618 - "GET /static/js/main.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:51496 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51496 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:51512 - "GET /static/js/main.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:41828 - "GET /settings HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41828 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:41844 - "GET /static/js/main.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:48182 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48182 - "GET /static/js/main.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:48186 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:48202 - "GET /billing HTTP/1.1" 200 OK
-INFO:     127.0.0.1:48206 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60674 - "GET /billing HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60674 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:60676 - "GET /static/js/main.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:50702 - "GET /settings HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50702 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:50718 - "GET /static/js/main.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:39582 - "GET / HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'utils/config_manager.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [13128]
-INFO:     Started server process [23260]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'utils/csv_manager.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [23260]
-INFO:     Started server process [23275]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'utils/billing.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [23275]
-INFO:     Started server process [23369]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'utils/pdf.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [23369]
-INFO:     Started server process [23384]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  StatReload detected changes in 'app.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [23384]
-INFO:     Started server process [23481]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     127.0.0.1:60426 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60426 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:60434 - "GET /static/js/main.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:60434 - "GET /settings HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60436 - "GET /tenants HTTP/1.1" 500 Internal Server Error
-ERROR:    Exception in ASGI application
-Traceback (most recent call last):
-  File "/root/venv/lib/python3.13/site-packages/uvicorn/protocols/http/h11_impl.py", line 415, in run_asgi
-    result = await app(  # type: ignore[func-returns-value]
-             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        self.scope, self.receive, self.send
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    )
-    ^
-  File "/root/venv/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 56, in __call__
-    return await self.app(scope, receive, send)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/venv/lib/python3.13/site-packages/fastapi/applications.py", line 1159, in __call__
-    await super().__call__(scope, receive, send)
-  File "/root/venv/lib/python3.13/site-packages/starlette/applications.py", line 90, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 186, in __call__
-    raise exc
-  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 164, in __call__
-    await self.app(scope, receive, _send)
-  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
-    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/root/venv/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
-    await self.app(scope, receive, send)
-  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 660, in __call__
-    await self.middleware_stack(scope, receive, send)
-  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 680, in app
-    await route.handle(scope, receive, send)
-  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 276, in handle
-    await self.app(scope, receive, send)
-  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 134, in app
-    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
-    raise exc
-  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
-    await app(scope, receive, sender)
-  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 120, in app
-    response = await f(request)
-               ^^^^^^^^^^^^^^^^
-  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 674, in app
-    raw_response = await run_endpoint_function(
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    ...<3 lines>...
-    )
-    ^
-  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
-    return await dependant.call(**values)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/root/rent/rent-receipt/app.py", line 71, in tenants_page
+  File "/root/rent/rent-receipt/app.py", line 81, in tenants_page
     return templates.TemplateResponse(
            ~~~~~~~~~~~~~~~~~~~~~~~~~~^
         request=request, name="tenants.html", context={
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-        "tenants": tenants
-        ^^^^^^^^^^^^^^^^^^
-    })
-    ^^
-  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 148, in TemplateResponse
-    template = self.get_template(name)
-  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 115, in get_template
-    return self.env.get_template(name)
-           ~~~~~~~~~~~~~~~~~~~~~^^^^^^
-  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 1016, in get_template
-    return self._load_template(name, globals)
-           ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
-  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 975, in _load_template
-    template = self.loader.load(self, name, self.make_globals(globals))
-  File "/root/venv/lib/python3.13/site-packages/jinja2/loaders.py", line 126, in load
-    source, filename, uptodate = self.get_source(environment, name)
-                                 ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^
-  File "/root/venv/lib/python3.13/site-packages/jinja2/loaders.py", line 209, in get_source
-    raise TemplateNotFound(
     ...<2 lines>...
+        }
+        ^
     )
-jinja2.exceptions.TemplateNotFound: 'tenants.html' not found in search path: 'templates'
-INFO:     127.0.0.1:60450 - "GET /tenants HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60450 - "GET /tenants HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60450 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:60450 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38162 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:38162 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34760 - "GET /edit_bill/001 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:37966 - "GET /api/config HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34930 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34930 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34930 - "GET /edit_bill/001 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:39582 - "GET /billing HTTP/1.1" 200 OK
-INFO:     127.0.0.1:44356 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:44356 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:44366 - "GET /static/js/main.js HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:54574 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:54582 - "GET /edit_bill/001 HTTP/1.1" 200 OK
-WARNING:  StatReload detected changes in 'app.py'. Reloading...
+    ^
+  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 149, in TemplateResponse
+    return _TemplateResponse(
+        template,
+    ...<4 lines>...
+        background=background,
+    )
+  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 43, in __init__
+    content = template.render(context)
+  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "templates/tenants.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "templates/base.html", line 75, in top-level template code
+    {% block content %}{% endblock %}
+    ^^^^^^^^^^^^^
+  File "templates/tenants.html", line 121, in block 'content'
+    <button class="btn btn-sm btn-outline-primary" onclick="editTenant({{ t | tojson }})"><i class="bi bi-pencil"></i> Edit</button>
+    
+  File "/root/venv/lib/python3.13/site-packages/jinja2/filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+  File "/root/venv/lib/python3.13/site-packages/jinja2/utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+    ~~~~~^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/json/__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ~~~~~~^^^^^
+  File "/usr/lib/python3.13/json/encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+  File "/usr/lib/python3.13/json/encoder.py", line 261, in iterencode
+    return _iterencode(o, 0)
+  File "/usr/lib/python3.13/json/encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+                    f'is not JSON serializable')
+TypeError: Object of type Tenant is not JSON serializable
+INFO:     127.0.0.1:58054 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58054 - "GET /tenants HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/root/venv/lib/python3.13/site-packages/uvicorn/protocols/http/h11_impl.py", line 415, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/root/venv/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 56, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/fastapi/applications.py", line 1159, in __call__
+    await super().__call__(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+                                   ~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/rent/rent-receipt/app.py", line 37, in add_theme_to_templates
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/venv/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/rent/rent-receipt/app.py", line 81, in tenants_page
+    return templates.TemplateResponse(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        request=request, name="tenants.html", context={
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        }
+        ^
+    )
+    ^
+  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 149, in TemplateResponse
+    return _TemplateResponse(
+        template,
+    ...<4 lines>...
+        background=background,
+    )
+  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 43, in __init__
+    content = template.render(context)
+  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "templates/tenants.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "templates/base.html", line 75, in top-level template code
+    {% block content %}{% endblock %}
+    ^^^^^^^^^^^^^
+  File "templates/tenants.html", line 121, in block 'content'
+    <button class="btn btn-sm btn-outline-primary" onclick="editTenant({{ t | tojson }})"><i class="bi bi-pencil"></i> Edit</button>
+    
+  File "/root/venv/lib/python3.13/site-packages/jinja2/filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+  File "/root/venv/lib/python3.13/site-packages/jinja2/utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+    ~~~~~^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/json/__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ~~~~~~^^^^^
+  File "/usr/lib/python3.13/json/encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+  File "/usr/lib/python3.13/json/encoder.py", line 261, in iterencode
+    return _iterencode(o, 0)
+  File "/usr/lib/python3.13/json/encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+                    f'is not JSON serializable')
+TypeError: Object of type Tenant is not JSON serializable
+INFO:     127.0.0.1:51872 - "GET /billing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51872 - "GET /api/billing/months HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51876 - "GET /tenants HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/root/venv/lib/python3.13/site-packages/uvicorn/protocols/http/h11_impl.py", line 415, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/root/venv/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 56, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/fastapi/applications.py", line 1159, in __call__
+    await super().__call__(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+                                   ~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/rent/rent-receipt/app.py", line 37, in add_theme_to_templates
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/venv/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/rent/rent-receipt/app.py", line 81, in tenants_page
+    return templates.TemplateResponse(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        request=request, name="tenants.html", context={
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        }
+        ^
+    )
+    ^
+  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 149, in TemplateResponse
+    return _TemplateResponse(
+        template,
+    ...<4 lines>...
+        background=background,
+    )
+  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 43, in __init__
+    content = template.render(context)
+  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "templates/tenants.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "templates/base.html", line 75, in top-level template code
+    {% block content %}{% endblock %}
+    ^^^^^^^^^^^^^
+  File "templates/tenants.html", line 121, in block 'content'
+    <button class="btn btn-sm btn-outline-primary" onclick="editTenant({{ t | tojson }})"><i class="bi bi-pencil"></i> Edit</button>
+    
+  File "/root/venv/lib/python3.13/site-packages/jinja2/filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+  File "/root/venv/lib/python3.13/site-packages/jinja2/utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+    ~~~~~^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/json/__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ~~~~~~^^^^^
+  File "/usr/lib/python3.13/json/encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+  File "/usr/lib/python3.13/json/encoder.py", line 261, in iterencode
+    return _iterencode(o, 0)
+  File "/usr/lib/python3.13/json/encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+                    f'is not JSON serializable')
+TypeError: Object of type Tenant is not JSON serializable
+INFO:     127.0.0.1:33392 - "GET /tenants HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/root/venv/lib/python3.13/site-packages/uvicorn/protocols/http/h11_impl.py", line 415, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        self.scope, self.receive, self.send
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/root/venv/lib/python3.13/site-packages/uvicorn/middleware/proxy_headers.py", line 56, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/fastapi/applications.py", line 1159, in __call__
+    await super().__call__(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 191, in __call__
+    with recv_stream, send_stream, collapse_excgroups():
+                                   ~~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.13/contextlib.py", line 162, in __exit__
+    self.gen.throw(value)
+    ~~~~~~~~~~~~~~^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 193, in __call__
+    response = await self.dispatch_func(request, call_next)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/rent/rent-receipt/app.py", line 37, in add_theme_to_templates
+    response = await call_next(request)
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 168, in call_next
+    raise app_exc from app_exc.__cause__ or app_exc.__context__
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/base.py", line 144, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "/root/venv/lib/python3.13/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/venv/lib/python3.13/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/root/venv/lib/python3.13/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 120, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 674, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/root/venv/lib/python3.13/site-packages/fastapi/routing.py", line 328, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/rent/rent-receipt/app.py", line 81, in tenants_page
+    return templates.TemplateResponse(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        request=request, name="tenants.html", context={
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<2 lines>...
+        }
+        ^
+    )
+    ^
+  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 149, in TemplateResponse
+    return _TemplateResponse(
+        template,
+    ...<4 lines>...
+        background=background,
+    )
+  File "/root/venv/lib/python3.13/site-packages/starlette/templating.py", line 43, in __init__
+    content = template.render(context)
+  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/root/venv/lib/python3.13/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "templates/tenants.html", line 1, in top-level template code
+    {% extends "base.html" %}
+  File "templates/base.html", line 75, in top-level template code
+    {% block content %}{% endblock %}
+    ^^^^^^^^^^^^^
+  File "templates/tenants.html", line 121, in block 'content'
+    <button class="btn btn-sm btn-outline-primary" onclick="editTenant({{ t | tojson }})"><i class="bi bi-pencil"></i> Edit</button>
+    
+  File "/root/venv/lib/python3.13/site-packages/jinja2/filters.py", line 1721, in do_tojson
+    return htmlsafe_json_dumps(value, dumps=dumps, **kwargs)
+  File "/root/venv/lib/python3.13/site-packages/jinja2/utils.py", line 669, in htmlsafe_json_dumps
+    dumps(obj, **kwargs)
+    ~~~~~^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/json/__init__.py", line 238, in dumps
+    **kw).encode(obj)
+          ~~~~~~^^^^^
+  File "/usr/lib/python3.13/json/encoder.py", line 200, in encode
+    chunks = self.iterencode(o, _one_shot=True)
+  File "/usr/lib/python3.13/json/encoder.py", line 261, in iterencode
+    return _iterencode(o, 0)
+  File "/usr/lib/python3.13/json/encoder.py", line 180, in default
+    raise TypeError(f'Object of type {o.__class__.__name__} '
+                    f'is not JSON serializable')
+TypeError: Object of type Tenant is not JSON serializable
+INFO:     127.0.0.1:33396 - "GET /settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33396 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:33396 - "GET /billing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33396 - "GET /api/billing/months HTTP/1.1" 200 OK
+Error saving receipts: dict contains fields not in fieldnames: 'Rate'
+INFO:     127.0.0.1:45298 - "POST /api/bill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45298 - "GET /api/pdf/001 HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:45298 - "GET /billing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45298 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:45298 - "GET /api/billing/months HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48354 - "GET /billing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48354 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:48354 - "GET /api/billing/months HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48354 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48360 - "GET /settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48360 - "GET /tenants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48360 - "GET /billing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48360 - "GET /api/billing/months HTTP/1.1" 200 OK
+WARNING:  StatReload detected changes in 'services/billing_service.py'. Reloading...
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [23481]
-INFO:     Started server process [3738]
+INFO:     Finished server process [12445]
+INFO:     Started server process [13372]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     127.0.0.1:43292 - "GET /edit_bill/001 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50560 - "GET /edit_bill/001 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50560 - "GET /edit_bill/001 HTTP/1.1" 404 Not Found
-INFO:     127.0.0.1:50560 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50560 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:50572 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50572 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:43928 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:43928 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:44800 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:44816 - "GET /tenants HTTP/1.1" 200 OK
-INFO:     127.0.0.1:44822 - "GET /billing HTTP/1.1" 200 OK
-INFO:     127.0.0.1:44824 - "GET /settings HTTP/1.1" 200 OK
-INFO:     127.0.0.1:44836 - "GET /history HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47920 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:47924 - "GET /settings HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46902 - "GET /billing HTTP/1.1" 200 OK
-INFO:     127.0.0.1:46902 - "GET /api/billing/months HTTP/1.1" 200 OK
-INFO:     127.0.0.1:51800 - "GET /tenants HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34508 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34508 - "GET / HTTP/1.1" 200 OK
-INFO:     127.0.0.1:34508 - "GET /settings HTTP/1.1" 200 OK
-INFO:     127.0.0.1:52160 - "POST /api/config HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50006 - "GET /billing HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50006 - "GET /api/billing/months HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50006 - "GET /billing HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50006 - "GET /api/billing/months HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50006 - "GET /tenants HTTP/1.1" 200 OK
-INFO:     127.0.0.1:50014 - "POST /api/tenants HTTP/1.1" 422 Unprocessable Content
-INFO:     127.0.0.1:55316 - "POST /api/tenants HTTP/1.1" 422 Unprocessable Content
-INFO:     127.0.0.1:55316 - "GET /tenants HTTP/1.1" 200 OK
-INFO:     127.0.0.1:55316 - "GET /static/css/style.css HTTP/1.1" 200 OK
-INFO:     127.0.0.1:37322 - "GET /tenants HTTP/1.1" 200 OK
-INFO:     127.0.0.1:37322 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
-INFO:     127.0.0.1:37332 - "POST /api/tenants HTTP/1.1" 422 Unprocessable Content
+INFO:     127.0.0.1:49330 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49330 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:45184 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45184 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:45196 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45196 - "GET /tenants HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45196 - "GET /settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45196 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45196 - "GET /billing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45196 - "GET /api/billing/months HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43278 - "GET /billing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43278 - "GET /api/billing/months HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43278 - "GET /settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36310 - "POST /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36310 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36310 - "GET /billing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36310 - "GET /api/billing/months HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54318 - "POST /api/bill HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54318 - "GET /api/pdf/001 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54318 - "GET /billing HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54318 - "GET /static/css/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54318 - "GET /api/billing/months HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35352 - "GET / HTTP/1.1" 200 OK
 ```
 
 ```python
@@ -1521,7 +1743,7 @@ BACKUP_DIR = "backups"
 HEADERS = [
     "Bill", "Date", "Month", "Tenant", "Previous", "Current", 
     "Units", "Rent", "Additional", "Water", "Electricity", "Total", "PDF",
-    "Tenant_Phone", "Tenant_Company", "Tenant_Address"
+    "Tenant_Phone", "Tenant_Company", "Tenant_Address", "Rate"
 ]
 
 def init_csv():
@@ -2176,8 +2398,16 @@ body {
     bottom: 0;
     left: 0;
     z-index: 100; /* Behind the navbar */
-    padding: 48px 0 0; /* Height of navbar */
+    padding: 20px 0 0; /* Adjusted for no navbar */
     box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+    width: 250px;
+}
+
+@media (min-width: 768px) {
+    main {
+        margin-left: 250px !important;
+        width: calc(100% - 250px) !important;
+    }
 }
 
 @media (max-width: 767.98px) {
@@ -2185,6 +2415,11 @@ body {
         position: relative;
         padding-top: 20px;
         min-height: auto !important;
+        width: 100%;
+    }
+    main {
+        margin-left: 0 !important;
+        width: 100% !important;
     }
 }
 
@@ -2735,7 +2970,8 @@ console.log("Rent Receipt Generator Initialized");
 {% block scripts %}
 <script>
     // Config Chart.js color based on bootstrap theme
-    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const themeAttr = document.documentElement.getAttribute('data-bs-theme');
+    const isDark = themeAttr === 'dark' || (themeAttr === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     const textColor = isDark ? '#adb5bd' : '#495057';
     const gridColor = isDark ? '#343a40' : '#dee2e6';
 
@@ -3582,7 +3818,7 @@ console.log("Rent Receipt Generator Initialized");
                                 </td>
                                 <td class="text-end px-4">
                                     <div class="btn-group gap-1">
-                                        <button class="btn btn-sm btn-outline-primary" onclick="editTenant({{ t | tojson }})"><i class="bi bi-pencil"></i> Edit</button>
+                                        <button class="btn btn-sm btn-outline-primary" onclick='editTenant({{ t.dict() | tojson }})'><i class="bi bi-pencil"></i> Edit</button>
                                         <button class="btn btn-sm btn-outline-danger" onclick="deleteTenant({{ t.id }})"><i class="bi bi-trash"></i> Delete</button>
                                     </div>
                                 </td>
@@ -3609,15 +3845,15 @@ console.log("Rent Receipt Generator Initialized");
         
         const id = document.getElementById("tenant_id").value;
         const tenantData = {
-            Tenant_Name: document.getElementById("name").value,
-            Company: document.getElementById("company").value,
-            Phone: document.getElementById("phone").value,
-            Email: document.getElementById("email").value,
-            Permanent_Address: document.getElementById("address").value,
-            Room_Number: document.getElementById("room_number").value,
-            Occupation: document.getElementById("occupation").value,
-            Status: document.getElementById("status").value,
-            Notes: document.getElementById("notes").value
+            name: document.getElementById("name").value,
+            company: document.getElementById("company").value,
+            phone: document.getElementById("phone").value,
+            email: document.getElementById("email").value,
+            address: document.getElementById("address").value,
+            room_number: document.getElementById("room_number").value,
+            occupation: document.getElementById("occupation").value,
+            status: document.getElementById("status").value,
+            notes: document.getElementById("notes").value
         };
         
         const isEdit = !!id;

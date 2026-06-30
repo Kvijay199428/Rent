@@ -142,7 +142,8 @@
 {% block scripts %}
 <script>
     // Config Chart.js color based on bootstrap theme
-    const isDark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+    const themeAttr = document.documentElement.getAttribute('data-bs-theme');
+    const isDark = themeAttr === 'dark' || (themeAttr === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     const textColor = isDark ? '#adb5bd' : '#495057';
     const gridColor = isDark ? '#343a40' : '#dee2e6';
 

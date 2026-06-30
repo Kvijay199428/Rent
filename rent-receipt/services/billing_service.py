@@ -15,7 +15,7 @@ BACKUP_DIR = "backups"
 HEADERS = [
     "Bill", "Date", "Month", "Tenant", "Previous", "Current", 
     "Units", "Rent", "Additional", "Water", "Electricity", "Total", "PDF",
-    "Tenant_Phone", "Tenant_Company", "Tenant_Address"
+    "Tenant_Phone", "Tenant_Company", "Tenant_Address", "Rate"
 ]
 
 def init_csv():
