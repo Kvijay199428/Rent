@@ -32,6 +32,7 @@ SOURCE_DIR = [
 # Directories to exclude from scanning
 EXCLUDE_DIRS = {
     Path("~/rent/copy.py").expanduser(),
+    Path("~/rent-receipt/server.log").expanduser()
 #    Path(r"D:\VEGA\VEGA_RRG\backend\target"),
 #    Path(r"D:\VEGA\VEGA_RRG\frontend\node_modules"),
     
@@ -40,6 +41,7 @@ EXCLUDE_DIRS = {
 EXCLUDE_FILES = {
     Path("~/rent/copy.py").expanduser(),
     Path("~/rent/rent.md").expanduser(),
+    Path("~/rent-receipt/server.log").expanduser()
 }
 
 OUTPUT_FILE = Path("~/rent/rent.md").expanduser()
