@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h4 class="mb-0">Settings Configuration</h4>
+            </div>
+            <div class="card-body">
+                <form id="settingsForm">
+                    <div class="mb-3">
+                        <label class="form-label">Landlord Name</label>
+                        <input type="text" class="form-control" id="landlord_name" value="{{ config.landlord_name }}">
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">Landlord Phone</label>
+                            <input type="text" class="form-control" id="landlord_phone" value="{{ config.landlord_phone }}">
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Landlord Email</label>
+                            <input type="email" class="form-control" id="landlord_email" value="{{ config.landlord_email }}">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Property Address</label>
+                        <textarea class="form-control" id="property_address" rows="2">{{ config.property_address }}</textarea>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">Monthly Rent (₹)</label>
+                            <input type="number" class="form-control" id="default_rent" value="{{ config.default_rent }}" step="0.01">
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Additional Person Charge (₹)</label>
+                            <input type="number" class="form-control" id="additional_person_charge" value="{{ config.additional_person_charge }}" step="0.01">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">Water Charge (₹)</label>
+                            <input type="number" class="form-control" id="water_charge" value="{{ config.water_charge }}" step="0.01">
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Electricity Rate (₹/unit)</label>
+                            <input type="number" class="form-control" id="electricity_rate" value="{{ config.electricity_rate }}" step="0.01">
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">Current Meter Reading</label>
+                            <input type="number" class="form-control" id="previous_meter_reading" value="{{ config.previous_meter_reading }}" step="0.1">
+                        </div>
+                        <div class="col">
+                            <label class="form-label">Next Bill Number</label>
+                            <input type="number" class="form-control" id="next_bill_number" value="{{ config.next_bill_number }}" step="1">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100" id="saveBtn">Save Settings</button>
+                </form>
+                <div class="alert alert-success mt-3 d-none" id="successAlert">Settings saved successfully!</div>
+                <div class="alert alert-danger mt-3 d-none" id="errorAlert"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById("settingsForm").addEventListener("submit", async function(e) {
+        e.preventDefault();
+        document.getElementById("successAlert").classList.add("d-none");
+        document.getElementById("errorAlert").classList.add("d-none");
+        
+        const data = {
+            landlord_name: document.getElementById("landlord_name").value,
+            landlord_phone: document.getElementById("landlord_phone").value,
+            landlord_email: document.getElementById("landlord_email").value,
+            property_address: document.getElementById("property_address").value,
+            default_rent: parseFloat(document.getElementById("default_rent").value) || 0,
+            additional_person_charge: parseFloat(document.getElementById("additional_person_charge").value) || 0,
+            water_charge: parseFloat(document.getElementById("water_charge").value) || 0,
+            electricity_rate: parseFloat(document.getElementById("electricity_rate").value) || 0,
+            previous_meter_reading: parseFloat(document.getElementById("previous_meter_reading").value) || 0,
+            next_bill_number: parseInt(document.getElementById("next_bill_number").value) || 1
+        };
+        
+        const btn = document.getElementById("saveBtn");
+        btn.disabled = true;
+        btn.innerText = "Saving...";
+        
+        try {
+            const res = await fetch("/api/config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+            
+            if (res.ok) {
+                document.getElementById("successAlert").classList.remove("d-none");
+            } else {
+                document.getElementById("errorAlert").innerText = "Error saving settings.";
+                document.getElementById("errorAlert").classList.remove("d-none");
+            }
+        } catch(err) {
+            document.getElementById("errorAlert").innerText = "Network error occurred.";
+            document.getElementById("errorAlert").classList.remove("d-none");
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Save Settings";
+        }
+    });
+</script>
+{% endblock %}

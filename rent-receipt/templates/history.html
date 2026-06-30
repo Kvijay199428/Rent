@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <h2>Receipt History</h2>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <input type="text" class="form-control" id="searchInput" placeholder="Search by Tenant Name or Month..." onkeyup="filterTable()">
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle" id="historyTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Bill #</th>
+                        <th>Date</th>
+                        <th>Month</th>
+                        <th>Tenant</th>
+                        <th>Total (₹)</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in receipts %}
+                    <tr>
+                        <td>{{ r.Bill }}</td>
+                        <td>{{ r.Date }}</td>
+                        <td>{{ r.Month }}</td>
+                        <td class="tenant-col">{{ r.Tenant }}</td>
+                        <td>{{ r.Total }}</td>
+                        <td>
+                            <a href="/edit_bill/{{ r.Bill }}" class="btn btn-sm btn-outline-secondary me-1">Edit</a>
+                            <a href="/api/pdf/{{ r.Bill }}" target="_blank" class="btn btn-sm btn-outline-primary">Download PDF</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    {% if not receipts %}
+                    <tr>
+                        <td colspan="6" class="text-center">No receipts generated yet.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function filterTable() {
+        const input = document.getElementById("searchInput").value.toLowerCase();
+        const table = document.getElementById("historyTable");
+        const trs = table.getElementsByTagName("tr");
+        
+        for (let i = 1; i < trs.length; i++) {
+            let row = trs[i];
+            // Tenant is col index 3, Month is 2
+            let tdTenant = row.getElementsByTagName("td")[3];
+            let tdMonth = row.getElementsByTagName("td")[2];
+            
+            if (tdTenant && tdMonth) {
+                let txtTenant = tdTenant.textContent || tdTenant.innerText;
+                let txtMonth = tdMonth.textContent || tdMonth.innerText;
+                
+                if (txtTenant.toLowerCase().indexOf(input) > -1 || txtMonth.toLowerCase().indexOf(input) > -1) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            }
+        }
+    }
+</script>
+{% endblock %}

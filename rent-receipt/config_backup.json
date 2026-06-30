@@ -1,0 +1,10 @@
+{
+    "landlord_name": "Vijay Kumar Sharma",
+    "property_address": "1 E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana - 121009",
+    "default_rent": 8000.0,
+    "additional_person_charge": 1000.0,
+    "water_charge": 500.0,
+    "electricity_rate": 15.0,
+    "previous_meter_reading": 0.0,
+    "next_bill_number": 1
+}
