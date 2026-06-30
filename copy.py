@@ -22,7 +22,8 @@ if sys.stdout.encoding.lower() != 'utf-8':
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 SOURCE_DIR = [
-                Path("~/rent").expanduser(),
+                Path("~/rent/rent-receipt").expanduser(),
+                Path("~/rent/RentReceiptGenerator").expanduser(),
 #                Path(r"D:\VEGA\VEGA_RRG\frontend"),
 #                Path(r"D:\VEGA\VEGA_RRG\storage\config\rrg"),
 #                Path(r"D:\VEGA\VEGA_RRG\storage\config"),
