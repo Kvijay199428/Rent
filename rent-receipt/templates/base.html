@@ -1,52 +1,112 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="{% if theme == 'dark' %}dark{% elif theme == 'light' %}light{% else %}auto{% endif %}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Rent Receipt Generator{% endblock %}</title>
+    <title>{% block title %}Rent Receipt System{% endblock %}</title>
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="/static/css/style.css" rel="stylesheet">
+    {% block head %}{% endblock %}
 </head>
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
-    <div class="container">
-        <a class="navbar-brand" href="/">Rent Receipt Generator</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item">
-                    <a class="nav-link" href="/">Dashboard</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/billing">New Bill</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/history">History</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/tenants">Tenants</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/settings">Settings</a>
-                </li>
-            </ul>
-        </div>
-    </div>
-</nav>
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <nav class="col-md-3 col-lg-2 d-md-block bg-body-tertiary sidebar collapse min-vh-100 border-end">
+            <div class="position-sticky pt-3">
+                <div class="px-3 mb-4 text-center">
+                    <h5 class="fw-bold text-primary"><i class="bi bi-receipt-cutoff me-2"></i>RRG Suite</h5>
+                    <hr>
+                </div>
+                <ul class="nav flex-column gap-2 px-2">
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/' %}active{% endif %}" href="/">
+                            <i class="bi bi-house-door me-2"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/billing' %}active{% endif %}" href="/billing">
+                            <i class="bi bi-file-earmark-plus me-2"></i> New Receipt
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/tenants' %}active{% endif %}" href="/tenants">
+                            <i class="bi bi-people me-2"></i> Tenants
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/history' %}active{% endif %}" href="/history">
+                            <i class="bi bi-journal-text me-2"></i> Receipt History
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.url.path == '/settings' %}active{% endif %}" href="/settings">
+                            <i class="bi bi-gear me-2"></i> Settings
+                        </a>
+                    </li>
+                </ul>
+                
+                <!-- Theme Picker in Sidebar -->
+                <div class="position-absolute bottom-0 start-0 w-100 p-3">
+                    <hr>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary w-100 dropdown-toggle d-flex align-items-center justify-content-between" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span>
+                                <i class="bi bi-circle-half me-2"></i> Theme
+                            </span>
+                        </button>
+                        <ul class="dropdown-menu w-100">
+                            <li><button class="dropdown-item d-flex align-items-center" onclick="setTheme('light')"><i class="bi bi-sun-fill me-2"></i> Light</button></li>
+                            <li><button class="dropdown-item d-flex align-items-center" onclick="setTheme('dark')"><i class="bi bi-moon-stars-fill me-2"></i> Dark</button></li>
+                            <li><button class="dropdown-item d-flex align-items-center" onclick="setTheme('system')"><i class="bi bi-laptop me-2"></i> System</button></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </nav>
 
-<div class="container">
-    {% block content %}{% endblock %}
+        <!-- Main Content -->
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
 </div>
 
 <!-- Bootstrap 5 JS -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<!-- Custom JS -->
-<script src="/static/js/main.js"></script>
+<!-- Theme Handler Script -->
+<script>
+    function applySystemTheme() {
+        const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-bs-theme', theme);
+    }
+
+    const currentTheme = "{{ theme }}";
+    if (currentTheme === 'system') {
+        applySystemTheme();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySystemTheme);
+    }
+
+    async function setTheme(themeName) {
+        try {
+            const res = await fetch("/api/ui/theme", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ theme: themeName })
+            });
+            if (res.ok) {
+                window.location.reload();
+            }
+        } catch (e) {
+            console.error("Failed to update theme preference", e);
+        }
+    }
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,93 +1,116 @@
 {% extends "base.html" %}
 
+{% block title %}New Receipt | Rent Receipt System{% endblock %}
+
 {% block content %}
-<div class="row">
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h4 class="mb-0">Billing Details</h4>
+<div class="row justify-content-center">
+    <div class="col-lg-7 col-md-9 col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-primary text-white py-3">
+                <h4 class="mb-0 fw-bold"><i class="bi bi-file-earmark-plus me-2"></i>New Receipt</h4>
             </div>
-            <div class="card-body">
-                <form id="billingForm">
-                    <div class="mb-3">
-                        <label class="form-label">Tenant Name</label>
-                        <select class="form-select" id="tenant" required>
+            <div class="card-body px-4 py-4">
+                <form id="receiptForm">
+                    <!-- Tenant Selection -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Tenant Name</label>
+                        <select class="form-select form-select-lg" id="tenant" required onchange="onTenantChange()">
                             <option value="">Select Tenant...</option>
                             {% for t in tenants %}
-                            <option value="{{ t.name }}">{{ t.name }}</option>
+                            <option value="{{ t.name }}">{{ t.name }} {% if t.room_number %}(Room {{ t.room_number }}){% endif %}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Billing Month</label>
-                        <select class="form-select" id="month" required>
-                            <!-- Populated by JS -->
+
+                    <!-- Billing Month -->
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">Billing Month</label>
+                        <select class="form-select form-select-lg" id="month" required>
+                            <!-- Dynamically loaded from /api/billing/months -->
                         </select>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Additional Persons</label>
-                        <input type="number" class="form-control" id="additional_persons" placeholder="If no additional person, leave this field empty" min="0" oninput="calculatePreview()">
-                        <div class="form-text">No additional person are there leave this field. Enter numbers only.</div>
+
+                    <hr class="my-4 text-muted">
+
+                    <!-- Meter Readings -->
+                    <h5 class="fw-bold mb-3">Electricity Readings</h5>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <label class="form-label">Current Meter Reading</label>
+                            <input type="number" class="form-control form-control-lg" id="current_reading" step="0.1" placeholder="0.0" required oninput="calculateLiveTotal()">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="form-label">Previous Meter Reading</label>
+                            <input type="text" class="form-control form-control-lg bg-body-tertiary" id="prev_reading" value="{{ config.previous_meter_reading }}" readonly>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Current Meter Reading</label>
-                        <input type="number" class="form-control" id="current_reading" step="0.1" required oninput="calculatePreview()">
-                        <div class="form-text">Enter numbers only.</div>
+                    
+                    <div class="mt-3">
+                        <p class="text-muted mb-0">Consumed Units: <strong id="consumed_units_label" class="text-primary">0.0</strong></p>
                     </div>
-                    <button type="submit" class="btn btn-success w-100" id="generateBtn">Generate Receipt</button>
+
+                    <hr class="my-4 text-muted">
+
+                    <!-- Fixed Charges info & Additional Persons -->
+                    <h5 class="fw-bold mb-3">Other Charges</h5>
+                    <div class="row g-3">
+                        <div class="col-sm-4">
+                            <label class="form-label">Monthly Rent (₹)</label>
+                            <input type="text" class="form-control bg-body-tertiary" id="rent_val" value="{{ config.rent }}" readonly>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label">Water Charges (₹)</label>
+                            <input type="text" class="form-control bg-body-tertiary" id="water_val" value="{{ config.water }}" readonly>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label">Additional Persons</label>
+                            <input type="number" class="form-control" id="additional_persons" placeholder="Blank if none" min="0" oninput="calculateLiveTotal()">
+                            <div class="form-text fs-8 text-muted">No additional person? Leave empty.</div>
+                        </div>
+                    </div>
+
+                    <hr class="my-4 text-muted">
+
+                    <!-- Rate Info -->
+                    <div class="bg-body-tertiary p-3 rounded-2 mb-4 d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">Electricity Rate:</span>
+                        <span class="badge bg-warning text-dark fs-6">₹{{ config.electricity_rate }}/unit</span>
+                    </div>
+
+                    <!-- Live Total Details Area -->
+                    <div class="border rounded-3 p-4 bg-light-subtle mb-4">
+                        <h6 class="text-uppercase fw-bold text-muted mb-3 fs-7 tracking-wider">Live Breakdown</h6>
+                        
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Rent:</span>
+                            <span class="fw-bold">₹<span id="live_rent">0.00</span></span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Water:</span>
+                            <span class="fw-bold">₹<span id="live_water">0.00</span></span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Additional:</span>
+                            <span class="fw-bold">₹<span id="live_additional">0.00</span></span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Electricity:</span>
+                            <span class="fw-bold">₹<span id="live_electricity">0.00</span></span>
+                        </div>
+                        <hr>
+                        <div class="d-flex justify-content-between align-items-center mb-0">
+                            <span class="fs-5 fw-bold">TOTAL:</span>
+                            <span class="fs-4 fw-bold text-success">₹<span id="live_total">0.00</span></span>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-success btn-lg w-100 py-3" id="submitBtn">
+                        <i class="bi bi-file-pdf me-2"></i>Generate Receipt
+                    </button>
                 </form>
-                <div class="mt-3 text-center d-none" id="downloadSection">
-                    <a href="#" class="btn btn-outline-primary" id="downloadBtn" target="_blank">Download PDF</a>
-                </div>
-                <div class="alert alert-danger mt-3 d-none" id="errorAlert"></div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-6">
-        <div class="card text-bg-light">
-            <div class="card-header">
-                <h4 class="mb-0">Auto Calculation Preview</h4>
-            </div>
-            <div class="card-body">
-                <table class="table table-borderless">
-                    <tbody>
-                        <tr>
-                            <td>Rent:</td>
-                            <td class="text-end">₹<span id="preview_rent">{{ config.default_rent }}</span></td>
-                        </tr>
-                        <tr>
-                            <td>Additional Person Charge:</td>
-                            <td class="text-end">₹<span id="preview_add_charge">0.00</span></td>
-                        </tr>
-                        <tr>
-                            <td>Water Charge:</td>
-                            <td class="text-end">₹<span id="preview_water">{{ config.water_charge }}</span></td>
-                        </tr>
-                        <tr>
-                            <td colspan="2"><hr></td>
-                        </tr>
-                        <tr>
-                            <td>Previous Reading:</td>
-                            <td class="text-end"><span id="preview_prev_reading">{{ config.previous_meter_reading }}</span></td>
-                        </tr>
-                        <tr>
-                            <td>Consumed Units:</td>
-                            <td class="text-end"><span id="preview_consumed_units">0.00</span></td>
-                        </tr>
-                        <tr>
-                            <td>Electricity Charge (₹{{ config.electricity_rate }}/unit):</td>
-                            <td class="text-end">₹<span id="preview_electricity">0.00</span></td>
-                        </tr>
-                        <tr>
-                            <td colspan="2"><hr></td>
-                        </tr>
-                        <tr class="fw-bold fs-5">
-                            <td>Grand Total:</td>
-                            <td class="text-end text-primary">₹<span id="preview_total">{{ config.default_rent + config.water_charge }}</span></td>
-                        </tr>
-                    </tbody>
-                </table>
+                
+                <div class="alert alert-danger mt-4 d-none" id="errorAlert"></div>
+                <div class="alert alert-success mt-4 d-none" id="successAlert"></div>
             </div>
         </div>
     </div>
@@ -96,75 +119,85 @@
 
 {% block scripts %}
 <script>
-    const rent = {{ config.default_rent }};
-    const water = {{ config.water_charge }};
-    const prevReading = {{ config.previous_meter_reading }};
-    const rate = {{ config.electricity_rate }};
-    const addPersonCharge = {{ config.additional_person_charge }};
+    const defaultRent = {{ config.rent }};
+    const defaultWater = {{ config.water }};
+    const prevMeterVal = {{ config.previous_meter_reading }};
+    const electricityRate = {{ config.electricity_rate }};
+    const additionalPersonCharge = {{ config.additional_person_charge }};
 
     document.addEventListener("DOMContentLoaded", function() {
-        const monthSelect = document.getElementById("month");
-        const months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        const d = new Date();
-        const currentYear = d.getFullYear();
-        const currentMonthIndex = d.getMonth();
-        
-        // Add options for current year
-        months.forEach((m, idx) => {
-            let option = document.createElement("option");
-            option.value = m + " " + currentYear;
-            option.text = m + " " + currentYear;
-            if (idx === currentMonthIndex) option.selected = true;
-            monthSelect.appendChild(option);
-        });
-        
-        // Optional: next year's first few months
-        months.slice(0, 3).forEach((m) => {
-            let option = document.createElement("option");
-            option.value = m + " " + (currentYear + 1);
-            option.text = m + " " + (currentYear + 1);
-            monthSelect.appendChild(option);
-        });
+        loadMonths();
+        calculateLiveTotal();
     });
 
-    function calculatePreview() {
-        const currentReadingStr = document.getElementById("current_reading").value;
-        const addPersonsStr = document.getElementById("additional_persons").value;
-        
-        const currentReading = parseFloat(currentReadingStr) || 0;
-        const addPersons = parseInt(addPersonsStr) || 0;
-        
-        let consumed = Math.max(0, currentReading - prevReading);
-        let electricity = consumed * rate;
-        let addCharge = addPersons * addPersonCharge;
-        
-        let total = rent + addCharge + water + electricity;
-        
-        document.getElementById("preview_add_charge").innerText = addCharge.toFixed(2);
-        document.getElementById("preview_consumed_units").innerText = consumed.toFixed(2);
-        document.getElementById("preview_electricity").innerText = electricity.toFixed(2);
-        document.getElementById("preview_total").innerText = total.toFixed(2);
+    async function loadMonths() {
+        try {
+            const res = await fetch("/api/billing/months");
+            if (res.ok) {
+                const data = await res.json();
+                const select = document.getElementById("month");
+                select.innerHTML = "";
+                
+                data.months.forEach(m => {
+                    let option = document.createElement("option");
+                    option.value = m;
+                    option.text = m;
+                    if (m === data.currentMonth) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            }
+        } catch (e) {
+            console.error("Failed to load month list", e);
+        }
     }
 
-    document.getElementById("billingForm").addEventListener("submit", async function(e) {
+    function onTenantChange() {
+        // Can be extended if custom rent/water is linked to specific tenants
+    }
+
+    function calculateLiveTotal() {
+        const currentVal = parseFloat(document.getElementById("current_reading").value) || 0;
+        const addPersons = parseInt(document.getElementById("additional_persons").value) || 0;
+        
+        let consumed = Math.max(0, currentVal - prevMeterVal);
+        let electricity = consumed * electricityRate;
+        let additional = addPersons * additionalPersonCharge;
+        let total = defaultRent + defaultWater + additional + electricity;
+        
+        // Update Labels
+        document.getElementById("consumed_units_label").innerText = consumed.toFixed(1);
+        document.getElementById("live_rent").innerText = defaultRent.toFixed(2);
+        document.getElementById("live_water").innerText = defaultWater.toFixed(2);
+        document.getElementById("live_additional").innerText = additional.toFixed(2);
+        document.getElementById("live_electricity").innerText = electricity.toFixed(2);
+        document.getElementById("live_total").innerText = total.toFixed(2);
+    }
+
+    document.getElementById("receiptForm").addEventListener("submit", async function(e) {
         e.preventDefault();
-        document.getElementById("errorAlert").classList.add("d-none");
-        document.getElementById("downloadSection").classList.add("d-none");
         
         const tenant = document.getElementById("tenant").value;
         const month = document.getElementById("month").value;
-        const currentReading = parseFloat(document.getElementById("current_reading").value);
+        const currentVal = parseFloat(document.getElementById("current_reading").value);
         const addPersons = parseInt(document.getElementById("additional_persons").value) || 0;
         
-        if (currentReading < prevReading) {
-            document.getElementById("errorAlert").innerText = "Current reading cannot be less than previous reading.";
-            document.getElementById("errorAlert").classList.remove("d-none");
+        const errorAlert = document.getElementById("errorAlert");
+        const successAlert = document.getElementById("successAlert");
+        
+        errorAlert.classList.add("d-none");
+        successAlert.classList.add("d-none");
+        
+        if (currentVal < prevMeterVal) {
+            errorAlert.innerText = `Current meter reading (${currentVal}) cannot be less than the previous reading (${prevMeterVal}).`;
+            errorAlert.classList.remove("d-none");
             return;
         }
         
-        const btn = document.getElementById("generateBtn");
-        btn.disabled = true;
-        btn.innerText = "Generating...";
+        const submitBtn = document.getElementById("submitBtn");
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Generating Receipt...";
         
         try {
             const res = await fetch("/api/bill", {
@@ -173,39 +206,36 @@
                 body: JSON.stringify({
                     tenant: tenant,
                     month: month,
-                    current_reading: currentReading,
+                    current_reading: currentVal,
                     additional_persons: addPersons
                 })
             });
-            const data = await res.json();
+            const result = await res.json();
             
             if (res.ok) {
-                const billNo = data.data.Bill;
-                const pdfLink = `/api/pdf/${billNo}`;
-                const downloadBtn = document.getElementById("downloadBtn");
-                downloadBtn.href = pdfLink;
-                document.getElementById("downloadSection").classList.remove("d-none");
+                successAlert.innerHTML = `Receipt generated successfully! <a href="/api/pdf/${result.data.Bill}" target="_blank" class="alert-link">Download PDF</a>`;
+                successAlert.classList.remove("d-none");
                 
-                // Clear inputs
-                document.getElementById("tenant").value = "";
+                // Reset inputs
                 document.getElementById("current_reading").value = "";
                 document.getElementById("additional_persons").value = "";
                 
-                // Automatically open PDF
-                window.open(pdfLink, "_blank");
+                // Automatically open PDF in a new tab
+                window.open(`/api/pdf/${result.data.Bill}`, "_blank");
                 
-                // Optional: reload page to fetch new config values (like previous meter reading)
+                // Auto reload config details in 1.5s
                 setTimeout(() => window.location.reload(), 1500);
             } else {
-                document.getElementById("errorAlert").innerText = data.detail || "Error generating bill.";
-                document.getElementById("errorAlert").classList.remove("d-none");
+                errorAlert.innerText = result.detail || "Failed to create receipt.";
+                errorAlert.classList.remove("d-none");
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Generate Receipt";
             }
         } catch(err) {
-            document.getElementById("errorAlert").innerText = "Network error occurred.";
-            document.getElementById("errorAlert").classList.remove("d-none");
-        } finally {
-            btn.disabled = false;
-            btn.innerText = "Generate Receipt";
+            errorAlert.innerText = "Connection error occurred.";
+            errorAlert.classList.remove("d-none");
+            submitBtn.disabled = false;
+            submitBtn.innerText = "Generate Receipt";
         }
     });
 </script>
