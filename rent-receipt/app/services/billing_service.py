@@ -246,35 +246,74 @@ def get_bill_details(bill_no):
                 return row
     return None
 
-def update_payment_status(bill_no, payment_status, amount_received=None):
-    if not os.path.exists(RECEIPTS_CSV):
-        raise ValueError("No receipts found")
-        
-    receipts = []
-    found = False
-    
-    with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["Bill"] == bill_no:
-                row["Payment_Status"] = payment_status
-                if payment_status == "PAID":
-                    if amount_received is not None:
-                        row["Amount_Received"] = amount_received
-                    else:
-                        row["Amount_Received"] = float(row.get("Total", 0.0)) + float(row.get("Previous_Arrears", 0.0))
-                else:
-                    row["Amount_Received"] = 0.0
-                found = True
-            receipts.append(row)
-            
-    if not found:
-        raise ValueError("Receipt not found")
-        
-    with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=HEADERS)
-        writer.writeheader()
-        writer.writerows(receipts)
+def resolve_payment_state(current_total, previous_arrears=0.0, amount_received=None):
+    current_total = float(current_total or 0)
+    previous_arrears = float(previous_arrears or 0)
+    grand_total = round(current_total + previous_arrears, 2)
+    received = round(float(amount_received or 0), 2)
+
+    if received <= 0:
+        return {
+            "payment_status": "PENDING",
+            "grand_total": grand_total,
+            "amount_received": 0.0,
+            "balance_due": max(grand_total, 0.0),
+            "advance_amount": max(-grand_total, 0.0) if grand_total < 0 else 0.0
+        }
+
+    if received < grand_total:
+        return {
+            "payment_status": "PARTIAL",
+            "grand_total": grand_total,
+            "amount_received": received,
+            "balance_due": round(grand_total - received, 2),
+            "advance_amount": 0.0
+        }
+
+    if received == grand_total:
+        return {
+            "payment_status": "PAID",
+            "grand_total": grand_total,
+            "amount_received": received,
+            "balance_due": 0.0,
+            "advance_amount": 0.0
+        }
+
+    return {
+        "payment_status": "ADVANCE",
+        "grand_total": grand_total,
+        "amount_received": received,
+        "balance_due": 0.0,
+        "advance_amount": round(received - grand_total, 2)
+    }
+
+def update_payment_status(bill_no, requested_status, amount_received=None):
+    receipts = get_all_receipts()
+    receipt = next((r for r in receipts if r.get("Bill") == bill_no), None)
+    if not receipt:
+        raise ValueError("Bill not found")
+
+    grand_total = round(
+        float(receipt.get("Total", 0) or 0) +
+        float(receipt.get("Previous_Arrears", 0) or 0), 2
+    )
+
+    if requested_status == "PENDING":
+        receipt["Payment_Status"] = "PENDING"
+        receipt["Amount_Received"] = 0.0
+        save_all_receipts(receipts)
+        return receipt
+
+    resolved = resolve_payment_state(
+        current_total=float(receipt.get("Total", 0) or 0),
+        previous_arrears=float(receipt.get("Previous_Arrears", 0) or 0),
+        amount_received=amount_received
+    )
+
+    receipt["Payment_Status"] = resolved["payment_status"]
+    receipt["Amount_Received"] = resolved["amount_received"]
+    save_all_receipts(receipts)
+    return receipt
 
 def get_all_receipts():
     init_csv()
@@ -400,6 +439,14 @@ def create_bill(tenant_name, month, current_reading, additional_persons, tank_wa
     grand_total = charges["total"] + previous_arrears
     if amount_received is None:
         amount_received = grand_total if payment_status == "PAID" else 0.0
+        
+    resolved = resolve_payment_state(
+        current_total=charges["total"],
+        previous_arrears=previous_arrears,
+        amount_received=amount_received
+    )
+    payment_status = resolved["payment_status"]
+    amount_received = resolved["amount_received"]
     
     data_dict = {
         "Bill": bill_no,
@@ -484,6 +531,14 @@ def update_bill(bill_no, tenant_name, month, current_reading, additional_persons
     grand_total = charges["total"] + previous_arrears
     if amount_received is None:
         amount_received = grand_total if payment_status == "PAID" else 0.0
+        
+    resolved = resolve_payment_state(
+        current_total=charges["total"],
+        previous_arrears=previous_arrears,
+        amount_received=amount_received
+    )
+    payment_status = resolved["payment_status"]
+    amount_received = resolved["amount_received"]
     
     updated_dict = {
         "Bill": bill_no,
@@ -625,33 +680,34 @@ def get_dashboard_stats():
         except ValueError:
             pass
             
-        is_paid = r.get("Payment_Status", "PENDING") == "PAID"
-        is_pending = r.get("Payment_Status", "PENDING") == "PENDING"
-        
-        gross_amount = float(r.get("Total", 0.0)) + float(r.get("Previous_Arrears", 0.0))
+        status = r.get("Payment_Status", "PENDING")
+        gross_amount = float(r.get("Total", 0) or 0) + float(r.get("Previous_Arrears", 0) or 0)
+
         raw_recv = r.get("Amount_Received")
-        
-        if raw_recv is not None and raw_recv != "":
-            total_val = float(raw_recv)
-        else:
-            total_val = gross_amount if is_paid else 0.0
-            
-        outstanding = gross_amount - total_val
-        
-        if r.get("Month") == current_month_str and is_paid:
-            monthly_revenue += total_val
-            
-        if r.get("Month") == prev_month_str and is_paid:
-            prev_monthly_revenue += total_val
-            
-        amount_collected += total_val
+        received = float(raw_recv) if raw_recv not in (None, "") else (gross_amount if status == "PAID" else 0.0)
+        outstanding = max(gross_amount - received, 0.0)
+
+        is_paid = status == "PAID"
+        is_partial = status == "PARTIAL"
+        is_due = status in ["PENDING", "PARTIAL"]
+
+        amount_collected += received
+
+        if r.get("Month") == current_month_str:
+            monthly_revenue += received
+
+        if r.get("Month") == prev_month_str:
+            prev_monthly_revenue += received
+
+        if is_due:
+            pending_payments_count += 1
+            if outstanding > 0:
+                pending_amount += outstanding
+
         if is_paid:
             paid_bills_count += 1
             
-        if outstanding > 0:
-            pending_amount += outstanding
-        if is_pending:
-            pending_payments_count += 1
+
             
         if r.get("Month") == current_month_str:
             try:

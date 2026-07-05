@@ -67,7 +67,7 @@
     </div>
 
     <!-- Card 3: Bills Generated -->
-    <div class="col" style="cursor: pointer;" onclick="openDashboardModal('active', 'Active Bills')">
+    <div class="col" style="cursor: pointer;" onclick="openDashboardModal('paid', 'Paid Bills')">
         <div
             class="card h-100 shadow-sm border-0 bg-info bg-gradient text-white card-hover overflow-hidden position-relative">
             <div class="position-absolute end-0 top-0 mt-3 me-3 opacity-25">
@@ -75,17 +75,16 @@
             </div>
             <div class="card-body py-4 z-1">
                 <h6 class="text-white-50 text-uppercase fw-semibold tracking-wider mb-2" style="font-size: 0.75rem;">
-                    Bills Generated</h6>
-                <h3 class="fw-bold mb-1">{{ stats.total_receipts_all }} <span
+                    Paid Bills</h6>
+                <h3 class="fw-bold mb-1">{{ stats.paid_bills_count }} <span
                         class="fs-6 fw-normal text-white-50">Bills</span></h3>
-                <span class="text-white-50 fs-8 d-block mt-1">{{ stats.total_active_receipts }} Active &bull; {{
-                    stats.total_archived_receipts }} Archived</span>
+                <span class="text-white-50 fs-8 d-block mt-1">Paid receipts count</span>
             </div>
         </div>
     </div>
 
-    <!-- Card 4: Pending Payments -->
-    <div class="col" style="cursor: pointer;" onclick="openDashboardModal('pending', 'Pending Payments')">
+    <!-- Card 4: Due Payments -->
+    <div class="col" style="cursor: pointer;" onclick="openDashboardModal('pending', 'Due Payments')">
         <div
             class="card h-100 shadow-sm border-0 bg-danger bg-gradient text-white card-hover overflow-hidden position-relative">
             <div class="position-absolute end-0 top-0 mt-3 me-3 opacity-25">
@@ -93,10 +92,10 @@
             </div>
             <div class="card-body py-4 z-1">
                 <h6 class="text-white-50 text-uppercase fw-semibold tracking-wider mb-2" style="font-size: 0.75rem;">
-                    Pending Payments</h6>
+                    Due Payments</h6>
                 <h3 class="fw-bold mb-1">{{ stats.pending_payments_count }} <span
-                        class="fs-6 fw-normal text-white-50">Pending</span></h3>
-                <span class="text-white-50 fs-8 d-block mt-1">Pending receipts count</span>
+                        class="fs-6 fw-normal text-white-50">Due</span></h3>
+                <span class="text-white-50 fs-8 d-block mt-1">Due receipts count</span>
             </div>
         </div>
     </div>
@@ -260,26 +259,39 @@
                                 <td>{{ b.month }}</td>
                                 <td class="text-dark fw-bold">₹{{ "{:,.2f}".format(b.total|float) }}</td>
                                 <td>
-                                    {% if b.payment_status == 'PAID' %}
-                                    <span class="badge bg-success rounded-pill px-3"><i
-                                            class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                                    {% set grand_total = (b.total|float) + (b.previous_arrears|default(0, true)|float) %}
+                                    {% set amount_received = b.get("amount_received")|default(0, true)|float %}
+                                    {% set balance_due = grand_total - amount_received %}
+                                    {% set advance_amount = 0 - balance_due if balance_due < 0 else 0 %}
+
+                                    {% if b.payment_status == "PAID" %}
+                                        <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                                    {% elif b.payment_status == "PARTIAL" %}
+                                        <span class="badge bg-warning text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
+                                    {% elif b.payment_status == "ADVANCE" %}
+                                        <span class="badge bg-info text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
                                     {% else %}
-                                    <span class="badge bg-danger rounded-pill px-3"><i
-                                            class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
+                                        <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
+                                    {% endif %}
+                                    <div class="small text-muted mt-1">Recv: ₹{{ "{:,.2f}".format(amount_received) }}</div>
+                                    {% if balance_due > 0 %}
+                                    <div class="small text-danger fw-semibold">Rem: ₹{{ "{:,.2f}".format(balance_due) }}</div>
+                                    {% elif balance_due < 0 %}
+                                    <div class="small text-info fw-semibold">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}</div>
                                     {% endif %}
                                 </td>
                                 <td class="text-end pe-4">
                                     <div class="btn-group gap-1">
-                                        {% if b.payment_status == 'PAID' %}
+                                        {% if b.payment_status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
                                         <button
-                                            onclick="togglePaymentStatus('{{ b.bill_no }}', 'PAID', '{{ b.total }}')"
+                                            onclick="togglePaymentStatus('{{ b.bill_no }}', '{{ b.payment_status }}', '{{ grand_total }}', '{{ amount_received }}')"
                                             class="btn btn-sm btn-outline-secondary rounded-pill px-2 shadow-sm"
                                             title="Mark Pending">
                                             <i class="bi bi-arrow-counterclockwise"></i>
                                         </button>
                                         {% else %}
                                         <button
-                                            onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ b.total }}')"
+                                            onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ grand_total }}', '0')"
                                             class="btn btn-sm btn-outline-success rounded-pill px-2 shadow-sm"
                                             title="Mark Paid">
                                             <i class="bi bi-check2"></i> <span class="d-none d-xl-inline">Paid</span>
@@ -339,23 +351,39 @@
                                     <span class="text-dark fw-bold fs-5">₹{{ "{:,.2f}".format(b.total|float) }}</span>
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center mb-1">
+                                    {% set grand_total = (b.total|float) + (b.previous_arrears|default(0, true)|float) %}
+                                    {% set amount_received = b.get("amount_received")|default(0, true)|float %}
+                                    {% set balance_due = grand_total - amount_received %}
+                                    {% set advance_amount = 0 - balance_due if balance_due < 0 else 0 %}
                                     <h6 class="fw-bold text-primary mb-0">{{ b.tenant_name }}</h6>
-                                    {% if b.payment_status == 'PAID' %}
-                                    <span class="badge bg-success rounded-pill"><i
-                                            class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                                    {% if b.payment_status == "PAID" %}
+                                        <span class="badge bg-success rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                                    {% elif b.payment_status == "PARTIAL" %}
+                                        <span class="badge bg-warning text-dark rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
+                                    {% elif b.payment_status == "ADVANCE" %}
+                                        <span class="badge bg-info text-dark rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
                                     {% else %}
-                                    <span class="badge bg-danger rounded-pill"><i
-                                            class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
+                                        <span class="badge bg-danger rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
                                     {% endif %}
                                 </div>
-                                <p class="text-muted fs-7 mb-3"><i class="bi bi-calendar3 me-1"></i> {{ b.month }}</p>
+                                <div class="d-flex justify-content-between mb-3">
+                                    <p class="text-muted fs-7 mb-0"><i class="bi bi-calendar3 me-1"></i> {{ b.month }}</p>
+                                    <div class="text-end">
+                                        <div class="small text-muted" style="font-size: 0.75rem;">Recv: ₹{{ "{:,.2f}".format(amount_received) }}</div>
+                                        {% if balance_due > 0 %}
+                                        <div class="small text-danger fw-semibold" style="font-size: 0.75rem;">Rem: ₹{{ "{:,.2f}".format(balance_due) }}</div>
+                                        {% elif balance_due < 0 %}
+                                        <div class="small text-info fw-semibold" style="font-size: 0.75rem;">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
                                 <div class="d-flex flex-wrap gap-2">
-                                    {% if b.payment_status == 'PAID' %}
-                                    <button onclick="togglePaymentStatus('{{ b.bill_no }}', 'PAID', '{{ b.total }}')"
+                                    {% if b.payment_status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
+                                    <button onclick="togglePaymentStatus('{{ b.bill_no }}', '{{ b.payment_status }}', '{{ grand_total }}', '{{ amount_received }}')"
                                         class="btn btn-sm btn-outline-secondary rounded-pill flex-grow-1 shadow-sm"><i
                                             class="bi bi-arrow-counterclockwise"></i> Undo</button>
                                     {% else %}
-                                    <button onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ b.total }}')"
+                                    <button onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ grand_total }}', '0')"
                                         class="btn btn-sm btn-outline-success rounded-pill flex-grow-1 shadow-sm"><i
                                             class="bi bi-check2"></i> Mark Paid</button>
                                     {% endif %}
@@ -604,22 +632,42 @@
             }
 
             bills.forEach(b => {
-                const badge = b.Payment_Status === 'PAID'
-                    ? `<span class="badge bg-success rounded-pill px-2">Paid</span>`
-                    : `<span class="badge bg-danger rounded-pill px-2">Pending</span>`;
+                let badge = '';
+                if (b.Payment_Status === 'PAID') {
+                    badge = `<span class="badge bg-success rounded-pill px-2">Paid</span>`;
+                } else if (b.Payment_Status === 'PARTIAL') {
+                    badge = `<span class="badge bg-warning text-dark rounded-pill px-2">Partial</span>`;
+                } else if (b.Payment_Status === 'ADVANCE') {
+                    badge = `<span class="badge bg-info text-dark rounded-pill px-2">Advance</span>`;
+                } else {
+                    badge = `<span class="badge bg-danger rounded-pill px-2">Pending</span>`;
+                }
+
+                let grandTotal = parseFloat(b.Total) + (parseFloat(b.Previous_Arrears) || 0);
+                let amountReceived = b.Amount_Received !== undefined && b.Amount_Received !== null ? parseFloat(b.Amount_Received) : (b.Payment_Status === 'PAID' ? grandTotal : 0);
+                let balanceDue = grandTotal - amountReceived;
+                let advanceAmount = balanceDue < 0 ? Math.abs(balanceDue) : 0;
+                
+                let detailsHtml = `<div class="small text-muted mt-1">Recv: ₹${amountReceived.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>`;
+                if (balanceDue > 0) {
+                    detailsHtml += `<div class="small text-danger">Rem: ₹${balanceDue.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>`;
+                } else if (balanceDue < 0) {
+                    detailsHtml += `<div class="small text-info">Adv: ₹${advanceAmount.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>`;
+                }
 
                 tbody.innerHTML += `
                     <tr style="cursor: pointer;" onclick="previewInSplitModal('${b.Bill}', this)" class="split-row transition-hover">
                         <td class="ps-3">
                             <span class="badge bg-secondary mb-1">#${b.Bill}</span><br>
                             ${badge}
+                            ${detailsHtml}
                         </td>
                         <td>
                             <div class="fw-bold fs-7 text-primary text-truncate" style="max-width: 150px;">${b.Tenant}</div>
                             <div class="text-muted fs-8">${b.Month}</div>
                         </td>
                         <td class="text-end pe-3">
-                            <div class="text-success fw-bold fs-7">₹${parseFloat(b.Total).toLocaleString('en-IN')}</div>
+                            <div class="text-success fw-bold fs-7">₹${grandTotal.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>
                             <button class="btn btn-sm btn-light border rounded-pill mt-1" style="font-size: 0.7rem;"><i class="bi bi-eye"></i> View</button>
                         </td>
                     </tr>

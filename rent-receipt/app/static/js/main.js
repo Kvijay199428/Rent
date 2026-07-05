@@ -100,50 +100,83 @@ async function setTheme(themeName) {
 }
 
 // --- Smooth Payment Status Toggle with Arrears Logic ---
-async function togglePaymentStatus(billNo, currentStatus, grandTotal = null) {
-    const newStatus = currentStatus === 'PENDING' ? 'PAID' : 'PENDING';
-    
-    let amountReceived = null;
-    
-    if (newStatus === 'PAID') {
-        const { value: amount } = await Swal.fire({
-            title: 'Payment Received',
-            text: 'Enter the exact amount paid by the tenant:',
-            input: 'number',
-            inputValue: grandTotal !== null ? grandTotal : '',
-            inputPlaceholder: 'e.g. 15000',
-            showCancelButton: true,
-            confirmButtonColor: '#198754',
-            confirmButtonText: 'Mark as Paid',
-            inputValidator: (value) => {
-                if (!value || isNaN(value) || Number(value) < 0) {
-                    return 'Please enter a valid positive amount';
-                }
-            }
-        });
-        
-        if (!amount) return; // User cancelled
-        amountReceived = parseFloat(amount);
+async function togglePaymentStatus(billNo, currentStatus, grandTotal, currentReceived = 0) {
+    if (currentStatus === "PAID" || currentStatus === "PARTIAL" || currentStatus === "ADVANCE") {
+        const reset = await confirmAction("Reset Status?", "Reset this bill to PENDING?", "Yes, Reset");
+        if (!reset.isConfirmed) return;
+
+        try {
+            await fetch(`${window.APP.BASE}/api/bill/${billNo}/payment`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    payment_status: "PENDING",
+                    amount_received: 0
+                })
+            });
+            await updateUI();
+        } catch (e) {
+            showError("Network Error", "Could not reach server");
+        }
+        return;
     }
-    
+
+    const defaultAmount = parseFloat(currentReceived) > 0 ? parseFloat(currentReceived) : parseFloat(grandTotal);
+
+    const { value: input } = await Swal.fire({
+        title: 'Amount Received',
+        text: `Total Bill: ₹${parseFloat(grandTotal).toFixed(2)}`,
+        input: 'number',
+        inputValue: defaultAmount.toFixed(2),
+        showCancelButton: true,
+        confirmButtonText: 'Update',
+        confirmButtonColor: '#198754',
+        didOpen: () => {
+            const swalInput = Swal.getInput();
+            if (swalInput) {
+                swalInput.select();
+            }
+        },
+        inputValidator: (value) => {
+            if (!value && value !== '0') {
+                return 'Please enter an amount!';
+            }
+            if (parseFloat(value) < 0) {
+                return 'Amount cannot be negative!';
+            }
+        }
+    });
+
+    if (input === undefined || input === null) return;
+
+    const amount = parseFloat(input);
+    if (Number.isNaN(amount) || amount < 0) {
+        showError("Invalid Amount", "Please enter a valid non-negative amount.");
+        return;
+    }
+
     try {
-        const response = await fetch(window.APP.API + `/bill/${billNo}/payment`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                payment_status: newStatus,
-                amount_received: amountReceived
+        const res = await fetch(`${window.APP.BASE}/api/bill/${billNo}/payment`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                payment_status: "PAID",
+                amount_received: amount
             })
         });
-        
-        if (response.ok) {
-            showToast('success', `Bill #${billNo} marked as ${newStatus}!`);
-            await updateUI();
-        } else {
-            showError('Error', 'Failed to update payment status');
+
+        const result = await res.json();
+        if (!res.ok) {
+            showError("Payment Update Failed", result.detail || "Could not update payment.");
+            return;
         }
-    } catch (error) {
-        showError('Network Error', 'Could not reach server');
+
+        if (typeof showToast === 'function') {
+            showToast('success', `Bill #${billNo} payment updated!`);
+        }
+        await updateUI();
+    } catch (e) {
+        showError("Network Error", "Could not reach server");
     }
 }
 

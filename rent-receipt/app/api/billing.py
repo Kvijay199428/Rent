@@ -28,11 +28,22 @@ router = APIRouter()
 async def api_filter_bills(status: str = "active"):
     receipts = get_all_receipts()
     if status == "pending":
-        filtered = [r for r in receipts if r.get("Payment_Status", "PENDING") == "PENDING" and r.get("Status") != "ARCHIVED"]
+        filtered = [
+            r for r in receipts
+            if r.get("Payment_Status", "PENDING") in ["PENDING", "PARTIAL"]
+            and r.get("Status") != "ARCHIVED"
+        ]
+    elif status == "paid":
+        filtered = [
+            r for r in receipts
+            if r.get("Payment_Status", "PENDING") == "PAID"
+            and r.get("Status") != "ARCHIVED"
+        ]
     elif status == "active":
         filtered = [r for r in receipts if r.get("Status") != "ARCHIVED"]
     else:
         filtered = receipts
+
     filtered.reverse()
     return filtered
 
@@ -73,6 +84,11 @@ async def api_create_bill(request: BillRequest, background_tasks: BackgroundTask
         )
         background_tasks.add_task(create_full_backup, tag="create_bill")
         return {"status": "success", "data": data}
+    except ValueError as e:
+        msg = str(e)
+        if "already exists" in msg:
+            raise HTTPException(status_code=409, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -109,7 +125,7 @@ async def api_update_bill(bill_no: str, request: BillRequest, background_tasks: 
 @router.post("/api/bill/{bill_no}/payment", name=Names.API_UPDATE_PAYMENT)
 async def api_update_payment(bill_no: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
     try:
-        if data.payment_status not in ["PAID", "PENDING"]:
+        if data.payment_status not in ["PAID", "PENDING", "PARTIAL", "ADVANCE"]:
             raise ValueError("Invalid payment status")
         update_payment_status(bill_no, data.payment_status, data.amount_received)
         background_tasks.add_task(create_full_backup, tag="payment_status")

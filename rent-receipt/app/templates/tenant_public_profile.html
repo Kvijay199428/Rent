@@ -256,25 +256,31 @@
                             {% set curr_total = r.Total|default(0, true)|float %}
                             {% set prev_arr = r.Previous_Arrears|default(0, true)|float %}
                             {% set grand_total = curr_total + prev_arr %}
-                            {% set amount_received = r.Amount_Received|default(grand_total, true)|float %}
+                            {% set amount_received = r.Amount_Received|default(0, true)|float %}
+                            {% set net_balance = grand_total - amount_received %}
+                            {% set advance_amount = 0 - net_balance if net_balance < 0 else 0 %}
                             <div class="receipt-row">
                                 <div>
                                     <div class="fw-bold fs-5">{{ r.Month }}</div>
                                     <div class="text-muted fs-7">Bill #{{ r.Bill }} • Units: {{ r.Units }}</div>
-                                    {% if r.Payment_Status == 'PAID' %}
-                                    <span class="badge bg-success rounded-pill px-2 mt-1">PAID</span>
+                                    {% if r.Payment_Status == "PAID" %}
+                                        <span class="badge bg-success rounded-pill px-2 mt-1">PAID</span>
+                                    {% elif r.Payment_Status == "PARTIAL" %}
+                                        <span class="badge bg-warning text-dark rounded-pill px-2 mt-1">PARTIAL</span>
+                                    {% elif r.Payment_Status == "ADVANCE" %}
+                                        <span class="badge bg-info text-dark rounded-pill px-2 mt-1">ADVANCE</span>
                                     {% else %}
-                                    <span class="badge bg-danger rounded-pill px-2 mt-1">PENDING</span>
+                                        <span class="badge bg-danger rounded-pill px-2 mt-1">PENDING</span>
                                     {% endif %}
                                 </div>
                                 <div class="text-end">
                                     <div class="fs-7 text-muted fw-bold">Total Payable</div>
                                     <div class="fw-bold text-dark mb-1 fs-5">₹{{ "{:,.0f}".format(grand_total) }}</div>
-                                    <div class="text-success fw-semibold fs-7">Paid: ₹{{
-                                        "{:,.0f}".format(amount_received) }}</div>
-                                    {% if grand_total - amount_received > 0 %}
-                                    <div class="text-danger fw-semibold fs-7 mt-1">Due: ₹{{ "{:,.0f}".format(grand_total
-                                        - amount_received) }}</div>
+                                    <div class="text-success fw-semibold fs-7">Paid: ₹{{ "{:,.0f}".format(amount_received) }}</div>
+                                    {% if net_balance > 0 %}
+                                        <div class="text-danger fw-semibold fs-7 mt-1">Due: ₹{{ "{:,.0f}".format(net_balance) }}</div>
+                                    {% elif net_balance < 0 %}
+                                        <div class="text-info fw-semibold fs-7 mt-1">Adv: ₹{{ "{:,.0f}".format(advance_amount) }}</div>
                                     {% endif %}
                                 </div>
                                 <a href="{{ request.url_for(Names.PDF_VIEW, bill_no=r.Bill) }}" target="_blank"

@@ -209,7 +209,7 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
         y -= 15
         c.setFont("NotoSans", 11)
         c.drawString(60, y, "PREVIOUS ARREARS" if prev_arr > 0 else "PREVIOUS ADVANCE")
-        c.drawRightString(width - 60, y, f"     {prev_arr:,.2f}")
+        c.drawRightString(width - 60, y, f"     {abs(prev_arr):,.2f}")
 
     y -= 15
     c.line(40, y, width - 40, y)
@@ -218,6 +218,21 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     c.setFont("NotoSans-Bold", 12)
     c.drawString(60, y, "GRAND TOTAL")
     c.drawRightString(width - 60, y, f"     {grand_total:,.2f}")
+
+    if amt_recv != grand_total:
+        y -= 15
+        c.setFont("NotoSans", 11)
+        c.drawString(60, y, "AMOUNT RECEIVED")
+        c.drawRightString(width - 60, y, f"     {amt_recv:,.2f}")
+        
+        y -= 15
+        c.setFont("NotoSans-Bold", 11)
+        if balance > 0:
+            c.drawString(60, y, "BALANCE DUE")
+            c.drawRightString(width - 60, y, f"     {balance:,.2f}")
+        elif balance < 0:
+            c.drawString(60, y, "ADVANCE AMOUNT")
+            c.drawRightString(width - 60, y, f"     {abs(balance):,.2f}")
 
     y -= 15
     c.line(40, y, width - 40, y)

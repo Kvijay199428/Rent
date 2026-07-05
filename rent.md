@@ -123,11 +123,22 @@ router = APIRouter()
 async def api_filter_bills(status: str = "active"):
     receipts = get_all_receipts()
     if status == "pending":
-        filtered = [r for r in receipts if r.get("Payment_Status", "PENDING") == "PENDING" and r.get("Status") != "ARCHIVED"]
+        filtered = [
+            r for r in receipts
+            if r.get("Payment_Status", "PENDING") in ["PENDING", "PARTIAL"]
+            and r.get("Status") != "ARCHIVED"
+        ]
+    elif status == "paid":
+        filtered = [
+            r for r in receipts
+            if r.get("Payment_Status", "PENDING") == "PAID"
+            and r.get("Status") != "ARCHIVED"
+        ]
     elif status == "active":
         filtered = [r for r in receipts if r.get("Status") != "ARCHIVED"]
     else:
         filtered = receipts
+
     filtered.reverse()
     return filtered
 
@@ -168,6 +179,11 @@ async def api_create_bill(request: BillRequest, background_tasks: BackgroundTask
         )
         background_tasks.add_task(create_full_backup, tag="create_bill")
         return {"status": "success", "data": data}
+    except ValueError as e:
+        msg = str(e)
+        if "already exists" in msg:
+            raise HTTPException(status_code=409, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -204,7 +220,7 @@ async def api_update_bill(bill_no: str, request: BillRequest, background_tasks: 
 @router.post("/api/bill/{bill_no}/payment", name=Names.API_UPDATE_PAYMENT)
 async def api_update_payment(bill_no: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
     try:
-        if data.payment_status not in ["PAID", "PENDING"]:
+        if data.payment_status not in ["PAID", "PENDING", "PARTIAL", "ADVANCE"]:
             raise ValueError("Invalid payment status")
         update_payment_status(bill_no, data.payment_status, data.amount_received)
         background_tasks.add_task(create_full_backup, tag="payment_status")
@@ -1415,6 +1431,22 @@ config = ConfigService()
 ```
 
 ```python
+// File: core\db.py
+import os
+import sqlite3
+from app.core.paths import DBDIR
+
+DB_PATH = os.path.join(DBDIR, "rent.db")
+
+def get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute("PRAGMA journal_mode = WAL;")
+    return conn
+```
+
+```python
 // File: core\dependencies.py
 from fastapi import Request
 from fastapi.templating import Jinja2Templates
@@ -1906,6 +1938,9 @@ class Tenant(BaseModel):
     
     # NEW: Security PIN for Tenant Portal (Default to 1234)
     tenant_pin: str = "1234"
+    
+    # NEW: Current arrears (balance due)
+    arrears: float = 0.0
 ```
 
 ```python
@@ -1915,31 +1950,13 @@ class Tenant(BaseModel):
 
 ```python
 // File: pages\archive.py
-from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
-from app.core.routes import Names
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
-from app.core.route_builder import RouteBuilder
-from app.core.routes import Paths, Names, Prefixes, Templates
-from typing import Optional
-from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
-import os, io, re, json, datetime
-import shutil, logging
-
-from app.services.tenant_service import (
-    load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
-)
-from app.services.billing_service import (
-    get_all_receipts, get_receipt, get_billing_months,
-    calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
-)
-from app.services.backup_service import create_full_backup
+from app.core.routes import Names, Templates
+from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
-
 
 @router.get("/archive", name=Names.ARCHIVE_PAGE, response_class=HTMLResponse)
 async def archive_page(request: Request):
@@ -1958,32 +1975,12 @@ async def archive_page(request: Request):
 
 ```python
 // File: pages\backups.py
-from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
-from app.core.routes import Names
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
-from app.core.route_builder import RouteBuilder
-from app.core.routes import Paths, Names, Prefixes, Templates
-from typing import Optional
-from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
-import os, io, re, json, datetime
-import shutil, logging
-
-from app.services.tenant_service import (
-    load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
-)
-from app.services.billing_service import (
-    get_all_receipts, get_receipt, get_billing_months,
-    calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
-)
-from app.services.backup_service import create_full_backup
-
+from app.core.routes import Names, Templates
 
 router = APIRouter()
-
 
 @router.get("/backups", name=Names.BACKUPS_PAGE, response_class=HTMLResponse)
 async def backups_page(request: Request):
@@ -1994,72 +1991,30 @@ async def backups_page(request: Request):
             "sys": getattr(request.state, "sys", config.get("system", {}))
         }
     )
-
-from app.services.backup_service import get_all_backups, create_backup, delete_backup, restore_backup, verify_backup_integrity
 ```
 
 ```python
 // File: pages\billing.py
-from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
-from app.core.routes import Names
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
-from app.core.route_builder import RouteBuilder
-from app.core.routes import Paths, Names, Prefixes, Templates
-from typing import Optional
-from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
-import os, io, re, json, datetime
-import shutil, logging
-
-from app.services.tenant_service import (
-    load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
-)
-from app.services.billing_service import (
-    get_all_receipts, get_receipt, get_billing_months,
-    calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
-)
-from app.services.backup_service import create_full_backup
+from app.core.routes import Names, Templates
+from app.services.tenant_service import load_tenants
+from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
-
-from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
-from app.core.routes import Names
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
-from app.core.dependencies import templates, config
-from app.core.route_builder import RouteBuilder
-from app.core.routes import Paths, Names, Prefixes, Templates
-from typing import Optional
-from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
-import os, io, re, json, datetime
-import shutil, logging
-
-from app.services.tenant_service import (
-    load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
-)
-from app.services.billing_service import (
-    get_all_receipts, get_receipt, get_billing_months,
-    calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
-)
-from app.services.backup_service import create_full_backup
-
-router = APIRouter()
-
 
 @router.get("/billing", name=Names.BILLING_PAGE, response_class=HTMLResponse)
 async def billing_page(request: Request):
-    billing_conf = config.get("billing", {})
     tenants = [t for t in load_tenants() if t.status == "Active"]
     theme = getattr(request.state, "theme", "system")
     receipts_list = get_all_receipts()
     active_receipts = [r for r in receipts_list if r.get("Status", "ACTIVE") == "ACTIVE"]
+
     return templates.TemplateResponse(
-        request=request, name=Templates.BILLING, context={
+        request=request,
+        name=Templates.BILLING,
+        context={
             "receipts": active_receipts,
             "tenants": tenants,
             "theme": theme,
@@ -2070,39 +2025,22 @@ async def billing_page(request: Request):
 
 ```python
 // File: pages\dashboard.py
-from app.pages import dashboard
-from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
-from app.core.routes import Names
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
-from app.core.route_builder import RouteBuilder
-from app.core.routes import Paths, Names, Prefixes, Templates
-from typing import Optional
-from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
-import os, io, re, json, datetime
-import shutil, logging
-
-from app.services.tenant_service import (
-    load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
-)
-from app.services.billing_service import (
-    get_all_receipts, get_receipt, get_billing_months,
-    calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
-)
-from app.services.backup_service import create_full_backup
+from app.core.routes import Paths, Names, Templates
+from app.services.billing_service import get_dashboard_stats
 
 router = APIRouter()
-
 
 @router.get(Paths.HOME, name=Names.HOME, response_class=HTMLResponse)
 async def dashboard(request: Request):
     stats = get_dashboard_stats()
     theme = getattr(request.state, "theme", "system")
     return templates.TemplateResponse(
-        request=request, name=Templates.DASHBOARD, context={
+        request=request,
+        name=Templates.DASHBOARD,
+        context={
             "stats": stats,
             "theme": theme,
             "sys": getattr(request.state, "sys", config.get("system", {}))
@@ -2157,31 +2095,13 @@ def register_exception_handlers(app: FastAPI):
 
 ```python
 // File: pages\history.py
-from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
-from app.core.routes import Names
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
-from app.core.route_builder import RouteBuilder
-from app.core.routes import Paths, Names, Prefixes, Templates
-from typing import Optional
-from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
-import os, io, re, json, datetime
-import shutil, logging
-
-from app.services.tenant_service import (
-    load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
-)
-from app.services.billing_service import (
-    get_all_receipts, get_receipt, get_billing_months,
-    calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
-)
-from app.services.backup_service import create_full_backup
+from app.core.routes import Names, Templates
+from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
-
 
 @router.get("/history", name=Names.HISTORY_PAGE, response_class=HTMLResponse)
 async def history_page(request: Request):
@@ -2200,31 +2120,33 @@ async def history_page(request: Request):
 
 ```python
 // File: pages\public.py
-from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
-from app.core.routes import Names
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
+from fastapi import APIRouter, Request, HTTPException, Form
+from fastapi.responses import HTMLResponse, FileResponse
 from app.core.dependencies import templates, config
-from app.core.route_builder import RouteBuilder
-from app.core.routes import Paths, Names, Prefixes, Templates
-from typing import Optional
-from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
-import os, io, re, json, datetime
-import shutil, logging
-
-from app.services.tenant_service import (
-    load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
-)
-from app.services.billing_service import (
-    get_all_receipts, get_receipt, get_billing_months,
-    calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
-)
-from app.services.backup_service import create_full_backup
+from app.core.routes import Names, Templates
+from app.services.tenant_service import load_tenants, update_tenant, get_occupants
+from app.services.billing_service import get_all_receipts
+import os
 
 router = APIRouter()
 
+
+def _calc_arrears(tenant, tenant_receipts):
+    tenant.arrears = 0.0
+    active_receipts = [r for r in tenant_receipts if r.get("Status") != "ARCHIVED"]
+    if active_receipts:
+        # Before reverse, active_receipts[-1] is the latest
+        latest = active_receipts[-1]
+        try:
+            grand_total = float(latest.get("Total") or 0.0) + float(latest.get("Previous_Arrears") or 0.0)
+            amount_received_str = latest.get("Amount_Received", "")
+            if amount_received_str in (None, ""):
+                amount_received = grand_total
+            else:
+                amount_received = float(amount_received_str)
+            tenant.arrears = grand_total - amount_received
+        except ValueError:
+            pass
 
 @router.get("/tenant/{tenant_id}", name=Names.TENANT_PROFILE_PAGE, response_class=HTMLResponse)
 async def tenant_profile_page(request: Request, tenant_id: int):
@@ -2240,6 +2162,7 @@ async def tenant_profile_page(request: Request, tenant_id: int):
         
     receipts = get_all_receipts()
     tenant_receipts = [r for r in receipts if r["Tenant"] == tenant.name]
+    _calc_arrears(tenant, tenant_receipts)
     tenant_receipts.reverse()
     
     occupants = get_occupants(tenant.id)
@@ -2325,31 +2248,12 @@ async def public_tenant_profile_post(request: Request, view_token: str, pin: str
 
 ```python
 // File: pages\settings.py
-from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
-from app.core.routes import Names
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
-from app.core.route_builder import RouteBuilder
-from app.core.routes import Paths, Names, Prefixes, Templates
-from typing import Optional
-from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
-import os, io, re, json, datetime
-import shutil, logging
-
-from app.services.tenant_service import (
-    load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
-)
-from app.services.billing_service import (
-    get_all_receipts, get_receipt, get_billing_months,
-    calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
-)
-from app.services.backup_service import create_full_backup
+from app.core.routes import Names, Templates
 
 router = APIRouter()
-
 
 @router.get("/settings", name=Names.SETTINGS_PAGE, response_class=HTMLResponse)
 async def settings_page(request: Request):
@@ -2372,35 +2276,37 @@ async def settings_page(request: Request):
 
 ```python
 // File: pages\tenants.py
-from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
-from app.core.routes import Names
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
-from app.core.route_builder import RouteBuilder
-from app.core.routes import Paths, Names, Prefixes, Templates
-from typing import Optional
-from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
-import os, io, re, json, datetime
-import shutil, logging
-
-from app.services.tenant_service import (
-    load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
-)
-from app.services.billing_service import (
-    get_all_receipts, get_receipt, get_billing_months,
-    calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
-)
-from app.services.backup_service import create_full_backup
+from app.core.routes import Names, Templates
+from app.services.tenant_service import load_tenants
+from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
-
 
 @router.get("/tenants", name=Names.TENANTS_PAGE, response_class=HTMLResponse)
 async def tenants_page(request: Request):
     tenants = load_tenants()
+    receipts = get_all_receipts()
+    
+    for tenant in tenants:
+        active_receipts = [r for r in receipts if r["Tenant"] == tenant.name and r.get("Status") != "ARCHIVED"]
+        if active_receipts:
+            latest = active_receipts[-1]
+            try:
+                grand_total = float(latest.get("Total") or 0.0) + float(latest.get("Previous_Arrears") or 0.0)
+                amount_received_str = latest.get("Amount_Received", "")
+                if amount_received_str in (None, ""):
+                    amount_received = grand_total
+                else:
+                    amount_received = float(amount_received_str)
+                tenant.arrears = grand_total - amount_received
+            except ValueError:
+                tenant.arrears = 0.0
+        else:
+            tenant.arrears = 0.0
+
     theme = getattr(request.state, "theme", "system")
     return templates.TemplateResponse(
         request=request, name=Templates.TENANTS, context={
@@ -3011,35 +2917,74 @@ def get_bill_details(bill_no):
                 return row
     return None
 
-def update_payment_status(bill_no, payment_status, amount_received=None):
-    if not os.path.exists(RECEIPTS_CSV):
-        raise ValueError("No receipts found")
-        
-    receipts = []
-    found = False
-    
-    with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["Bill"] == bill_no:
-                row["Payment_Status"] = payment_status
-                if payment_status == "PAID":
-                    if amount_received is not None:
-                        row["Amount_Received"] = amount_received
-                    else:
-                        row["Amount_Received"] = float(row.get("Total", 0.0)) + float(row.get("Previous_Arrears", 0.0))
-                else:
-                    row["Amount_Received"] = 0.0
-                found = True
-            receipts.append(row)
-            
-    if not found:
-        raise ValueError("Receipt not found")
-        
-    with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=HEADERS)
-        writer.writeheader()
-        writer.writerows(receipts)
+def resolve_payment_state(current_total, previous_arrears=0.0, amount_received=None):
+    current_total = float(current_total or 0)
+    previous_arrears = float(previous_arrears or 0)
+    grand_total = round(current_total + previous_arrears, 2)
+    received = round(float(amount_received or 0), 2)
+
+    if received <= 0:
+        return {
+            "payment_status": "PENDING",
+            "grand_total": grand_total,
+            "amount_received": 0.0,
+            "balance_due": max(grand_total, 0.0),
+            "advance_amount": max(-grand_total, 0.0) if grand_total < 0 else 0.0
+        }
+
+    if received < grand_total:
+        return {
+            "payment_status": "PARTIAL",
+            "grand_total": grand_total,
+            "amount_received": received,
+            "balance_due": round(grand_total - received, 2),
+            "advance_amount": 0.0
+        }
+
+    if received == grand_total:
+        return {
+            "payment_status": "PAID",
+            "grand_total": grand_total,
+            "amount_received": received,
+            "balance_due": 0.0,
+            "advance_amount": 0.0
+        }
+
+    return {
+        "payment_status": "ADVANCE",
+        "grand_total": grand_total,
+        "amount_received": received,
+        "balance_due": 0.0,
+        "advance_amount": round(received - grand_total, 2)
+    }
+
+def update_payment_status(bill_no, requested_status, amount_received=None):
+    receipts = get_all_receipts()
+    receipt = next((r for r in receipts if r.get("Bill") == bill_no), None)
+    if not receipt:
+        raise ValueError("Bill not found")
+
+    grand_total = round(
+        float(receipt.get("Total", 0) or 0) +
+        float(receipt.get("Previous_Arrears", 0) or 0), 2
+    )
+
+    if requested_status == "PENDING":
+        receipt["Payment_Status"] = "PENDING"
+        receipt["Amount_Received"] = 0.0
+        save_all_receipts(receipts)
+        return receipt
+
+    resolved = resolve_payment_state(
+        current_total=float(receipt.get("Total", 0) or 0),
+        previous_arrears=float(receipt.get("Previous_Arrears", 0) or 0),
+        amount_received=amount_received
+    )
+
+    receipt["Payment_Status"] = resolved["payment_status"]
+    receipt["Amount_Received"] = resolved["amount_received"]
+    save_all_receipts(receipts)
+    return receipt
 
 def get_all_receipts():
     init_csv()
@@ -3165,6 +3110,14 @@ def create_bill(tenant_name, month, current_reading, additional_persons, tank_wa
     grand_total = charges["total"] + previous_arrears
     if amount_received is None:
         amount_received = grand_total if payment_status == "PAID" else 0.0
+        
+    resolved = resolve_payment_state(
+        current_total=charges["total"],
+        previous_arrears=previous_arrears,
+        amount_received=amount_received
+    )
+    payment_status = resolved["payment_status"]
+    amount_received = resolved["amount_received"]
     
     data_dict = {
         "Bill": bill_no,
@@ -3249,6 +3202,14 @@ def update_bill(bill_no, tenant_name, month, current_reading, additional_persons
     grand_total = charges["total"] + previous_arrears
     if amount_received is None:
         amount_received = grand_total if payment_status == "PAID" else 0.0
+        
+    resolved = resolve_payment_state(
+        current_total=charges["total"],
+        previous_arrears=previous_arrears,
+        amount_received=amount_received
+    )
+    payment_status = resolved["payment_status"]
+    amount_received = resolved["amount_received"]
     
     updated_dict = {
         "Bill": bill_no,
@@ -3390,33 +3351,34 @@ def get_dashboard_stats():
         except ValueError:
             pass
             
-        is_paid = r.get("Payment_Status", "PENDING") == "PAID"
-        is_pending = r.get("Payment_Status", "PENDING") == "PENDING"
-        
-        gross_amount = float(r.get("Total", 0.0)) + float(r.get("Previous_Arrears", 0.0))
+        status = r.get("Payment_Status", "PENDING")
+        gross_amount = float(r.get("Total", 0) or 0) + float(r.get("Previous_Arrears", 0) or 0)
+
         raw_recv = r.get("Amount_Received")
-        
-        if raw_recv is not None and raw_recv != "":
-            total_val = float(raw_recv)
-        else:
-            total_val = gross_amount if is_paid else 0.0
-            
-        outstanding = gross_amount - total_val
-        
-        if r.get("Month") == current_month_str and is_paid:
-            monthly_revenue += total_val
-            
-        if r.get("Month") == prev_month_str and is_paid:
-            prev_monthly_revenue += total_val
-            
-        amount_collected += total_val
+        received = float(raw_recv) if raw_recv not in (None, "") else (gross_amount if status == "PAID" else 0.0)
+        outstanding = max(gross_amount - received, 0.0)
+
+        is_paid = status == "PAID"
+        is_partial = status == "PARTIAL"
+        is_due = status in ["PENDING", "PARTIAL"]
+
+        amount_collected += received
+
+        if r.get("Month") == current_month_str:
+            monthly_revenue += received
+
+        if r.get("Month") == prev_month_str:
+            prev_monthly_revenue += received
+
+        if is_due:
+            pending_payments_count += 1
+            if outstanding > 0:
+                pending_amount += outstanding
+
         if is_paid:
             paid_bills_count += 1
             
-        if outstanding > 0:
-            pending_amount += outstanding
-        if is_pending:
-            pending_payments_count += 1
+
             
         if r.get("Month") == current_month_str:
             try:
@@ -3705,7 +3667,7 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
         y -= 15
         c.setFont("NotoSans", 11)
         c.drawString(60, y, "PREVIOUS ARREARS" if prev_arr > 0 else "PREVIOUS ADVANCE")
-        c.drawRightString(width - 60, y, f"     {prev_arr:,.2f}")
+        c.drawRightString(width - 60, y, f"     {abs(prev_arr):,.2f}")
 
     y -= 15
     c.line(40, y, width - 40, y)
@@ -3714,6 +3676,21 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     c.setFont("NotoSans-Bold", 12)
     c.drawString(60, y, "GRAND TOTAL")
     c.drawRightString(width - 60, y, f"     {grand_total:,.2f}")
+
+    if amt_recv != grand_total:
+        y -= 15
+        c.setFont("NotoSans", 11)
+        c.drawString(60, y, "AMOUNT RECEIVED")
+        c.drawRightString(width - 60, y, f"     {amt_recv:,.2f}")
+        
+        y -= 15
+        c.setFont("NotoSans-Bold", 11)
+        if balance > 0:
+            c.drawString(60, y, "BALANCE DUE")
+            c.drawRightString(width - 60, y, f"     {balance:,.2f}")
+        elif balance < 0:
+            c.drawString(60, y, "ADVANCE AMOUNT")
+            c.drawRightString(width - 60, y, f"     {abs(balance):,.2f}")
 
     y -= 15
     c.line(40, y, width - 40, y)
@@ -4747,50 +4724,83 @@ async function setTheme(themeName) {
 }
 
 // --- Smooth Payment Status Toggle with Arrears Logic ---
-async function togglePaymentStatus(billNo, currentStatus, grandTotal = null) {
-    const newStatus = currentStatus === 'PENDING' ? 'PAID' : 'PENDING';
-    
-    let amountReceived = null;
-    
-    if (newStatus === 'PAID') {
-        const { value: amount } = await Swal.fire({
-            title: 'Payment Received',
-            text: 'Enter the exact amount paid by the tenant:',
-            input: 'number',
-            inputValue: grandTotal !== null ? grandTotal : '',
-            inputPlaceholder: 'e.g. 15000',
-            showCancelButton: true,
-            confirmButtonColor: '#198754',
-            confirmButtonText: 'Mark as Paid',
-            inputValidator: (value) => {
-                if (!value || isNaN(value) || Number(value) < 0) {
-                    return 'Please enter a valid positive amount';
-                }
-            }
-        });
-        
-        if (!amount) return; // User cancelled
-        amountReceived = parseFloat(amount);
+async function togglePaymentStatus(billNo, currentStatus, grandTotal, currentReceived = 0) {
+    if (currentStatus === "PAID" || currentStatus === "PARTIAL" || currentStatus === "ADVANCE") {
+        const reset = await confirmAction("Reset Status?", "Reset this bill to PENDING?", "Yes, Reset");
+        if (!reset.isConfirmed) return;
+
+        try {
+            await fetch(`${window.APP.BASE}/api/bill/${billNo}/payment`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    payment_status: "PENDING",
+                    amount_received: 0
+                })
+            });
+            await updateUI();
+        } catch (e) {
+            showError("Network Error", "Could not reach server");
+        }
+        return;
     }
-    
+
+    const defaultAmount = parseFloat(currentReceived) > 0 ? parseFloat(currentReceived) : parseFloat(grandTotal);
+
+    const { value: input } = await Swal.fire({
+        title: 'Amount Received',
+        text: `Total Bill: ₹${parseFloat(grandTotal).toFixed(2)}`,
+        input: 'number',
+        inputValue: defaultAmount.toFixed(2),
+        showCancelButton: true,
+        confirmButtonText: 'Update',
+        confirmButtonColor: '#198754',
+        didOpen: () => {
+            const swalInput = Swal.getInput();
+            if (swalInput) {
+                swalInput.select();
+            }
+        },
+        inputValidator: (value) => {
+            if (!value && value !== '0') {
+                return 'Please enter an amount!';
+            }
+            if (parseFloat(value) < 0) {
+                return 'Amount cannot be negative!';
+            }
+        }
+    });
+
+    if (input === undefined || input === null) return;
+
+    const amount = parseFloat(input);
+    if (Number.isNaN(amount) || amount < 0) {
+        showError("Invalid Amount", "Please enter a valid non-negative amount.");
+        return;
+    }
+
     try {
-        const response = await fetch(window.APP.API + `/bill/${billNo}/payment`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                payment_status: newStatus,
-                amount_received: amountReceived
+        const res = await fetch(`${window.APP.BASE}/api/bill/${billNo}/payment`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                payment_status: "PAID",
+                amount_received: amount
             })
         });
-        
-        if (response.ok) {
-            showToast('success', `Bill #${billNo} marked as ${newStatus}!`);
-            await updateUI();
-        } else {
-            showError('Error', 'Failed to update payment status');
+
+        const result = await res.json();
+        if (!res.ok) {
+            showError("Payment Update Failed", result.detail || "Could not update payment.");
+            return;
         }
-    } catch (error) {
-        showError('Network Error', 'Could not reach server');
+
+        if (typeof showToast === 'function') {
+            showToast('success', `Bill #${billNo} payment updated!`);
+        }
+        await updateUI();
+    } catch (e) {
+        showError("Network Error", "Could not reach server");
     }
 }
 
@@ -5463,8 +5473,9 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             {% set curr_total = r.Total|default(0,true)|float %}
             {% set prev_arr = r.Previous_Arrears|default(0,true)|float %}
             {% set grand_total = curr_total + prev_arr %}
-            {% set amt_recv = r.Amount_Received|default(grand_total,true)|float %}
+            {% set amt_recv = r.Amount_Received|default(0, true)|float %}
             {% set balance = grand_total - amt_recv %}
+            {% set advance_amount = 0 - balance if balance < 0 else 0 %}
             
             <div class="d-flex align-items-center mb-3 mb-md-0">
                 <div class="bg-secondary-subtle text-secondary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
@@ -5492,25 +5503,29 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         {% if balance > 0 %}
                         <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}</div>
                         {% elif balance < 0 %}
-                        <div class="text-info fw-semibold fs-7">Advance: ₹{{ "{:,.2f}".format(balance|abs) }}</div>
+                        <div class="text-info fw-semibold fs-7">Advance: ₹{{ "{:,.2f}".format(advance_amount) }}</div>
                         {% endif %}
                     </div>
-                    <div>
-                        {% if r.Payment_Status == 'PAID' %}
-                        <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
-                        {% else %}
-                        <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
-                        {% endif %}
-                    </div>
+                        <div>
+                            {% if r.Payment_Status == "PAID" %}
+                                <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                            {% elif r.Payment_Status == "PARTIAL" %}
+                                <span class="badge bg-warning text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
+                            {% elif r.Payment_Status == "ADVANCE" %}
+                                <span class="badge bg-info text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
+                            {% else %}
+                                <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
+                            {% endif %}
+                        </div>
                 </div>
                 
-                <div class="btn-group shadow-sm rounded-pill">
-                    {% if r.Payment_Status == 'PAID' %}
-                    <button class="btn btn-sm btn-light border" onclick="togglePaymentStatus('{{ r.Bill }}', 'PAID', '{{ grand_total }}')" title="Mark Pending">
+                <div class="btn-group shadow-sm rounded-pill mt-3 mt-md-0">
+                    {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
+                    <button class="btn btn-sm btn-light border" onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')" title="Mark Pending">
                         <i class="bi bi-arrow-counterclockwise text-secondary"></i>
                     </button>
                     {% else %}
-                    <button class="btn btn-sm btn-light border" onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}')" title="Mark Paid">
+                    <button class="btn btn-sm btn-light border" onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')" title="Mark Paid">
                         <i class="bi bi-check2 text-success"></i>
                     </button>
                     {% endif %}
@@ -6268,7 +6283,9 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                 <select class="form-select border-secondary fw-bold" id="edit_payment_status"
                                     onchange="calculateEditLiveTotal()">
                                     <option value="PENDING">Pending</option>
+                                    <option value="PARTIAL">Partial</option>
                                     <option value="PAID">Paid</option>
+                                    <option value="ADVANCE">Advance</option>
                                 </select>
                             </div>
                             <div class="col-sm-4">
@@ -6309,7 +6326,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                                 id="edit_live_current_total">0.00</span></span>
                                     </div>
                                     <div class="col-12 d-flex justify-content-between"><span
-                                            class="text-warning">Previous Arrears:</span> <span
+                                            class="text-warning" id="edit_label_prev_arrears">Previous Arrears:</span> <span
                                             class="fw-bold text-warning">₹<span
                                                 id="edit_live_prev_arrears">0.00</span></span></div>
                                 </div>
@@ -6323,7 +6340,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                     <span class="fs-6 fw-bold">₹<span id="edit_live_amount_received">0.00</span></span>
                                 </div>
                                 <div class="d-flex justify-content-between mt-1 align-items-center">
-                                    <span class="fs-7 text-info fw-bold">Balance Due</span>
+                                    <span class="fs-7 text-info fw-bold" id="edit_label_balance_due">Balance Due</span>
                                     <span class="fs-6 fw-bold text-info">₹<span
                                             id="edit_live_balance_due">0.00</span></span>
                                 </div>
@@ -6455,9 +6472,21 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             if (amountReceivedInput !== "") {
                 amountReceived = parseFloat(amountReceivedInput);
             } else {
-                amountReceived = status === "PAID" ? grandTotal : 0;
+                amountReceived = status === "PAID" ? grandTotal : (status === "PENDING" ? 0 : 0);
             }
             let balanceDue = grandTotal - amountReceived;
+            
+            // Auto-update status based on amount received (if amount was entered)
+            if (amountReceivedInput !== "") {
+                if (amountReceived === 0) status = "PENDING";
+                else if (amountReceived < grandTotal) status = "PARTIAL";
+                else if (amountReceived === grandTotal) status = "PAID";
+                else status = "ADVANCE";
+                document.getElementById('edit_payment_status').value = status;
+            }
+
+            document.getElementById('edit_label_prev_arrears').innerText = previousArrears < 0 ? "Previous Advance:" : "Previous Arrears:";
+            document.getElementById('edit_label_balance_due').innerText = balanceDue < 0 ? "Advance Amount" : "Balance Due";
 
             document.getElementById('edit_consumed_units_label').innerText = consumed.toFixed(1);
             document.getElementById('edit_live_rent').innerText = editState.rent.toFixed(2);
@@ -6468,10 +6497,10 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             document.getElementById('edit_live_electricity').innerText = electricity.toFixed(2);
 
             document.getElementById('edit_live_current_total').innerText = currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            document.getElementById('edit_live_prev_arrears').innerText = previousArrears.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('edit_live_prev_arrears').innerText = Math.abs(previousArrears).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             document.getElementById('edit_live_grand_total').innerText = grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             document.getElementById('edit_live_amount_received').innerText = amountReceived.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            document.getElementById('edit_live_balance_due').innerText = balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('edit_live_balance_due').innerText = Math.abs(balanceDue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         function toggleEditMaintenanceDesc() {
@@ -6599,7 +6628,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         <div class="card shadow-sm border-0">
             <div class="card-header bg-primary bg-gradient text-white py-3 px-4 d-flex align-items-center">
                 <i class="bi bi-file-earmark-plus fs-4 me-3"></i>
-                <h4 class="mb-0 fw-bold tracking-wider">Generate New Receipt</h4>
+                <h4 class="mb-0 fw-bold tracking-wider">Generate New Receipt <span id="bill_no_display" class="badge bg-white text-primary ms-2 fs-6 align-middle d-none"></span></h4>
             </div>
             <div class="card-body px-4 px-md-5 py-4">
                 <form id="receiptForm">
@@ -6777,7 +6806,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                 <span class="fw-bold">₹<span id="live_current_total">0.00</span></span>
                             </div>
                             <div class="d-flex justify-content-between mb-2">
-                                <span class="text-warning fw-bold">Previous Arrears:</span>
+                                <span class="text-warning fw-bold" id="live_prev_arrears_label">Previous Arrears:</span>
                                 <span class="fw-bold text-warning">₹<span id="live_prev_arrears">0.00</span></span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-white"
@@ -6811,6 +6840,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     let electricityRate = 0;
     let additionalPersonCharge = 0;
     let defaultTankWater = 0;
+    let calculatedArrearsVal = 0;
 
     document.addEventListener("DOMContentLoaded", function () {
         loadMonths();
@@ -6848,8 +6878,21 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 document.getElementById("tank_water_val").value = defaultTankWater.toFixed(2);
 
                 let calculatedArrears = 0;
+                let maxSeq = 0;
                 if (recRes.ok) {
                     const receipts = await recRes.json();
+                    
+                    receipts.forEach(r => {
+                        let bStr = r.Bill;
+                        if (bStr) {
+                            let parts = bStr.split('-');
+                            let seq = parts.length > 1 ? parseInt(parts[parts.length - 1]) : parseInt(bStr);
+                            if (!isNaN(seq)) {
+                                maxSeq = Math.max(maxSeq, seq);
+                            }
+                        }
+                    });
+
                     if (receipts.length > 0) {
                         const last = receipts[0];
                         const lastTotal = parseFloat(last.Total) || 0;
@@ -6863,7 +6906,13 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     }
                 }
 
-                document.getElementById("previous_arrears").value = calculatedArrears.toFixed(2);
+                calculatedArrearsVal = calculatedArrears;
+                const nextBillNo = "T" + tenantId + "-" + String(maxSeq + 1).padStart(3, '0');
+                const billDisplay = document.getElementById("bill_no_display");
+                if (billDisplay) {
+                    billDisplay.innerText = "#" + nextBillNo;
+                    billDisplay.classList.remove("d-none");
+                }
 
                 calculateLiveTotal();
             }
@@ -6908,18 +6957,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         let maintenance = parseFloat(document.getElementById("maintenance_val").value) || 0;
         let currentTotal = defaultRent + defaultWater + tankWater + maintenance + additional + electricity;
 
-        let previousArrears = parseFloat(document.getElementById("previous_arrears").value) || 0;
+        let previousArrears = calculatedArrearsVal;
         let grandTotal = currentTotal + previousArrears;
-
-        let amountReceivedInput = document.getElementById("amount_received").value;
-        let status = document.getElementById("payment_status").value;
-        let amountReceived;
-        if (amountReceivedInput !== "") {
-            amountReceived = parseFloat(amountReceivedInput);
-        } else {
-            amountReceived = status === "PAID" ? grandTotal : 0;
-        }
-        let balanceDue = grandTotal - amountReceived;
 
         // Update Labels
         document.getElementById("consumed_units_label").innerText = consumed.toFixed(1);
@@ -6931,10 +6970,9 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         document.getElementById("live_electricity").innerText = electricity.toFixed(2);
 
         document.getElementById("live_current_total").innerText = currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById("live_prev_arrears").innerText = previousArrears.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById("live_prev_arrears_label").innerText = previousArrears < 0 ? "Previous Advance:" : "Previous Arrears:";
+        document.getElementById("live_prev_arrears").innerText = Math.abs(previousArrears).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById("live_grand_total").innerText = grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById("live_amount_received").innerText = amountReceived.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById("live_balance_due").innerText = balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     function toggleMaintenanceDesc() {
@@ -6957,14 +6995,17 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         const month = document.getElementById("month").value;
         const currentVal = parseFloat(document.getElementById("current_reading").value);
         const addPersons = parseInt(document.getElementById("additional_persons").value) || 0;
-        const previousArrears = parseFloat(document.getElementById("previous_arrears").value) || 0;
-        const amountReceivedInput = document.getElementById("amount_received").value;
-        const paymentStatus = document.getElementById("payment_status") ? document.getElementById("payment_status").value : "PENDING";
+        const previousArrears = calculatedArrearsVal;
+        const amountReceivedInput = "";
+        const paymentStatus = "PENDING";
 
         if (currentVal < prevMeterVal) {
             showError("Invalid Meter Reading", `Current reading (${currentVal}) cannot be less than the previous reading (${prevMeterVal}).`);
             return;
         }
+
+        const submitBtn = document.querySelector('#receiptForm button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
 
         showLoadingOverlay("Generating Receipt...");
 
@@ -7023,11 +7064,39 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 });
 
             } else {
-                showError("Generation Failed", result.detail || "Failed to create receipt.");
+                const detail = result.detail || "Failed to create receipt.";
+                const match = detail.match(/Bill\s+#?([A-Z0-9-]+)/i);
+                
+                if (res.status === 409 || detail.includes("already exists")) {
+                    if (match) {
+                        const existingBillNo = match[1];
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Bill already exists',
+                            text: `This month already has a bill (${existingBillNo}).`,
+                            showCancelButton: true,
+                            confirmButtonText: '<i class="bi bi-pencil me-1"></i> Edit Existing Bill',
+                            cancelButtonText: 'Close',
+                            confirmButtonColor: '#ffc107',
+                            cancelButtonColor: '#6c757d'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                if (typeof openEditBillModal === 'function') {
+                                    openEditBillModal(existingBillNo);
+                                }
+                            }
+                        });
+                        return;
+                    }
+                }
+                showError("Generation Failed", detail);
             }
         } catch (err) {
             hideLoadingOverlay();
             showError("Network Error", "A connection error occurred while generating the receipt.");
+        } finally {
+            const submitBtn = document.querySelector('#receiptForm button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = false;
         }
     });
 </script>
@@ -7105,7 +7174,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     </div>
 
     <!-- Card 3: Bills Generated -->
-    <div class="col" style="cursor: pointer;" onclick="openDashboardModal('active', 'Active Bills')">
+    <div class="col" style="cursor: pointer;" onclick="openDashboardModal('paid', 'Paid Bills')">
         <div
             class="card h-100 shadow-sm border-0 bg-info bg-gradient text-white card-hover overflow-hidden position-relative">
             <div class="position-absolute end-0 top-0 mt-3 me-3 opacity-25">
@@ -7113,17 +7182,16 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             </div>
             <div class="card-body py-4 z-1">
                 <h6 class="text-white-50 text-uppercase fw-semibold tracking-wider mb-2" style="font-size: 0.75rem;">
-                    Bills Generated</h6>
-                <h3 class="fw-bold mb-1">{{ stats.total_receipts_all }} <span
+                    Paid Bills</h6>
+                <h3 class="fw-bold mb-1">{{ stats.paid_bills_count }} <span
                         class="fs-6 fw-normal text-white-50">Bills</span></h3>
-                <span class="text-white-50 fs-8 d-block mt-1">{{ stats.total_active_receipts }} Active &bull; {{
-                    stats.total_archived_receipts }} Archived</span>
+                <span class="text-white-50 fs-8 d-block mt-1">Paid receipts count</span>
             </div>
         </div>
     </div>
 
-    <!-- Card 4: Pending Payments -->
-    <div class="col" style="cursor: pointer;" onclick="openDashboardModal('pending', 'Pending Payments')">
+    <!-- Card 4: Due Payments -->
+    <div class="col" style="cursor: pointer;" onclick="openDashboardModal('pending', 'Due Payments')">
         <div
             class="card h-100 shadow-sm border-0 bg-danger bg-gradient text-white card-hover overflow-hidden position-relative">
             <div class="position-absolute end-0 top-0 mt-3 me-3 opacity-25">
@@ -7131,10 +7199,10 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             </div>
             <div class="card-body py-4 z-1">
                 <h6 class="text-white-50 text-uppercase fw-semibold tracking-wider mb-2" style="font-size: 0.75rem;">
-                    Pending Payments</h6>
+                    Due Payments</h6>
                 <h3 class="fw-bold mb-1">{{ stats.pending_payments_count }} <span
-                        class="fs-6 fw-normal text-white-50">Pending</span></h3>
-                <span class="text-white-50 fs-8 d-block mt-1">Pending receipts count</span>
+                        class="fs-6 fw-normal text-white-50">Due</span></h3>
+                <span class="text-white-50 fs-8 d-block mt-1">Due receipts count</span>
             </div>
         </div>
     </div>
@@ -7298,26 +7366,39 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                 <td>{{ b.month }}</td>
                                 <td class="text-dark fw-bold">₹{{ "{:,.2f}".format(b.total|float) }}</td>
                                 <td>
-                                    {% if b.payment_status == 'PAID' %}
-                                    <span class="badge bg-success rounded-pill px-3"><i
-                                            class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                                    {% set grand_total = (b.total|float) + (b.previous_arrears|default(0, true)|float) %}
+                                    {% set amount_received = b.get("amount_received")|default(0, true)|float %}
+                                    {% set balance_due = grand_total - amount_received %}
+                                    {% set advance_amount = 0 - balance_due if balance_due < 0 else 0 %}
+
+                                    {% if b.payment_status == "PAID" %}
+                                        <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                                    {% elif b.payment_status == "PARTIAL" %}
+                                        <span class="badge bg-warning text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
+                                    {% elif b.payment_status == "ADVANCE" %}
+                                        <span class="badge bg-info text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
                                     {% else %}
-                                    <span class="badge bg-danger rounded-pill px-3"><i
-                                            class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
+                                        <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
+                                    {% endif %}
+                                    <div class="small text-muted mt-1">Recv: ₹{{ "{:,.2f}".format(amount_received) }}</div>
+                                    {% if balance_due > 0 %}
+                                    <div class="small text-danger fw-semibold">Rem: ₹{{ "{:,.2f}".format(balance_due) }}</div>
+                                    {% elif balance_due < 0 %}
+                                    <div class="small text-info fw-semibold">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}</div>
                                     {% endif %}
                                 </td>
                                 <td class="text-end pe-4">
                                     <div class="btn-group gap-1">
-                                        {% if b.payment_status == 'PAID' %}
+                                        {% if b.payment_status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
                                         <button
-                                            onclick="togglePaymentStatus('{{ b.bill_no }}', 'PAID', '{{ b.total }}')"
+                                            onclick="togglePaymentStatus('{{ b.bill_no }}', '{{ b.payment_status }}', '{{ grand_total }}', '{{ amount_received }}')"
                                             class="btn btn-sm btn-outline-secondary rounded-pill px-2 shadow-sm"
                                             title="Mark Pending">
                                             <i class="bi bi-arrow-counterclockwise"></i>
                                         </button>
                                         {% else %}
                                         <button
-                                            onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ b.total }}')"
+                                            onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ grand_total }}', '0')"
                                             class="btn btn-sm btn-outline-success rounded-pill px-2 shadow-sm"
                                             title="Mark Paid">
                                             <i class="bi bi-check2"></i> <span class="d-none d-xl-inline">Paid</span>
@@ -7377,23 +7458,39 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                     <span class="text-dark fw-bold fs-5">₹{{ "{:,.2f}".format(b.total|float) }}</span>
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center mb-1">
+                                    {% set grand_total = (b.total|float) + (b.previous_arrears|default(0, true)|float) %}
+                                    {% set amount_received = b.get("amount_received")|default(0, true)|float %}
+                                    {% set balance_due = grand_total - amount_received %}
+                                    {% set advance_amount = 0 - balance_due if balance_due < 0 else 0 %}
                                     <h6 class="fw-bold text-primary mb-0">{{ b.tenant_name }}</h6>
-                                    {% if b.payment_status == 'PAID' %}
-                                    <span class="badge bg-success rounded-pill"><i
-                                            class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                                    {% if b.payment_status == "PAID" %}
+                                        <span class="badge bg-success rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                                    {% elif b.payment_status == "PARTIAL" %}
+                                        <span class="badge bg-warning text-dark rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
+                                    {% elif b.payment_status == "ADVANCE" %}
+                                        <span class="badge bg-info text-dark rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
                                     {% else %}
-                                    <span class="badge bg-danger rounded-pill"><i
-                                            class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
+                                        <span class="badge bg-danger rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
                                     {% endif %}
                                 </div>
-                                <p class="text-muted fs-7 mb-3"><i class="bi bi-calendar3 me-1"></i> {{ b.month }}</p>
+                                <div class="d-flex justify-content-between mb-3">
+                                    <p class="text-muted fs-7 mb-0"><i class="bi bi-calendar3 me-1"></i> {{ b.month }}</p>
+                                    <div class="text-end">
+                                        <div class="small text-muted" style="font-size: 0.75rem;">Recv: ₹{{ "{:,.2f}".format(amount_received) }}</div>
+                                        {% if balance_due > 0 %}
+                                        <div class="small text-danger fw-semibold" style="font-size: 0.75rem;">Rem: ₹{{ "{:,.2f}".format(balance_due) }}</div>
+                                        {% elif balance_due < 0 %}
+                                        <div class="small text-info fw-semibold" style="font-size: 0.75rem;">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
                                 <div class="d-flex flex-wrap gap-2">
-                                    {% if b.payment_status == 'PAID' %}
-                                    <button onclick="togglePaymentStatus('{{ b.bill_no }}', 'PAID', '{{ b.total }}')"
+                                    {% if b.payment_status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
+                                    <button onclick="togglePaymentStatus('{{ b.bill_no }}', '{{ b.payment_status }}', '{{ grand_total }}', '{{ amount_received }}')"
                                         class="btn btn-sm btn-outline-secondary rounded-pill flex-grow-1 shadow-sm"><i
                                             class="bi bi-arrow-counterclockwise"></i> Undo</button>
                                     {% else %}
-                                    <button onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ b.total }}')"
+                                    <button onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ grand_total }}', '0')"
                                         class="btn btn-sm btn-outline-success rounded-pill flex-grow-1 shadow-sm"><i
                                             class="bi bi-check2"></i> Mark Paid</button>
                                     {% endif %}
@@ -7642,22 +7739,42 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             }
 
             bills.forEach(b => {
-                const badge = b.Payment_Status === 'PAID'
-                    ? `<span class="badge bg-success rounded-pill px-2">Paid</span>`
-                    : `<span class="badge bg-danger rounded-pill px-2">Pending</span>`;
+                let badge = '';
+                if (b.Payment_Status === 'PAID') {
+                    badge = `<span class="badge bg-success rounded-pill px-2">Paid</span>`;
+                } else if (b.Payment_Status === 'PARTIAL') {
+                    badge = `<span class="badge bg-warning text-dark rounded-pill px-2">Partial</span>`;
+                } else if (b.Payment_Status === 'ADVANCE') {
+                    badge = `<span class="badge bg-info text-dark rounded-pill px-2">Advance</span>`;
+                } else {
+                    badge = `<span class="badge bg-danger rounded-pill px-2">Pending</span>`;
+                }
+
+                let grandTotal = parseFloat(b.Total) + (parseFloat(b.Previous_Arrears) || 0);
+                let amountReceived = b.Amount_Received !== undefined && b.Amount_Received !== null ? parseFloat(b.Amount_Received) : (b.Payment_Status === 'PAID' ? grandTotal : 0);
+                let balanceDue = grandTotal - amountReceived;
+                let advanceAmount = balanceDue < 0 ? Math.abs(balanceDue) : 0;
+                
+                let detailsHtml = `<div class="small text-muted mt-1">Recv: ₹${amountReceived.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>`;
+                if (balanceDue > 0) {
+                    detailsHtml += `<div class="small text-danger">Rem: ₹${balanceDue.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>`;
+                } else if (balanceDue < 0) {
+                    detailsHtml += `<div class="small text-info">Adv: ₹${advanceAmount.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>`;
+                }
 
                 tbody.innerHTML += `
                     <tr style="cursor: pointer;" onclick="previewInSplitModal('${b.Bill}', this)" class="split-row transition-hover">
                         <td class="ps-3">
                             <span class="badge bg-secondary mb-1">#${b.Bill}</span><br>
                             ${badge}
+                            ${detailsHtml}
                         </td>
                         <td>
                             <div class="fw-bold fs-7 text-primary text-truncate" style="max-width: 150px;">${b.Tenant}</div>
                             <div class="text-muted fs-8">${b.Month}</div>
                         </td>
                         <td class="text-end pe-3">
-                            <div class="text-success fw-bold fs-7">₹${parseFloat(b.Total).toLocaleString('en-IN')}</div>
+                            <div class="text-success fw-bold fs-7">₹${grandTotal.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>
                             <button class="btn btn-sm btn-light border rounded-pill mt-1" style="font-size: 0.7rem;"><i class="bi bi-eye"></i> View</button>
                         </td>
                     </tr>
@@ -7702,7 +7819,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     <h1 class="display-1 fw-bold text-danger">{{ status_code }}</h1>
     <h2 class="mb-4">An error occurred</h2>
     <p class="lead mb-4">{{ detail }}</p>
-    <a href="{{ url_for('home_page') }}" class="btn btn-primary">Return Home</a>
+    <a href="{{ route(request, Names.HOME) }}" class="btn btn-primary">Return Home</a>
 </div>
 {% endblock %}
 ```
@@ -7775,8 +7892,9 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 {% set curr_total = r.Total|default(0,true)|float %}
                 {% set prev_arr = r.Previous_Arrears|default(0,true)|float %}
                 {% set grand_total = curr_total + prev_arr %}
-                {% set amt_recv = r.Amount_Received|default(grand_total,true)|float %}
+                {% set amt_recv = r.Amount_Received|default(0, true)|float %}
                 {% set balance = grand_total - amt_recv %}
+                {% set advance_amount = 0 - balance if balance < 0 else 0 %}
 
                 <div class="d-flex align-items-center mb-3 mb-md-0">
                     <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-3"
@@ -7802,29 +7920,31 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             {% if balance > 0 %}
                             <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}</div>
                             {% elif balance < 0 %}
-                            <div class="text-info fw-semibold fs-7">Advance: ₹{{ "{:,.2f}".format(balance|abs) }}</div>
+                            <div class="text-info fw-semibold fs-7">Advance: ₹{{ "{:,.2f}".format(advance_amount) }}</div>
                             {% endif %}
                         </div>
                         <div>
-                            {% if r.Payment_Status == 'PAID' %}
-                            <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i>
-                                Paid</span>
+                            {% if r.Payment_Status == "PAID" %}
+                                <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                            {% elif r.Payment_Status == "PARTIAL" %}
+                                <span class="badge bg-warning text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
+                            {% elif r.Payment_Status == "ADVANCE" %}
+                                <span class="badge bg-info text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
                             {% else %}
-                            <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i>
-                                Pending</span>
+                                <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
                             {% endif %}
                         </div>
                     </div>
 
                     <div class="btn-group shadow-sm rounded-pill">
-                        {% if r.Payment_Status == 'PAID' %}
+                        {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
                         <button class="btn btn-sm btn-light border"
-                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PAID', '{{ grand_total }}')" title="Mark Pending">
+                            onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')" title="Mark Pending">
                             <i class="bi bi-arrow-counterclockwise text-secondary"></i>
                         </button>
                         {% else %}
                         <button class="btn btn-sm btn-light border"
-                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}')" title="Mark Paid">
+                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')" title="Mark Paid">
                             <i class="bi bi-check2 text-success"></i>
                         </button>
                         {% endif %}
@@ -8800,6 +8920,9 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         <h1 class="h2 mb-0 fw-bold">Tenant Profile</h1>
     </div>
     <div class="d-flex align-items-center gap-2">
+        {% if tenant.arrears > 0 %}
+        <span class="badge bg-danger fs-6 px-3 py-2 rounded-pill shadow-sm me-2">Due: ₹{{ "%.2f"|format(tenant.arrears) }}</span>
+        {% endif %}
         <button onclick="openKycModal()" class="btn btn-info text-white rounded-pill shadow-sm">
             <i class="bi bi-person-vcard me-2"></i>Occupants List
         </button>
@@ -8932,8 +9055,9 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             {% set curr_total = r.Total|default(0,true)|float %}
                             {% set prev_arr = r.Previous_Arrears|default(0,true)|float %}
                             {% set grand_total = curr_total + prev_arr %}
-                            {% set amt_recv = r.Amount_Received|default(grand_total,true)|float %}
+                            {% set amt_recv = r.Amount_Received|default(0, true)|float %}
                             {% set balance = grand_total - amt_recv %}
+                            {% set advance_amount = 0 - balance if balance < 0 else 0 %}
                             <tr>
                                 <td class="ps-4">
                                     <input class="form-check-input bill-checkbox" type="checkbox" value="{{ r.Bill }}">
@@ -8946,17 +9070,25 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                     {% if balance > 0 %}
                                     <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}
                                     </div>
+                                    {% elif balance < 0 %}
+                                    <div class="text-info fw-semibold fs-7">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}
+                                    </div>
                                     {% endif %}
                                     {% if prev_arr > 0 %}
                                     <div class="text-warning-emphasis fs-8">Arr: ₹{{ "{:,.2f}".format(prev_arr) }}</div>
+                                    {% elif prev_arr < 0 %}
+                                    <div class="text-info-emphasis fs-8">Adv: ₹{{ "{:,.2f}".format(prev_arr|abs) }}</div>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if r.Payment_Status == 'PAID' %}
-                                    <span class="badge bg-success rounded-pill px-2"><i class="bi bi-check2"></i>
-                                        Paid</span>
+                                    {% if r.Payment_Status == "PAID" %}
+                                        <span class="badge bg-success rounded-pill px-2"><i class="bi bi-check2"></i> Paid</span>
+                                    {% elif r.Payment_Status == "PARTIAL" %}
+                                        <span class="badge bg-warning text-dark rounded-pill px-2">Partial</span>
+                                    {% elif r.Payment_Status == "ADVANCE" %}
+                                        <span class="badge bg-info text-dark rounded-pill px-2">Advance</span>
                                     {% else %}
-                                    <span class="badge bg-danger rounded-pill px-2">Pending</span>
+                                        <span class="badge bg-danger rounded-pill px-2">Pending</span>
                                     {% endif %}
 
                                     {% if r.Status == 'ARCHIVED' %}
@@ -8966,14 +9098,14 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                 </td>
                                 <td class="text-end pe-4">
                                     <div class="btn-group gap-1 rounded-pill shadow-sm">
-                                        {% if r.Payment_Status == 'PAID' %}
+                                        {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
                                         <button
-                                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PAID', '{{ grand_total }}')"
+                                            onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')"
                                             class="btn btn-sm btn-light border py-1" title="Mark Pending"><i
                                                 class="bi bi-arrow-counterclockwise text-secondary"></i></button>
                                         {% else %}
                                         <button
-                                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}')"
+                                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')"
                                             class="btn btn-sm btn-light border py-1" title="Mark Paid"><i
                                                 class="bi bi-check2 text-success"></i></button>
                                         {% endif %}
@@ -9727,25 +9859,31 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             {% set curr_total = r.Total|default(0, true)|float %}
                             {% set prev_arr = r.Previous_Arrears|default(0, true)|float %}
                             {% set grand_total = curr_total + prev_arr %}
-                            {% set amount_received = r.Amount_Received|default(grand_total, true)|float %}
+                            {% set amount_received = r.Amount_Received|default(0, true)|float %}
+                            {% set net_balance = grand_total - amount_received %}
+                            {% set advance_amount = 0 - net_balance if net_balance < 0 else 0 %}
                             <div class="receipt-row">
                                 <div>
                                     <div class="fw-bold fs-5">{{ r.Month }}</div>
                                     <div class="text-muted fs-7">Bill #{{ r.Bill }} • Units: {{ r.Units }}</div>
-                                    {% if r.Payment_Status == 'PAID' %}
-                                    <span class="badge bg-success rounded-pill px-2 mt-1">PAID</span>
+                                    {% if r.Payment_Status == "PAID" %}
+                                        <span class="badge bg-success rounded-pill px-2 mt-1">PAID</span>
+                                    {% elif r.Payment_Status == "PARTIAL" %}
+                                        <span class="badge bg-warning text-dark rounded-pill px-2 mt-1">PARTIAL</span>
+                                    {% elif r.Payment_Status == "ADVANCE" %}
+                                        <span class="badge bg-info text-dark rounded-pill px-2 mt-1">ADVANCE</span>
                                     {% else %}
-                                    <span class="badge bg-danger rounded-pill px-2 mt-1">PENDING</span>
+                                        <span class="badge bg-danger rounded-pill px-2 mt-1">PENDING</span>
                                     {% endif %}
                                 </div>
                                 <div class="text-end">
                                     <div class="fs-7 text-muted fw-bold">Total Payable</div>
                                     <div class="fw-bold text-dark mb-1 fs-5">₹{{ "{:,.0f}".format(grand_total) }}</div>
-                                    <div class="text-success fw-semibold fs-7">Paid: ₹{{
-                                        "{:,.0f}".format(amount_received) }}</div>
-                                    {% if grand_total - amount_received > 0 %}
-                                    <div class="text-danger fw-semibold fs-7 mt-1">Due: ₹{{ "{:,.0f}".format(grand_total
-                                        - amount_received) }}</div>
+                                    <div class="text-success fw-semibold fs-7">Paid: ₹{{ "{:,.0f}".format(amount_received) }}</div>
+                                    {% if net_balance > 0 %}
+                                        <div class="text-danger fw-semibold fs-7 mt-1">Due: ₹{{ "{:,.0f}".format(net_balance) }}</div>
+                                    {% elif net_balance < 0 %}
+                                        <div class="text-info fw-semibold fs-7 mt-1">Adv: ₹{{ "{:,.0f}".format(advance_amount) }}</div>
                                     {% endif %}
                                 </div>
                                 <a href="{{ request.url_for(Names.PDF_VIEW, bill_no=r.Bill) }}" target="_blank"
@@ -10268,20 +10406,21 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
     <h1 class="h2 mb-0 fw-bold">Tenants Directory</h1>
-    
+
     <div class="d-flex align-items-center gap-3 ms-auto mt-3 mt-md-0">
-        
+
         <button class="btn btn-primary rounded-pill shadow-sm px-4 fw-bold text-nowrap" onclick="openAddTenantModal()">
             <i class="bi bi-person-plus-fill me-2"></i>Add Tenant
         </button>
-        
+
         <div class="input-group shadow-sm" style="max-width: 300px;">
             <span class="input-group-text bg-white border-end-0 rounded-start-pill">
                 <i class="bi bi-search text-muted"></i>
             </span>
-            <input type="text" class="form-control border-start-0 rounded-end-pill" id="tenantSearch" placeholder="Search tenants..." onkeyup="searchTenants()">
+            <input type="text" class="form-control border-start-0 rounded-end-pill" id="tenantSearch"
+                placeholder="Search tenants..." onkeyup="searchTenants()">
         </div>
-        
+
     </div>
 </div>
 
@@ -10305,15 +10444,20 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             <tr class="tenant-row">
                                 <td class="ps-4 py-3">
                                     <div class="d-flex align-items-center">
-                                        <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: bold;">
+                                        <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-3"
+                                            style="width: 40px; height: 40px; font-weight: bold;">
                                             T{{ t.id }}
                                         </div>
                                         <div>
-                                            <a href="{{ APP_BASE(request) }}/tenant/{{ t.id }}" class="fw-bold tenant-name text-decoration-none text-primary">{{ t.name }}</a>
+                                            <a href="{{ APP_BASE(request) }}/tenant/{{ t.id }}"
+                                                class="fw-bold tenant-name text-decoration-none text-primary">{{ t.name
+                                                }}</a>
                                             <div class="mt-1">
-                                                {% if t.room_number %}<small class="text-muted me-2">Room {{ t.room_number }}</small>{% endif %}
+                                                {% if t.room_number %}<small class="text-muted me-2">Room {{
+                                                    t.room_number }}</small>{% endif %}
                                                 {% if t.meter_id %}
-                                                <span class="badge bg-light text-dark border" style="font-size: 0.7rem;">
+                                                <span class="badge bg-light text-dark border"
+                                                    style="font-size: 0.7rem;">
                                                     <i class="bi bi-speedometer2 text-warning me-1"></i>{{ t.meter_id }}
                                                 </span>
                                                 {% endif %}
@@ -10323,52 +10467,69 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                 </td>
                                 <td>
                                     <div class="fs-7 text-muted">
-                                        {% if t.phone %}<div><i class="bi bi-telephone me-1"></i>{{ t.phone }}</div>{% endif %}
+                                        {% if t.phone %}<div><i class="bi bi-telephone me-1"></i>{{ t.phone }}</div>{%
+                                        endif %}
                                         {% if not t.phone %}-{% endif %}
                                     </div>
                                 </td>
                                 <td>
                                     <div class="fs-7">
                                         <div class="fw-bold text-success">₹{{ "{:,.0f}".format(t.rent) }} /mo</div>
-                                        <div class="text-muted"><i class="bi bi-lightning-charge text-warning"></i> {{ t.previous_meter }}</div>
+                                        {% if t.arrears > 0 %}
+                                        <div class="text-danger fw-bold mt-1 fs-8"><i
+                                                class="bi bi-exclamation-circle me-1"></i>Due: ₹{{
+                                            "%.2f"|format(t.arrears) }}</div>
+                                        {% endif %}
+                                        <div class="text-muted mt-1"><i class="bi bi-lightning-charge text-warning"></i>
+                                            {{ t.previous_meter }}</div>
                                     </div>
                                 </td>
                                 <td>
                                     {% if t.status == 'Active' %}
-                                    <span class="badge bg-success bg-gradient rounded-pill px-3 py-1 fw-normal"><i class="bi bi-check-circle me-1"></i>Active</span>
+                                    <span class="badge bg-success bg-gradient rounded-pill px-3 py-1 fw-normal"><i
+                                            class="bi bi-check-circle me-1"></i>Active</span>
                                     {% else %}
-                                    <span class="badge bg-danger bg-gradient rounded-pill px-3 py-1 fw-normal opacity-75">Inactive</span>
+                                    <span
+                                        class="badge bg-danger bg-gradient rounded-pill px-3 py-1 fw-normal opacity-75">Inactive</span>
                                     {% endif %}
                                 </td>
                                 <td class="text-end pe-4">
                                     <div class="btn-group gap-1 shadow-sm rounded-pill">
                                         {% if t.status == 'Active' %}
-                                        <button class="btn btn-sm btn-light border" onclick="toggleTenantStatus({{ t.id }}, 'Inactive')" title="Mark as Inactive">
+                                        <button class="btn btn-sm btn-light border"
+                                            onclick="toggleTenantStatus('{{ t.id }}', 'Inactive')"
+                                            title="Mark as Inactive">
                                             <i class="bi bi-person-fill-slash text-warning"></i>
                                         </button>
                                         {% else %}
-                                        <button class="btn btn-sm btn-light border" onclick="toggleTenantStatus({{ t.id }}, 'Active')" title="Mark as Active">
+                                        <button class="btn btn-sm btn-light border"
+                                            onclick="toggleTenantStatus('{{ t.id }}', 'Active')" title="Mark as Active">
                                             <i class="bi bi-person-fill-check text-success"></i>
                                         </button>
                                         {% endif %}
-                                        
-                                        <a href="{{ APP_BASE(request) }}/tenant/{{ t.id }}" class="btn btn-sm btn-light border" title="View Profile"><i class="bi bi-person-lines-fill text-info"></i></a>
-                                        <button class="btn btn-sm btn-light border" onclick='editTenant({{ t.dict() | tojson | safe }})' title="Edit Tenant">
+
+                                        <a href="{{ APP_BASE(request) }}/tenant/{{ t.id }}"
+                                            class="btn btn-sm btn-light border" title="View Profile"><i
+                                                class="bi bi-person-lines-fill text-info"></i></a>
+                                        <button class="btn btn-sm btn-light border"
+                                            onclick='editTenant("{{ t.dict() | tojson | safe }}")' title="Edit Tenant">
                                             <i class="bi bi-pencil text-primary"></i>
                                         </button>
-                                        <button class="btn btn-sm btn-light border" onclick="deleteTenant({{ t.id }})" title="Deactivate / Delete Tenant">
+                                        <button class="btn btn-sm btn-light border" onclick="deleteTenant('{{ t.id }}')"
+                                            title="Deactivate / Delete Tenant">
                                             <i class="bi bi-trash text-danger"></i>
                                         </button>
                                     </div>
                                 </td>
                             </tr>
                             {% endfor %}
-                            
+
                             <tr id="emptyState" class="{% if tenants %}d-none{% endif %}">
                                 <td colspan="5" class="text-center py-5 text-muted">
                                     <i class="bi bi-people fs-1 d-block mb-3 opacity-50"></i>
                                     <h5>No Tenants Found</h5>
-                                    <p class="fs-7">Register your first tenant by clicking the 'Add Tenant' button above.</p>
+                                    <p class="fs-7">Register your first tenant by clicking the 'Add Tenant' button
+                                        above.</p>
                                 </td>
                             </tr>
                         </tbody>
@@ -10388,14 +10549,15 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            
+
             <div class="modal-body p-4 bg-body-tertiary">
                 <form id="tenantForm">
                     <input type="hidden" id="tenant_id">
-                    
+
                     <div class="card shadow-sm border-0 mb-3">
                         <div class="card-header bg-white border-bottom pt-3 pb-2 px-4">
-                            <h6 class="fw-bold mb-0 text-secondary"><i class="bi bi-info-circle me-2"></i>General Information</h6>
+                            <h6 class="fw-bold mb-0 text-secondary"><i class="bi bi-info-circle me-2"></i>General
+                                Information</h6>
                         </div>
                         <div class="card-body p-4 pt-3">
                             <div class="form-floating mb-3">
@@ -10415,25 +10577,29 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating">
-                                        <input type="email" class="form-control" id="email" placeholder="Email" autocomplete="off">
+                                        <input type="email" class="form-control" id="email" placeholder="Email"
+                                            autocomplete="off">
                                         <label for="email">Email</label>
                                     </div>
                                 </div>
                             </div>
                             <div class="form-floating mb-3">
-                                <textarea class="form-control" id="address" placeholder="Address" style="height: 60px"></textarea>
+                                <textarea class="form-control" id="address" placeholder="Address"
+                                    style="height: 60px"></textarea>
                                 <label for="address">Permanent Address</label>
                             </div>
                             <div class="row g-2 mb-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating">
-                                        <input type="text" class="form-control border-primary" id="room_number" placeholder="Room">
+                                        <input type="text" class="form-control border-primary" id="room_number"
+                                            placeholder="Room">
                                         <label for="room_number" class="text-primary">Room/Unit No.</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating">
-                                        <input type="text" class="form-control border-warning" id="meter_id" placeholder="MTR - F - 01">
+                                        <input type="text" class="form-control border-warning" id="meter_id"
+                                            placeholder="MTR - F - 01">
                                         <label for="meter_id" class="text-warning">Meter ID</label>
                                     </div>
                                 </div>
@@ -10441,7 +10607,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             <div class="row g-2">
                                 <div class="col-sm-6">
                                     <div class="form-floating">
-                                        <input type="text" class="form-control" id="occupation" placeholder="Occupation">
+                                        <input type="text" class="form-control" id="occupation"
+                                            placeholder="Occupation">
                                         <label for="occupation">Occupation</label>
                                     </div>
                                 </div>
@@ -10460,25 +10627,29 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
                     <div class="card shadow-sm border-0 mb-3">
                         <div class="card-header bg-white border-bottom pt-3 pb-2 px-4">
-                            <h6 class="fw-bold mb-0 text-secondary"><i class="bi bi-receipt me-2"></i>Billing Profile</h6>
+                            <h6 class="fw-bold mb-0 text-secondary"><i class="bi bi-receipt me-2"></i>Billing Profile
+                            </h6>
                         </div>
                         <div class="card-body p-4 pt-3">
                             <div class="row g-2 mb-3">
                                 <div class="col-sm-4">
                                     <div class="form-floating">
-                                        <input type="number" class="form-control" id="rent" step="0.1" value="0" required>
+                                        <input type="number" class="form-control" id="rent" step="0.1" value="0"
+                                            required>
                                         <label for="rent">Monthly Rent (₹)</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-4">
                                     <div class="form-floating">
-                                        <input type="number" class="form-control" id="water" step="0.1" value="0" required>
+                                        <input type="number" class="form-control" id="water" step="0.1" value="0"
+                                            required>
                                         <label for="water">Water Charge (₹)</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-4">
                                     <div class="form-floating">
-                                        <input type="number" class="form-control" id="default_tank_water_charge" step="0.1" value="0">
+                                        <input type="number" class="form-control" id="default_tank_water_charge"
+                                            step="0.1" value="0">
                                         <label for="default_tank_water_charge">Tank Water (₹)</label>
                                     </div>
                                 </div>
@@ -10486,45 +10657,53 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             <div class="row g-2 mb-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating">
-                                        <input type="number" class="form-control" id="electricity_rate" step="0.1" value="0" required>
+                                        <input type="number" class="form-control" id="electricity_rate" step="0.1"
+                                            value="0" required>
                                         <label for="electricity_rate">Elec. Rate (₹/unit)</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating">
-                                        <input type="number" class="form-control" id="additional_person_charge" step="0.1" value="0" required>
+                                        <input type="number" class="form-control" id="additional_person_charge"
+                                            step="0.1" value="0" required>
                                         <label for="additional_person_charge">Add. Person (₹)</label>
                                     </div>
                                 </div>
                             </div>
                             <div class="form-floating">
-                                <input type="number" class="form-control bg-warning-subtle" id="previous_meter" step="0.1" value="0" required>
-                                <label for="previous_meter" class="text-warning-emphasis fw-bold">Previous Meter Reading</label>
+                                <input type="number" class="form-control bg-warning-subtle" id="previous_meter"
+                                    step="0.1" value="0" required>
+                                <label for="previous_meter" class="text-warning-emphasis fw-bold">Previous Meter
+                                    Reading</label>
                             </div>
                         </div>
                     </div>
 
                     <div class="card shadow-sm border-0 mb-4">
                         <div class="card-header bg-white border-bottom pt-3 pb-2 px-4">
-                            <h6 class="fw-bold mb-0 text-secondary"><i class="bi bi-shield-lock me-2"></i>Security & Notes</h6>
+                            <h6 class="fw-bold mb-0 text-secondary"><i class="bi bi-shield-lock me-2"></i>Security &
+                                Notes</h6>
                         </div>
                         <div class="card-body p-4 pt-3">
                             <div class="row g-2 mb-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating">
-                                        <input type="number" class="form-control" id="security_deposit" step="0.1" value="0">
+                                        <input type="number" class="form-control" id="security_deposit" step="0.1"
+                                            value="0">
                                         <label for="security_deposit">Security Deposit (₹)</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating">
-                                        <input type="text" class="form-control" id="tenant_pin" maxlength="4" pattern="\d{4}" value="1234">
+                                        <input type="text" class="form-control" id="tenant_pin" maxlength="4"
+                                            pattern="\d{4}" value="1234">
                                         <label for="tenant_pin">Portal PIN (4 digits)</label>
                                     </div>
                                 </div>
                             </div>
                             <div class="form-floating">
-                                <textarea class="form-control" id="notes" placeholder="Notes" style="height: 60px"></textarea>
+                                <textarea class="form-control" id="notes" placeholder="Notes"
+                                    style="height: 60px"></textarea>
                                 <label for="notes">Additional Notes</label>
                             </div>
                         </div>
@@ -10546,7 +10725,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                         </tr>
                                     </thead>
                                     <tbody id="historyTableBody">
-                                        </tbody>
+                                    </tbody>
                                 </table>
                             </div>
                             <div id="historyEmptyState" class="text-center p-4 d-none text-muted fs-7">
@@ -10557,10 +10736,12 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
                 </form>
             </div>
-            
+
             <div class="modal-footer border-top-0 pt-0 bg-body-tertiary">
-                <button type="button" class="btn btn-light rounded-pill px-4 border shadow-sm" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" form="tenantForm" class="btn btn-primary rounded-pill px-5 fw-bold shadow-sm" id="saveBtn">
+                <button type="button" class="btn btn-light rounded-pill px-4 border shadow-sm"
+                    data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="tenantForm" class="btn btn-primary rounded-pill px-5 fw-bold shadow-sm"
+                    id="saveBtn">
                     <i class="bi bi-save me-2"></i>Save Tenant
                 </button>
             </div>
@@ -10604,7 +10785,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
     // Opens the modal for ADDING a new tenant
     function openAddTenantModal() {
-        resetForm(); 
+        resetForm();
         document.getElementById("formTitle").innerHTML = `<i class="bi bi-person-plus me-2" id="formIcon"></i>Add Tenant`;
         document.getElementById("historyCard").classList.add("d-none");
         tenantModalInstance.show();
@@ -10613,9 +10794,9 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     // Opens the modal for EDITING an existing tenant
     async function editTenant(tenant) {
         resetForm(); // clear first
-        
+
         document.getElementById("tenant_id").value = tenant.id;
-        
+
         // General
         document.getElementById("name").value = tenant.name || '';
         document.getElementById("company").value = tenant.company || '';
@@ -10626,7 +10807,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         document.getElementById("meter_id").value = tenant.meter_id || '';
         document.getElementById("occupation").value = tenant.occupation || '';
         document.getElementById("status").value = tenant.status || 'Active';
-        
+
         // Billing
         document.getElementById("rent").value = tenant.rent || 0;
         document.getElementById("water").value = tenant.water || 0;
@@ -10634,24 +10815,24 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         document.getElementById("electricity_rate").value = tenant.electricity_rate || 0;
         document.getElementById("previous_meter").value = tenant.previous_meter || 0;
         document.getElementById("additional_person_charge").value = tenant.additional_person_charge || 0;
-        
+
         // Security
         document.getElementById("security_deposit").value = tenant.security_deposit || 0;
         document.getElementById("tenant_pin").value = tenant.tenant_pin || '1234';
         document.getElementById("notes").value = tenant.notes || '';
-        
+
         document.getElementById("formTitle").innerHTML = `<i class="bi bi-pencil-square me-2" id="formIcon"></i>Edit ${tenant.name}`;
         document.getElementById("historyCard").classList.remove("d-none");
-        
+
         // Fetch Billing History for this specific tenant
         loadBillingHistory(tenant.name);
-        
+
         tenantModalInstance.show();
     }
 
-    document.getElementById("tenantForm").addEventListener("submit", async function(e) {
+    document.getElementById("tenantForm").addEventListener("submit", async function (e) {
         e.preventDefault();
-        
+
         const id = document.getElementById("tenant_id").value;
         const tenantData = {
             name: document.getElementById("name").value,
@@ -10673,15 +10854,15 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             security_deposit: parseFloat(document.getElementById("security_deposit").value) || 0,
             tenant_pin: document.getElementById("tenant_pin").value || "1234"
         };
-        
+
         const isEdit = !!id;
         const url = isEdit ? `api/tenants/${id}` : "api/tenants";
         const method = isEdit ? "PUT" : "POST";
-        
+
         const saveBtn = document.getElementById("saveBtn");
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...';
-        
+
         try {
             const res = await fetch(url, {
                 method: method,
@@ -10702,7 +10883,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             resetSaveBtn(saveBtn);
         }
     });
-    
+
     function resetSaveBtn(btn) {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-save me-2"></i>Save Tenant';
@@ -10720,13 +10901,13 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         const emptyState = document.getElementById('historyEmptyState');
         tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted"><div class="spinner-border spinner-border-sm mt-3 mb-3"></div></td></tr>';
         emptyState.classList.add('d-none');
-        
+
         try {
             const res = await fetch(`api/tenant_receipts/${encodeURIComponent(tenantName)}`);
             if (res.ok) {
                 const receipts = await res.json();
                 tbody.innerHTML = '';
-                
+
                 if (receipts.length === 0) {
                     emptyState.classList.remove('d-none');
                 } else {
@@ -10787,14 +10968,14 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             } else {
                 showError("Failed", `Failed to ${action} tenant.`);
             }
-        } catch(e) {
+        } catch (e) {
             showError("Network Error", "An error occurred.");
         }
     }
 
     async function toggleTenantStatus(id, newStatus) {
         confirmAction(
-            `Mark ${newStatus}?`, 
+            `Mark ${newStatus}?`,
             `Are you sure you want to change this tenant's status to ${newStatus}?`,
             "Yes, Change Status",
             newStatus === 'Active' ? "#198754" : "#ffc107"
@@ -10804,15 +10985,15 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     const getRes = await fetch(`api/tenants/${id}`);
                     if (!getRes.ok) throw new Error("Tenant not found");
                     const tenant = await getRes.json();
-                    
+
                     tenant.status = newStatus;
-                    
+
                     const updateRes = await fetch(`api/tenants/${id}`, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(tenant)
                     });
-                    
+
                     if (updateRes.ok) {
                         showToast("success", `Tenant marked as ${newStatus}!`);
                         await updateUI(); // Smooth refresh

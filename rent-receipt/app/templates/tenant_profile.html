@@ -145,8 +145,9 @@
                             {% set curr_total = r.Total|default(0,true)|float %}
                             {% set prev_arr = r.Previous_Arrears|default(0,true)|float %}
                             {% set grand_total = curr_total + prev_arr %}
-                            {% set amt_recv = r.Amount_Received|default(grand_total,true)|float %}
+                            {% set amt_recv = r.Amount_Received|default(0, true)|float %}
                             {% set balance = grand_total - amt_recv %}
+                            {% set advance_amount = 0 - balance if balance < 0 else 0 %}
                             <tr>
                                 <td class="ps-4">
                                     <input class="form-check-input bill-checkbox" type="checkbox" value="{{ r.Bill }}">
@@ -159,17 +160,25 @@
                                     {% if balance > 0 %}
                                     <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}
                                     </div>
+                                    {% elif balance < 0 %}
+                                    <div class="text-info fw-semibold fs-7">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}
+                                    </div>
                                     {% endif %}
                                     {% if prev_arr > 0 %}
                                     <div class="text-warning-emphasis fs-8">Arr: ₹{{ "{:,.2f}".format(prev_arr) }}</div>
+                                    {% elif prev_arr < 0 %}
+                                    <div class="text-info-emphasis fs-8">Adv: ₹{{ "{:,.2f}".format(prev_arr|abs) }}</div>
                                     {% endif %}
                                 </td>
                                 <td>
-                                    {% if r.Payment_Status == 'PAID' %}
-                                    <span class="badge bg-success rounded-pill px-2"><i class="bi bi-check2"></i>
-                                        Paid</span>
+                                    {% if r.Payment_Status == "PAID" %}
+                                        <span class="badge bg-success rounded-pill px-2"><i class="bi bi-check2"></i> Paid</span>
+                                    {% elif r.Payment_Status == "PARTIAL" %}
+                                        <span class="badge bg-warning text-dark rounded-pill px-2">Partial</span>
+                                    {% elif r.Payment_Status == "ADVANCE" %}
+                                        <span class="badge bg-info text-dark rounded-pill px-2">Advance</span>
                                     {% else %}
-                                    <span class="badge bg-danger rounded-pill px-2">Pending</span>
+                                        <span class="badge bg-danger rounded-pill px-2">Pending</span>
                                     {% endif %}
 
                                     {% if r.Status == 'ARCHIVED' %}
@@ -179,14 +188,14 @@
                                 </td>
                                 <td class="text-end pe-4">
                                     <div class="btn-group gap-1 rounded-pill shadow-sm">
-                                        {% if r.Payment_Status == 'PAID' %}
+                                        {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
                                         <button
-                                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PAID', '{{ grand_total }}')"
+                                            onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')"
                                             class="btn btn-sm btn-light border py-1" title="Mark Pending"><i
                                                 class="bi bi-arrow-counterclockwise text-secondary"></i></button>
                                         {% else %}
                                         <button
-                                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}')"
+                                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')"
                                             class="btn btn-sm btn-light border py-1" title="Mark Paid"><i
                                                 class="bi bi-check2 text-success"></i></button>
                                         {% endif %}

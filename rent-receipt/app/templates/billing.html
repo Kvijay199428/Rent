@@ -8,7 +8,7 @@
         <div class="card shadow-sm border-0">
             <div class="card-header bg-primary bg-gradient text-white py-3 px-4 d-flex align-items-center">
                 <i class="bi bi-file-earmark-plus fs-4 me-3"></i>
-                <h4 class="mb-0 fw-bold tracking-wider">Generate New Receipt</h4>
+                <h4 class="mb-0 fw-bold tracking-wider">Generate New Receipt <span id="bill_no_display" class="badge bg-white text-primary ms-2 fs-6 align-middle d-none"></span></h4>
             </div>
             <div class="card-body px-4 px-md-5 py-4">
                 <form id="receiptForm">
@@ -186,7 +186,7 @@
                                 <span class="fw-bold">₹<span id="live_current_total">0.00</span></span>
                             </div>
                             <div class="d-flex justify-content-between mb-2">
-                                <span class="text-warning fw-bold">Previous Arrears:</span>
+                                <span class="text-warning fw-bold" id="live_prev_arrears_label">Previous Arrears:</span>
                                 <span class="fw-bold text-warning">₹<span id="live_prev_arrears">0.00</span></span>
                             </div>
                             <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-white"
@@ -220,6 +220,7 @@
     let electricityRate = 0;
     let additionalPersonCharge = 0;
     let defaultTankWater = 0;
+    let calculatedArrearsVal = 0;
 
     document.addEventListener("DOMContentLoaded", function () {
         loadMonths();
@@ -257,8 +258,21 @@
                 document.getElementById("tank_water_val").value = defaultTankWater.toFixed(2);
 
                 let calculatedArrears = 0;
+                let maxSeq = 0;
                 if (recRes.ok) {
                     const receipts = await recRes.json();
+                    
+                    receipts.forEach(r => {
+                        let bStr = r.Bill;
+                        if (bStr) {
+                            let parts = bStr.split('-');
+                            let seq = parts.length > 1 ? parseInt(parts[parts.length - 1]) : parseInt(bStr);
+                            if (!isNaN(seq)) {
+                                maxSeq = Math.max(maxSeq, seq);
+                            }
+                        }
+                    });
+
                     if (receipts.length > 0) {
                         const last = receipts[0];
                         const lastTotal = parseFloat(last.Total) || 0;
@@ -272,7 +286,13 @@
                     }
                 }
 
-                document.getElementById("previous_arrears").value = calculatedArrears.toFixed(2);
+                calculatedArrearsVal = calculatedArrears;
+                const nextBillNo = "T" + tenantId + "-" + String(maxSeq + 1).padStart(3, '0');
+                const billDisplay = document.getElementById("bill_no_display");
+                if (billDisplay) {
+                    billDisplay.innerText = "#" + nextBillNo;
+                    billDisplay.classList.remove("d-none");
+                }
 
                 calculateLiveTotal();
             }
@@ -317,18 +337,8 @@
         let maintenance = parseFloat(document.getElementById("maintenance_val").value) || 0;
         let currentTotal = defaultRent + defaultWater + tankWater + maintenance + additional + electricity;
 
-        let previousArrears = parseFloat(document.getElementById("previous_arrears").value) || 0;
+        let previousArrears = calculatedArrearsVal;
         let grandTotal = currentTotal + previousArrears;
-
-        let amountReceivedInput = document.getElementById("amount_received").value;
-        let status = document.getElementById("payment_status").value;
-        let amountReceived;
-        if (amountReceivedInput !== "") {
-            amountReceived = parseFloat(amountReceivedInput);
-        } else {
-            amountReceived = status === "PAID" ? grandTotal : 0;
-        }
-        let balanceDue = grandTotal - amountReceived;
 
         // Update Labels
         document.getElementById("consumed_units_label").innerText = consumed.toFixed(1);
@@ -340,10 +350,9 @@
         document.getElementById("live_electricity").innerText = electricity.toFixed(2);
 
         document.getElementById("live_current_total").innerText = currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById("live_prev_arrears").innerText = previousArrears.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById("live_prev_arrears_label").innerText = previousArrears < 0 ? "Previous Advance:" : "Previous Arrears:";
+        document.getElementById("live_prev_arrears").innerText = Math.abs(previousArrears).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         document.getElementById("live_grand_total").innerText = grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById("live_amount_received").innerText = amountReceived.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        document.getElementById("live_balance_due").innerText = balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     function toggleMaintenanceDesc() {
@@ -366,14 +375,17 @@
         const month = document.getElementById("month").value;
         const currentVal = parseFloat(document.getElementById("current_reading").value);
         const addPersons = parseInt(document.getElementById("additional_persons").value) || 0;
-        const previousArrears = parseFloat(document.getElementById("previous_arrears").value) || 0;
-        const amountReceivedInput = document.getElementById("amount_received").value;
-        const paymentStatus = document.getElementById("payment_status") ? document.getElementById("payment_status").value : "PENDING";
+        const previousArrears = calculatedArrearsVal;
+        const amountReceivedInput = "";
+        const paymentStatus = "PENDING";
 
         if (currentVal < prevMeterVal) {
             showError("Invalid Meter Reading", `Current reading (${currentVal}) cannot be less than the previous reading (${prevMeterVal}).`);
             return;
         }
+
+        const submitBtn = document.querySelector('#receiptForm button[type="submit"]');
+        if (submitBtn) submitBtn.disabled = true;
 
         showLoadingOverlay("Generating Receipt...");
 
@@ -432,11 +444,39 @@
                 });
 
             } else {
-                showError("Generation Failed", result.detail || "Failed to create receipt.");
+                const detail = result.detail || "Failed to create receipt.";
+                const match = detail.match(/Bill\s+#?([A-Z0-9-]+)/i);
+                
+                if (res.status === 409 || detail.includes("already exists")) {
+                    if (match) {
+                        const existingBillNo = match[1];
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Bill already exists',
+                            text: `This month already has a bill (${existingBillNo}).`,
+                            showCancelButton: true,
+                            confirmButtonText: '<i class="bi bi-pencil me-1"></i> Edit Existing Bill',
+                            cancelButtonText: 'Close',
+                            confirmButtonColor: '#ffc107',
+                            cancelButtonColor: '#6c757d'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                if (typeof openEditBillModal === 'function') {
+                                    openEditBillModal(existingBillNo);
+                                }
+                            }
+                        });
+                        return;
+                    }
+                }
+                showError("Generation Failed", detail);
             }
         } catch (err) {
             hideLoadingOverlay();
             showError("Network Error", "A connection error occurred while generating the receipt.");
+        } finally {
+            const submitBtn = document.querySelector('#receiptForm button[type="submit"]');
+            if (submitBtn) submitBtn.disabled = false;
         }
     });
 </script>

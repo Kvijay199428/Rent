@@ -268,7 +268,9 @@
                                 <select class="form-select border-secondary fw-bold" id="edit_payment_status"
                                     onchange="calculateEditLiveTotal()">
                                     <option value="PENDING">Pending</option>
+                                    <option value="PARTIAL">Partial</option>
                                     <option value="PAID">Paid</option>
+                                    <option value="ADVANCE">Advance</option>
                                 </select>
                             </div>
                             <div class="col-sm-4">
@@ -309,7 +311,7 @@
                                                 id="edit_live_current_total">0.00</span></span>
                                     </div>
                                     <div class="col-12 d-flex justify-content-between"><span
-                                            class="text-warning">Previous Arrears:</span> <span
+                                            class="text-warning" id="edit_label_prev_arrears">Previous Arrears:</span> <span
                                             class="fw-bold text-warning">₹<span
                                                 id="edit_live_prev_arrears">0.00</span></span></div>
                                 </div>
@@ -323,7 +325,7 @@
                                     <span class="fs-6 fw-bold">₹<span id="edit_live_amount_received">0.00</span></span>
                                 </div>
                                 <div class="d-flex justify-content-between mt-1 align-items-center">
-                                    <span class="fs-7 text-info fw-bold">Balance Due</span>
+                                    <span class="fs-7 text-info fw-bold" id="edit_label_balance_due">Balance Due</span>
                                     <span class="fs-6 fw-bold text-info">₹<span
                                             id="edit_live_balance_due">0.00</span></span>
                                 </div>
@@ -455,9 +457,21 @@
             if (amountReceivedInput !== "") {
                 amountReceived = parseFloat(amountReceivedInput);
             } else {
-                amountReceived = status === "PAID" ? grandTotal : 0;
+                amountReceived = status === "PAID" ? grandTotal : (status === "PENDING" ? 0 : 0);
             }
             let balanceDue = grandTotal - amountReceived;
+            
+            // Auto-update status based on amount received (if amount was entered)
+            if (amountReceivedInput !== "") {
+                if (amountReceived === 0) status = "PENDING";
+                else if (amountReceived < grandTotal) status = "PARTIAL";
+                else if (amountReceived === grandTotal) status = "PAID";
+                else status = "ADVANCE";
+                document.getElementById('edit_payment_status').value = status;
+            }
+
+            document.getElementById('edit_label_prev_arrears').innerText = previousArrears < 0 ? "Previous Advance:" : "Previous Arrears:";
+            document.getElementById('edit_label_balance_due').innerText = balanceDue < 0 ? "Advance Amount" : "Balance Due";
 
             document.getElementById('edit_consumed_units_label').innerText = consumed.toFixed(1);
             document.getElementById('edit_live_rent').innerText = editState.rent.toFixed(2);
@@ -468,10 +482,10 @@
             document.getElementById('edit_live_electricity').innerText = electricity.toFixed(2);
 
             document.getElementById('edit_live_current_total').innerText = currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            document.getElementById('edit_live_prev_arrears').innerText = previousArrears.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('edit_live_prev_arrears').innerText = Math.abs(previousArrears).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             document.getElementById('edit_live_grand_total').innerText = grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             document.getElementById('edit_live_amount_received').innerText = amountReceived.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            document.getElementById('edit_live_balance_due').innerText = balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('edit_live_balance_due').innerText = Math.abs(balanceDue).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         function toggleEditMaintenanceDesc() {
