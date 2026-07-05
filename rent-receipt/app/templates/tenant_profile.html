@@ -1,0 +1,680 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tenant.name }} | Tenant Profile{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
+    <div class="d-flex align-items-center">
+        <a href="{{ APP_BASE(request) }}/tenants" class="btn btn-sm btn-outline-secondary rounded-pill me-3"><i class="bi bi-arrow-left"></i>
+            Back</a>
+        <h1 class="h2 mb-0 fw-bold">Tenant Profile</h1>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        {% if tenant.arrears > 0 %}
+        <span class="badge bg-danger fs-6 px-3 py-2 rounded-pill shadow-sm me-2">Due: ₹{{ "%.2f"|format(tenant.arrears) }}</span>
+        {% endif %}
+        <button onclick="openKycModal()" class="btn btn-info text-white rounded-pill shadow-sm">
+            <i class="bi bi-person-vcard me-2"></i>Occupants List
+        </button>
+        
+        <button onclick="showQRCode('{{ tenant.view_token }}')" class="btn btn-dark rounded-pill shadow-sm">
+            <i class="bi bi-qr-code-scan me-2"></i>Tenant QR
+        </button>
+
+        <button
+            onclick="window.open(window.APP_BASE + '/t/{{ tenant.view_token }}', '_blank')"
+            class="btn btn-primary rounded-pill shadow-sm">
+            <i class="bi bi-box-arrow-up-right me-2"></i>Tenant Portal
+        </button>
+
+        <span class="badge bg-primary fs-5 px-3 py-2 rounded-pill shadow-sm">ID: T{{ tenant.id }}</span>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-4 col-lg-5">
+        <div class="card shadow-sm border-0 mb-4 rounded-4 position-relative overflow-hidden">
+            <div class="bg-primary bg-gradient position-absolute top-0 w-100" style="height: 100px;"></div>
+            <div class="card-body px-4 pt-5 text-center mt-3">
+                <div class="bg-white text-primary rounded-circle shadow d-flex align-items-center justify-content-center mx-auto mb-3"
+                    style="width: 80px; height: 80px; font-size: 2rem; font-weight: bold; border: 4px solid white; position: relative; z-index: 1;">
+                    {{ tenant.name[:1]|upper }}
+                </div>
+                <h4 class="fw-bold mb-1">{{ tenant.name }}</h4>
+                <p class="text-muted mb-3">{{ tenant.company or "Individual Tenant" }}</p>
+
+                <div class="d-flex justify-content-center gap-2 mb-4">
+                    {% if tenant.status == 'Active' %}
+                    <span class="badge bg-success rounded-pill px-3 py-2"><i
+                            class="bi bi-check-circle me-1"></i>Active</span>
+                    {% else %}
+                    <span class="badge bg-danger rounded-pill px-3 py-2"><i
+                            class="bi bi-dash-circle me-1"></i>Inactive</span>
+                    {% endif %}
+                </div>
+
+                <div class="text-start border-top pt-3">
+                    <div class="mb-3 d-flex align-items-start">
+                        <i class="bi bi-telephone text-primary me-3 mt-1"></i>
+                        <div><strong class="d-block text-muted fs-8 text-uppercase">Phone</strong> {{ tenant.phone or
+                            "-" }}</div>
+                    </div>
+                    <div class="mb-3 d-flex align-items-start">
+                        <i class="bi bi-envelope text-primary me-3 mt-1"></i>
+                        <div><strong class="d-block text-muted fs-8 text-uppercase">Email</strong> {{ tenant.email or
+                            "-" }}</div>
+                    </div>
+                    <div class="mb-3 d-flex align-items-start">
+                        <i class="bi bi-geo-alt text-primary me-3 mt-1"></i>
+                        <div><strong class="d-block text-muted fs-8 text-uppercase">Address</strong> {{ tenant.address
+                            or "-" }}</div>
+                    </div>
+                    <div class="mb-3 d-flex align-items-start">
+                        <i class="bi bi-key text-primary me-3 mt-1"></i>
+                        <div><strong class="d-block text-muted fs-8 text-uppercase">Portal PIN</strong> <span
+                                class="badge bg-secondary font-monospace">{{ tenant.tenant_pin }}</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0 rounded-4 mb-4">
+            <div class="card-body p-4">
+                <h6 class="fw-bold text-muted border-bottom pb-2 mb-3"><i class="bi bi-receipt me-2"></i>Billing Profile
+                </h6>
+
+                <div
+                    class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2 bg-light rounded p-2">
+                    <span class="text-muted"><i class="bi bi-speedometer2 text-warning me-2"></i>Meter ID:</span>
+                    <span class="fw-bold text-dark">{{ tenant.meter_id or 'Unassigned' }}</span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-2 mt-3">
+                    <span class="text-muted">Monthly Rent:</span>
+                    <span class="fw-bold">₹{{ "{:,.0f}".format(tenant.rent) }}</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Electricity Rate:</span>
+                    <span class="fw-bold">₹{{ tenant.electricity_rate }}/unit</span>
+                </div>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">Last Meter Read:</span>
+                    <span class="fw-bold text-warning">{{ tenant.previous_meter }}</span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <span class="text-muted">Security Deposit:</span>
+                    <span class="fw-bold">₹{{ "{:,.0f}".format(tenant.security_deposit) }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-8 col-lg-7">
+        <div class="card shadow-sm border-0 rounded-4 h-100">
+            <div
+                class="card-header bg-transparent border-0 pt-4 pb-3 px-4 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Receipt History</h5>
+                <div class="d-flex gap-2">
+                    {% if config.get('system', 'features.whatsapp_sync') %}
+                    <button class="btn btn-sm btn-outline-success rounded-pill" onclick="sendBulkWhatsApp()">
+                        <i class="bi bi-whatsapp me-1"></i>Bulk Send
+                    </button>
+                    {% endif %}
+                    <a href="{{ APP_BASE(request) }}/billing" class="btn btn-sm btn-primary rounded-pill"><i class="bi bi-plus-lg me-1"></i>New
+                        Bill</a>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4" style="width: 40px;">
+                                    <input class="form-check-input" type="checkbox" id="selectAllBills"
+                                        onclick="toggleAllBills(this)">
+                                </th>
+                                <th>Bill #</th>
+                                <th>Month</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th class="text-end pe-4">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in receipts %}
+                            {% set curr_total = r.Total|default(0,true)|float %}
+                            {% set prev_arr = r.Previous_Arrears|default(0,true)|float %}
+                            {% set grand_total = curr_total + prev_arr %}
+                            {% set amt_recv = r.Amount_Received|default(grand_total,true)|float %}
+                            {% set balance = grand_total - amt_recv %}
+                            <tr>
+                                <td class="ps-4">
+                                    <input class="form-check-input bill-checkbox" type="checkbox" value="{{ r.Bill }}">
+                                </td>
+                                <td><span class="badge bg-secondary">{{ r.Bill }}</span></td>
+                                <td class="fw-semibold">{{ r.Month }}</td>
+                                <td>
+                                    <div class="fw-bold text-dark">₹{{ "{:,.2f}".format(grand_total) }}</div>
+                                    <div class="text-success fs-7">Paid: ₹{{ "{:,.2f}".format(amt_recv) }}</div>
+                                    {% if balance > 0 %}
+                                    <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}
+                                    </div>
+                                    {% endif %}
+                                    {% if prev_arr > 0 %}
+                                    <div class="text-warning-emphasis fs-8">Arr: ₹{{ "{:,.2f}".format(prev_arr) }}</div>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if r.Payment_Status == 'PAID' %}
+                                    <span class="badge bg-success rounded-pill px-2"><i class="bi bi-check2"></i>
+                                        Paid</span>
+                                    {% else %}
+                                    <span class="badge bg-danger rounded-pill px-2">Pending</span>
+                                    {% endif %}
+
+                                    {% if r.Status == 'ARCHIVED' %}
+                                    <span class="badge bg-warning text-dark rounded-pill ms-1 px-2"><i
+                                            class="bi bi-archive"></i></span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-4">
+                                    <div class="btn-group gap-1 rounded-pill shadow-sm">
+                                        {% if r.Payment_Status == 'PAID' %}
+                                        <button
+                                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PAID', '{{ grand_total }}')"
+                                            class="btn btn-sm btn-light border py-1" title="Mark Pending"><i
+                                                class="bi bi-arrow-counterclockwise text-secondary"></i></button>
+                                        {% else %}
+                                        <button
+                                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}')"
+                                            class="btn btn-sm btn-light border py-1" title="Mark Paid"><i
+                                                class="bi bi-check2 text-success"></i></button>
+                                        {% endif %}
+                                        {% if config.get('system', 'features.whatsapp_sync') %}
+                                        <button class="btn btn-sm btn-light border py-1 text-success"
+                                            onclick="sendWhatsApp('{{ r.Bill }}')" title="Send via WhatsApp"><i
+                                                class="bi bi-whatsapp"></i></button>
+                                        {% endif %}
+                                        <button class="btn btn-sm btn-light border py-1"
+                                            onclick="openGlobalPDFPreview('{{ r.Bill }}')" title="View PDF"><i
+                                                class="bi bi-eye text-primary"></i></button>
+                                        <button onclick="openEditBillModal('{{ r.Bill }}')"
+                                            class="btn btn-sm btn-light border py-1 text-warning" title="Edit Bill"><i
+                                                class="bi bi-pencil"></i></button>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% if not receipts %}
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
+                                    <h5>No Receipts Found</h5>
+                                    <p class="fs-7">Generate the first receipt for {{ tenant.name }}.</p>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+
+    </div>
+</div>
+
+<div id="printQrArea" class="d-none">
+    <div style="border: 4px solid #000; border-radius: 20px; padding: 40px; max-width: 500px; margin: auto;">
+        <h1 style="font-size: 2.5rem; margin-bottom: 10px; font-weight: bold;">Scan to View Bills</h1>
+        <h3 style="color: #555; margin-bottom: 30px;">{{ tenant.name }}</h3>
+
+        <div id="printQrcode" style="display: flex; justify-content: center; margin-bottom: 30px;"></div>
+
+        <p style="font-size: 1.2rem; color: #777;">
+            Point your smartphone camera here to view your live rent profile, latest bills, and payment status.
+        </p>
+        {% if tenant.room_number %}
+        <div
+            style="margin-top: 20px; padding-top: 20px; border-top: 2px dashed #ccc; font-size: 1.5rem; font-weight: bold;">
+            Room: {{ tenant.room_number }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="modal fade" id="qrModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content border-0 shadow-lg rounded-4 text-center p-4">
+            <h5 class="fw-bold mb-1">Tenant Access QR</h5>
+            <p class="text-muted fs-7 mb-4">Scan to view the latest 12 months of bills</p>
+            <div id="qrcode" class="d-flex justify-content-center mb-4 p-3 bg-white border rounded-3"></div>
+
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-primary rounded-pill w-100 fw-bold shadow-sm"
+                    onclick="window.print()">
+                    <i class="bi bi-printer me-2"></i>Print
+                </button>
+                <button type="button" class="btn btn-light rounded-pill w-100 fw-bold border"
+                    data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script id="occupantsData" type="application/json">
+    {{ occupants | tojson | safe }}
+</script>
+
+<div class="modal fade" id="kycSplitModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden" style="height: 85vh;">
+            <div class="modal-header border-bottom bg-light py-3">
+                <h5 class="modal-title fw-bold text-primary">
+                    <i class="bi bi-person-vcard me-2"></i>Occupant KYC Documents
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body p-0 d-flex flex-column flex-lg-row h-100">
+                <div class="col-lg-5 border-end bg-body-tertiary d-flex flex-column h-100">
+                    <div class="p-3 border-bottom bg-white">
+                        <h6 class="fw-bold mb-0 text-muted">Occupants Directory</h6>
+                    </div>
+                    <div class="flex-grow-1 p-0" style="overflow-y: auto;" id="kycOccupantList">
+                    </div>
+                </div>
+
+                <div class="col-lg-7 bg-white position-relative d-flex flex-column h-100">
+
+                    <div id="kycPreviewPlaceholder"
+                        class="position-absolute top-50 start-50 translate-middle text-center text-muted w-100"
+                        style="z-index: 2;">
+                        <i class="bi bi-file-earmark-person" style="font-size: 4rem; opacity: 0.5;"></i>
+                        <h5 class="mt-3">Select an occupant</h5>
+                        <p class="fs-7">Choose an occupant from the left to view their KYC details.</p>
+                    </div>
+
+                    <div id="kycPreviewContent" class="d-none d-flex flex-column h-100 w-100" style="z-index: 1;">
+                        <div class="p-3 border-bottom bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h5 class="fw-bold mb-1" id="previewOccName">Name</h5>
+                                    <span class="badge bg-secondary" id="previewOccStatus">Status</span>
+                                    <span class="text-muted fs-8 ms-2" id="previewOccDates"></span>
+                                </div>
+                                <div class="btn-group shadow-sm rounded-pill">
+                                    <button class="btn btn-sm btn-light border text-warning d-none" id="btnMarkInactive"
+                                        title="Mark Inactive">
+                                        <i class="bi bi-person-down"></i> Inactive
+                                    </button>
+                                    <button class="btn btn-sm btn-light border text-danger" id="btnDeleteOcc"
+                                        title="Delete Record">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2 flex-wrap" id="documentToggles">
+                            </div>
+                        </div>
+
+                        <div class="flex-grow-1 bg-secondary position-relative p-0" id="documentViewerContainer"
+                            style="overflow: hidden; min-height: 400px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+    /* Print-specific styling for the QR Poster */
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+
+        #printQrArea,
+        #printQrArea * {
+            visibility: visible;
+        }
+
+        #printQrArea {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            display: flex !important;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        /* Hide the modal when printing */
+        .modal {
+            display: none !important;
+        }
+
+        .modal-backdrop {
+            display: none !important;
+        }
+    }
+</style>
+<script>
+    // Parse the JSON securely injected by Jinja
+    const occupantsRaw = JSON.parse(document.getElementById('occupantsData').textContent || '[]');
+    const viewToken = '{{ tenant.view_token }}'; // Need this for admin actions
+
+    function toggleAllBills(source) {
+        const checkboxes = document.querySelectorAll('.bill-checkbox');
+        checkboxes.forEach(cb => cb.checked = source.checked);
+    }
+
+    async function sendBulkWhatsApp() {
+        const checkboxes = document.querySelectorAll('.bill-checkbox:checked');
+        if (checkboxes.length === 0) {
+            showError("No Selection", "Please select at least one bill to send.");
+            return;
+        }
+
+        const billNumbers = Array.from(checkboxes).map(cb => cb.value);
+
+        try {
+            showLoading("Generating Link...");
+            const response = await fetch(window.APP.API + '/whatsapp/bulk', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    tenant_id: parseInt('{{ tenant.id }}'),
+                    bill_numbers: billNumbers
+                })
+            });
+            const data = await response.json();
+            hideLoading();
+
+            if (data.status === 'success') {
+                window.open(data.url, '_blank');
+            } else {
+                showError("Failed", data.message || data.detail);
+            }
+        } catch (e) {
+            hideLoading();
+            showError("Network Error", "Could not connect to the server.");
+        }
+    }
+
+    function openKycModal() {
+        renderOccupantList();
+        resetPreviewPane();
+        const modal = new bootstrap.Modal(document.getElementById('kycSplitModal'));
+        modal.show();
+    }
+
+    function renderOccupantList() {
+        const listContainer = document.getElementById('kycOccupantList');
+        listContainer.innerHTML = '';
+
+        if (occupantsRaw.length === 0) {
+            listContainer.innerHTML = `
+                <div class="text-center p-5 text-muted">
+                    <i class="bi bi-inbox fs-2 mb-2 d-block opacity-50"></i>
+                    <p>No occupants registered.</p>
+                </div>`;
+            return;
+        }
+
+        // Group by Status instead of Date
+        const grouped = { 'Active': [], 'Inactive': [] };
+        occupantsRaw.forEach(occ => {
+            const status = occ['Status'] === 'Active' ? 'Active' : 'Inactive';
+            grouped[status].push(occ);
+        });
+
+        // Render Groups
+        for (const [statusGroup, occs] of Object.entries(grouped)) {
+            if (occs.length === 0) continue; // Skip empty groups
+
+            // Group Header
+            const icon = statusGroup === 'Active' ? 'bi-person-check' : 'bi-person-slash';
+            const color = statusGroup === 'Active' ? 'text-success' : 'text-secondary';
+
+            listContainer.innerHTML += `
+                <div class="bg-body-secondary p-2 px-3 fw-bold ${color} fs-8 text-uppercase sticky-top border-bottom" style="z-index: 10;">
+                    <i class="bi ${icon} me-2"></i>${statusGroup} Occupants
+                </div>
+            `;
+
+            // Occupant Rows
+            occs.forEach(o => {
+                const docsAvailable = (o['Aadhaar Combined'] || o['Aadhaar Front'] || o['Aadhaar Back'] || o['Emp Front'])
+                    ? '<i class="bi bi-file-earmark-check text-success fs-7"></i>'
+                    : '<i class="bi bi-exclamation-circle text-warning fs-7"></i>';
+
+                const encodedData = encodeURIComponent(JSON.stringify(o));
+
+                listContainer.innerHTML += `
+                    <div class="p-3 border-bottom bg-white transition-hover kyc-list-item" style="cursor: pointer;" onclick="selectOccupant(this, '${encodedData}')">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="fw-bold text-primary mb-1">${o['Name']}</div>
+                                <div class="text-muted fs-8"><i class="bi bi-telephone me-1"></i>${o['Mobile'] || 'N/A'}</div>
+                            </div>
+                            <div>${docsAvailable}</div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+    }
+
+    function selectOccupant(element, encodedData) {
+        // UI Highlight
+        document.querySelectorAll('.kyc-list-item').forEach(el => el.classList.remove('bg-primary-subtle'));
+        element.classList.add('bg-primary-subtle');
+
+        // Parse Data
+        const occ = JSON.parse(decodeURIComponent(encodedData));
+
+        // Show Content, Hide Placeholder
+        document.getElementById('kycPreviewPlaceholder').classList.add('d-none');
+        document.getElementById('kycPreviewContent').classList.remove('d-none');
+
+        // Populate Header
+        document.getElementById('previewOccName').innerText = occ['Name'];
+        document.getElementById('previewOccStatus').className = occ['Status'] === 'Active' ? 'badge bg-success' : 'badge bg-secondary';
+        document.getElementById('previewOccStatus').innerText = occ['Status'];
+        document.getElementById('previewOccDates').innerText = `Mobile: ${occ['Mobile'] || 'N/A'}`;
+
+        // Admin Action Bindings
+        const btnInactive = document.getElementById('btnMarkInactive');
+        if (occ['Status'] === 'Active') {
+            btnInactive.classList.remove('d-none');
+            btnInactive.onclick = () => adminMarkInactive(occ['Occupant UUID'], viewToken);
+        } else {
+            btnInactive.classList.add('d-none');
+        }
+        document.getElementById('btnDeleteOcc').onclick = () => adminDeleteOccupant(occ['Occupant UUID'], viewToken);
+
+        // Populate Document Toggles
+        const toggleBar = document.getElementById('documentToggles');
+        toggleBar.innerHTML = '';
+
+        let firstDocPath = null;
+        let firstDocType = null;
+
+        const addToggleButton = (label, filepath, type) => {
+            if (!filepath) return;
+            if (!firstDocPath) { firstDocPath = filepath; firstDocType = type; } // Keep track of first to auto-load
+
+            const btn = document.createElement('button');
+            btn.className = 'btn btn-sm btn-outline-primary rounded-pill fw-bold doc-toggle-btn';
+            btn.innerHTML = label;
+            btn.onclick = (e) => {
+                document.querySelectorAll('.doc-toggle-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                renderDocument(filepath);
+            };
+            toggleBar.appendChild(btn);
+        };
+
+        if (occ['Aadhaar Combined']) {
+            addToggleButton('<i class="bi bi-file-earmark-person me-1"></i>Aadhaar (Combined)', occ['Aadhaar Combined'], 'pdf');
+        } else {
+            addToggleButton('<i class="bi bi-person-bounding-box me-1"></i>Aadhaar Front', occ['Aadhaar Front'], 'img');
+            addToggleButton('<i class="bi bi-upc-scan me-1"></i>Aadhaar Back', occ['Aadhaar Back'], 'img');
+        }
+
+        addToggleButton('<i class="bi bi-briefcase me-1"></i>Emp ID Front', occ['Emp Front'], 'img');
+        addToggleButton('<i class="bi bi-briefcase-fill me-1"></i>Emp ID Back', occ['Emp Back'], 'img');
+
+        if (firstDocPath) {
+            toggleBar.firstChild.classList.add('active');
+            renderDocument(firstDocPath);
+        } else {
+            document.getElementById('documentViewerContainer').innerHTML = `
+                <div class="w-100 h-100 d-flex justify-content-center align-items-center bg-light text-muted">
+                    <div class="text-center">
+                        <i class="bi bi-file-earmark-x fs-1 mb-2"></i>
+                        <h6>No Documents Uploaded</h6>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    function renderDocument(filename) {
+        const viewer = document.getElementById('documentViewerContainer');
+        // Force the absolute URL using the window.APP_BASE
+        const absoluteUrl = window.APP_BASE + `/api/kyc/${filename}`;
+        const ext = filename.split('.').pop().toLowerCase();
+
+        // Inject the absolute URL into the iframe or image
+        if (ext === 'pdf') {
+            viewer.innerHTML = `
+                <object data="${absoluteUrl}" type="application/pdf" width="100%" height="100%" style="display: block;">
+                    <iframe src="${absoluteUrl}" width="100%" height="100%" style="border: none;">
+                        <div class="p-4 text-center bg-white h-100 d-flex flex-column justify-content-center align-items-center">
+                            <i class="bi bi-file-earmark-pdf text-danger mb-3" style="font-size: 3rem;"></i>
+                            <h5>PDF Ready</h5>
+                            <a href="${absoluteUrl}" target="_blank" class="btn btn-primary mt-2">Open & View Document</a>
+                        </div>
+                    </iframe>
+                </object>`;
+        } else {
+            // Wrap images in a scrollable container for zoom/pan ease
+            viewer.innerHTML = `
+                <div class="w-100 h-100 d-flex justify-content-center align-items-center" style="overflow: auto; background-color: #2b2b2b;">
+                    <img src="${absoluteUrl}" style="max-width: 95%; max-height: 95%; object-fit: contain; box-shadow: 0 0 15px rgba(0,0,0,0.5);">
+                </div>
+            `;
+        }
+    }
+
+    function resetPreviewPane() {
+        document.getElementById('kycPreviewPlaceholder').classList.remove('d-none');
+        document.getElementById('kycPreviewContent').classList.add('d-none');
+        document.getElementById('documentViewerContainer').innerHTML = '';
+    }
+
+    function showQRCode(token) {
+        if (!token) {
+            alert("Token generating... Please refresh the page once.");
+            return;
+        }
+        const qrContainer = document.getElementById('qrcode');
+        const printQrContainer = document.getElementById('printQrcode');
+
+        qrContainer.innerHTML = '';
+        printQrContainer.innerHTML = '';
+
+        // Use window.APP_BASE for proper reverse proxy handling
+        const url = window.location.origin + window.APP_BASE + '/t/' + token;
+
+        // Generate for Modal
+        new QRCode(qrContainer, {
+            text: url, width: 200, height: 200, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H
+        });
+
+        // Generate for Print Area (Slightly larger)
+        new QRCode(printQrContainer, {
+            text: url, width: 300, height: 300, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H
+        });
+
+        const modal = new bootstrap.Modal(document.getElementById('qrModal'));
+        modal.show();
+    }
+
+    // --- Occupant KYC Admin Logic ---
+
+    // Calculate Days Stayed Dynamically
+    document.addEventListener("DOMContentLoaded", () => {
+        const daysElements = document.querySelectorAll('.days-stayed');
+        daysElements.forEach(el => {
+            const joinStr = el.getAttribute('data-join');
+            const leaveStr = el.getAttribute('data-leave');
+            const status = el.getAttribute('data-status');
+
+            if (joinStr) {
+                const joinDate = new Date(joinStr);
+                const endDate = (status === 'Inactive' && leaveStr) ? new Date(leaveStr) : new Date();
+
+                const diffTime = Math.abs(endDate - joinDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                el.innerText = `${diffDays} Days Stayed`;
+            }
+        });
+    });
+
+    async function adminMarkInactive(uuid, token) {
+        confirmAction(
+            "Mark Occupant Inactive?",
+            "This will lock their 'Days Stayed' to today.",
+            "Yes, Mark Inactive",
+            "#ffc107"
+        ).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    // We cleverly reuse the public API route by passing the tenant's token
+                    const res = await fetch(window.APP.API + `/t/${token}/kyc/${uuid}/inactive`, { method: "PUT" });
+                    if (res.ok) {
+                        showToast("success", "Occupant marked inactive.");
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        showError("Failed", "Could not update status.");
+                    }
+                } catch (e) {
+                    showError("Network Error", "An error occurred.");
+                }
+            }
+        });
+    }
+
+    async function adminDeleteOccupant(uuid, token) {
+        confirmAction(
+            "Delete Occupant Record?",
+            "This will permanently remove their details and delete their uploaded ID images from the server.",
+            "Permanently Delete",
+            "#dc3545"
+        ).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const res = await fetch(window.APP.API + `/t/${token}/kyc/${uuid}`, { method: "DELETE" });
+                    if (res.ok) {
+                        showToast("success", "Occupant record deleted.");
+                        setTimeout(() => window.location.reload(), 1000);
+                    } else {
+                        showError("Failed", "Could not delete record.");
+                    }
+                } catch (e) {
+                    showError("Network Error", "An error occurred.");
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

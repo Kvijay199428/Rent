@@ -21,9 +21,17 @@ if sys.stdout.encoding.lower() != 'utf-8':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 # ── Configuration ──────────────────────────────────────────────────────────────
+BASE_DIR = Path(__file__).resolve().parent
+
 SOURCE_DIR = [
-                Path("~/rent/rent-receipt").expanduser(),
-                Path("~/rent/RentReceiptGenerator").expanduser(),
+                BASE_DIR / "rent-receipt" / "app",
+                BASE_DIR / "rent-receipt" / "config",
+                BASE_DIR / "rent-receipt" / "nginx",
+                BASE_DIR / "rent-receipt" / "docker-compose.yml",
+                BASE_DIR / "rent-receipt" / "Dockerfile",
+                BASE_DIR / "rent-receipt" / "requirements.txt",
+                
+                
 #                Path(r"D:\VEGA\VEGA_RRG\frontend"),
 #                Path(r"D:\VEGA\VEGA_RRG\storage\config\rrg"),
 #                Path(r"D:\VEGA\VEGA_RRG\storage\config"),
@@ -32,20 +40,31 @@ SOURCE_DIR = [
 
 # Directories to exclude from scanning
 EXCLUDE_DIRS = {
-    Path("~/rent/copy.py").expanduser(),
-    Path("~/rent-receipt/server.log").expanduser()
+    BASE_DIR / "copy.py",
+    BASE_DIR / "rent-receipt" / "server.log",
+    BASE_DIR / "__pycache__",
+    BASE_DIR / "install.log",
+    BASE_DIR / "api" / "__pycache__",
+    BASE_DIR / "core" / "__pycache__",
+    BASE_DIR / "models" / "__pycache__",
+    BASE_DIR / "pages" / "__pycache__",
+    BASE_DIR / "services" / "__pycache__",
+    BASE_DIR / "static" / "__pycache__",
+    BASE_DIR / "templates" / "__pycache__",
+    
+    
 #    Path(r"D:\VEGA\VEGA_RRG\backend\target"),
 #    Path(r"D:\VEGA\VEGA_RRG\frontend\node_modules"),
     
 }
 
 EXCLUDE_FILES = {
-    Path("~/rent/copy.py").expanduser(),
-    Path("~/rent/rent.md").expanduser(),
-    Path("~/rent-receipt/server.log").expanduser()
+    BASE_DIR / "copy.py",
+    BASE_DIR / "rent.md",
+    BASE_DIR / "rent-receipt" / "server.log"
 }
 
-OUTPUT_FILE = Path("~/rent/rent.md").expanduser()
+OUTPUT_FILE = BASE_DIR / "rent.md"
 
 # Map file extensions → markdown code-fence language tags
 EXTENSION_LANG = {
@@ -78,7 +97,7 @@ EXTENSION_LANG = {
 
 # Extensions to skip (binary / non-script files)
 SKIP_EXTENSIONS = {".jar", ".class", ".war", ".ear", ".zip", ".gz", ".tar",
-                   ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg",
+                   ".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg", ".pyc", ".ttf",
                    ".exe", ".dll", ".so", ".dylib", ".pdf", ".doc", ".docx"}
 
 

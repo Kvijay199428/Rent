@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+
+{% block title %}New Receipt | Rent Receipt System{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8 col-md-10 col-12 mb-5">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-primary bg-gradient text-white py-3 px-4 d-flex align-items-center">
+                <i class="bi bi-file-earmark-plus fs-4 me-3"></i>
+                <h4 class="mb-0 fw-bold tracking-wider">Generate New Receipt</h4>
+            </div>
+            <div class="card-body px-4 px-md-5 py-4">
+                <form id="receiptForm">
+                    <!-- Tenant Selection -->
+                    <div class="form-floating mb-4">
+                        <select class="form-select form-select-lg" id="tenant" required onchange="onTenantChange()">
+                            <option value="" data-id="" disabled selected>Select Tenant...</option>
+                            {% for t in tenants %}
+                            {% if t.status == 'Active' %}
+                            <option value="{{ t.name }}" data-id="{{ t.id }}">{{ t.name }} {% if t.room_number %}(Room
+                                {{ t.room_number }}){% endif %}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                        <label for="tenant"><i class="bi bi-person me-2"></i>Tenant Name</label>
+                    </div>
+
+                    <!-- Billing Month -->
+                    <div class="form-floating mb-4">
+                        <select class="form-select form-select-lg" id="month" required>
+                        </select>
+                        <label for="month"><i class="bi bi-calendar-event me-2"></i>Billing Month</label>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 mt-4 text-secondary border-bottom pb-2">Fixed Charges</h5>
+                    <div class="row g-3">
+                        <div class="col-sm-4">
+                            <div class="form-floating">
+                                <input type="text" class="form-control bg-body-tertiary" id="rent_val" value=""
+                                    placeholder="0.00" readonly>
+                                <label for="rent_val">Monthly Rent (₹)</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="form-floating">
+                                <input type="text" class="form-control bg-body-tertiary" id="water_val" value=""
+                                    placeholder="0.00" readonly>
+                                <label for="water_val">Water Charge (₹)</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="form-floating">
+                                <input type="number" class="form-control" id="tank_water_val" step="0.1" value="0.00"
+                                    oninput="calculateLiveTotal()">
+                                <label for="tank_water_val">Tank Water Charge (₹)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 mt-4 text-secondary border-bottom pb-2">Maintenance & Other Charges</h5>
+                    <div class="row g-3">
+                        <div class="col-sm-4">
+                            <div class="form-floating">
+                                <input type="number" class="form-control border-info" id="maintenance_val" step="0.1"
+                                    value="0.00" oninput="calculateLiveTotal(); toggleMaintenanceDesc();">
+                                <label for="maintenance_val" class="text-info fw-bold">Amount (₹)</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-8">
+                            <div class="form-floating">
+                                <input type="text" class="form-control bg-body-tertiary" id="maintenance_desc"
+                                    placeholder="e.g. Building Maintenance" disabled>
+                                <label for="maintenance_desc">Description (Optional)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 mt-4 text-secondary border-bottom pb-2">Electricity</h5>
+                    <div class="row g-3 mb-2">
+                        <div class="col-sm-4">
+                            <div class="form-floating">
+                                <input type="text" class="form-control bg-body-tertiary" id="prev_reading" value=""
+                                    placeholder="0.0" readonly>
+                                <label for="prev_reading">Previous Reading</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="form-floating">
+                                <input type="number" class="form-control border-primary fw-bold" id="current_reading"
+                                    step="0.1" placeholder="0.0" required oninput="calculateLiveTotal()">
+                                <label for="current_reading" class="text-primary">Current Reading</label>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="form-floating">
+                                <input type="text" class="form-control bg-body-tertiary fw-bold" id="rate_display_input"
+                                    value="₹0.00" readonly>
+                                <label for="rate_display_input">Electricity Rate</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="d-flex align-items-center bg-primary-subtle text-primary rounded-3 px-3 py-2 mb-4 d-inline-block w-auto">
+                        <i class="bi bi-lightning-charge-fill me-2"></i>
+                        <span>Consumed Units: <strong id="consumed_units_label" class="fs-5 ms-1">0.0</strong></span>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 mt-4 text-secondary border-bottom pb-2">Occupancy</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-6">
+                            <div class="form-floating">
+                                <input type="number" class="form-control border-primary" id="additional_persons"
+                                    placeholder="Blank if none" min="0" oninput="calculateLiveTotal()">
+                                <label for="additional_persons" class="text-primary">Additional Persons</label>
+                            </div>
+                            <div class="form-text fs-8 text-muted mt-1">Number of extra people.</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="form-floating">
+                                <input type="text" class="form-control bg-body-tertiary" id="add_rate_display_input"
+                                    value="₹0.00" readonly>
+                                <label for="add_rate_display_input">Rate per person (₹)</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold mb-3 mt-4 text-secondary border-bottom pb-2">Arrears & Payments</h5>
+                    <div class="row g-3 mb-4">
+                        <div class="col-sm-6">
+                            <div class="form-floating">
+                                <input type="number" class="form-control border-warning fw-bold text-warning-emphasis"
+                                    id="previous_arrears" step="0.1" placeholder="0.00" value="0.00"
+                                    oninput="calculateLiveTotal()">
+                                <label for="previous_arrears" class="text-warning-emphasis">Previous Arrears (₹)</label>
+                            </div>
+                            <div class="form-text fs-8 text-muted mt-1">Automatically carries over balance from the last
+                                bill.</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="form-floating">
+                                <input type="number" class="form-control border-success fw-bold text-success"
+                                    id="amount_received" step="0.1" placeholder="Leave empty for full payment"
+                                    oninput="calculateLiveTotal()">
+                                <label for="amount_received" class="text-success">Amount Received (₹)</label>
+                            </div>
+                            <div class="form-text fs-8 text-muted mt-1">Leave empty to assume full payment.</div>
+                        </div>
+                    </div>
+
+                    <!-- Live Total Details Area -->
+                    <div class="card bg-success bg-gradient text-white border-0 shadow-sm mb-4">
+                        <div class="card-body p-4">
+                            <h6 class="text-uppercase fw-semibold text-white-50 mb-3 fs-8 tracking-wider">Live Breakdown
+                            </h6>
+
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-white-50">Rent:</span>
+                                <span class="fw-bold">₹<span id="live_rent">0.00</span></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-white-50">Water:</span>
+                                <span class="fw-bold">₹<span id="live_water">0.00</span></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-white-50">Tank Water:</span>
+                                <span class="fw-bold">₹<span id="live_tank_water">0.00</span></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-white-50">Maintenance:</span>
+                                <span class="fw-bold text-info">₹<span id="live_maintenance">0.00</span></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-white-50">Additional:</span>
+                                <span class="fw-bold">₹<span id="live_additional">0.00</span></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-3">
+                                <span class="text-white-50">Electricity:</span>
+                                <span class="fw-bold">₹<span id="live_electricity">0.00</span></span>
+                            </div>
+                            <hr class="border-white opacity-25 my-2">
+
+                            <div class="d-flex justify-content-between mb-2 border-top border-white pt-2"
+                                style="--bs-border-opacity: 0.5;">
+                                <span class="text-white-50">Current Bill Total:</span>
+                                <span class="fw-bold">₹<span id="live_current_total">0.00</span></span>
+                            </div>
+                            <div class="d-flex justify-content-between mb-2">
+                                <span class="text-warning fw-bold">Previous Arrears:</span>
+                                <span class="fw-bold text-warning">₹<span id="live_prev_arrears">0.00</span></span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mt-3 pt-2 border-top border-white"
+                                style="--bs-border-opacity: 0.5;">
+                                <span class="fs-5 fw-bold">GRAND TOTAL</span>
+                                <span class="fs-4 fw-bold">₹<span id="live_grand_total">0.00</span></span>
+                            </div>
+
+                        </div>
+                    </div>
+
+
+
+
+                    <button type="submit" class="btn btn-success btn-lg rounded-pill w-100 py-3 shadow-sm fw-bold fs-5"
+                        id="submitBtn">
+                        <i class="bi bi-check2-circle me-2"></i>Generate Receipt
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let defaultRent = 0;
+    let defaultWater = 0;
+    let prevMeterVal = 0;
+    let electricityRate = 0;
+    let additionalPersonCharge = 0;
+    let defaultTankWater = 0;
+
+    document.addEventListener("DOMContentLoaded", function () {
+        loadMonths();
+    });
+
+    async function onTenantChange() {
+        const select = document.getElementById("tenant");
+        const option = select.options[select.selectedIndex];
+        const tenantId = option.getAttribute("data-id");
+        const tenantName = select.value;
+
+        if (!tenantId) return;
+
+        try {
+            const [tRes, recRes] = await Promise.all([
+                fetch(`api/tenants/${tenantId}`),
+                fetch(`api/tenant_receipts/${encodeURIComponent(tenantName)}`)
+            ]);
+
+            if (tRes.ok) {
+                const t = await tRes.json();
+                defaultRent = t.rent || 0;
+                defaultWater = t.water || 0;
+                prevMeterVal = t.previous_meter || 0;
+                electricityRate = t.electricity_rate || 0;
+                additionalPersonCharge = t.additional_person_charge || 0;
+                defaultTankWater = t.default_tank_water_charge || 0;
+
+                document.getElementById("rent_val").value = defaultRent > 0 ? defaultRent.toFixed(2) : "";
+                document.getElementById("water_val").value = defaultWater > 0 ? defaultWater.toFixed(2) : "";
+                document.getElementById("prev_reading").value = prevMeterVal > 0 ? prevMeterVal.toFixed(1) : "";
+                document.getElementById("additional_persons").value = "";
+                document.getElementById("rate_display_input").value = `₹${electricityRate.toFixed(2)}`;
+                document.getElementById("add_rate_display_input").value = `₹${additionalPersonCharge.toFixed(2)}`;
+                document.getElementById("tank_water_val").value = defaultTankWater.toFixed(2);
+
+                let calculatedArrears = 0;
+                if (recRes.ok) {
+                    const receipts = await recRes.json();
+                    if (receipts.length > 0) {
+                        const last = receipts[0];
+                        const lastTotal = parseFloat(last.Total) || 0;
+                        const lastPrevArr = parseFloat(last.Previous_Arrears) || 0;
+                        const grandTotal = lastTotal + lastPrevArr;
+                        const lastRecv = (last.Amount_Received !== null && last.Amount_Received !== undefined) ? parseFloat(last.Amount_Received) : grandTotal;
+
+                        if (!isNaN(lastRecv)) {
+                            calculatedArrears = grandTotal - lastRecv;
+                        }
+                    }
+                }
+
+                document.getElementById("previous_arrears").value = calculatedArrears.toFixed(2);
+
+                calculateLiveTotal();
+            }
+        } catch (e) {
+            console.error(e);
+            showToast("error", "Failed to load tenant billing profile");
+        }
+    }
+
+    async function loadMonths() {
+        try {
+            const res = await fetch("api/billing/months");
+            if (res.ok) {
+                const data = await res.json();
+                const select = document.getElementById("month");
+                select.innerHTML = "";
+
+                data.months.forEach(m => {
+                    let option = document.createElement("option");
+                    option.value = m;
+                    option.text = m;
+                    if (m === data.currentMonth) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+            }
+        } catch (e) {
+            console.error("Failed to load month list", e);
+            showToast('error', 'Failed to load billing months');
+        }
+    }
+
+    function calculateLiveTotal() {
+        const currentVal = parseFloat(document.getElementById("current_reading").value) || 0;
+        const addPersons = parseInt(document.getElementById("additional_persons").value) || 0;
+
+        let consumed = Math.max(0, currentVal - prevMeterVal);
+        let electricity = consumed * electricityRate;
+        let additional = addPersons * additionalPersonCharge;
+        let tankWater = parseFloat(document.getElementById("tank_water_val").value) || 0;
+        let maintenance = parseFloat(document.getElementById("maintenance_val").value) || 0;
+        let currentTotal = defaultRent + defaultWater + tankWater + maintenance + additional + electricity;
+
+        let previousArrears = parseFloat(document.getElementById("previous_arrears").value) || 0;
+        let grandTotal = currentTotal + previousArrears;
+
+        let amountReceivedInput = document.getElementById("amount_received").value;
+        let status = document.getElementById("payment_status").value;
+        let amountReceived;
+        if (amountReceivedInput !== "") {
+            amountReceived = parseFloat(amountReceivedInput);
+        } else {
+            amountReceived = status === "PAID" ? grandTotal : 0;
+        }
+        let balanceDue = grandTotal - amountReceived;
+
+        // Update Labels
+        document.getElementById("consumed_units_label").innerText = consumed.toFixed(1);
+        document.getElementById("live_rent").innerText = defaultRent.toFixed(2);
+        document.getElementById("live_water").innerText = defaultWater.toFixed(2);
+        document.getElementById("live_tank_water").innerText = tankWater.toFixed(2);
+        document.getElementById("live_maintenance").innerText = maintenance.toFixed(2);
+        document.getElementById("live_additional").innerText = additional.toFixed(2);
+        document.getElementById("live_electricity").innerText = electricity.toFixed(2);
+
+        document.getElementById("live_current_total").innerText = currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById("live_prev_arrears").innerText = previousArrears.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById("live_grand_total").innerText = grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById("live_amount_received").innerText = amountReceived.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById("live_balance_due").innerText = balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function toggleMaintenanceDesc() {
+        const val = parseFloat(document.getElementById("maintenance_val").value) || 0;
+        const descField = document.getElementById("maintenance_desc");
+        if (val > 0) {
+            descField.disabled = false;
+            descField.classList.remove("bg-body-tertiary");
+        } else {
+            descField.disabled = true;
+            descField.classList.add("bg-body-tertiary");
+            descField.value = "";
+        }
+    }
+
+    document.getElementById("receiptForm").addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const tenant = document.getElementById("tenant").value;
+        const month = document.getElementById("month").value;
+        const currentVal = parseFloat(document.getElementById("current_reading").value);
+        const addPersons = parseInt(document.getElementById("additional_persons").value) || 0;
+        const previousArrears = parseFloat(document.getElementById("previous_arrears").value) || 0;
+        const amountReceivedInput = document.getElementById("amount_received").value;
+        const paymentStatus = document.getElementById("payment_status") ? document.getElementById("payment_status").value : "PENDING";
+
+        if (currentVal < prevMeterVal) {
+            showError("Invalid Meter Reading", `Current reading (${currentVal}) cannot be less than the previous reading (${prevMeterVal}).`);
+            return;
+        }
+
+        showLoadingOverlay("Generating Receipt...");
+
+        try {
+            const res = await fetch("api/bill", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    tenant: tenant,
+                    month: month,
+                    current_reading: currentVal,
+                    additional_persons: addPersons,
+                    tank_water: parseFloat(document.getElementById("tank_water_val").value) || 0,
+                    maintenance_charge: parseFloat(document.getElementById("maintenance_val").value) || 0,
+                    maintenance_desc: document.getElementById("maintenance_desc").value || "",
+                    previous_arrears: previousArrears,
+                    amount_received: amountReceivedInput !== "" ? parseFloat(amountReceivedInput) : null,
+                    payment_status: paymentStatus
+                })
+            });
+            const result = await res.json();
+            hideLoadingOverlay();
+
+            if (res.ok) {
+                const successHtml = `
+                    <div class="mt-3">
+                        <h4 class="fw-bold text-success mb-1">₹${document.getElementById("live_grand_total").innerText}</h4>
+                        <p class="text-muted mb-4">Receipt #${result.data.Bill}</p>
+                        <hr>
+                        <div class="d-flex flex-column gap-2 text-start">
+                            <button type="button" onclick="Swal.close(); openGlobalPDFPreview('${result.data.Bill}')" class="btn btn-outline-primary text-start">
+                                <i class="bi bi-eye me-2"></i> Preview Receipt
+                            </button>
+                            <a href="javascript:void(0)" onclick="secureDownload('api/pdf/${result.data.Bill}/download', 'Receipt_${result.data.Bill}.pdf')" class="btn btn-outline-secondary text-start">
+                                <i class="bi bi-download me-2"></i> Download PDF
+                            </a>
+                            <a href="{{ APP_BASE(request) }}/history" class="btn btn-outline-secondary text-start">
+                                <i class="bi bi-clock-history me-2"></i> Receipt History
+                            </a>
+                        </div>
+                    </div>
+                `;
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Receipt Generated',
+                    html: successHtml,
+                    showConfirmButton: true,
+                    confirmButtonText: '<i class="bi bi-plus-lg me-1"></i> Generate Another',
+                    confirmButtonColor: '#198754',
+                    allowOutsideClick: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.reload();
+                    }
+                });
+
+            } else {
+                showError("Generation Failed", result.detail || "Failed to create receipt.");
+            }
+        } catch (err) {
+            hideLoadingOverlay();
+            showError("Network Error", "A connection error occurred while generating the receipt.");
+        }
+    });
+</script>
+{% endblock %}

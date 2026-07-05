@@ -1,0 +1,17 @@
+{
+    "server": {
+        "host": "0.0.0.0",
+        "port": 20081,
+        "debug": true
+    },
+    "app": {
+        "title": "Rent Receipt Web Application",
+        "short_name": "RRG Suite",
+        "currency_symbol": "\u20b9",
+        "locale": "en-IN"
+    },
+    "limits": {
+        "max_upload_size_mb": 2,
+        "public_history_months": 12
+    }
+}

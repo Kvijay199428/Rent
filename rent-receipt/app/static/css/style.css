@@ -1,0 +1,242 @@
+/* Modern SaaS Design System */
+
+:root {
+    --border-radius-base: 16px;
+    --border-radius-card: 20px;
+    --border-radius-btn: 50rem; /* Pill shape */
+    --transition-speed: 200ms;
+}
+
+body {
+    font-size: 16px; /* Base 16px to prevent zoom on iOS and ensure readability */
+    background-color: var(--bs-body-bg);
+}
+
+/* Form Standardization */
+.form-floating > label {
+    padding-left: 1rem;
+    padding-right: 1rem;
+}
+.form-floating > .form-control:focus ~ label, 
+.form-floating > .form-control:not(:placeholder-shown) ~ label, 
+.form-floating > .form-select ~ label {
+    /* Prevent clipping in dark mode by wrapping the label text */
+    background-color: transparent !important;
+}
+.form-floating > .form-control:focus ~ label::after, 
+.form-floating > .form-control:not(:placeholder-shown) ~ label::after, 
+.form-floating > .form-select ~ label::after {
+    /* Create a proper solid background behind the scaled label to mask the border */
+    position: absolute;
+    inset: 1rem 0.5rem;
+    z-index: -1;
+    height: 1.5em;
+    content: "";
+    background-color: var(--bs-body-bg);
+    border-radius: 4px;
+}
+.form-control, .form-select {
+    font-size: 16px; /* 16px minimum for forms */
+}
+
+/* Sidebar & Layout */
+.sidebar {
+    position: fixed;
+    top: 56px; /* Below sticky header */
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    width: 250px;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .05);
+}
+
+@media (min-width: 768px) {
+    main {
+        margin-left: 250px !important;
+        width: calc(100% - 250px) !important;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .menu-toggle {
+        display: block;
+        background: none;
+        border: none;
+        color: var(--bs-body-color);
+        cursor: pointer;
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: -280px;
+        width: 260px;
+        height: 100vh !important;
+        z-index: 1040;
+        transition: left 0.3s ease;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        display: flex !important;
+    }
+
+    .sidebar.open {
+        left: 0;
+    }
+
+    .sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+        z-index: 1030;
+    }
+
+    .sidebar-overlay.show {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    body.sidebar-open {
+        overflow: hidden;
+    }
+
+    main {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+}
+
+.sidebar .nav-link {
+    font-weight: 500;
+    color: var(--bs-body-color);
+    border-radius: var(--border-radius-base);
+    padding: 0.75rem 1rem;
+    transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+}
+
+.sidebar .nav-link:hover {
+    background-color: var(--bs-secondary-bg);
+}
+
+.sidebar .nav-link.active {
+    color: #fff;
+    background-color: var(--bs-primary);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+/* Cards */
+.card {
+    border-radius: var(--border-radius-card);
+    border: none;
+    transition: transform var(--transition-speed) ease, box-shadow var(--transition-speed) ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
+}
+
+/* Buttons */
+.btn {
+    border-radius: var(--border-radius-btn);
+    transition: all var(--transition-speed) ease;
+}
+
+/* Typography Utilities */
+.fs-7 { font-size: 0.75rem; }
+.fs-8 { font-size: 0.65rem; }
+.tracking-wider { letter-spacing: 0.05em; }
+
+/* Dark Mode specific */
+[data-bs-theme="dark"] .sidebar {
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, .05);
+}
+
+/* Accordion modifications for History */
+.accordion-item {
+    border-radius: var(--border-radius-base) !important;
+    margin-bottom: 0.5rem;
+    border: 1px solid var(--bs-border-color);
+    overflow: hidden;
+}
+
+.accordion-button {
+    border-radius: var(--border-radius-base) !important;
+    font-weight: 600;
+}
+
+/* ==========================================
+   GLOBAL LOADING & SYNC OVERLAY
+   ========================================== */
+#globalSyncOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    cursor: wait;
+}
+
+#globalSyncOverlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.sync-spinner {
+    width: 60px;
+    height: 60px;
+    position: relative;
+    animation: sync-spin 2s infinite linear;
+    margin-bottom: 20px;
+}
+.sync-spinner .dot {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    left: 0;
+    top: 0;
+}
+.sync-spinner .dot::before {
+    content: '';
+    display: block;
+    width: 25%;
+    height: 25%;
+    background-color: #ffffff;
+    border-radius: 100%;
+    animation: sync-bounce 2s infinite ease-in-out both;
+}
+.sync-spinner .dot:nth-child(1) { transform: rotate(0deg); }
+.sync-spinner .dot:nth-child(2) { transform: rotate(90deg); }
+.sync-spinner .dot:nth-child(3) { transform: rotate(180deg); }
+.sync-spinner .dot:nth-child(4) { transform: rotate(270deg); }
+
+.sync-spinner .dot:nth-child(1)::before { animation-delay: -1.1s; background-color: #0d6efd; }
+.sync-spinner .dot:nth-child(2)::before { animation-delay: -1.0s; background-color: #198754; }
+.sync-spinner .dot:nth-child(3)::before { animation-delay: -0.9s; background-color: #ffc107; }
+.sync-spinner .dot:nth-child(4)::before { animation-delay: -0.8s; background-color: #dc3545; }
+
+@keyframes sync-spin { 100% { transform: rotate(360deg); } }
+@keyframes sync-bounce {
+    0%, 100% { transform: scale(0.0); }
+    50% { transform: scale(1.0); }
+}
+
+.sync-text {
+    color: white;
+    font-weight: 600;
+    font-size: 1.2rem;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}

@@ -1,0 +1,17 @@
+{
+    "enabled": true,
+    "frequency": "daily",
+    "max_daily": 30,
+    "max_weekly": 12,
+    "location": "backups",
+    "compress": true,
+    "verify": true,
+    "encrypt": false,
+    "create_restore_points": {
+        "tenant_update": true,
+        "receipt_edit": true,
+        "receipt_archive": true,
+        "settings_save": true,
+        "schema_migration": true
+    }
+}

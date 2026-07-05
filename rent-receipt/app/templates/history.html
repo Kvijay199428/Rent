@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}Receipt History | Rent Receipt System{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
+    <h1 class="h2 mb-0 fw-bold">Receipt History</h1>
+
+    <!-- Global Search for History -->
+    <div class="input-group ms-auto mt-3 mt-md-0 shadow-sm" style="max-width: 400px;">
+        <span class="input-group-text bg-white border-end-0 rounded-start-pill"><i
+                class="bi bi-search text-muted"></i></span>
+        <input type="text" class="form-control border-start-0 rounded-end-pill" id="globalSearch"
+            placeholder="Search Tenant, Company, Amount...">
+    </div>
+</div>
+
+<div class="accordion" id="historyAccordion">
+    {% set current_year = '' %}
+    {% set current_month = '' %}
+
+    {% for r in receipts %}
+    {% set parts = r.Month.split(' ') %}
+    {% set m = parts[0] %}
+    {% set y = parts[1] if parts|length > 1 else 'Unknown' %}
+
+    {% if y != current_year %}
+    {% if current_year != '' %}
+</div> <!-- End Accordion Body -->
+</div> <!-- End Collapse -->
+</div> <!-- End Accordion Item -->
+{% endif %}
+
+<div class="accordion-item mb-4 shadow-sm border-0 year-group" data-year="{{ y }}">
+    <h2 class="accordion-header" id="heading-{{ y }}">
+        <button class="accordion-button bg-body-tertiary fw-bold fs-5" type="button" data-bs-toggle="collapse"
+            data-bs-target="#collapse-{{ y }}" aria-expanded="true" aria-controls="collapse-{{ y }}">
+            <i class="bi bi-calendar3 me-3 text-primary"></i> {{ y }}
+
+            <!-- Year Summary Stats injected via JS -->
+            <div class="ms-auto me-3 d-none d-md-flex gap-4 text-muted fs-7 fw-normal">
+                <span><i class="bi bi-receipt"></i> <span class="year-bills-count">0</span> Bills</span>
+                <span><i class="bi bi-currency-rupee"></i> <span class="year-revenue">0.00</span></span>
+            </div>
+        </button>
+    </h2>
+    <div id="collapse-{{ y }}" class="accordion-collapse collapse show" aria-labelledby="heading-{{ y }}">
+        <div class="accordion-body p-0">
+            {% set current_year = y %}
+            {% set current_month = '' %}
+            {% endif %}
+
+            {% if m != current_month %}
+            <div class="bg-light p-2 px-4 border-bottom fw-bold text-secondary month-header">
+                <i class="bi bi-chevron-down me-2 fs-7"></i> {{ m }}
+            </div>
+            {% set current_month = m %}
+            {% endif %}
+
+            <!-- Receipt Row -->
+            <div class="p-3 px-4 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center receipt-row transition-hover"
+                data-tenant="{{ r.Tenant|lower }}" data-company="{{ r.Tenant_Company|lower }}"
+                data-month="{{ m|lower }}" data-year="{{ y }}" data-bill="{{ r.Bill }}" data-total="{{ r.Total }}">
+                {% set curr_total = r.Total|default(0,true)|float %}
+                {% set prev_arr = r.Previous_Arrears|default(0,true)|float %}
+                {% set grand_total = curr_total + prev_arr %}
+                {% set amt_recv = r.Amount_Received|default(grand_total,true)|float %}
+                {% set balance = grand_total - amt_recv %}
+
+                <div class="d-flex align-items-center mb-3 mb-md-0">
+                    <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-3"
+                        style="width: 48px; height: 48px;">
+                        <i class="bi bi-receipt fs-5"></i>
+                    </div>
+                    <div>
+                        <h6 class="fw-bold mb-1">{{ r.Tenant }}</h6>
+                        <div class="text-muted fs-7">
+                            <span class="badge bg-secondary-subtle text-secondary me-2">#{{ r.Bill }}</span>
+                            <i class="bi bi-calendar-event me-1"></i> {{ r.Date }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 gap-md-5">
+                    <div
+                        class="d-flex flex-row flex-md-column align-items-center align-items-md-end justify-content-between gap-2">
+                        <div class="text-md-end">
+                            <div class="fs-7 text-muted mb-1">Total Payable</div>
+                            <div class="fw-bold text-dark fs-5">₹{{ "{:,.2f}".format(grand_total) }}</div>
+                            <div class="text-success fs-7">Paid: ₹{{ "{:,.2f}".format(amt_recv) }}</div>
+                            {% if balance > 0 %}
+                            <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}</div>
+                            {% elif balance < 0 %}
+                            <div class="text-info fw-semibold fs-7">Advance: ₹{{ "{:,.2f}".format(balance|abs) }}</div>
+                            {% endif %}
+                        </div>
+                        <div>
+                            {% if r.Payment_Status == 'PAID' %}
+                            <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i>
+                                Paid</span>
+                            {% else %}
+                            <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i>
+                                Pending</span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="btn-group shadow-sm rounded-pill">
+                        {% if r.Payment_Status == 'PAID' %}
+                        <button class="btn btn-sm btn-light border"
+                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PAID', '{{ grand_total }}')" title="Mark Pending">
+                            <i class="bi bi-arrow-counterclockwise text-secondary"></i>
+                        </button>
+                        {% else %}
+                        <button class="btn btn-sm btn-light border"
+                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}')" title="Mark Paid">
+                            <i class="bi bi-check2 text-success"></i>
+                        </button>
+                        {% endif %}
+                        <button class="btn btn-sm btn-light border text-success" onclick="sendWhatsApp('{{ r.Bill }}')" title="Send via WhatsApp">
+                            <i class="bi bi-whatsapp"></i>
+                        </button>
+                        <button class="btn btn-sm btn-light border" onclick="openGlobalPDFPreview('{{ r.Bill }}')"
+                            title="View PDF">
+                            <i class="bi bi-eye text-primary"></i> <span class="d-none d-lg-inline ms-1">View</span>
+                        </button>
+                        <button onclick="openEditBillModal('{{ r.Bill }}')" class="btn btn-sm btn-light border" title="Edit Bill">
+                            <i class="bi bi-pencil text-warning"></i> <span class="d-none d-lg-inline ms-1">Edit</span>
+                        </button>
+                        <button class="btn btn-sm btn-light border" onclick="archiveBill('{{ r.Bill }}')"
+                            title="Archive/Delete">
+                            <i class="bi bi-archive text-danger"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {% endfor %}
+
+            {% if current_year != '' %}
+        </div> <!-- End Accordion Body -->
+    </div> <!-- End Collapse -->
+</div> <!-- End Accordion Item -->
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
+    <h5>No Receipts Found</h5>
+    <p class="fs-7">Receipts you generate will appear here.</p>
+    <a href="{{ APP_BASE(request) }}/billing" class="btn btn-primary rounded-pill mt-2">Generate Receipt</a>
+</div>
+{% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .transition-hover {
+        transition: background-color 0.2s ease;
+    }
+
+    .transition-hover:hover {
+        background-color: var(--bs-secondary-bg);
+    }
+</style>
+<script src="{{ STATIC_URL(request, '/js/search.js') }}"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        calculateYearStats();
+        initializeSharedSearch('globalSearch', '.year-group', '.receipt-row');
+        
+        // Auto-fill and trigger search if coming from the Top Nav search bar
+        const urlParams = new URLSearchParams(window.location.search);
+        const q = urlParams.get('q');
+        if (q) {
+            const searchInput = document.getElementById('globalSearch');
+            if (searchInput) {
+                searchInput.value = q;
+                searchInput.dispatchEvent(new Event('keyup'));
+            }
+        }
+    });
+
+    function calculateYearStats() {
+        const yearGroups = document.querySelectorAll('.year-group');
+        yearGroups.forEach(group => {
+            const rows = group.querySelectorAll('.receipt-row');
+            let totalRev = 0;
+            let count = rows.length;
+
+            rows.forEach(row => {
+                totalRev += parseFloat(row.getAttribute('data-total') || 0);
+            });
+
+            const countEl = group.querySelector('.year-bills-count');
+            const revEl = group.querySelector('.year-revenue');
+            if (countEl) countEl.innerText = count;
+            if (revEl) revEl.innerText = totalRev.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        });
+    }
+
+
+
+    function archiveBill(billNo) {
+        confirmAction(
+            "Archive Receipt?",
+            `Receipt #${billNo} will be moved to Archived Receipts.`,
+            "Archive",
+            "#dc3545"
+        ).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    const res = await fetch(`api/bill/${billNo}/archive`, { method: "POST" });
+                    if (res.ok) {
+                        showSuccess("Archived!", "The receipt has been archived.").then(async () => {
+                            await updateUI(); // Smooth refresh
+                        });
+                    } else {
+                        showError("Failed", "Could not archive the receipt.");
+                    }
+                } catch (e) {
+                    showError("Network Error", "An error occurred.");
+                }
+            }
+        });
+    }
+</script>
+{% endblock %}

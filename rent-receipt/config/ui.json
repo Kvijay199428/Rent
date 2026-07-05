@@ -1,3 +1,26 @@
 {
-    "theme": "system"
+  "dashboard": {
+    "cards": {
+      "active_tenants": true,
+      "pending_amount": true,
+      "arrears": true,
+      "monthly_collection": true
+    }
+  },
+  "labels": {
+    "rent": "Monthly Rent",
+    "water": "Water Charges",
+    "electricity": "Electricity Charges",
+    "arrears": "Previous Balance",
+    "advance": "Advance Amount",
+    "payment_received": "Payment Received"
+  },
+  "menu": [
+    {"title": "Dashboard", "icon": "bi-house-door", "route": "home_page"},
+    {"title": "New Receipt", "icon": "bi-file-earmark-plus", "route": "billing_page"},
+    {"title": "Tenants", "icon": "bi-people", "route": "tenants_page"},
+    {"title": "Receipt History", "icon": "bi-journal-text", "route": "history_page"},
+    {"title": "Archived Receipts", "icon": "bi-archive", "route": "archive_page"},
+    {"title": "Settings", "icon": "bi-gear", "route": "settings_page"}
+  ]
 }

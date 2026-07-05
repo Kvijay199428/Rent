@@ -1,0 +1,25 @@
+{
+    "payment": {
+        "allow_partial_payment": true,
+        "allow_advance_payment": true,
+        "carry_forward_arrears": true,
+        "default_status": "PENDING",
+        "statuses": [
+            "PENDING",
+            "PARTIAL",
+            "PAID",
+            "ADVANCE"
+        ]
+    },
+    "tenant_profile": {
+        "max_occupants": 20,
+        "require_security_deposit": true,
+        "enable_meter_reading": true,
+        "history_months_visible": 12
+    },
+    "billing": {
+        "enable_maintenance_charge": true,
+        "enable_tank_water": true,
+        "default_currency": "₹"
+    }
+}

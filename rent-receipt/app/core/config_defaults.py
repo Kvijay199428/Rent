@@ -1,0 +1,99 @@
+DEFAULT_CONFIGS = {
+    "billing": {
+        "rent": 8000.0,
+        "water": 500.0,
+        "electricity_rate": 15.0,
+        "additional_person_charge": 1000.0,
+        "previous_meter_reading": 0.0,
+        "next_bill_number": 1
+    },
+    "landlord": {
+        "name": "",
+        "phone": "",
+        "email": "",
+        "address": "",
+        "pan": "",
+        "bank_account_name": "",
+        "bank_account_number": "",
+        "bank_name": "",
+        "bank_branch": "",
+        "bank_ifsc": "",
+        "mask_bank_account": True,
+        "signature_text": "Authorized Signature",
+        "signature_image": "",
+        "whatsapp_template": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {bill_no}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n\nThank you!",
+        "whatsapp_bulk_template": "Hello {tenant_name},\n\nHere are your requested rent receipts:\n\n{bill_list}\n*Total Amount:* {currency}{total_amount}\n\nYou can view and download your receipts securely here: {link}\n\nThank you!"
+    },
+    "ui": {
+        "theme": "system",
+        "menu": [
+            {"name": "Dashboard", "icon": "bi-speedometer2", "type": "internal",
+            "route": "home_page"},
+            {"name": "Billing", "icon": "bi-receipt", "type": "internal",
+            "route": "billing_page"},
+            {"name": "History", "icon": "bi-clock-history", "type": "internal",
+            "route": "history_page"},
+            {"name": "Tenants", "icon": "bi-people", "type": "internal",
+            "route": "tenants_page"},
+            {"name": "Archive", "icon": "bi-archive", "type": "internal",
+            "route": "archive_page"},
+            {"name": "Backups", "icon": "bi-database", "type": "internal",
+            "route": "backups_page"},
+            {"name": "Settings", "icon": "bi-gear", "type": "internal",
+            "route": "settings_page"}
+        ]
+    },
+    "schema": {
+        "tenant_schema": 2,
+        "receipt_schema": 1
+    },
+    "backup": {
+        "enabled": True,
+        "frequency": "daily",
+        "max_daily": 30,
+        "max_weekly": 12,
+        "location": "backups",
+        "compress": True,
+        "verify": True,
+        "encrypt": False,
+        "create_restore_points": {
+            "tenant_update": True,
+            "receipt_edit": True,
+            "receipt_archive": True,
+            "settings_save": True,
+            "schema_migration": True
+        }
+    },
+    "system": {
+        "server": {
+            "host": "0.0.0.0",
+            "port": 20081,
+            "debug": True
+        },
+        "app": {
+            "title": "Rent Receipt Web Application",
+            "short_name": "RRG Suite",
+            "currency_symbol": "₹",
+            "locale": "en-IN"
+        },
+        "limits": {
+            "max_upload_size_mb": 2,
+            "public_history_months": 12
+        },
+        "whatsapp": {
+            "country_code": "91"
+        },
+        "features": {
+            "whatsapp_sync": True
+        }
+    },
+    "tenantProfile": {},
+    "rentReceipt": {},
+    "payment": {},
+    "dashboard": {},
+    "archive": {},
+    "pdf": {},
+    "features": {},
+    "theme": {},
+    "validation": {}
+}

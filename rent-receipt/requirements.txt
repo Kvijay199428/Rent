@@ -5,3 +5,6 @@ python-multipart
 reportlab
 num2words
 pydantic
+pillow
+openpyxl
+flask

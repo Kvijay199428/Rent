@@ -1,0 +1,40 @@
+{
+    "theme": "system",
+    "menu": [
+        {
+            "name": "Dashboard",
+            "icon": "bi-speedometer2",
+            "link": "/"
+        },
+        {
+            "name": "Billing",
+            "icon": "bi-receipt",
+            "link": "/billing"
+        },
+        {
+            "name": "History",
+            "icon": "bi-clock-history",
+            "link": "/history"
+        },
+        {
+            "name": "Tenants",
+            "icon": "bi-people",
+            "link": "/tenants"
+        },
+        {
+            "name": "Archive",
+            "icon": "bi-archive",
+            "link": "/archive"
+        },
+        {
+            "name": "Backups",
+            "icon": "bi-hdd-network",
+            "link": "/backups"
+        },
+        {
+            "name": "Settings",
+            "icon": "bi-gear",
+            "link": "/settings"
+        }
+    ]
+}
