@@ -587,3 +587,65 @@ def get_dashboard_stats():
         "chart_revenue": revenue_list,
         "chart_electricity": electricity_list
     }
+
+def save_all_receipts(receipts_list):
+    """Saves a batch of receipt dictionaries into the SQLite database. Used for imports."""
+    from app.core.db import get_conn
+    from app.services.tenant_service import load_tenants
+    
+    tenants = load_tenants()
+    tenant_map = {t.name.lower(): t for t in tenants}
+    
+    with get_conn() as conn:
+        for r in receipts_list:
+            tenant_name = r.get("Tenant", "")
+            tenant = tenant_map.get(tenant_name.lower())
+            tenant_id = tenant.id if tenant else None
+            
+            bill_no = r.get("Bill")
+            if not bill_no:
+                continue
+                
+            exists = conn.execute("SELECT 1 FROM receipts WHERE billno = ?", (bill_no,)).fetchone()
+            
+            if exists:
+                conn.execute("""
+                    UPDATE receipts SET
+                        date = ?, month = ?, tenant_id = ?, tenant = ?, previous = ?, current = ?, units = ?, rent = ?,
+                        additional = ?, water = ?, tankwater = ?, electricity = ?, total = ?, pdf = ?,
+                        tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?, status = ?,
+                        archiveddate = ?, archivedby = ?, deleteddate = ?, additionalpersons = ?,
+                        additionalpersonrate = ?, receiptversion = ?, generatedby = ?, paymentstatus = ?,
+                        maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
+                    WHERE billno = ?
+                """, (
+                    r.get("Date", ""), r.get("Month", ""), tenant_id, tenant_name, r.get("Previous", 0), r.get("Current", 0),
+                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("Tank_Water", 0),
+                    r.get("Electricity", 0), r.get("Total", 0), r.get("PDF", ""), r.get("Tenant_Phone", ""),
+                    r.get("Tenant_Company", ""), r.get("Tenant_Address", ""), r.get("Rate", 0), r.get("Status", "ACTIVE"),
+                    r.get("Archived_Date", ""), r.get("Archived_By", ""), r.get("Deleted_Date", ""), r.get("Additional_Persons", 0),
+                    r.get("Additional_Person_Rate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
+                    r.get("Payment_Status", "PENDING"), r.get("Maintenance_Charge", 0), r.get("Maintenance_Desc", ""),
+                    r.get("Previous_Arrears", 0), r.get("Amount_Received", 0), bill_no
+                ))
+            else:
+                conn.execute("""
+                    INSERT INTO receipts (
+                        billno, date, month, tenant_id, tenant, previous, current, units, rent,
+                        additional, water, tankwater, electricity, total, pdf,
+                        tenantphone, tenantcompany, tenantaddress, rate, status,
+                        archiveddate, archivedby, deleteddate, additionalpersons,
+                        additionalpersonrate, receiptversion, generatedby, paymentstatus,
+                        maintenancecharge, maintenancedesc, previousarrears, amountreceived
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    bill_no, r.get("Date", ""), r.get("Month", ""), tenant_id, tenant_name, r.get("Previous", 0), r.get("Current", 0),
+                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("Tank_Water", 0),
+                    r.get("Electricity", 0), r.get("Total", 0), r.get("PDF", ""), r.get("Tenant_Phone", ""),
+                    r.get("Tenant_Company", ""), r.get("Tenant_Address", ""), r.get("Rate", 0), r.get("Status", "ACTIVE"),
+                    r.get("Archived_Date", ""), r.get("Archived_By", ""), r.get("Deleted_Date", ""), r.get("Additional_Persons", 0),
+                    r.get("Additional_Person_Rate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
+                    r.get("Payment_Status", "PENDING"), r.get("Maintenance_Charge", 0), r.get("Maintenance_Desc", ""),
+                    r.get("Previous_Arrears", 0), r.get("Amount_Received", 0)
+                ))
+        conn.commit()
