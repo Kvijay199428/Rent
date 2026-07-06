@@ -460,135 +460,6 @@ window.dropdownPreview = function (billNo) {
 };
 
 // --- Global Sync Overlay Controls ---
-function showSyncOverlay(message = "Processing Data...") {
-    const overlay = document.getElementById('globalSyncOverlay');
-    const textEl = document.getElementById('syncOverlayText');
-    if (overlay) {
-        if (textEl) textEl.innerText = message;
-        overlay.classList.add('active');
-        document.activeElement.blur();
-    }
-}
-
-function hideSyncOverlay() {
-    const overlay = document.getElementById('globalSyncOverlay');
-    if (overlay) overlay.classList.remove('active');
-}
-
-window.showLoadingOverlay = showSyncOverlay;
-window.hideLoadingOverlay = hideSyncOverlay;
-window.showLoading = window.showLoadingOverlay || function () { };
-window.hideLoading = window.hideLoadingOverlay || function () { };
-
-async function executeExport(format) {
-    showSyncOverlay(`Generating ${format === 'template' ? 'Template' : format.toUpperCase() + ' Backup'}...`);
-
-    try {
-        const endpoint = format === 'template' ? window.APP.BASE + '/api/sync/template' : window.APP.API + `/sync/export/${format}`;
-        const response = await fetch(endpoint);
-        if (!response.ok) throw new Error("Failed to generate export file.");
-
-        const disposition = response.headers.get('Content-Disposition');
-        let filename = `Rent_Data_Export.${format}`;
-        if (disposition && disposition.includes('filename="')) {
-            filename = disposition.split('filename="')[1].split('"')[0];
-        }
-
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-
-        window.URL.revokeObjectURL(blobUrl);
-        a.remove();
-
-        setTimeout(() => {
-            hideSyncOverlay();
-            if (typeof showToast === 'function') showToast('success', `${format === 'template' ? 'Template' : format.toUpperCase() + ' Export'} completed successfully!`);
-        }, 500);
-    } catch (e) {
-        hideSyncOverlay();
-        if (typeof showError === 'function') {
-            showError("Export Failed", e.message);
-        } else {
-            alert("Failed to export data.");
-        }
-    }
-}
-// Secure Download wrapper to bypass browser HTTP download warnings
-async function secureDownload(url, filename) {
-    if (typeof showLoading === 'function') {
-        showLoading('Preparing download...');
-    }
-    try {
-        const response = await fetch(window.APP.BASE + "/" + url);
-        if (!response.ok) throw new Error('Download failed');
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(blobUrl);
-        a.remove();
-    } catch (e) {
-        console.error('Download error:', e);
-        if (typeof showError === 'function') {
-            showError('Download Error', 'Could not download the file securely.');
-        } else {
-            alert('Could not download the file.');
-        }
-    } finally {
-        if (typeof hideLoading === 'function') {
-            hideLoading();
-        }
-    }
-}
-
-
-// --- Global PDF Preview Handler ---
-
-/**
- * Opens Chrome's native PDF viewer in a global modal overlay.
- * @param {string} billNo - The receipt bill number to preview.
- */
-function openGlobalPDFPreview(billNo) {
-    const iframe = document.getElementById('globalPdfIframe');
-    const modalEl = document.getElementById('globalPdfModal');
-
-    if (!iframe || !modalEl) {
-        console.error("Global PDF Modal elements not found in the DOM.");
-        if (typeof showError === 'function') showError("UI Error", "Cannot find PDF viewer components.");
-        return;
-    }
-
-    // Point the iframe directly to your existing FastAPI PDF endpoint
-    iframe.src = window.APP.API + `/pdf/${billNo}/view`;
-
-    // Initialize and show the Bootstrap modal
-    const pdfModal = new bootstrap.Modal(modalEl);
-    pdfModal.show();
-}
-
-// Memory & UX Cleanup: Clear the iframe when the modal closes
-document.addEventListener('DOMContentLoaded', () => {
-    const modalEl = document.getElementById('globalPdfModal');
-    if (modalEl) {
-        modalEl.addEventListener('hidden.bs.modal', () => {
-            const iframe = document.getElementById('globalPdfIframe');
-            if (iframe) iframe.src = "";
-        });
-    }
-});
-
-
 
 // --- Global Sync Overlay Controls ---
 function showSyncOverlay(message = "Processing Data...") {
@@ -613,7 +484,7 @@ async function executeExport(format) {
     showSyncOverlay(`Generating ${format === 'template' ? 'Template' : format.toUpperCase() + ' Backup'}...`);
 
     try {
-        const endpoint = format === 'template' ? window.APP.BASE + '/api/sync/template' : window.APP.API + `/sync/export/${format}`;
+        const endpoint = format === 'template' ? window.APP.API + '/sync/template' : window.APP.API + `/sync/export/${format}`;
         const response = await fetch(endpoint);
         if (!response.ok) throw new Error("Failed to generate export file.");
 
