@@ -17,6 +17,11 @@ from app.services.billing_service import get_all_receipts
 from app.services.backup_service import create_full_backup
 from app.core.paths import BACKUPS_DIR
 
+from app.authentication.common.utils import validate_tenant_pin, hash_pin
+from app.authentication.common.pin_vault import encrypt_admin_view_pin
+from app.authentication.tenant.sessions import revoke_all_tenant_sessions
+from app.core.db import get_conn
+
 import openpyxl
 from openpyxl.styles import Font, PatternFill
 router = APIRouter()
@@ -311,8 +316,27 @@ async def import_execute_data(
             t.company = p.get("Company", getattr(t, 'company', ''))
             t.address = p.get("Address", getattr(t, 'address', ''))
             t.room_number = p.get("Room", getattr(t, 'room_number', ''))
-            t.meter_id = p.get("Meter_ID", getattr(t, 'meter_id', ''))
-            t.tenant_pin = p.get("PIN") or getattr(t, 'tenant_pin', None)
+            t.meter_id = p.get("Meter_ID", getattr(t, "meter_id", ""))
+
+            # --------------------------------------------------
+            # Secure Tenant PIN Import
+            # --------------------------------------------------
+
+            plain_pin = str(p.get("PIN") or "").strip()
+
+            pin_changed = False
+            hashed_pin = None
+            encrypted_pin = None
+
+            if plain_pin:
+                validate_tenant_pin(plain_pin)
+
+                hashed_pin = hash_pin(plain_pin)
+                encrypted_pin = encrypt_admin_view_pin(plain_pin)
+
+                t.tenant_pin = hashed_pin
+                pin_changed = True
+
             t.rent = float(p.get("Rent", t.rent) or 0.0)
             t.water = float(p.get("Water", t.water) or 0.0)
             t.electricity_rate = float(p.get("Electricity_Rate", t.electricity_rate) or 0.0)
@@ -321,10 +345,55 @@ async def import_execute_data(
             t.status = p.get("Status", getattr(t, 'status', 'Active'))
 
             if is_new:
-                add_tenant(t)
+                tenant_id = add_tenant(t)
+                t.id = tenant_id
                 sys_tenants.append(t)
+
+                if pin_changed:
+                    now = datetime.datetime.utcnow().isoformat()
+                    with get_conn() as conn:
+                        conn.execute(
+                            """
+                            INSERT INTO tenant_pin_history
+                            (tenant_id, pin_hash, changed_at)
+                            VALUES (?, ?, ?)
+                            """,
+                            (tenant_id, hashed_pin, now)
+                        )
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO tenant_pin_admin_store
+                            (tenant_id, encrypted_pin, updated_at)
+                            VALUES (?, ?, ?)
+                            """,
+                            (tenant_id, encrypted_pin, now)
+                        )
+                        conn.commit()
             else:
                 update_tenant(t)
+
+                if pin_changed:
+                    now = datetime.datetime.utcnow().isoformat()
+                    with get_conn() as conn:
+                        conn.execute(
+                            """
+                            INSERT INTO tenant_pin_history
+                            (tenant_id, pin_hash, changed_at)
+                            VALUES (?, ?, ?)
+                            """,
+                            (t.id, hashed_pin, now)
+                        )
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO tenant_pin_admin_store
+                            (tenant_id, encrypted_pin, updated_at)
+                            VALUES (?, ?, ?)
+                            """,
+                            (t.id, encrypted_pin, now)
+                        )
+                        conn.commit()
+                    # Force tenant to login again using new PIN
+                    revoke_all_tenant_sessions(t.id)
 
             for r in t_data["receipts"]:
                 bill_no = r.get("Bill_No", "").strip()
