@@ -416,21 +416,66 @@ async def import_execute_data(
                 else:
                     sys_receipts.append(data)
 
+    # try:
+    #     if file.filename.endswith('.zip'):
+    #         with zipfile.ZipFile(io.BytesIO(content)) as z:
+    #             for zip_info in z.infolist():
+    #                 if zip_info.filename.endswith('.xlsx'):
+    #                     with z.open(zip_info) as f:
+    #                         execute_import_for_file(f.read(), zip_info.filename)
+    #     elif file.filename.endswith('.xlsx'):
+    #         execute_import_for_file(content, file.filename)
+
+    #     from app.services.billing_service import save_all_receipts
+    #     save_all_receipts(sys_receipts)
+    #     return {"status": "success"}
+    # except Exception as e:
+    #     raise HTTPException(status_code=400, detail=str(e))
     try:
-        if file.filename.endswith('.zip'):
+        if file.filename.endswith(".zip"):
             with zipfile.ZipFile(io.BytesIO(content)) as z:
                 for zip_info in z.infolist():
-                    if zip_info.filename.endswith('.xlsx'):
+                    if zip_info.filename.endswith(".xlsx"):
                         with z.open(zip_info) as f:
-                            execute_import_for_file(f.read(), zip_info.filename)
-        elif file.filename.endswith('.xlsx'):
+                            execute_import_for_file(
+                                f.read(),
+                                zip_info.filename
+                            )
+
+        elif file.filename.endswith(".xlsx"):
             execute_import_for_file(content, file.filename)
 
         from app.services.billing_service import save_all_receipts
         save_all_receipts(sys_receipts)
-        return {"status": "success"}
+
+        return {
+            "status": "success",
+            "message": "Import completed successfully."
+        }
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    finally:
+        # Close the uploaded file
+        try:
+            await file.close()
+        except Exception:
+            pass
+
+        # Remove Starlette/FastAPI temporary upload file (if one exists)
+        try:
+            temp_path = getattr(file.file, "name", None)
+
+            if (
+                isinstance(temp_path, str)
+                and os.path.isfile(temp_path)
+            ):
+                os.remove(temp_path)
+
+        except Exception:
+            # Ignore cleanup errors
+            pass
 
 
 if __name__ == "__main__":
