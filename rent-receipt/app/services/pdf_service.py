@@ -225,12 +225,14 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
         # c.drawString(60, y, "AMOUNT RECEIVED")
         # c.drawRightString(width - 60, y, f"     {amt_recv:,.2f}")
         
-        y -= 15
-        c.setFont("NotoSans-Bold", 11)
-        if balance > 0:
-            c.drawString(60, y, "BALANCE DUE")
-            c.drawRightString(width - 60, y, f"     {balance:,.2f}")
-        elif balance < 0:
+        # if balance > 0:
+        #     y -= 15
+        #     c.setFont("NotoSans-Bold", 11)
+        #     c.drawString(60, y, "BALANCE DUE")
+        #     c.drawRightString(width - 60, y, f"     {balance:,.2f}")
+        if balance < 0:
+            y -= 15
+            c.setFont("NotoSans-Bold", 11)
             c.drawString(60, y, "ADVANCE AMOUNT")
             c.drawRightString(width - 60, y, f"     {abs(balance):,.2f}")
 
