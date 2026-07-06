@@ -163,8 +163,8 @@ if args.clean:
         # Remove anonymous volumes
         f"cd {REMOTE_DIR} && docker compose down -v --remove-orphans",
 
-        # Completely wipe all persistent data (database, configs, uploads)
-        f"cd {REMOTE_DIR} && rm -rf storage/",
+        # Completely wipe all persistent data (database, configs, uploads) using sudo to avoid permission denied
+        f"cd {REMOTE_DIR} && echo '{PASSWORD}' | sudo -S rm -rf storage/",
 
         # Remove dangling build cache
         "docker builder prune -af",
