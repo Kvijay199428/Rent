@@ -6,7 +6,7 @@ from app.core.route_builder import RouteBuilder
 from app.core.routes import Paths, Names, Prefixes
 from typing import Optional
 from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
+from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
 
@@ -36,7 +36,7 @@ async def api_filter_bills(status: str = "active"):
     elif status == "paid":
         filtered = [
             r for r in receipts
-            if r.get("Payment_Status", "PENDING") == "PAID"
+            if r.get("Payment_Status", "PENDING") in ["PAID", "ADVANCE"]
             and r.get("Status") != "ARCHIVED"
         ]
     elif status == "active":
@@ -52,8 +52,37 @@ async def api_billing_months():
     return get_billing_months()
 
 @router.get("/api/billing/preview", name=Names.API_BILLING_PREVIEW)
-async def api_billing_preview(current_reading: float, additional_persons: int):
-    return calculate_charges(current_reading, additional_persons)
+async def api_billing_preview(
+    currentreading: float,
+    additionalpersons: int,
+    prevreading: float = 0.0,
+    rent: float | None = None,
+    water: float | None = None,
+    tankwater: float = 0.0,
+    maintenancecharge: float = 0.0,
+    rate: float | None = None,
+    addpersoncharge: float | None = None,
+):
+    billing_conf = config.get("billing", {})
+    rent = float(rent if rent is not None else billing_conf.get("rent", 0.0))
+    water = float(water if water is not None else billing_conf.get("water", 0.0))
+    rate = float(rate if rate is not None else billing_conf.get("electricity_rate", 0.0))
+    addpersoncharge = float(
+        addpersoncharge if addpersoncharge is not None
+        else billing_conf.get("additional_person_charge", 0.0)
+    )
+
+    return calculate_charges(
+        currentreading,
+        additionalpersons,
+        prevreading,
+        rent,
+        water,
+        tankwater,
+        maintenancecharge,
+        rate,
+        addpersoncharge,
+    )
 
 @router.get("/api/bill/{bill_no}", name=Names.API_GET_SINGLE_BILL)
 async def api_get_single_bill(bill_no: str):
@@ -64,29 +93,24 @@ async def api_get_single_bill(bill_no: str):
 
 @router.post("/api/bill", name=Names.API_CREATE_BILL)
 async def api_create_bill(request: BillRequest, background_tasks: BackgroundTasks):
-    billing_conf = config.get("billing", {})
-    prev = float(billing_conf.get("previous_meter_reading", 0.0))
-    if request.current_reading < prev:
-        raise HTTPException(status_code=400, detail="Current meter reading cannot be less than previous reading.")
-        
     try:
         data = create_bill(
             request.tenant,
             request.month,
-            request.current_reading,
-            request.additional_persons,
-            request.tank_water,
-            request.maintenance_charge,
-            request.maintenance_desc,
-            request.previous_arrears,
-            request.amount_received,
-            request.payment_status
+            request.currentreading,
+            request.additionalpersons,
+            request.tankwater,
+            request.maintenancecharge,
+            request.maintenancedesc,
+            request.previousarrears,
+            request.amountreceived,
+            request.paymentstatus
         )
         background_tasks.add_task(create_full_backup, tag="create_bill")
         return {"status": "success", "data": data}
     except ValueError as e:
         msg = str(e)
-        if "already exists" in msg:
+        if "already exists" in msg.lower():
             raise HTTPException(status_code=409, detail=msg)
         raise HTTPException(status_code=400, detail=msg)
     except Exception as e:
@@ -94,42 +118,46 @@ async def api_create_bill(request: BillRequest, background_tasks: BackgroundTask
 
 @router.post("/api/edit_bill/{bill_no}", name=Names.API_UPDATE_BILL)
 async def api_update_bill(bill_no: str, request: BillRequest, background_tasks: BackgroundTasks):
-    receipt = get_receipt(bill_no)
-    if not receipt:
-        raise HTTPException(status_code=404, detail="Bill not found")
-        
-    prev = float(receipt["Previous"])
-    if request.current_reading < prev:
-        raise HTTPException(status_code=400, detail="Current meter reading cannot be less than previous reading.")
-        
     try:
         data = update_bill(
             bill_no,
             request.tenant,
             request.month,
-            request.current_reading,
-            request.additional_persons,
-            request.tank_water,
-            request.maintenance_charge,
-            request.maintenance_desc,
-            request.previous_arrears,
-            request.amount_received,
-            request.payment_status
+            request.currentreading,
+            request.additionalpersons or 0,
+            request.tankwater or 0.0,
+            request.maintenancecharge or 0.0,
+            request.maintenancedesc or "",
+            request.previousarrears or 0.0,
+            request.amountreceived,
+            (request.paymentstatus or "PENDING").upper()
         )
         background_tasks.add_task(create_full_backup, tag="edit_bill")
         return {"status": "success", "data": data}
+    except ValueError as e:
+        msg = str(e)
+        if "already exists" in msg.lower():
+            raise HTTPException(status_code=409, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# Update PaymentStatusUpdate with amount_received
 @router.post("/api/bill/{bill_no}/payment", name=Names.API_UPDATE_PAYMENT)
 async def api_update_payment(bill_no: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
     try:
-        if data.payment_status not in ["PAID", "PENDING", "PARTIAL", "ADVANCE"]:
-            raise ValueError("Invalid payment status")
-        update_payment_status(bill_no, data.payment_status, data.amount_received)
+        status = (data.paymentstatus or "").strip().upper()
+        if status not in {"PAID", "PENDING", "PARTIAL", "ADVANCE"}:
+            raise HTTPException(status_code=400, detail="Invalid payment status.")
+
+        amount = data.amountreceived
+        if amount is not None and amount < 0:
+            raise HTTPException(status_code=400, detail="Amount received cannot be negative.")
+
+        update_payment_status(bill_no, status, amount)
         background_tasks.add_task(create_full_backup, tag="payment_status")
         return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

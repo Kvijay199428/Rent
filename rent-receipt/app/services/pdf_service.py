@@ -220,10 +220,10 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     c.drawRightString(width - 60, y, f"     {grand_total:,.2f}")
 
     if amt_recv != grand_total:
-        y -= 15
-        c.setFont("NotoSans", 11)
-        c.drawString(60, y, "AMOUNT RECEIVED")
-        c.drawRightString(width - 60, y, f"     {amt_recv:,.2f}")
+        # y -= 15
+        # c.setFont("NotoSans", 11)
+        # c.drawString(60, y, "AMOUNT RECEIVED")
+        # c.drawRightString(width - 60, y, f"     {amt_recv:,.2f}")
         
         y -= 15
         c.setFont("NotoSans-Bold", 11)

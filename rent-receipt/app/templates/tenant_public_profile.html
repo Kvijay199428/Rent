@@ -283,7 +283,8 @@
                                         <div class="text-info fw-semibold fs-7 mt-1">Adv: ₹{{ "{:,.0f}".format(advance_amount) }}</div>
                                     {% endif %}
                                 </div>
-                                <a href="{{ request.url_for(Names.PDF_VIEW, bill_no=r.Bill) }}" target="_blank"
+                                <!-- <a href="{{ request.url_for(Names.PDF_VIEW, bill_no=r.Bill) }}" target="_blank" -->
+                                <a href="{{ request.url_for(Names.PDF_VIEW, bill_no=r.Bill) }}?view_token={{ view_token }}" target="_blank"
                                     class="btn btn-primary btn-sm rounded-circle ms-4 shadow-sm d-flex align-items-center justify-content-center"
                                     style="width: 45px; height: 45px;" title="View PDF">
                                     <i class="bi bi-file-earmark-pdf fs-4"></i>
@@ -502,8 +503,8 @@
                 container.innerHTML = '';
 
                 const filtered = rawOccupants.filter(o => {
-                    const matchName = o.Name.toLowerCase().includes(search);
-                    const matchStatus = currentFilter === 'All' || o.Status === currentFilter;
+                    const matchName = o.name.toLowerCase().includes(search);
+                    const matchStatus = currentFilter === 'All' || o.status === currentFilter;
                     return matchName && matchStatus;
                 });
 
@@ -544,7 +545,7 @@
                     html += `<div class="collapse show timeline-content" id="collapse-${safeId}">`;
 
                     occs.forEach(o => {
-                        const isActive = o.Status === 'Active';
+                        const isActive = o.status === 'Active';
                         const statusBadge = isActive
                             ? `<span class="badge bg-success bg-opacity-10 text-success border border-success"><i class="bi bi-check-circle-fill me-1"></i>Active</span>`
                             : `<span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary"><i class="bi bi-dash-circle-fill me-1"></i>Inactive</span>`;
@@ -554,8 +555,8 @@
                         if (o['Emp Front']) docsHtml += `<span class="badge bg-info bg-opacity-10 text-info border border-info"><i class="bi bi-briefcase-fill me-1"></i>Emp ID</span>`;
 
                         let dateHtml = '';
-                        if (o.Upload_Date && o.Upload_Date !== '') {
-                            const d = parseDate(o.Upload_Date);
+                        if (o.uploaddate && o.uploaddate !== '') {
+                            const d = parseDate(o.uploaddate);
                             dateHtml = `<div class="text-muted fs-8 mt-2"><i class="bi bi-clock me-1"></i>Uploaded: ${d.toLocaleDateString()}</div>`;
                         }
 
@@ -564,10 +565,10 @@
                         html += `
                         <div class="occupant-card" onclick="viewOccupant(this, '${encodedData}')">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="fw-bold mb-0">${o.Name}</h6>
+                                <h6 class="fw-bold mb-0">${o.name}</h6>
                                 ${statusBadge}
                             </div>
-                            <div class="fs-7 text-muted mb-2"><i class="bi bi-telephone me-1"></i>${o.Mobile}</div>
+                            <div class="fs-7 text-muted mb-2"><i class="bi bi-telephone me-1"></i>${o.mobile}</div>
                             <div>${docsHtml}</div>
                             ${dateHtml}
                         </div>
@@ -589,17 +590,17 @@
                 document.getElementById('viewerPlaceholder').classList.add('d-none');
                 document.getElementById('viewerContent').classList.remove('d-none');
 
-                document.getElementById('previewName').innerText = occ.Name;
-                document.getElementById('previewMobile').innerText = occ.Mobile;
+                document.getElementById('previewName').innerText = occ.name;
+                document.getElementById('previewMobile').innerText = occ.mobile;
 
                 const badge = document.getElementById('previewStatus');
-                if (occ.Status === 'Active') {
+                if (occ.status === 'Active') {
                     badge.className = 'badge bg-success';
                     badge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Active';
 
                     const markBtn = document.getElementById('btnMarkInactive');
                     markBtn.classList.remove('d-none');
-                    markBtn.onclick = () => markInactive(occ['Occupant UUID']);
+                    markBtn.onclick = () => markInactive(occ.occupant_uuid);
                 } else {
                     badge.className = 'badge bg-secondary';
                     badge.innerHTML = '<i class="bi bi-dash-circle-fill me-1"></i>Inactive';
@@ -627,14 +628,14 @@
                     toggleBar.appendChild(btn);
                 };
 
-                if (occ['Aadhaar Combined']) {
-                    addToggleButton('<i class="bi bi-file-earmark-person me-1"></i>Aadhaar (Combined)', occ['Aadhaar Combined'], 'pdf');
+                if (occ.aadhaar_combined) {
+                    addToggleButton('<i class="bi bi-file-earmark-person me-1"></i>Aadhaar (Combined)', occ.aadhaar_combined, 'pdf');
                 } else {
-                    addToggleButton('<i class="bi bi-person-bounding-box me-1"></i>Aadhaar Front', occ['Aadhaar Front'], 'img');
-                    addToggleButton('<i class="bi bi-upc-scan me-1"></i>Aadhaar Back', occ['Aadhaar Back'], 'img');
+                    addToggleButton('<i class="bi bi-person-bounding-box me-1"></i>Aadhaar Front', occ.aadhaar_front, 'img');
+                    addToggleButton('<i class="bi bi-upc-scan me-1"></i>Aadhaar Back', occ.aadhaar_back, 'img');
                 }
-                addToggleButton('<i class="bi bi-briefcase me-1"></i>Emp ID Front', occ['Emp Front'], 'img');
-                addToggleButton('<i class="bi bi-briefcase-fill me-1"></i>Emp ID Back', occ['Emp Back'], 'img');
+                addToggleButton('<i class="bi bi-briefcase me-1"></i>Emp ID Front', occ.emp_front, 'img');
+                addToggleButton('<i class="bi bi-briefcase-fill me-1"></i>Emp ID Back', occ.emp_back, 'img');
 
                 if (firstDocPath) {
                     toggleBar.firstChild.classList.add('active');
@@ -728,7 +729,7 @@
                 formData.append('pin', '{{ tenant.tenant_pin }}');
 
                 try {
-                    const res = await fetch("../api/t/{{ view_token }}/kyc", { method: "POST", body: formData });
+                    const res = await fetch("../t/api/{{ view_token }}/kyc", { method: "POST", body: formData });
                     if (res.ok) {
                         refreshUnlockedPage();
                     } else {
@@ -759,7 +760,8 @@
                 }).then(async (result) => {
                     if (result.isConfirmed) {
                         try {
-                            const res = await fetch(`../api/t/{{ view_token }}/kyc/${uuid}/inactive`, { method: "PUT" });
+                            // We cleverly reuse the public API route by passing the tenant's token
+                            const res = await fetch(`../t/api/{{ view_token }}/kyc/${uuid}/inactive`, { method: "PUT" });
                             if (res.ok) {
                                 Swal.fire('Updated!', 'Occupant marked inactive.', 'success').then(() => refreshUnlockedPage());
                             } else {

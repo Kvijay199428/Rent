@@ -13,16 +13,20 @@
         <div class="card shadow-sm border-0">
             <div class="card-body p-2">
                 <div class="nav flex-column nav-pills" id="settingsTabs" role="tablist" aria-orientation="vertical">
-                    <button class="nav-link text-start active fw-semibold py-3 px-4 mb-1" id="billing-tab" data-bs-toggle="pill" data-bs-target="#billing" type="button" role="tab">
+                    <button class="nav-link text-start active fw-semibold py-3 px-4 mb-1" id="billing-tab"
+                        data-bs-toggle="pill" data-bs-target="#billing" type="button" role="tab">
                         <i class="bi bi-receipt-cutoff me-3"></i>Billing Defaults
                     </button>
-                    <button class="nav-link text-start fw-semibold py-3 px-4 mb-1" id="landlord-tab" data-bs-toggle="pill" data-bs-target="#landlord" type="button" role="tab">
+                    <button class="nav-link text-start fw-semibold py-3 px-4 mb-1" id="landlord-tab"
+                        data-bs-toggle="pill" data-bs-target="#landlord" type="button" role="tab">
                         <i class="bi bi-person-badge me-3"></i>Landlord Info
                     </button>
-                    <button class="nav-link text-start fw-semibold py-3 px-4 mb-1" id="appearance-tab" data-bs-toggle="pill" data-bs-target="#appearance" type="button" role="tab">
+                    <button class="nav-link text-start fw-semibold py-3 px-4 mb-1" id="appearance-tab"
+                        data-bs-toggle="pill" data-bs-target="#appearance" type="button" role="tab">
                         <i class="bi bi-palette me-3"></i>Appearance
                     </button>
-                    <button class="nav-link text-start fw-semibold py-3 px-4" id="backup-tab" data-bs-toggle="pill" data-bs-target="#backup" type="button" role="tab">
+                    <button class="nav-link text-start fw-semibold py-3 px-4" id="backup-tab" data-bs-toggle="pill"
+                        data-bs-target="#backup" type="button" role="tab">
                         <i class="bi bi-cloud-download me-3"></i>Backup & Data
                     </button>
                 </div>
@@ -36,44 +40,51 @@
             <div class="card-body p-4 p-md-5">
                 <form id="settingsForm">
                     <div class="tab-content" id="settingsTabContent">
-                        
+
                         <!-- Billing Settings -->
-                        <div class="tab-pane fade show active" id="billing" role="tabpanel" aria-labelledby="billing-tab">
+                        <div class="tab-pane fade show active" id="billing" role="tabpanel"
+                            aria-labelledby="billing-tab">
                             <h4 class="fw-bold mb-4 border-bottom pb-2">Application Billing Defaults</h4>
-                            <p class="text-muted mb-4">These values will be automatically assigned to <strong>newly created tenants</strong>. Existing tenants will not be affected.</p>
-                            
+                            <p class="text-muted mb-4">These values will be automatically assigned to <strong>newly
+                                    created tenants</strong>. Existing tenants will not be affected.</p>
+
                             <div class="row g-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="number" class="form-control" id="b_rent" value="{{ billing_config.rent }}" required>
+                                        <input type="number" class="form-control" id="b_rent"
+                                            value="{{ billing_config.rent }}" required>
                                         <label for="b_rent">Default Rent (₹)</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="number" class="form-control" id="b_water" value="{{ billing_config.water }}" required>
+                                        <input type="number" class="form-control" id="b_water"
+                                            value="{{ billing_config.water }}" required>
                                         <label for="b_water">Default Water (₹)</label>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="row g-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="number" class="form-control" id="b_elec_rate" step="0.1" value="{{ billing_config.electricity_rate }}" required>
+                                        <input type="number" class="form-control" id="b_elec_rate" step="0.1"
+                                            value="{{ billing_config.electricity_rate }}" required>
                                         <label for="b_elec_rate">Electricity Rate (₹/unit)</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="number" class="form-control" id="b_prev_meter" step="0.1" value="{{ billing_config.previous_meter_reading }}" required>
+                                        <input type="number" class="form-control" id="b_prev_meter" step="0.1"
+                                            value="{{ billing_config.previous_meter_reading }}" required>
                                         <label for="b_prev_meter">Default Meter Reading</label>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="form-floating mb-3">
-                                <input type="number" class="form-control" id="b_add_person" value="{{ billing_config.additional_person_charge }}">
+                                <input type="number" class="form-control" id="b_add_person"
+                                    value="{{ billing_config.additional_person_charge }}">
                                 <label for="b_add_person">Additional Person Charge (₹)</label>
                             </div>
                         </div>
@@ -81,90 +92,106 @@
                         <!-- Landlord Settings -->
                         <div class="tab-pane fade" id="landlord" role="tabpanel" aria-labelledby="landlord-tab">
                             <h4 class="fw-bold mb-4 border-bottom pb-2">Landlord Information</h4>
-                            <p class="text-muted mb-4">This information will be printed on the generated PDF receipts.</p>
-                            
+                            <p class="text-muted mb-4">This information will be printed on the generated PDF receipts.
+                            </p>
+
                             <div class="form-floating mb-3">
-                                <input type="text" class="form-control" id="l_name" value="{{ landlord_config.name }}" required>
+                                <input type="text" class="form-control" id="l_name" value="{{ landlord_config.name }}"
+                                    required>
                                 <label for="l_name">Landlord Name</label>
                             </div>
-                            
+
                             <div class="row g-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="tel" class="form-control" id="l_phone" value="{{ landlord_config.phone }}">
+                                        <input type="tel" class="form-control" id="l_phone"
+                                            value="{{ landlord_config.phone }}">
                                         <label for="l_phone">Phone Number</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="email" class="form-control" id="l_email" value="{{ landlord_config.email }}">
+                                        <input type="email" class="form-control" id="l_email"
+                                            value="{{ landlord_config.email }}">
                                         <label for="l_email">Email Address</label>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="form-floating mb-3">
-                                <textarea class="form-control" id="l_address" style="height: 100px" required>{{ landlord_config.address }}</textarea>
+                                <textarea class="form-control" id="l_address" style="height: 100px"
+                                    required>{{ landlord_config.address }}</textarea>
                                 <label for="l_address">Property Address</label>
                             </div>
-                            
+
                             <div class="row g-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_pan" value="{{ landlord_config.pan }}">
+                                        <input type="text" class="form-control" id="l_pan"
+                                            value="{{ landlord_config.pan }}">
                                         <label for="l_pan">PAN Number</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_sign" value="{{ landlord_config.signature_text }}">
+                                        <input type="text" class="form-control" id="l_sign"
+                                            value="{{ landlord_config.signature_text }}">
                                         <label for="l_sign">Signature Text</label>
                                     </div>
                                 </div>
                             </div>
 
-                            <h5 class="fw-bold mb-3 mt-4 border-bottom pb-2">Bank Details <span class="badge bg-secondary ms-2 fw-normal fs-8">Optional</span></h5>
-                            <p class="text-muted mb-4 fs-7">If provided, payment instructions will be added to your receipts.</p>
-                            
+                            <h5 class="fw-bold mb-3 mt-4 border-bottom pb-2">Bank Details <span
+                                    class="badge bg-secondary ms-2 fw-normal fs-8">Optional</span></h5>
+                            <p class="text-muted mb-4 fs-7">If provided, payment instructions will be added to your
+                                receipts.</p>
+
                             <div class="row g-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_bank_acc_name" value="{{ landlord_config.bank_account_name }}">
+                                        <input type="text" class="form-control" id="l_bank_acc_name"
+                                            value="{{ landlord_config.bank_account_name }}">
                                         <label for="l_bank_acc_name">Account Holder Name</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_bank_acc_no" value="{{ landlord_config.bank_account_number }}">
+                                        <input type="text" class="form-control" id="l_bank_acc_no"
+                                            value="{{ landlord_config.bank_account_number }}">
                                         <label for="l_bank_acc_no">Account Number</label>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="row g-3">
                                 <div class="col-sm-5">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_bank_name" value="{{ landlord_config.bank_name }}">
+                                        <input type="text" class="form-control" id="l_bank_name"
+                                            value="{{ landlord_config.bank_name }}">
                                         <label for="l_bank_name">Bank Name</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-4">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_bank_branch" value="{{ landlord_config.bank_branch }}">
+                                        <input type="text" class="form-control" id="l_bank_branch"
+                                            value="{{ landlord_config.bank_branch }}">
                                         <label for="l_bank_branch">Branch</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-3">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_bank_ifsc" value="{{ landlord_config.bank_ifsc }}" style="text-transform: uppercase;">
+                                        <input type="text" class="form-control" id="l_bank_ifsc"
+                                            value="{{ landlord_config.bank_ifsc }}" style="text-transform: uppercase;">
                                         <label for="l_bank_ifsc">IFSC Code</label>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="form-check form-switch mb-4">
-                                <input class="form-check-input" type="checkbox" role="switch" id="l_mask_bank" {% if landlord_config.mask_bank_account %}checked{% endif %}>
-                                <label class="form-check-label" for="l_mask_bank">Mask account number on printed receipts</label>
+                                <input class="form-check-input" type="checkbox" role="switch" id="l_mask_bank" {% if
+                                    landlord_config.mask_bank_account %}checked{% endif %}>
+                                <label class="form-check-label" for="l_mask_bank">Mask account number on printed
+                                    receipts</label>
                             </div>
 
                             <h5 class="fw-bold mb-3 mt-4 border-bottom pb-2">Digital Signature</h5>
@@ -172,21 +199,36 @@
                                 <div class="col-12">
                                     <div class="card bg-body-tertiary border-0">
                                         <div class="card-body p-4 text-center">
-                                            <div id="signaturePreviewContainer" class="mb-3 {% if landlord_config.signature_image %}d-block{% else %}d-none{% endif %}">
-                                                <img id="signaturePreview" src="{% if landlord_config.signature_image %}{{ APP_BASE(request) }}/static/uploads/{{ landlord_config.signature_image }}{% endif %}" alt="Landlord Signature" class="img-fluid border rounded bg-white p-2" style="max-height: 100px;">
+                                            <div id="signaturePreviewContainer"
+                                                class="mb-3 {% if landlord_config.signature_image %}d-block{% else %}d-none{% endif %}">
+                                                <img id="signaturePreview"
+                                                    src="{% if landlord_config.signature_image %}{{ APP_BASE(request) }}/static/uploads/{{ landlord_config.signature_image }}{% endif %}"
+                                                    alt="Landlord Signature"
+                                                    class="img-fluid border rounded bg-white p-2"
+                                                    style="max-height: 100px;">
                                                 <div class="mt-2">
-                                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="removeSignature()">
+                                                    <button type="button"
+                                                        class="btn btn-sm btn-outline-danger rounded-pill px-3"
+                                                        onclick="removeSignature()">
                                                         <i class="bi bi-trash me-1"></i>Remove Signature
                                                     </button>
                                                 </div>
                                             </div>
-                                            
-                                            <div id="signatureUploadContainer" class="p-4 rounded-3 bg-body {% if landlord_config.signature_image %}d-none{% else %}d-block{% endif %}" onclick="document.getElementById('signatureFile').click()">
-                                                <i class="bi bi-cloud-arrow-up text-primary mb-2 d-block" style="font-size: 2.5rem;"></i>
+
+                                            <div id="signatureUploadContainer"
+                                                class="p-4 rounded-3 bg-body {% if landlord_config.signature_image %}d-none{% else %}d-block{% endif %}"
+                                                onclick="document.getElementById('signatureFile').click()">
+                                                <i class="bi bi-cloud-arrow-up text-primary mb-2 d-block"
+                                                    style="font-size: 2.5rem;"></i>
                                                 <h6 class="fw-bold">Drag & Drop Signature</h6>
-                                                <p class="text-muted fs-7 mb-3">Or click to browse. Accepted: PNG, JPG, WEBP. Max size: 2MB.<br>The background will be automatically removed.</p>
-                                                <input type="file" class="form-control d-none" id="signatureFile" accept="image/png, image/jpeg, image/webp" onchange="uploadSignature()">
-                                                <button type="button" class="btn btn-outline-primary rounded-pill px-4" onclick="event.stopPropagation(); document.getElementById('signatureFile').click()">
+                                                <p class="text-muted fs-7 mb-3">Or click to browse. Accepted: PNG, JPG,
+                                                    WEBP. Max size: 2MB.<br>The background will be automatically
+                                                    removed.</p>
+                                                <input type="file" class="form-control d-none" id="signatureFile"
+                                                    accept="image/png, image/jpeg, image/webp"
+                                                    onchange="uploadSignature()">
+                                                <button type="button" class="btn btn-outline-primary rounded-pill px-4"
+                                                    onclick="event.stopPropagation(); document.getElementById('signatureFile').click()">
                                                     <i class="bi bi-upload me-2"></i>Select Image
                                                 </button>
                                             </div>
@@ -195,19 +237,36 @@
                                 </div>
                             </div>
 
-                            <h5 class="fw-bold mb-3 mt-4 border-bottom pb-2">WhatsApp Templates</h5>
-                            <p class="text-muted fs-7 mb-3">Customize the messages sent to tenants. You can use the following variables:<br>
-                            <code>{tenant_name}</code>, <code>{month}</code>, <code>{bill_no}</code>, <code>{total}</code>, <code>{currency}</code>, <code>{link}</code></p>
-                            
-                            <div class="form-floating mb-3">
-                                <textarea class="form-control" id="l_wa_template" style="height: 150px" required>{{ landlord_config.whatsapp_template }}</textarea>
-                                <label for="l_wa_template">Single Receipt Message Template</label>
+                            <h5 class="fw-bold mb-3 mt-4 border-bottom pb-2">WhatsApp Template</h5>
+                            <p class="text-muted mb-3 fs-7">
+                                Customize the WhatsApp message using the allowed variables below.
+                            </p>
+
+                            <div class="d-flex flex-wrap gap-2 mb-3" id="waVariablesBar"></div>
+
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill"
+                                    id="btnEditWaTemplate">
+                                    <i class="bi bi-pencil-square me-1"></i>Edit Template
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill d-none"
+                                    id="btnLockWaTemplate">
+                                    <i class="bi bi-lock me-1"></i>Lock Template
+                                </button>
+                                <button type="button" class="btn btn-outline-warning btn-sm rounded-pill"
+                                    id="btnResetWaTemplate">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Default
+                                </button>
                             </div>
-                            
+
                             <div class="form-floating mb-4">
-                                <textarea class="form-control" id="l_wa_bulk_template" style="height: 150px" required>{{ landlord_config.whatsapp_bulk_template }}</textarea>
-                                <label for="l_wa_bulk_template">Bulk Receipts Message Template</label>
-                                <div class="form-text fs-8">Use <code>{bill_list}</code> and <code>{total_amount}</code> instead of single bill variables here.</div>
+                                <textarea class="form-control" id="l_wa_template" style="height: 180px" readonly
+                                    placeholder="Enter template here">{{ whatsapp_config.single_template.message }}</textarea>
+
+                                <div class="form-text fs-8">
+                                    Read-only by default. Click <strong>Edit Template</strong> to modify. Click a
+                                    variable chip to insert it at the cursor position.
+                                </div>
                             </div>
 
                         </div>
@@ -215,73 +274,185 @@
                         <!-- Appearance Settings -->
                         <div class="tab-pane fade" id="appearance" role="tabpanel" aria-labelledby="appearance-tab">
                             <h4 class="fw-bold mb-4 border-bottom pb-2">Appearance</h4>
-                            
-                            <h6 class="fw-semibold mb-3">Base Theme</h6>
-                            <div class="d-flex gap-3 mb-5">
-                                <button type="button" class="btn btn-outline-secondary px-4 py-3 rounded-3 {% if theme == 'light' %}active border-primary{% endif %}" onclick="setTheme('light')">
-                                    <i class="bi bi-sun-fill fs-4 d-block mb-2 text-warning"></i> Light
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary px-4 py-3 rounded-3 {% if theme == 'dark' %}active border-primary{% endif %}" onclick="setTheme('dark')">
-                                    <i class="bi bi-moon-stars-fill fs-4 d-block mb-2 text-primary"></i> Dark
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary px-4 py-3 rounded-3 {% if theme == 'system' %}active border-primary{% endif %}" onclick="setTheme('system')">
-                                    <i class="bi bi-laptop fs-4 d-block mb-2 text-secondary"></i> System
-                                </button>
+
+                            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                                <div class="card-body p-4">
+                                    <div
+                                        class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-4">
+                                        <div>
+                                            <h6 class="fw-semibold mb-1">Base Theme</h6>
+                                            <p class="text-muted fs-7 mb-0">
+                                                Choose how the app should look across all pages.
+                                            </p>
+                                        </div>
+
+                                        <div class="theme-save-status-wrap">
+                                            <span id="themeSaveStatus" class="theme-save-status idle">
+                                                <i class="bi bi-circle-fill me-1 small"></i>
+                                                Ready
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3 mb-3" id="themeSelectorGroup">
+                                        <div class="col-md-4">
+                                            <button type="button" class="theme-option-btn w-100 text-start"
+                                                data-theme-option="light"
+                                                aria-pressed="{{ 'true' if theme == 'light' else 'false' }}">
+                                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                                    <div class="theme-icon theme-icon-light">
+                                                        <i class="bi bi-sun-fill"></i>
+                                                    </div>
+                                                    <span class="theme-active-badge d-none">
+                                                        <i class="bi bi-check2-circle me-1"></i>Active
+                                                    </span>
+                                                </div>
+                                                <div class="fw-bold mb-1">Light</div>
+                                                <div class="text-muted fs-8">Bright interface for daytime use.</div>
+                                            </button>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <button type="button" class="theme-option-btn w-100 text-start"
+                                                data-theme-option="dark"
+                                                aria-pressed="{{ 'true' if theme == 'dark' else 'false' }}">
+                                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                                    <div class="theme-icon theme-icon-dark">
+                                                        <i class="bi bi-moon-stars-fill"></i>
+                                                    </div>
+                                                    <span class="theme-active-badge d-none">
+                                                        <i class="bi bi-check2-circle me-1"></i>Active
+                                                    </span>
+                                                </div>
+                                                <div class="fw-bold mb-1">Dark</div>
+                                                <div class="text-muted fs-8">Low-glare interface for night use.</div>
+                                            </button>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <button type="button" class="theme-option-btn w-100 text-start"
+                                                data-theme-option="system"
+                                                aria-pressed="{{ 'true' if theme == 'system' else 'false' }}">
+                                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                                    <div class="theme-icon theme-icon-system">
+                                                        <i class="bi bi-laptop"></i>
+                                                    </div>
+                                                    <span class="theme-active-badge d-none">
+                                                        <i class="bi bi-check2-circle me-1"></i>Active
+                                                    </span>
+                                                </div>
+                                                <div class="fw-bold mb-1">System</div>
+                                                <div class="text-muted fs-8">Automatically follows your device
+                                                    preference.</div>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="theme-live-meta d-flex flex-column flex-md-row gap-2 gap-md-4">
+                                        <div>
+                                            <span class="text-muted fs-8 text-uppercase fw-semibold">Selected</span>
+                                            <div id="themeSelectedLabel" class="fw-semibold">System</div>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted fs-8 text-uppercase fw-semibold">Applied now</span>
+                                            <div id="themeAppliedLabel" class="fw-semibold">Light</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            
-                            <h6 class="fw-semibold mb-3">Accent Color <span class="badge bg-secondary-subtle text-secondary ms-2 fw-normal fs-8">Coming Soon</span></h6>
-                            <div class="d-flex gap-2 mb-3">
-                                <div class="rounded-circle bg-primary" style="width: 32px; height: 32px; cursor: pointer; border: 2px solid white; outline: 2px solid var(--bs-primary);"></div>
-                                <div class="rounded-circle bg-success" style="width: 32px; height: 32px; cursor: not-allowed; opacity: 0.5;"></div>
-                                <div class="rounded-circle" style="background-color: #6f42c1; width: 32px; height: 32px; cursor: not-allowed; opacity: 0.5;"></div>
-                                <div class="rounded-circle bg-danger" style="width: 32px; height: 32px; cursor: not-allowed; opacity: 0.5;"></div>
+
+                            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                        <div>
+                                            <h6 class="fw-semibold mb-1">
+                                                Accent Color
+                                                <span
+                                                    class="badge bg-secondary-subtle text-secondary ms-2 fw-normal fs-8">Coming
+                                                    Soon</span>
+                                            </h6>
+                                            <p class="text-muted fs-7 mb-0">
+                                                This preview is not clickable yet, but shows where accent
+                                                personalization will appear.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex gap-2 mb-3">
+                                        <span class="accent-preview-dot active"
+                                            style="--accent-preview:#0d6efd;"></span>
+                                        <span class="accent-preview-dot disabled"
+                                            style="--accent-preview:#198754;"></span>
+                                        <span class="accent-preview-dot disabled"
+                                            style="--accent-preview:#6f42c1;"></span>
+                                        <span class="accent-preview-dot disabled"
+                                            style="--accent-preview:#dc3545;"></span>
+                                    </div>
+
+                                    <p class="text-muted fs-8 mb-0">
+                                        For now, theme switching is fully interactive; accent color remains visual-only.
+                                    </p>
+                                </div>
                             </div>
-                            <p class="text-muted fs-7">Custom accent colors are currently in development.</p>
                         </div>
-                        
+
                         <!-- Backup Settings -->
                         <div class="tab-pane fade" id="backup" role="tabpanel" aria-labelledby="backup-tab">
                             <div class="card shadow-sm border-0 mb-4 rounded-4">
-                                <div class="card-header bg-success bg-gradient text-white py-3 px-4 d-flex align-items-center rounded-top-4">
+                                <div
+                                    class="card-header bg-success bg-gradient text-white py-3 px-4 d-flex align-items-center rounded-top-4">
                                     <i class="bi bi-file-earmark-spreadsheet fs-5 me-3"></i>
                                     <h5 class="mb-0 fw-bold">Excel Import & Export (Relational)</h5>
                                 </div>
                                 <div class="card-body p-4">
                                     <p class="text-muted mb-4 fs-7">
-                                        Manage your tenants and receipts using a highly organized Excel format (.xlsx). The workbook separates Tenant Profiles and Receipts into distinct sheets to prevent duplication and make editing easier.
+                                        Manage your tenants and receipts using a highly organized Excel format (.xlsx).
+                                        The workbook separates Tenant Profiles and Receipts into distinct sheets to
+                                        prevent duplication and make editing easier.
                                     </p>
-                            
+
                                     <div class="row g-3">
                                         <div class="col-md-4">
-                                            <button onclick="executeExport('template')" type="button" class="btn btn-outline-success w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
-                                                <span><i class="bi bi-grid-3x3 me-2 text-success"></i> Blank Excel Template</span>
+                                            <button onclick="executeExport('template')" type="button"
+                                                class="btn btn-outline-success w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
+                                                <span><i class="bi bi-grid-3x3 me-2 text-success"></i> Blank Excel
+                                                    Template</span>
                                                 <i class="bi bi-download"></i>
                                             </button>
                                         </div>
                                         <div class="col-md-4">
-                                            <button onclick="executeExport('xlsx')" type="button" class="btn btn-outline-primary w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
-                                                <span><i class="bi bi-file-excel-fill me-2 text-primary"></i> Export to Excel (.xlsx)</span>
+                                            <button onclick="executeExport('xlsx')" type="button"
+                                                class="btn btn-outline-primary w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
+                                                <span><i class="bi bi-file-excel-fill me-2 text-primary"></i> Export to
+                                                    Excel (.xlsx)</span>
                                                 <i class="bi bi-box-arrow-up-right"></i>
                                             </button>
                                         </div>
                                         <div class="col-md-4">
-                                            <button onclick="executeExport('zip')" type="button" class="btn btn-outline-primary w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
-                                                <span><i class="bi bi-file-zip-fill me-2 text-primary"></i> Export as ZIP Archive</span>
+                                            <button onclick="executeExport('zip')" type="button"
+                                                class="btn btn-outline-primary w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
+                                                <span><i class="bi bi-file-zip-fill me-2 text-primary"></i> Export as
+                                                    ZIP Archive</span>
                                                 <i class="bi bi-box-arrow-up-right"></i>
                                             </button>
                                         </div>
                                     </div>
-                                    
+
                                     <hr class="my-4 text-muted">
-                                    
-                                    <div class="d-flex align-items-center justify-content-between bg-primary-subtle p-3 rounded-3 border border-primary">
+
+                                    <div
+                                        class="d-flex align-items-center justify-content-between bg-primary-subtle p-3 rounded-3 border border-primary">
                                         <div>
                                             <h6 class="fw-bold text-primary mb-1">Import Excel Data</h6>
-                                            <div class="fs-8 text-muted">Select an .xlsx file or a .zip containing multiple .xlsx files.</div>
+                                            <div class="fs-8 text-muted">Select an .xlsx file or a .zip containing
+                                                multiple .xlsx files.</div>
                                         </div>
                                         <div>
-                                            <input type="file" id="importExcelFile" accept=".xlsx, .zip" class="d-none" onchange="handleExcelImport(this)">
-                                            <button type="button" onclick="document.getElementById('importExcelFile').click()" class="btn btn-primary fw-bold shadow-sm rounded-pill px-4">
+                                            <input type="file" id="importExcelFile" accept=".xlsx, .zip" class="d-none"
+                                                onchange="handleExcelImport(this)">
+                                            <button type="button"
+                                                onclick="document.getElementById('importExcelFile').click()"
+                                                class="btn btn-primary fw-bold shadow-sm rounded-pill px-4">
                                                 <i class="bi bi-cloud-arrow-up-fill me-2"></i> Select File to Import
                                             </button>
                                         </div>
@@ -291,10 +462,11 @@
                         </div>
 
                     </div>
-                    
+
                     <!-- Save Button Area -->
                     <div class="mt-4 pt-4 border-top">
-                        <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm fw-bold" id="saveBtn">
+                        <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm fw-bold"
+                            id="saveBtn">
                             <i class="bi bi-save me-2"></i>Save All Settings
                         </button>
                     </div>
@@ -310,22 +482,24 @@
                 <h5 class="modal-title fw-bold fs-6">
                     <i class="bi bi-file-excel me-2 text-success"></i> Data Import Preview
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
-            
+
             <div class="modal-body p-0 d-flex flex-row h-100" style="overflow: hidden;">
-                
+
                 <div class="border-end bg-body-tertiary d-flex flex-column h-100" style="width: 20%; min-width: 250px;">
-                    <div class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center shadow-sm z-1">
+                    <div
+                        class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center shadow-sm z-1">
                         <h6 class="fw-bold mb-0 text-secondary fs-7 px-2">Select Tenants</h6>
                     </div>
-                    
+
                     <div class="overflow-auto flex-grow-1 p-2" id="importTreeList">
-                        </div>
+                    </div>
                 </div>
 
                 <div class="bg-body d-flex flex-column h-100" style="width: 80%;">
-                    
+
                     <div class="p-3 border-bottom bg-primary-subtle shadow-sm z-1 d-none" id="previewProfileCard">
                         <div class="row align-items-center">
                             <div class="col-md-4">
@@ -334,37 +508,48 @@
                             </div>
                             <div class="col-md-8">
                                 <div class="row fs-7 text-dark fw-semibold">
-                                    <div class="col-4"><i class="bi bi-telephone me-1"></i> <span id="prev_t_phone"></span></div>
-                                    <div class="col-4"><i class="bi bi-building me-1"></i> <span id="prev_t_company"></span></div>
+                                    <div class="col-4"><i class="bi bi-telephone me-1"></i> <span
+                                            id="prev_t_phone"></span></div>
+                                    <div class="col-4"><i class="bi bi-building me-1"></i> <span
+                                            id="prev_t_company"></span></div>
                                     <div class="col-4">Rent: ₹<span id="prev_t_rent"></span></div>
-                                    <div class="col-4"><i class="bi bi-lightning-charge me-1"></i> ₹<span id="prev_t_rate"></span>/unit</div>
+                                    <div class="col-4"><i class="bi bi-lightning-charge me-1"></i> ₹<span
+                                            id="prev_t_rate"></span>/unit</div>
                                     <div class="col-4">Water: ₹<span id="prev_t_water"></span></div>
                                     <div class="col-4"><span class="badge bg-success" id="prev_t_status"></span></div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="px-3 py-2 border-bottom bg-light d-flex justify-content-between align-items-center" id="previewHeaderBar">
-                        <h6 class="fw-bold mb-0 text-secondary" id="previewTableName">Select a tenant on the left to preview receipts</h6>
+
+                    <div class="px-3 py-2 border-bottom bg-light d-flex justify-content-between align-items-center"
+                        id="previewHeaderBar">
+                        <h6 class="fw-bold mb-0 text-secondary" id="previewTableName">Select a tenant on the left to
+                            preview receipts</h6>
                         <span class="badge bg-secondary" id="previewTableRowsCount">0 Receipts</span>
                     </div>
-                    
+
                     <div class="table-responsive flex-grow-1 p-0 m-0 bg-white" style="overflow-y: auto;">
                         <table class="table table-hover table-sm fs-8 m-0 border-top-0" id="previewTable">
                             <thead class="table-dark sticky-top" id="previewTableHead"></thead>
                             <tbody id="previewTableBody">
-                                <tr><td colspan="100%" class="text-center text-muted py-5 mt-5"><i class="bi bi-inboxes d-block fs-1 mb-3 opacity-50"></i>No preview available</td></tr>
+                                <tr>
+                                    <td colspan="100%" class="text-center text-muted py-5 mt-5"><i
+                                            class="bi bi-inboxes d-block fs-1 mb-3 opacity-50"></i>No preview available
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
             </div>
-            
+
             <div class="modal-footer bg-light border-top-0 py-2">
-                <button type="button" class="btn btn-outline-secondary fw-bold rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-success fw-bold rounded-pill px-5 shadow-sm" id="btnExecuteImport" onclick="executeExcelImport()">
+                <button type="button" class="btn btn-outline-secondary fw-bold rounded-pill px-4"
+                    data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success fw-bold rounded-pill px-5 shadow-sm" id="btnExecuteImport"
+                    onclick="executeExcelImport()">
                     <i class="bi bi-cloud-check-fill me-2"></i> Import Selected Tenants
                 </button>
             </div>
@@ -379,19 +564,85 @@
     #signatureUploadContainer {
         border: 2px dashed #dee2e6;
         transition: all 0.2s ease-in-out;
-        cursor: pointer;
     }
+
     #signatureUploadContainer.drag-over {
         border-color: var(--bs-primary);
         background-color: var(--bs-primary-bg-subtle) !important;
     }
 </style>
+<script id="whatsapp_config_data" type="application/json">
+    {{ whatsapp_config|tojson }}
+</script>
 <script>
-    document.getElementById("settingsForm").addEventListener("submit", async function(e) {
+    const whatsappConfig = JSON.parse(document.getElementById('whatsapp_config_data').textContent);
+    const waTemplateConfig = whatsappConfig.single_template || {};
+    const waAllowedVariables = waTemplateConfig.allowed_variables || [];
+    const waDefaultMessage = waTemplateConfig.default_message || "";
+    const waTextarea = document.getElementById("l_wa_template");
+    const waVariablesBar = document.getElementById("waVariablesBar");
+    const btnEditWaTemplate = document.getElementById("btnEditWaTemplate");
+    const btnLockWaTemplate = document.getElementById("btnLockWaTemplate");
+    const btnResetWaTemplate = document.getElementById("btnResetWaTemplate");
+
+    function insertAtCursor(textarea, text) {
+        const start = textarea.selectionStart ?? textarea.value.length;
+        const end = textarea.selectionEnd ?? textarea.value.length;
+        const before = textarea.value.substring(0, start);
+        const after = textarea.value.substring(end);
+        textarea.value = before + text + after;
+        const nextPos = start + text.length;
+        textarea.focus();
+        textarea.setSelectionRange(nextPos, nextPos);
+    }
+
+    function renderWhatsappVariables() {
+        waVariablesBar.innerHTML = "";
+        waAllowedVariables.forEach(variable => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn btn-outline-dark btn-sm rounded-pill";
+            btn.textContent = variable;
+            btn.addEventListener("click", () => {
+                if (waTextarea.hasAttribute("readonly")) return;
+                insertAtCursor(waTextarea, variable);
+            });
+            waVariablesBar.appendChild(btn);
+        });
+    }
+
+    btnEditWaTemplate.addEventListener("click", () => {
+        waTextarea.removeAttribute("readonly");
+        waTextarea.focus();
+        btnEditWaTemplate.classList.add("d-none");
+        btnLockWaTemplate.classList.remove("d-none");
+    });
+
+    btnLockWaTemplate.addEventListener("click", () => {
+        waTextarea.setAttribute("readonly", "readonly");
+        btnLockWaTemplate.classList.add("d-none");
+        btnEditWaTemplate.classList.remove("d-none");
+    });
+
+    btnResetWaTemplate.addEventListener("click", async () => {
+        const result = await Swal.fire({
+            title: "Reset template?",
+            text: "This will restore the default WhatsApp message.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Yes, Reset",
+            confirmButtonColor: "#f59f00"
+        });
+
+        if (!result.isConfirmed) return;
+        waTextarea.value = waDefaultMessage;
+    });
+
+    renderWhatsappVariables();
+
+    document.getElementById("settingsForm").addEventListener("submit", async function (e) {
         e.preventDefault();
-        
-        // Because "Appearance" and "Backup" don't have form fields to save,
-        // we only gather Landlord and Billing fields.
+
         const landlordData = {
             name: document.getElementById("l_name").value,
             phone: document.getElementById("l_phone").value,
@@ -404,23 +655,9 @@
             bank_branch: document.getElementById("l_bank_branch").value.trim(),
             bank_ifsc: document.getElementById("l_bank_ifsc").value.toUpperCase(),
             mask_bank_account: document.getElementById("l_mask_bank").checked,
-            signature_text: document.getElementById("l_sign").value,
-            whatsapp_template: document.getElementById("l_wa_template").value,
-            whatsapp_bulk_template: document.getElementById("l_wa_bulk_template").value
+            signature_text: document.getElementById("l_sign").value
         };
-        
-        // Bank Validation
-        if (landlordData.bank_account_name || landlordData.bank_account_number || landlordData.bank_name || landlordData.bank_branch || landlordData.bank_ifsc) {
-            if (!landlordData.bank_account_number) {
-                showError("Validation Error", "Account Number is required if bank details are provided.");
-                return;
-            }
-            if (landlordData.bank_ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(landlordData.bank_ifsc)) {
-                showError("Validation Error", "Invalid IFSC Code format. Example: SBIN0001234");
-                return;
-            }
-        }
-        
+
         const billingData = {
             rent: parseFloat(document.getElementById("b_rent").value),
             water: parseFloat(document.getElementById("b_water").value),
@@ -428,29 +665,39 @@
             previous_meter_reading: parseFloat(document.getElementById("b_prev_meter").value),
             additional_person_charge: parseFloat(document.getElementById("b_add_person").value) || 0
         };
-        
+
+        const whatsappData = {
+            single_template: {
+                ...waTemplateConfig,
+                message: waTextarea.value
+            },
+            country_code: whatsappConfig.country_code || "91"
+        };
+
         const saveBtn = document.getElementById("saveBtn");
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...';
-        
+
         try {
             const res = await fetch("api/config", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     landlord: landlordData,
-                    billing: billingData
+                    billing: billingData,
+                    whatsapp: whatsappData
                 })
             });
+
             if (res.ok) {
-                showToast('success', 'Settings Saved Successfully');
-                setTimeout(() => window.location.reload(), 1500);
+                showToast("success", "Settings Saved Successfully");
+                setTimeout(() => window.location.reload(), 1200);
             } else {
-                showError('Error', 'Failed to save settings.');
+                showError("Error", "Failed to save settings.");
                 resetSaveBtn(saveBtn);
             }
         } catch (e) {
-            showError('Network Error', 'A connection error occurred.');
+            showError("Network Error", "A connection error occurred.");
             resetSaveBtn(saveBtn);
         }
     });
@@ -465,38 +712,38 @@
 
     async function handleExcelImport(inputEl) {
         if (!inputEl.files || inputEl.files.length === 0) return;
-        
+
         currentExcelFileObj = inputEl.files[0];
         const formData = new FormData();
         formData.append("file", currentExcelFileObj);
-        
+
         showSyncOverlay("Parsing Excel structure...");
-        
+
         try {
             const res = await fetch("api/sync/import/preview", { method: "POST", body: formData });
             hideSyncOverlay();
-            
+
             if (!res.ok) {
                 const data = await res.json();
                 showError("Parse Error", data.detail || "Unable to read file contents.");
                 inputEl.value = '';
                 return;
             }
-            
+
             const data = await res.json();
             importExcelCache = data.files; // Format: { "Rent_Data.xlsx": { "T001": { profile: {}, receipts: [] } } }
-            
+
             renderImportTreeList();
-            
+
             // Hide right side preview initially
             document.getElementById('previewProfileCard').classList.add('d-none');
             document.getElementById('previewTableBody').innerHTML = '<tr><td colspan="100%" class="text-center text-muted py-5 mt-5"><i class="bi bi-inboxes d-block fs-1 mb-3 opacity-50"></i>Select a tenant on the left to preview data.</td></tr>';
             document.getElementById('previewTableHead').innerHTML = '';
-            
+
             const modal = new bootstrap.Modal(document.getElementById('importPreviewModal'));
             modal.show();
-            
-        } catch(e) {
+
+        } catch (e) {
             hideSyncOverlay();
             showError("Network Error", "Could not reach the server.");
         }
@@ -506,16 +753,16 @@
     function renderImportTreeList() {
         const listContainer = document.getElementById('importTreeList');
         listContainer.innerHTML = '';
-        
+
         let isFirst = true;
 
         // Loop over files (Will be 1 if just .xlsx, multiple if .zip)
         for (const [filename, tenantsObj] of Object.entries(importExcelCache)) {
-            
+
             // File Header
             const fileGroup = document.createElement('div');
             fileGroup.className = "mb-3 border rounded-3 bg-white overflow-hidden shadow-sm";
-            
+
             const fileHeader = document.createElement('div');
             fileHeader.className = "bg-body-tertiary p-2 border-bottom d-flex align-items-center justify-content-between";
             fileHeader.innerHTML = `
@@ -525,30 +772,30 @@
                 <input type="checkbox" class="form-check-input file-group-checkbox" checked onchange="toggleFileGroup(this, '${filename.replace(/[^a-zA-Z0-9]/g, '_')}')" title="Select All in File">
             `;
             fileGroup.appendChild(fileHeader);
-            
+
             const tenantList = document.createElement('div');
             tenantList.className = "list-group list-group-flush";
             tenantList.id = `group_${filename.replace(/[^a-zA-Z0-9]/g, '_')}`;
-            
+
             // Loop over Tenants inside this file
             for (const [tenantId, data] of Object.entries(tenantsObj)) {
                 const tName = data.profile.Tenant_Name || "Unknown Tenant";
                 const receiptCount = data.receipts.length;
-                
+
                 const tItem = document.createElement('div');
                 tItem.className = `list-group-item list-group-item-action d-flex align-items-center gap-2 py-2 px-3 border-bottom-0 tenant-select-item ${isFirst ? 'bg-primary-subtle' : ''}`;
                 tItem.style.cursor = "pointer";
-                
+
                 // Handle clicking the row to preview
                 tItem.onclick = (e) => {
-                    if(e.target.type === 'checkbox') return;
-                    
+                    if (e.target.type === 'checkbox') return;
+
                     document.querySelectorAll('.tenant-select-item').forEach(el => el.classList.remove('bg-primary-subtle'));
                     tItem.classList.add('bg-primary-subtle');
-                    
+
                     renderRightSidePreview(filename, tenantId);
                 };
-                
+
                 tItem.innerHTML = `
                     <input class="form-check-input import-tenant-checkbox" type="checkbox" value="${filename}::${tenantId}" checked>
                     <div class="d-flex flex-column w-100" style="overflow: hidden;">
@@ -559,22 +806,22 @@
                         </div>
                     </div>
                 `;
-                
+
                 tenantList.appendChild(tItem);
-                
+
                 if (isFirst) {
                     renderRightSidePreview(filename, tenantId);
                     isFirst = false;
                 }
             }
-            
+
             fileGroup.appendChild(tenantList);
             listContainer.appendChild(fileGroup);
         }
     }
 
     // Must attach toggleFileGroup to window to work with inline onchange
-    window.toggleFileGroup = function(checkbox, groupId) {
+    window.toggleFileGroup = function (checkbox, groupId) {
         const group = document.getElementById(`group_${groupId}`);
         if (group) {
             group.querySelectorAll('.import-tenant-checkbox').forEach(cb => cb.checked = checkbox.checked);
@@ -583,10 +830,10 @@
 
     function renderRightSidePreview(filename, tenantId) {
         const data = importExcelCache[filename][tenantId];
-        
+
         // 1. Render Profile Summary Card
         document.getElementById('previewProfileCard').classList.remove('d-none');
-        
+
         const p = data.profile;
         document.getElementById('prev_t_name').innerText = p.Tenant_Name || "-";
         document.getElementById('prev_t_id').innerText = tenantId;
@@ -596,40 +843,40 @@
         document.getElementById('prev_t_rate').innerText = p.Electricity_Rate || "0";
         document.getElementById('prev_t_water').innerText = p.Water || "0";
         document.getElementById('prev_t_status').innerText = p.Status || "Active";
-        
+
         // 2. Render Receipts Table
         document.getElementById('previewTableName').innerText = `Receipt History`;
         document.getElementById('previewTableRowsCount').innerText = `${data.receipts.length} Receipts`;
-        
+
         const thead = document.getElementById('previewTableHead');
         const tbody = document.getElementById('previewTableBody');
-        
+
         if (data.receipts.length === 0) {
             thead.innerHTML = "";
             tbody.innerHTML = `<tr><td colspan="100%" class="text-center text-muted py-5"><i class="bi bi-inbox d-block fs-1 mb-2 opacity-50"></i>No receipts found for this tenant.</td></tr>`;
             return;
         }
-        
+
         // Extract headers from first receipt object keys dynamically
         const headers = Object.keys(data.receipts[0]);
-        
+
         let trHead = '<tr>';
         headers.forEach(h => { trHead += `<th class="text-nowrap">${h}</th>`; });
         trHead += '</tr>';
         thead.innerHTML = trHead;
-        
+
         let trBody = '';
         data.receipts.forEach(row => {
             trBody += '<tr>';
             headers.forEach(h => {
                 const val = row[h] || '-';
-                
+
                 // Color code statuses visually for preview
                 let styledVal = val;
                 if (h === 'Payment_Status') {
                     styledVal = val === 'PAID' ? `<span class="text-success fw-bold">${val}</span>` : `<span class="text-danger fw-bold">${val}</span>`;
                 }
-                
+
                 trBody += `<td class="text-nowrap">${styledVal}</td>`;
             });
             trBody += '</tr>';
@@ -640,32 +887,34 @@
     async function executeExcelImport() {
         const checkboxes = document.querySelectorAll('.import-tenant-checkbox:checked');
         const selectedTargets = Array.from(checkboxes).map(cb => cb.value); // ["RentData.xlsx::T001", ...]
-        
+
         if (selectedTargets.length === 0) {
             showError("Selection Required", "Please check at least one tenant from the list on the left to import.");
             return;
         }
-        
+
         const btn = document.getElementById('btnExecuteImport');
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Importing...';
-        
+
         document.activeElement.blur(); // Remove focus to prevent ARIA hidden warnings
         bootstrap.Modal.getInstance(document.getElementById('importPreviewModal')).hide(); // Hide the modal first
         showSyncOverlay("Importing & Syncing Data...");
-        
+
         const formData = new FormData();
         formData.append("file", currentExcelFileObj);
-        formData.append("selected_targets", JSON.stringify(selectedTargets));
-        
+        formData.append("selectedtargets", JSON.stringify(selectedTargets));
+
+        console.log("Submitting sync execute with selectedtargets:", JSON.stringify(selectedTargets));
+
         try {
             const res = await fetch("api/sync/import/execute", { method: "POST", body: formData });
             hideSyncOverlay();
-            
+
             btn.disabled = false;
             btn.innerHTML = originalHtml;
-            
+
             if (res.ok) {
                 Swal.fire({
                     icon: 'success',
@@ -679,8 +928,8 @@
                 const errData = await res.json();
                 showError("Import Failed", errData.detail || "An error occurred while merging Excel data.");
             }
-            
-        } catch(e) {
+
+        } catch (e) {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
             hideSyncOverlay();
@@ -692,16 +941,16 @@
         const fileInput = document.getElementById('signatureFile');
         const file = fileInput.files[0];
         if (!file) return;
-        
+
         if (file.size > 2 * 1024 * 1024) {
             showError('Error', 'File is too large. Max 2MB allowed.');
             fileInput.value = '';
             return;
         }
-        
+
         const formData = new FormData();
         formData.append('file', file);
-        
+
         showLoadingOverlay('Uploading and processing signature...');
         try {
             const res = await fetch('api/settings/signature', {
@@ -710,7 +959,7 @@
             });
             const data = await res.json();
             hideLoadingOverlay();
-            
+
             if (res.ok) {
                 showToast('success', 'Signature uploaded and processed successfully.');
                 document.getElementById('signaturePreview').src = "static/uploads/" + data.path + "?t=" + new Date().getTime();
@@ -739,7 +988,7 @@
                     } else {
                         showError('Error', 'Failed to remove signature.');
                     }
-                } catch(e) {
+                } catch (e) {
                     showError('Error', 'Network error.');
                 }
             }

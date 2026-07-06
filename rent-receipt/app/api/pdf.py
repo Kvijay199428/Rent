@@ -6,7 +6,7 @@ from app.core.route_builder import RouteBuilder
 from app.core.routes import Paths, Names, Prefixes
 from typing import Optional
 from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
+from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
 
@@ -24,8 +24,11 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
+from app.authentication.admin.middleware import get_current_admin_api
+from datetime import datetime
+
 @router.get("/api/pdf/{bill_no}/download", name=Names.PDF_DOWNLOAD)
-async def download_pdf(bill_no: str):
+async def download_pdf(bill_no: str, admin = Depends(get_current_admin_api)):
     receipt = get_receipt(bill_no)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
@@ -47,7 +50,7 @@ async def download_pdf(bill_no: str):
     return response
 
 @router.get("/api/pdf/{bill_no}/view", name=Names.PDF_VIEW)
-async def view_pdf(bill_no: str):
+async def view_pdf(bill_no: str, admin = Depends(get_current_admin_api)):
     receipt = get_receipt(bill_no)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")

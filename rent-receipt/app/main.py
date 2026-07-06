@@ -62,17 +62,11 @@ class ProxyContextMiddleware:
 
 app = FastAPI(title=APP_INFO["name"], version=APP_INFO["version"])
 
-# Initialize Storage, Config, Static mounts
-StartupManager.initialize_storage()
-StartupManager.initialize_config()
-StartupManager.mount_static(app)
-StartupManager.register_middlewares(app)
+# Initialize Storage, Config, DB, Migrations, Static mounts, Middlewares, and Events
+StartupManager.initialize(app)
 
 # Register all modular routers
 register_all_routers(app)
-
-# Register events after routers are registered so startup diagnostics show all routes
-StartupManager.register_events(app)
 
 # Add proxy middleware — must be added AFTER routes so it sits outermost in the stack
 app.add_middleware(ProxyContextMiddleware)  # type: ignore[arg-type]

@@ -163,6 +163,9 @@ if args.clean:
         # Remove anonymous volumes
         f"cd {REMOTE_DIR} && docker compose down -v --remove-orphans",
 
+        # Completely wipe all persistent data (database, configs, uploads)
+        f"cd {REMOTE_DIR} && rm -rf storage/",
+
         # Remove dangling build cache
         "docker builder prune -af",
 
@@ -171,6 +174,8 @@ if args.clean:
 
         # Build from scratch
         f"cd {REMOTE_DIR} && docker compose build --no-cache",
+
+        "docker rm -f rent_app_20081 || true",
 
         # Start containers
         f"cd {REMOTE_DIR} && docker compose up -d",
@@ -184,6 +189,8 @@ else:
         f"cd {REMOTE_DIR} && docker compose down",
 
         f"cd {REMOTE_DIR} && docker compose build --no-cache",
+
+        "docker rm -f rent_app_20081 || true",
 
         f"cd {REMOTE_DIR} && docker compose up -d",
 

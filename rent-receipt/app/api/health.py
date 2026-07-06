@@ -12,8 +12,9 @@ async def health_check():
         "application": APP_INFO["name"],
         "version": APP_INFO["version"],
         "schema": APP_INFO["schema"],
-        "config_loaded": bool(ConfigService.get_config()),
+        "config_loaded": bool(ConfigService().get("system")),
         "storage_ready": True,  # Monitored at startup
-        "database_ready": True, # Using flat files
+        "database": "SQLite (rent.db)",
+        "database_ready": True, 
         "uptime": "N/A" # Trackable if needed
     }

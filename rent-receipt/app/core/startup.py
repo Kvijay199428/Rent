@@ -3,15 +3,23 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.core.config_service import ConfigService
 from app.core.paths import UPLOADS_DIR, STATIC_DIR, ensure_storage_dirs
+from app.core.db import init_db
+from app.database.auth_repository import init_auth_tables
+from app.migrations.manager import run_migrations, validate_schema
 
 class StartupManager:
     @staticmethod
     def initialize(app: FastAPI):
         StartupManager.initialize_storage()
         StartupManager.initialize_config()
+        init_db()
+        run_migrations()
+        init_auth_tables()
+        validate_schema()
         StartupManager.mount_static(app)
         StartupManager.register_middlewares(app)
         StartupManager.register_events(app)
+
 
     @staticmethod
     def initialize_storage():

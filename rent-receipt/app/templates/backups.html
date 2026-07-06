@@ -48,18 +48,21 @@
         <div class="modal-content border-0 shadow-lg rounded-4">
             <div class="modal-header border-bottom-0 bg-primary bg-gradient text-white rounded-top-4">
                 <h5 class="modal-title fw-bold"><i class="bi bi-arrow-counterclockwise me-2"></i>Restore System</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
-                
+
                 <!-- Wizard Steps -->
                 <div id="wizard-step-1" class="text-center py-4">
                     <i class="bi bi-shield-exclamation text-warning" style="font-size: 4rem;"></i>
                     <h4 class="fw-bold mt-3">Confirm Restore</h4>
-                    <p class="text-muted">You are about to restore the system to:<br><strong id="restore-target-name" class="text-dark"></strong></p>
-                    
+                    <p class="text-muted">You are about to restore the system to:<br><strong id="restore-target-name"
+                            class="text-dark"></strong></p>
+
                     <div class="alert alert-info text-start fs-7">
-                        <i class="bi bi-info-circle me-2"></i>A temporary restore point will be created automatically before the rollback.
+                        <i class="bi bi-info-circle me-2"></i>A temporary restore point will be created automatically
+                        before the rollback.
                     </div>
                 </div>
 
@@ -70,14 +73,15 @@
                     <h5 class="fw-bold mt-3">Validating Backup...</h5>
                     <p class="text-muted fs-7">Checking checksums and archive integrity.</p>
                 </div>
-                
+
                 <div id="wizard-step-3" class="d-none">
                     <h5 class="fw-bold mb-3 text-center">Compatibility Check</h5>
                     <div class="card bg-body-tertiary border-0 mb-3">
                         <div class="card-body">
                             <div class="d-flex justify-content-between mb-2">
                                 <span class="text-muted">Schema Compatibility:</span>
-                                <span class="fw-bold text-success" id="compat-schema"><i class="bi bi-check-circle-fill me-1"></i>YES</span>
+                                <span class="fw-bold text-success" id="compat-schema"><i
+                                        class="bi bi-check-circle-fill me-1"></i>YES</span>
                             </div>
                             <div class="d-flex justify-content-between mb-2">
                                 <span class="text-muted">Receipts:</span>
@@ -90,22 +94,26 @@
                         </div>
                     </div>
                     <div class="alert alert-warning fs-7 mb-0">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Warning:</strong> Restoring will completely overwrite the current database and configuration.
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Warning:</strong> Restoring will
+                        completely overwrite the current database and configuration.
                     </div>
                 </div>
-                
+
                 <div id="wizard-step-4" class="d-none text-center py-5">
                     <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
                         <span class="visually-hidden">Loading...</span>
                     </div>
                     <h5 class="fw-bold mt-3">Restoring System...</h5>
-                    <p class="text-muted fs-7" id="restore-progress-text">Extracting files and safely replacing database.</p>
+                    <p class="text-muted fs-7" id="restore-progress-text">Extracting files and safely replacing
+                        database.</p>
                 </div>
 
             </div>
             <div class="modal-footer border-top-0 pt-0 pb-4 px-4 justify-content-center gap-2">
-                <button type="button" class="btn btn-light border rounded-pill px-4" data-bs-dismiss="modal" id="btn-cancel">Cancel</button>
-                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" id="btn-next">Continue</button>
+                <button type="button" class="btn btn-light border rounded-pill px-4" data-bs-dismiss="modal"
+                    id="btn-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm"
+                    id="btn-next">Continue</button>
             </div>
         </div>
     </div>
@@ -118,9 +126,9 @@
     let currentFilter = 'all';
     let targetBackup = null;
 
-    document.addEventListener("DOMContentLoaded", function() {
+    document.addEventListener("DOMContentLoaded", function () {
         loadBackups();
-        
+
         // Filter logic
         document.querySelectorAll('#backup-filters .nav-link').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -130,7 +138,7 @@
                 renderBackups();
             });
         });
-        
+
         // Wizard logic
         document.getElementById('btn-next').addEventListener('click', handleWizardNext);
     });
@@ -143,7 +151,7 @@
                 allBackups = data.backups || [];
                 renderBackups();
             }
-        } catch(e) {
+        } catch (e) {
             showToast('error', 'Failed to load backups.');
         }
     }
@@ -151,27 +159,27 @@
     function renderBackups() {
         const container = document.getElementById('backup-container');
         container.innerHTML = '';
-        
+
         let filtered = allBackups;
         if (currentFilter !== 'all') {
             filtered = allBackups.filter(b => b.type === currentFilter);
         }
-        
+
         if (filtered.length === 0) {
             container.innerHTML = `<div class="col-12 text-center py-5"><h5 class="text-muted">No backups found in this category.</h5></div>`;
             return;
         }
-        
+
         filtered.forEach(b => {
             let badgeClass = "bg-primary";
             let icon = "bi-archive";
-            
+
             if (b.type === "Automatic") { badgeClass = "bg-info"; icon = "bi-clock-history"; }
             if (b.type === "Restore Point") { badgeClass = "bg-warning text-dark"; icon = "bi-pin-angle"; }
             if (b.type === "Emergency") { badgeClass = "bg-danger"; icon = "bi-exclamation-triangle"; }
-            
+
             const dateStr = new Date(b.date).toLocaleString();
-            
+
             const card = `
                 <div class="col-md-6 col-lg-4">
                     <div class="card h-100 shadow-sm border-0 rounded-4 backup-card">
@@ -234,24 +242,24 @@
             } else {
                 showError('Error', 'Failed to create backup.');
             }
-        } catch(e) {
+        } catch (e) {
             hideLoadingOverlay();
             showError('Network Error', 'Failed to communicate with server.');
         }
     }
-    
+
     async function deleteBackup(id) {
         confirmAction("Delete Backup?", "This action cannot be undone.", "Delete", "#dc3545").then(async (result) => {
-            if(result.isConfirmed) {
+            if (result.isConfirmed) {
                 try {
-                    const res = await fetch(`api/backups/${id}`, { method: 'DELETE' });
-                    if(res.ok) {
+                    const res = await fetch(`${window.APP.API}/backups/${id}`, { method: 'DELETE' });
+                    if (res.ok) {
                         showToast('success', 'Backup deleted.');
                         loadBackups();
                     } else {
                         showError('Error', 'Failed to delete backup.');
                     }
-                } catch(e) {
+                } catch (e) {
                     showError('Error', 'Network error.');
                 }
             }
@@ -261,7 +269,7 @@
     async function verifyBackup(id) {
         showLoadingOverlay("Verifying Backup Integrity...");
         try {
-            const res = await fetch(`api/backups/${id}/verify`);
+            const res = await fetch(`${window.APP.API}/backups/${id}/verify`);
             const data = await res.json();
             hideLoadingOverlay();
             if (res.ok && data.status === 'success') {
@@ -269,7 +277,7 @@
             } else {
                 Swal.fire('Integrity Error', data.message, 'error');
             }
-        } catch(e) {
+        } catch (e) {
             hideLoadingOverlay();
             showError('Error', 'Verification failed.');
         }
@@ -281,23 +289,23 @@
 
     function startRestore(id) {
         targetBackup = allBackups.find(b => b.id === id);
-        if(!targetBackup) return;
-        
+        if (!targetBackup) return;
+
         wizardStep = 1;
         document.getElementById('restore-target-name').innerText = targetBackup.notes || targetBackup.id;
         showWizardStep(1);
-        
+
         document.getElementById('btn-next').innerText = "Validate Integrity";
         document.getElementById('btn-next').className = "btn btn-primary rounded-pill px-4 fw-bold shadow-sm";
         document.getElementById('btn-next').disabled = false;
         document.getElementById('btn-cancel').disabled = false;
-        
+
         restoreModal = new bootstrap.Modal(document.getElementById('restoreWizardModal'));
         restoreModal.show();
     }
 
     function showWizardStep(step) {
-        for(let i=1; i<=4; i++) {
+        for (let i = 1; i <= 4; i++) {
             document.getElementById(`wizard-step-${i}`).classList.add('d-none');
         }
         document.getElementById(`wizard-step-${step}`).classList.remove('d-none');
@@ -310,19 +318,19 @@
             showWizardStep(2);
             document.getElementById('btn-next').disabled = true;
             document.getElementById('btn-cancel').disabled = true;
-            
+
             try {
-                const res = await fetch(`api/backups/${targetBackup.id}/verify`);
+                const res = await fetch(`${window.APP.API}/backups/${targetBackup.id}/verify`);
                 const data = await res.json();
                 if (res.ok && data.status === 'success') {
                     // Success, move to Step 3
                     setTimeout(() => {
                         wizardStep = 3;
                         showWizardStep(3);
-                        
+
                         document.getElementById('compat-receipts').innerText = `${targetBackup.receipt_count || 0}`;
                         document.getElementById('compat-tenants').innerText = `${targetBackup.tenant_count || 0}`;
-                        
+
                         document.getElementById('btn-next').innerText = "Execute Restore";
                         document.getElementById('btn-next').className = "btn btn-danger rounded-pill px-4 fw-bold shadow-sm";
                         document.getElementById('btn-next').disabled = false;
@@ -332,20 +340,20 @@
                     restoreModal.hide();
                     Swal.fire('Validation Failed', data.message, 'error');
                 }
-            } catch(e) {
+            } catch (e) {
                 restoreModal.hide();
                 showError('Error', 'Validation process failed.');
             }
-        } 
+        }
         else if (wizardStep === 3) {
             // Move to Step 4: Execute
             wizardStep = 4;
             showWizardStep(4);
             document.getElementById('btn-next').disabled = true;
             document.getElementById('btn-cancel').disabled = true;
-            
+
             try {
-                const res = await fetch(`api/backups/${targetBackup.id}/restore`, { method: 'POST' });
+                const res = await fetch(`${window.APP.API}/backups/${targetBackup.id}/restore`, { method: 'POST' });
                 if (res.ok) {
                     document.getElementById('restore-progress-text').innerText = "Success! Reloading system...";
                     setTimeout(() => {
@@ -356,7 +364,7 @@
                     restoreModal.hide();
                     Swal.fire('Restore Failed', data.detail || 'An error occurred during restoration.', 'error');
                 }
-            } catch(e) {
+            } catch (e) {
                 restoreModal.hide();
                 showError('Error', 'Network error during restore.');
             }

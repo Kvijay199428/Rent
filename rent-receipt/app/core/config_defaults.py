@@ -20,9 +20,25 @@ DEFAULT_CONFIGS = {
         "bank_ifsc": "",
         "mask_bank_account": True,
         "signature_text": "Authorized Signature",
-        "signature_image": "",
-        "whatsapp_template": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {bill_no}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n\nThank you!",
-        "whatsapp_bulk_template": "Hello {tenant_name},\n\nHere are your requested rent receipts:\n\n{bill_list}\n*Total Amount:* {currency}{total_amount}\n\nYou can view and download your receipts securely here: {link}\n\nThank you!"
+        "signature_image": ""
+    },
+    "whatsapp": {
+        "single_template": {
+            "label": "Single Receipt Message Template",
+            "readonly_by_default": True,
+            "allowed_variables": [
+                "{tenant_name}",
+                "{month}",
+                "{bill_no}",
+                "{total}",
+                "{currency}",
+                "{link}",
+                "{tenant_pin}"
+            ],
+            "default_message": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {bill_no}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenant_pin}\n\nThank you!",
+            "message": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {bill_no}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenant_pin}\n\nThank you!"
+        },
+        "country_code": "91"
     },
     "ui": {
         "theme": "system",

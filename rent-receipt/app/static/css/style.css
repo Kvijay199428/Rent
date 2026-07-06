@@ -240,3 +240,127 @@ body {
     letter-spacing: 1px;
     text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
+
+/* --- Theme Settings UI --- */
+
+/* Theme Option Cards */
+.theme-option-btn {
+    display: block;
+    background: var(--bs-body-bg);
+    border: 2px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    color: var(--bs-body-color);
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+.theme-option-btn:hover {
+    border-color: var(--bs-primary-border-subtle);
+    background-color: var(--bs-secondary-bg);
+}
+.theme-option-btn[aria-pressed="true"] {
+    border-color: var(--bs-primary);
+    background-color: var(--bs-primary-bg-subtle);
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.1);
+}
+
+/* Theme Icons */
+.theme-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+.theme-icon-light {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+}
+.theme-icon-dark {
+    background-color: rgba(13, 110, 253, 0.15);
+    color: #0d6efd;
+}
+.theme-icon-system {
+    background-color: rgba(108, 117, 125, 0.15);
+    color: #6c757d;
+}
+
+/* Active Badge */
+.theme-active-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--bs-primary);
+    background: rgba(13, 110, 253, 0.15);
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+}
+
+/* Theme Save Status Chip */
+.theme-save-status-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.theme-save-status {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 2rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+}
+.theme-save-status.idle {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-secondary-color);
+}
+.theme-save-status.saving {
+    background: rgba(13, 110, 253, 0.1);
+    color: var(--bs-primary);
+}
+.theme-save-status.saved {
+    background: rgba(25, 135, 84, 0.1);
+    color: var(--bs-success);
+}
+.theme-save-status.error {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--bs-danger);
+}
+
+/* Live Meta labels */
+.theme-live-meta {
+    padding: 1rem;
+    background: var(--bs-secondary-bg);
+    border-radius: 0.5rem;
+    border: 1px solid var(--bs-border-color);
+}
+
+/* Accent Preview Dots */
+.accent-preview-dot {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--accent-preview);
+    border: 2px solid var(--bs-body-bg);
+    box-shadow: 0 0 0 1px var(--bs-border-color);
+    transition: all 0.2s;
+}
+.accent-preview-dot.active {
+    box-shadow: 0 0 0 2px var(--bs-primary);
+}
+.accent-preview-dot.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Header theme dropdown checkmark */
+.theme-menu-check {
+    color: var(--bs-primary);
+    font-weight: bold;
+}

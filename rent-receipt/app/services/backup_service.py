@@ -96,34 +96,22 @@ def create_manifest(backup_id, backup_type, timestamp_str):
 
 def get_db_stats():
     # Count receipts, tenants, PDFs
-    import csv
+    from app.core.db import get_conn
+    
     receipt_count = 0
     archived_count = 0
     tenant_count = 0
     inactive_tenant_count = 0
     pdf_count = 0
     
-    if os.path.exists(os.path.join(DB_DIR, "receipts.csv")):
-        try:
-            with open(os.path.join(DB_DIR, "receipts.csv"), "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for r in reader:
-                    receipt_count += 1
-                    if r.get("Status") == "ARCHIVED":
-                        archived_count += 1
-        except:
-            pass
-            
-    if os.path.exists(os.path.join(DB_DIR, "tenants.csv")):
-        try:
-            with open(os.path.join(DB_DIR, "tenants.csv"), "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for r in reader:
-                    tenant_count += 1
-                    if r.get("Status") == "Inactive":
-                        inactive_tenant_count += 1
-        except:
-            pass
+    try:
+        with get_conn() as conn:
+            receipt_count = conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0]
+            archived_count = conn.execute("SELECT COUNT(*) FROM receipts WHERE status = 'ARCHIVED'").fetchone()[0]
+            tenant_count = conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
+            inactive_tenant_count = conn.execute("SELECT COUNT(*) FROM tenants WHERE status = 'Inactive'").fetchone()[0]
+    except Exception as e:
+        pass
             
     for root, dirs, files in os.walk(RECEIPTS_DIR):
         for f in files:
@@ -244,26 +232,16 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 def create_full_backup(tag="auto"):
-    # Wrapper for existing calls in app.py
-    # Decipher tag
     if tag == "auto" or not tag:
         return create_backup(type_="Automatic", subtype="daily")
     elif tag.startswith("settings_change"):
         return create_backup(type_="Restore Point", subtype="before_settings", tag="Settings Change")
-    elif tag.startswith("create_bill"):
-        return create_backup(type_="Restore Point", subtype="before_receipt", tag="Receipt Creation")
-    elif tag.startswith("edit_bill"):
-        return create_backup(type_="Restore Point", subtype="before_edit", tag="Receipt Edit")
-    elif tag.startswith("archive_bill"):
-        return create_backup(type_="Restore Point", subtype="before_archive", tag="Receipt Archive")
     elif tag.startswith("restore_bill"):
         return create_backup(type_="Restore Point", subtype="before_restore", tag="Receipt Restore")
-    elif tag.startswith("delete_bill"):
-        return create_backup(type_="Restore Point", subtype="before_delete", tag="Receipt Delete")
     elif tag.startswith("add_tenant") or tag.startswith("update_tenant") or tag.startswith("delete_tenant"):
-        return create_backup(type_="Restore Point", subtype="before_tenant_update", tag="Tenant Update")
+        return None
     else:
-        return create_backup(type_="Manual", subtype="manual", tag=tag)
+        return None
 
 def get_all_backups():
     return load_registry()

@@ -18,15 +18,18 @@
 
     <!-- Early Theme Script to prevent flash -->
     <script>
-        function applySystemTheme() {
-            const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-bs-theme', theme);
-        }
-        const currentTheme = "{{ theme }}";
-        if (currentTheme === 'system') {
-            applySystemTheme();
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySystemTheme);
-        }
+        (function () {
+            const STORAGE_KEY = "rrg-theme";
+            const serverTheme = "{{ theme }}";
+            const savedTheme = localStorage.getItem(STORAGE_KEY);
+            const preferredTheme = savedTheme || serverTheme || "system";
+            const effectiveTheme = preferredTheme === "system"
+                ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+                : preferredTheme;
+
+            document.documentElement.setAttribute("data-bs-theme", effectiveTheme);
+            document.documentElement.setAttribute("data-user-theme", preferredTheme);
+        })();
     </script>
     {% block head %}{% endblock %}
     <script>
@@ -43,7 +46,8 @@
             api: {
                 billing: "{{ route(request, Names.API_FILTER_BILLS) }}",
                 tenants: "{{ route(request, Names.API_GET_TENANTS) }}",
-                pdf: "{{ route(request, Names.PDF_DOWNLOAD, bill_no='REPLACE') }}".replace('REPLACE', '')
+                pdf: "{{ route(request, Names.PDF_DOWNLOAD, bill_no='REPLACE') }}".replace('REPLACE', ''),
+                themeUpdate: "{{ route(request, Names.UPDATE_THEME) }}"
             },
             static: {
                 base: "{{ STATIC_URL(request, '/') }}"
@@ -53,7 +57,7 @@
         // Legacy compat alias
         window.APP = {
             BASE: window.APP_BASE,
-            API: window.APP_BASE + "/api",
+            API: window.APP_BASE + "/admin/api",
             STATIC: window.RouteManifest.static.base
         };
     </script>
@@ -93,18 +97,39 @@
                         class="bi bi-bell fs-5"></i></a>
 
                 <div class="dropdown">
-                    <button
-                        class="btn btn-sm btn-light dropdown-toggle d-flex align-items-center rounded-pill px-3 shadow-sm"
-                        type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-circle-half me-2"></i> Theme
+                    <button class="btn btn-sm btn-light dropdown-toggle d-flex align-items-center rounded-pill px-3 shadow-sm"
+                            type="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false">
+                        <i class="bi bi-circle-half me-2"></i>
+                        <span id="headerThemeLabel">Theme</span>
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><button class="dropdown-item d-flex align-items-center" onclick="setTheme('light')"><i
-                                    class="bi bi-sun-fill me-2"></i> Light</button></li>
-                        <li><button class="dropdown-item d-flex align-items-center" onclick="setTheme('dark')"><i
-                                    class="bi bi-moon-stars-fill me-2"></i> Dark</button></li>
-                        <li><button class="dropdown-item d-flex align-items-center" onclick="setTheme('system')"><i
-                                    class="bi bi-laptop me-2"></i> System</button></li>
+
+                    <ul class="dropdown-menu dropdown-menu-end theme-menu">
+                        <li>
+                            <button class="dropdown-item d-flex align-items-center justify-content-between"
+                                    type="button"
+                                    data-theme-option="light">
+                                <span><i class="bi bi-sun-fill me-2"></i>Light</span>
+                                <i class="bi bi-check2 theme-menu-check d-none"></i>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item d-flex align-items-center justify-content-between"
+                                    type="button"
+                                    data-theme-option="dark">
+                                <span><i class="bi bi-moon-stars-fill me-2"></i>Dark</span>
+                                <i class="bi bi-check2 theme-menu-check d-none"></i>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item d-flex align-items-center justify-content-between"
+                                    type="button"
+                                    data-theme-option="system">
+                                <span><i class="bi bi-laptop me-2"></i>System</span>
+                                <i class="bi bi-check2 theme-menu-check d-none"></i>
+                            </button>
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -546,7 +571,14 @@
                 btn.innerHTML = originalBtnHtml;
 
                 if (res.ok) {
-                    bootstrap.Modal.getInstance(document.getElementById('globalEditBillModal')).hide();
+                    const modalEl = document.getElementById("globalEditBillModal");
+                    if (document.activeElement) {
+                        document.activeElement.blur();
+                    }
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) {
+                        modalInstance.hide();
+                    }
                     if (typeof showSuccess === 'function') {
                         showSuccess("Updated!", `Receipt #${billNo} has been updated.`).then(() => {
                             if (typeof updateUI === 'function') updateUI(); else window.location.reload();

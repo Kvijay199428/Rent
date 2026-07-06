@@ -5,24 +5,27 @@
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
     <div class="d-flex align-items-center">
-        <a href="{{ APP_BASE(request) }}/tenants" class="btn btn-sm btn-outline-secondary rounded-pill me-3"><i class="bi bi-arrow-left"></i>
+        <a href="{{ APP_BASE(request) }}/tenants" class="btn btn-sm btn-outline-secondary rounded-pill me-3"><i
+                class="bi bi-arrow-left"></i>
             Back</a>
         <h1 class="h2 mb-0 fw-bold">Tenant Profile</h1>
     </div>
     <div class="d-flex align-items-center gap-2">
         {% if tenant.arrears > 0 %}
-        <span class="badge bg-danger fs-6 px-3 py-2 rounded-pill shadow-sm me-2">Due: ₹{{ "%.2f"|format(tenant.arrears) }}</span>
+        <span class="badge bg-danger fs-6 px-3 py-2 rounded-pill shadow-sm me-2">Due: ₹{{ "%.2f"|format(tenant.arrears)
+            }}</span>
         {% endif %}
         <button onclick="openKycModal()" class="btn btn-info text-white rounded-pill shadow-sm">
             <i class="bi bi-person-vcard me-2"></i>Occupants List
         </button>
-        
-        <button onclick="showQRCode('{{ tenant.view_token }}')" class="btn btn-dark rounded-pill shadow-sm">
+
+        <!-- <button onclick="showQRCode('{{ tenant.view_token }}', '{{ tenant.id }})" class="btn btn-dark rounded-pill shadow-sm"></button> -->
+        <button onclick="showQRCode('{{ tenant.view_token }}', '{{ tenant.id }}')"
+            class="btn btn-dark rounded-pill shadow-sm">
             <i class="bi bi-qr-code-scan me-2"></i>Tenant QR
         </button>
 
-        <button
-            onclick="window.open(window.APP_BASE + '/t/{{ tenant.view_token }}', '_blank')"
+        <button onclick="window.open(window.APP_BASE + '/t/{{ tenant.view_token }}', '_blank')"
             class="btn btn-primary rounded-pill shadow-sm">
             <i class="bi bi-box-arrow-up-right me-2"></i>Tenant Portal
         </button>
@@ -69,10 +72,20 @@
                         <div><strong class="d-block text-muted fs-8 text-uppercase">Address</strong> {{ tenant.address
                             or "-" }}</div>
                     </div>
-                    <div class="mb-3 d-flex align-items-start">
-                        <i class="bi bi-key text-primary me-3 mt-1"></i>
-                        <div><strong class="d-block text-muted fs-8 text-uppercase">Portal PIN</strong> <span
-                                class="badge bg-secondary font-monospace">{{ tenant.tenant_pin }}</span></div>
+                    <div class="mb-3 align-items-start">
+                        <i class="bi bi-key text-primary me-3 mt-1 float-start"></i>
+                        <div class="ms-4">
+                            <strong class="d-block text-muted fs-8 text-uppercase mb-1">Portal PIN</strong>
+                            <div class="input-group input-group-sm mb-1" style="max-width: 200px;">
+                                <input id="tenantPinField" class="form-control font-monospace" type="text" value="••••"
+                                    readonly>
+                                <button id="revealPinBtn" class="btn btn-outline-primary" type="button"
+                                    data-url="{{ route(request, 'admin_reveal_tenant_pin', tenantid=tenant.id) }}">
+                                    Reveal
+                                </button>
+                            </div>
+                            <small class="text-muted fs-8">Visible only to logged-in admin.</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -120,7 +133,8 @@
                         <i class="bi bi-whatsapp me-1"></i>Bulk Send
                     </button>
                     {% endif %}
-                    <a href="{{ APP_BASE(request) }}/billing" class="btn btn-sm btn-primary rounded-pill"><i class="bi bi-plus-lg me-1"></i>New
+                    <a href="{{ APP_BASE(request) }}/billing" class="btn btn-sm btn-primary rounded-pill"><i
+                            class="bi bi-plus-lg me-1"></i>New
                         Bill</a>
                 </div>
             </div>
@@ -147,8 +161,7 @@
                             {% set grand_total = curr_total + prev_arr %}
                             {% set amt_recv = r.Amount_Received|default(0, true)|float %}
                             {% set balance = grand_total - amt_recv %}
-                            {% set advance_amount = 0 - balance if balance < 0 else 0 %}
-                            <tr>
+                            {% set advance_amount = 0 - balance if balance < 0 else 0 %} <tr>
                                 <td class="ps-4">
                                     <input class="form-check-input bill-checkbox" type="checkbox" value="{{ r.Bill }}">
                                 </td>
@@ -160,77 +173,73 @@
                                     {% if balance > 0 %}
                                     <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}
                                     </div>
-                                    {% elif balance < 0 %}
-                                    <div class="text-info fw-semibold fs-7">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}
-                                    </div>
-                                    {% endif %}
-                                    {% if prev_arr > 0 %}
-                                    <div class="text-warning-emphasis fs-8">Arr: ₹{{ "{:,.2f}".format(prev_arr) }}</div>
-                                    {% elif prev_arr < 0 %}
-                                    <div class="text-info-emphasis fs-8">Adv: ₹{{ "{:,.2f}".format(prev_arr|abs) }}</div>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if r.Payment_Status == "PAID" %}
-                                        <span class="badge bg-success rounded-pill px-2"><i class="bi bi-check2"></i> Paid</span>
-                                    {% elif r.Payment_Status == "PARTIAL" %}
-                                        <span class="badge bg-warning text-dark rounded-pill px-2">Partial</span>
-                                    {% elif r.Payment_Status == "ADVANCE" %}
-                                        <span class="badge bg-info text-dark rounded-pill px-2">Advance</span>
-                                    {% else %}
-                                        <span class="badge bg-danger rounded-pill px-2">Pending</span>
-                                    {% endif %}
-
-                                    {% if r.Status == 'ARCHIVED' %}
-                                    <span class="badge bg-warning text-dark rounded-pill ms-1 px-2"><i
-                                            class="bi bi-archive"></i></span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-end pe-4">
-                                    <div class="btn-group gap-1 rounded-pill shadow-sm">
-                                        {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
-                                        <button
-                                            onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')"
-                                            class="btn btn-sm btn-light border py-1" title="Mark Pending"><i
-                                                class="bi bi-arrow-counterclockwise text-secondary"></i></button>
-                                        {% else %}
-                                        <button
-                                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')"
-                                            class="btn btn-sm btn-light border py-1" title="Mark Paid"><i
-                                                class="bi bi-check2 text-success"></i></button>
-                                        {% endif %}
-                                        {% if config.get('system', 'features.whatsapp_sync') %}
-                                        <button class="btn btn-sm btn-light border py-1 text-success"
-                                            onclick="sendWhatsApp('{{ r.Bill }}')" title="Send via WhatsApp"><i
-                                                class="bi bi-whatsapp"></i></button>
-                                        {% endif %}
-                                        <button class="btn btn-sm btn-light border py-1"
-                                            onclick="openGlobalPDFPreview('{{ r.Bill }}')" title="View PDF"><i
-                                                class="bi bi-eye text-primary"></i></button>
-                                        <button onclick="openEditBillModal('{{ r.Bill }}')"
-                                            class="btn btn-sm btn-light border py-1 text-warning" title="Edit Bill"><i
-                                                class="bi bi-pencil"></i></button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            {% if not receipts %}
-                            <tr>
-                                <td colspan="5" class="text-center py-5 text-muted">
-                                    <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
-                                    <h5>No Receipts Found</h5>
-                                    <p class="fs-7">Generate the first receipt for {{ tenant.name }}.</p>
-                                </td>
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
+                                    {% elif balance < 0 %} <div class="text-info fw-semibold fs-7">Adv: ₹{{
+                                        "{:,.2f}".format(advance_amount) }}
                 </div>
+                {% endif %}
+                {% if prev_arr > 0 %}
+                <div class="text-warning-emphasis fs-8">Arr: ₹{{ "{:,.2f}".format(prev_arr) }}</div>
+                {% elif prev_arr < 0 %} <div class="text-info-emphasis fs-8">Adv: ₹{{ "{:,.2f}".format(prev_arr|abs) }}
             </div>
+            {% endif %}
+            </td>
+            <td>
+                {% if r.Payment_Status == "PAID" %}
+                <span class="badge bg-success rounded-pill px-2"><i class="bi bi-check2"></i> Paid</span>
+                {% elif r.Payment_Status == "PARTIAL" %}
+                <span class="badge bg-warning text-dark rounded-pill px-2">Partial</span>
+                {% elif r.Payment_Status == "ADVANCE" %}
+                <span class="badge bg-info text-dark rounded-pill px-2">Advance</span>
+                {% else %}
+                <span class="badge bg-danger rounded-pill px-2">Pending</span>
+                {% endif %}
+
+                {% if r.Status == 'ARCHIVED' %}
+                <span class="badge bg-warning text-dark rounded-pill ms-1 px-2"><i class="bi bi-archive"></i></span>
+                {% endif %}
+            </td>
+            <td class="text-end pe-4">
+                <div class="btn-group gap-1 rounded-pill shadow-sm">
+                    {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
+                    <button
+                        onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')"
+                        class="btn btn-sm btn-light border py-1" title="Mark Pending"><i
+                            class="bi bi-arrow-counterclockwise text-secondary"></i></button>
+                    {% else %}
+                    <button onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')"
+                        class="btn btn-sm btn-light border py-1" title="Mark Paid"><i
+                            class="bi bi-check2 text-success"></i></button>
+                    {% endif %}
+                    {% if config.get('system', 'features.whatsapp_sync') %}
+                    <button class="btn btn-sm btn-light border py-1 text-success" onclick="sendWhatsApp('{{ r.Bill }}')"
+                        title="Send via WhatsApp"><i class="bi bi-whatsapp"></i></button>
+                    {% endif %}
+                    <button class="btn btn-sm btn-light border py-1" onclick="openGlobalPDFPreview('{{ r.Bill }}')"
+                        title="View PDF"><i class="bi bi-eye text-primary"></i></button>
+                    <button onclick="openEditBillModal('{{ r.Bill }}')"
+                        class="btn btn-sm btn-light border py-1 text-warning" title="Edit Bill"><i
+                            class="bi bi-pencil"></i></button>
+                </div>
+            </td>
+            </tr>
+            {% endfor %}
+            {% if not receipts %}
+            <tr>
+                <td colspan="5" class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
+                    <h5>No Receipts Found</h5>
+                    <p class="fs-7">Generate the first receipt for {{ tenant.name }}.</p>
+                </td>
+            </tr>
+            {% endif %}
+            </tbody>
+            </table>
         </div>
-
-
     </div>
+</div>
+
+
+</div>
 </div>
 
 <div id="printQrArea" class="d-none">
@@ -249,6 +258,13 @@
             Room: {{ tenant.room_number }}
         </div>
         {% endif %}
+
+        <div style="margin-top: 20px;">
+            <span
+                style="display: inline-block; padding: 10px 25px; font-size: 1.5rem; font-weight: bold; border: 2px solid #000; border-radius: 10px;">
+                Tenant PIN: <span id="printTenantPin">••••</span>
+            </span>
+        </div>
     </div>
 </div>
 
@@ -589,7 +605,7 @@
         document.getElementById('documentViewerContainer').innerHTML = '';
     }
 
-    function showQRCode(token) {
+    async function showQRCode(token, tenantId) {
         if (!token) {
             alert("Token generating... Please refresh the page once.");
             return;
@@ -615,6 +631,23 @@
 
         const modal = new bootstrap.Modal(document.getElementById('qrModal'));
         modal.show();
+
+        // Fetch decrypted PIN to show in the print area
+        if (tenantId) {
+            try {
+                const res = await fetch(window.APP.API + '/tenants/' + tenantId + '/reveal-pin', {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    document.getElementById('printTenantPin').textContent = data.pin;
+                } else {
+                    document.getElementById('printTenantPin').textContent = "(Unavailable)";
+                }
+            } catch (e) {
+                document.getElementById('printTenantPin').textContent = "(Error)";
+            }
+        }
     }
 
     // --- Occupant KYC Admin Logic ---
@@ -648,8 +681,8 @@
         ).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    // We cleverly reuse the public API route by passing the tenant's token
-                    const res = await fetch(window.APP.API + `/t/${token}/kyc/${uuid}/inactive`, { method: "PUT" });
+                    // Use the admin KYC route
+                    const res = await fetch(window.APP.API + `/kyc/{{ tenant.id }}/${uuid}/inactive`, { method: "PUT" });
                     if (res.ok) {
                         showToast("success", "Occupant marked inactive.");
                         setTimeout(() => window.location.reload(), 1000);
@@ -672,7 +705,7 @@
         ).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const res = await fetch(window.APP.API + `/t/${token}/kyc/${uuid}`, { method: "DELETE" });
+                    const res = await fetch(window.APP.API + `/kyc/{{ tenant.id }}/${uuid}`, { method: "DELETE" });
                     if (res.ok) {
                         showToast("success", "Occupant record deleted.");
                         setTimeout(() => window.location.reload(), 1000);
@@ -685,5 +718,31 @@
             }
         });
     }
+    document.addEventListener("DOMContentLoaded", () => {
+        const btn = document.getElementById("revealPinBtn");
+        const field = document.getElementById("tenantPinField");
+        if (!btn || !field) return;
+
+        btn.addEventListener("click", async () => {
+            try {
+                btn.disabled = true;
+                const res = await fetch(btn.dataset.url, {
+                    method: "GET",
+                    headers: { "Accept": "application/json" }
+                });
+
+                const data = await res.json();
+                if (!res.ok || data.status !== "success") {
+                    throw new Error(data.detail || data.message || "Failed to reveal PIN");
+                }
+
+                field.value = data.pin;
+                btn.textContent = "Revealed";
+            } catch (err) {
+                showError("Reveal Failed", err.message || "Unable to reveal PIN");
+                btn.disabled = false;
+            }
+        });
+    });
 </script>
 {% endblock %}

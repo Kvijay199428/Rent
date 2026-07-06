@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional
 
 class Receipt(BaseModel):
@@ -6,6 +6,7 @@ class Receipt(BaseModel):
     date: str
     month: str
     tenant_name: str
+    tenant_id: int
     previous_reading: float
     current_reading: float
     units_consumed: float
@@ -17,20 +18,64 @@ class Receipt(BaseModel):
     pdf_filename: str
 
 class BillRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     tenant: str
     month: str
-    current_reading: float
-    additional_persons: int
-    tank_water: float = 0.0
-    maintenance_charge: float = 0.0
-    maintenance_desc: str = ""
-    previous_arrears: float = 0.0
-    amount_received: Optional[float] = None
-    payment_status: str = "PENDING"
+    currentreading: float = Field(..., alias="current_reading")
+    additionalpersons: int = Field(0, alias="additional_persons")
+    tankwater: float = Field(0.0, alias="tank_water")
+    maintenancecharge: float = Field(0.0, alias="maintenance_charge")
+    maintenancedesc: str = Field("", alias="maintenance_desc")
+    previousarrears: float = Field(0.0, alias="previous_arrears")
+    amountreceived: Optional[float] = Field(None, alias="amount_received")
+    paymentstatus: str = Field("PENDING", alias="payment_status")
+
+    @field_validator("tenant", "month", "maintenancedesc", mode="before")
+    @classmethod
+    def normalize_strs(cls, v):
+        return "" if v is None else str(v).strip()
+
+    @field_validator("additionalpersons", mode="before")
+    @classmethod
+    def normalize_int(cls, v):
+        if v in ("", None):
+            return 0
+        return int(v)
+
+    @field_validator("currentreading", "tankwater", "maintenancecharge", "previousarrears", mode="before")
+    @classmethod
+    def normalize_required_floats(cls, v):
+        if v in ("", None):
+            return 0.0
+        return float(v)
+
+    @field_validator("amountreceived", mode="before")
+    @classmethod
+    def normalize_optional_amount(cls, v):
+        if v in ("", None):
+            return None
+        return float(v)
+
+    @field_validator("paymentstatus", mode="before")
+    @classmethod
+    def normalize_status(cls, v):
+        return str(v or "PENDING").strip().upper()
 
 class PaymentStatusUpdate(BaseModel):
-    payment_status: str
-    amount_received: Optional[float] = None
+    model_config = ConfigDict(populate_by_name=True)
 
-class BulkWhatsappRequest(BaseModel):
-    bill_nos: list[str]
+    paymentstatus: str = Field(..., alias="payment_status")
+    amountreceived: Optional[float] = Field(None, alias="amount_received")
+
+    @field_validator("paymentstatus", mode="before")
+    @classmethod
+    def normalize_status(cls, v):
+        return str(v or "").strip().upper()
+
+    @field_validator("amountreceived", mode="before")
+    @classmethod
+    def normalize_amount(cls, v):
+        if v in ("", None):
+            return None
+        return float(v)

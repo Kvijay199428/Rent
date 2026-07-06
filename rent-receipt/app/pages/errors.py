@@ -8,6 +8,11 @@ from app.core.config_service import config  # Import the configuration service
 def register_exception_handlers(app: FastAPI):
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+        # Pass through redirects properly
+        if 300 <= exc.status_code < 400 and exc.headers and "Location" in exc.headers:
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=exc.headers["Location"], status_code=exc.status_code)
+            
         accept = request.headers.get("accept", "")
         if "text/html" in accept:
             return templates.TemplateResponse(

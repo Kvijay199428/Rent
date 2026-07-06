@@ -105,6 +105,10 @@
                         <i class="bi bi-lightning-charge-fill me-2"></i>
                         <span>Consumed Units: <strong id="consumed_units_label" class="fs-5 ms-1">0.0</strong></span>
                     </div>
+                    <div id="meter_validation" class="alert alert-danger mt-2 d-none">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Current Reading must be greater than or equal to Previous Reading.
+                    </div>
 
                     <h5 class="fw-bold mb-3 mt-4 text-secondary border-bottom pb-2">Occupancy</h5>
                     <div class="row g-3 mb-4">
@@ -125,28 +129,7 @@
                         </div>
                     </div>
 
-                    <h5 class="fw-bold mb-3 mt-4 text-secondary border-bottom pb-2">Arrears & Payments</h5>
-                    <div class="row g-3 mb-4">
-                        <div class="col-sm-6">
-                            <div class="form-floating">
-                                <input type="number" class="form-control border-warning fw-bold text-warning-emphasis"
-                                    id="previous_arrears" step="0.1" placeholder="0.00" value="0.00"
-                                    oninput="calculateLiveTotal()">
-                                <label for="previous_arrears" class="text-warning-emphasis">Previous Arrears (₹)</label>
-                            </div>
-                            <div class="form-text fs-8 text-muted mt-1">Automatically carries over balance from the last
-                                bill.</div>
-                        </div>
-                        <div class="col-sm-6">
-                            <div class="form-floating">
-                                <input type="number" class="form-control border-success fw-bold text-success"
-                                    id="amount_received" step="0.1" placeholder="Leave empty for full payment"
-                                    oninput="calculateLiveTotal()">
-                                <label for="amount_received" class="text-success">Amount Received (₹)</label>
-                            </div>
-                            <div class="form-text fs-8 text-muted mt-1">Leave empty to assume full payment.</div>
-                        </div>
-                    </div>
+
 
                     <!-- Live Total Details Area -->
                     <div class="card bg-success bg-gradient text-white border-0 shadow-sm mb-4">
@@ -244,14 +227,12 @@
                 const t = await tRes.json();
                 defaultRent = t.rent || 0;
                 defaultWater = t.water || 0;
-                prevMeterVal = t.previous_meter || 0;
                 electricityRate = t.electricity_rate || 0;
                 additionalPersonCharge = t.additional_person_charge || 0;
                 defaultTankWater = t.default_tank_water_charge || 0;
 
                 document.getElementById("rent_val").value = defaultRent > 0 ? defaultRent.toFixed(2) : "";
                 document.getElementById("water_val").value = defaultWater > 0 ? defaultWater.toFixed(2) : "";
-                document.getElementById("prev_reading").value = prevMeterVal > 0 ? prevMeterVal.toFixed(1) : "";
                 document.getElementById("additional_persons").value = "";
                 document.getElementById("rate_display_input").value = `₹${electricityRate.toFixed(2)}`;
                 document.getElementById("add_rate_display_input").value = `₹${additionalPersonCharge.toFixed(2)}`;
@@ -260,7 +241,16 @@
                 let calculatedArrears = 0;
                 let maxSeq = 0;
                 if (recRes.ok) {
-                    const receipts = await recRes.json();
+                    let receipts = await recRes.json();
+                    
+                    let previousReading = 0;
+                    if (receipts.length > 0) {
+                        previousReading = Number(receipts[0].Current || 0);
+                    } else {
+                        previousReading = Number(t.previous_meter || 0);
+                    }
+                    prevMeterVal = previousReading;
+                    document.getElementById("prev_reading").value = previousReading.toFixed(1);
                     
                     receipts.forEach(r => {
                         let bStr = r.Bill;
@@ -284,6 +274,10 @@
                             calculatedArrears = grandTotal - lastRecv;
                         }
                     }
+                } else {
+                    let previousReading = Number(t.previous_meter || 0);
+                    prevMeterVal = previousReading;
+                    document.getElementById("prev_reading").value = previousReading.toFixed(1);
                 }
 
                 calculatedArrearsVal = calculatedArrears;
@@ -326,12 +320,42 @@
         }
     }
 
-    function calculateLiveTotal() {
-        const currentVal = parseFloat(document.getElementById("current_reading").value) || 0;
-        const addPersons = parseInt(document.getElementById("additional_persons").value) || 0;
+    function showReadingError(previous, current) {
+        const box = document.getElementById("meter_validation");
+        box.classList.remove("d-none");
+        box.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i> Current Reading (${current}) cannot be smaller than Previous Reading (${previous}).`;
+    }
 
-        let consumed = Math.max(0, currentVal - prevMeterVal);
-        let electricity = consumed * electricityRate;
+    function hideReadingError() {
+        document.getElementById("meter_validation").classList.add("d-none");
+    }
+
+    function calculateLiveTotal() {
+        const previous = parseFloat(prevMeterVal) || 0;
+        const current = parseFloat(document.getElementById("current_reading").value) || 0;
+        const consumed = current - previous;
+        
+        const label = document.getElementById("consumed_units_label");
+        const input = document.getElementById("current_reading");
+        const submit = document.getElementById("submitBtn");
+
+        let electricity = 0;
+        const rawCurrentInput = document.getElementById("current_reading").value;
+        
+        if (consumed < 0 && rawCurrentInput !== "") {
+            label.innerHTML = '<span class="text-danger fw-bold">' + consumed.toFixed(1) + '</span>';
+            input.classList.add("is-invalid");
+            if (submit) submit.disabled = true;
+            showReadingError(previous, current);
+        } else {
+            label.innerHTML = Math.max(0, consumed).toFixed(1);
+            input.classList.remove("is-invalid");
+            if (submit) submit.disabled = false;
+            hideReadingError();
+            electricity = Math.max(0, consumed) * electricityRate;
+        }
+
+        const addPersons = parseInt(document.getElementById("additional_persons").value) || 0;
         let additional = addPersons * additionalPersonCharge;
         let tankWater = parseFloat(document.getElementById("tank_water_val").value) || 0;
         let maintenance = parseFloat(document.getElementById("maintenance_val").value) || 0;

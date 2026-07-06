@@ -6,7 +6,7 @@ from app.core.route_builder import RouteBuilder
 from app.core.routes import Paths, Names, Prefixes
 from typing import Optional
 from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
+from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
 

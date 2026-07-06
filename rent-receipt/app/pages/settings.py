@@ -16,6 +16,8 @@ async def settings_page(request: Request):
             "billing_config": billing_conf,
             "landlord_config": landlord_conf,
             "ui_config": ui_conf,
+            "backup_config": config.get("backup", {}),
+            "whatsapp_config": config.get("whatsapp", {}),
             "theme": theme,
             "sys": getattr(request.state, "sys", config.get("system", {}))
         }

@@ -8,3 +8,5 @@ pydantic
 pillow
 openpyxl
 flask
+passlib[argon2]
+python-jose[cryptography]

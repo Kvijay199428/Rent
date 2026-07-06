@@ -1,5 +1,6 @@
 import os
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import io
 import shutil
 

@@ -8,7 +8,7 @@ from typing import Optional
 from datetime import datetime
 from app.core.paths import KYC_DIR
 from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
+from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json
 import mimetypes
 import uuid
@@ -28,7 +28,9 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
-@router.post("/api/t/{view_token}/kyc", name=Names.PUBLIC_TENANT_KYC_UPLOAD)
+from app.authentication.tenant.middleware import get_current_tenant
+
+@router.post("/t/api/{view_token}/kyc", name=Names.PUBLIC_TENANT_KYC_UPLOAD)
 async def public_tenant_kyc_upload(
     view_token: str, 
     name: str = Form(...), 
@@ -37,11 +39,12 @@ async def public_tenant_kyc_upload(
     aadhaar_back: Optional[UploadFile] = File(None),
     aadhaar_combined: Optional[UploadFile] = File(None),
     emp_front: Optional[UploadFile] = File(None),
-    emp_back: Optional[UploadFile] = File(None)
+    emp_back: Optional[UploadFile] = File(None),
+    principal = Depends(get_current_tenant)
 ):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
-    if not tenant:
+    if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     if not aadhaar_combined and not (aadhaar_front and aadhaar_back):
@@ -68,36 +71,36 @@ async def public_tenant_kyc_upload(
     now = datetime.now()
     save_occupant(tenant.id, {
         "uuid": occupant_uuid,
-        "Name": name,
-        "Mobile": mobile,
-        "Status": "Active",
-        "Aadhaar Front": af_path,
-        "Aadhaar Back": ab_path,
-        "Aadhaar Combined": ac_path,
-        "Emp Front": ef_path,
-        "Emp Back": eb_path,
-        "Upload_Date": now.strftime("%Y-%m-%dT%H:%M:%S"),
-        "Upload_Month": now.strftime("%B %Y")
+        "name": name,
+        "mobile": mobile,
+        "status": "Active",
+        "aadhaar_front": af_path,
+        "aadhaar_back": ab_path,
+        "aadhaar_combined": ac_path,
+        "emp_front": ef_path,
+        "emp_back": eb_path,
+        "uploaddate": now.strftime("%Y-%m-%dT%H:%M:%S"),
+        "uploadmonth": now.strftime("%B %Y")
     })
     
     return {"status": "success", "message": "KYC uploaded successfully"}
 
-@router.put("/api/t/{view_token}/kyc/{occupant_uuid}/inactive", name=Names.PUBLIC_TENANT_KYC_MARK_INACTIVE)
-async def public_tenant_kyc_mark_inactive(view_token: str, occupant_uuid: str):
+@router.put("/t/api/{view_token}/kyc/{occupant_uuid}/inactive", name=Names.PUBLIC_TENANT_KYC_MARK_INACTIVE)
+async def public_tenant_kyc_mark_inactive(view_token: str, occupant_uuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
-    if not tenant:
+    if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid link.")
         
     from app.services.tenant_service import update_occupant_status
     update_occupant_status(occupant_uuid, "Inactive")
     return {"status": "success"}
 
-@router.delete("/api/t/{view_token}/kyc/{occupant_uuid}", name=Names.PUBLIC_TENANT_KYC_DELETE)
-async def public_tenant_kyc_delete(view_token: str, occupant_uuid: str):
+@router.delete("/t/api/{view_token}/kyc/{occupant_uuid}", name=Names.PUBLIC_TENANT_KYC_DELETE)
+async def public_tenant_kyc_delete(view_token: str, occupant_uuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
-    if not tenant:
+    if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     occupants = get_occupants(tenant.id)
@@ -118,8 +121,8 @@ async def public_tenant_kyc_delete(view_token: str, occupant_uuid: str):
     delete_occupant(occupant_uuid)
     return {"status": "success"}
 
-@router.get("/api/kyc/{filename}", name=Names.GET_KYC_FILE)
-async def get_kyc_file(filename: str):
+@router.get("/t/api/kyc/{filename}", name="tenant_public_get_kyc_file")
+async def tenant_public_get_kyc_file(filename: str, principal = Depends(get_current_tenant)):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -127,6 +130,10 @@ async def get_kyc_file(filename: str):
     file_path = os.path.join(KYC_DIR, safe_filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
+        
+    # Ensure the file belongs to the tenant
+    if not safe_filename.startswith(f"{principal.id}_"):
+        raise HTTPException(status_code=403, detail="Forbidden: Cannot access this file")
     
     mime_type, _ = mimetypes.guess_type(file_path)
     if not mime_type:

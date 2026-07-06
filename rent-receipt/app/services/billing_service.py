@@ -1,4 +1,4 @@
-import csv
+from app.core.db import get_conn
 import os
 import shutil
 from datetime import datetime
@@ -8,242 +8,11 @@ from app.services.pdf_service import generate_professional_pdf
 
 from app.core.paths import DB_DIR, BACKUPS_DIR as BACKUP_DIR, RECEIPTS_DIR
 
-RECEIPTS_CSV = os.path.join(DB_DIR, "receipts.csv")
-
-HEADERS = [
-    "Bill", "Date", "Month", "Tenant", "Previous", "Current", 
-    "Units", "Rent", "Additional", "Water", "Tank_Water", "Electricity", "Total", "PDF",
-    "Tenant_Phone", "Tenant_Company", "Tenant_Address", "Rate",
-    "Status", "Archived_Date", "Archived_By", "Deleted_Date",
-    "Additional_Persons", "Additional_Person_Rate", "Receipt_Version", "Generated_By",
-    "Payment_Status", "Maintenance_Charge", "Maintenance_Desc",
-    "Previous_Arrears", "Amount_Received" # --- NEW COLUMNS ---
-]
-
-def migrate_receipts_schema():
-    schema_conf = config.get("schema", {})
-    current_version = schema_conf.get("receipt_schema", 1)
-    
-    if current_version < 2:
-        # V1 to V2 Migration: Add lifecycle columns
-        print("Migrating receipts.csv from V1 to V2...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Status"] = "ACTIVE"
-                        row["Archived_Date"] = ""
-                        row["Archived_By"] = ""
-                        row["Deleted_Date"] = ""
-                        receipts.append(row)
-                
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v1_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-                    
-                print("Migrating PDFs to active directory structure...")
-                for row in receipts:
-                    try:
-                        year_str = row["Month"].split()[-1]
-                    except Exception:
-                        year_str = datetime.now().strftime("%Y")
-                    
-                    old_pdf_path = os.path.join(RECEIPTS_DIR, year_str, row["PDF"])
-                    new_dir = os.path.join(RECEIPTS_DIR, "active", year_str)
-                    new_pdf_path = os.path.join(new_dir, row["PDF"])
-                    
-                    if os.path.exists(old_pdf_path):
-                        os.makedirs(new_dir, exist_ok=True)
-                        shutil.move(old_pdf_path, new_pdf_path)
-            except Exception as e:
-                print(f"Error migrating receipts to V2: {e}")
-        
-        schema_conf["receipt_schema"] = 2
-        config.save("schema", schema_conf)
-
-    if current_version < 3:
-        # V2 to V3 Migration: Add Additional_Persons, Additional_Person_Rate, Receipt_Version
-        print("Migrating receipts.csv from V2 to V3...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Additional_Persons"] = "0"
-                        row["Additional_Person_Rate"] = "0.0"
-                        row["Receipt_Version"] = "3"
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v2_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V3: {e}")
-                
-        schema_conf["receipt_schema"] = 3
-        config.save("schema", schema_conf)
-        current_version = 3
-
-    if current_version < 4:
-        # V3 to V4 Migration: Add Tank_Water and Generated_By
-        print("Migrating receipts.csv from V3 to V4...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Tank_Water"] = "0.0"
-                        row["Generated_By"] = "Admin"
-                        row["Receipt_Version"] = "4"
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v3_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V4: {e}")
-                
-        schema_conf["receipt_schema"] = 4
-        config.save("schema", schema_conf)
-        current_version = 4
-
-    if current_version < 5:
-        # V4 to V5 Migration: Bump Receipt_Version for Bank Details layout
-        print("Migrating receipts.csv from V4 to V5...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Receipt_Version"] = "5"
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v4_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V5: {e}")
-                
-        schema_conf["receipt_schema"] = 5
-        config.save("schema", schema_conf)
-        current_version = 5
-
-    if current_version < 6:
-        # V5 to V6 Migration: Add Payment_Status column
-        print("Migrating receipts.csv from V5 to V6...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Payment_Status"] = "PENDING"
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v5_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V6: {e}")
-                
-        schema_conf["receipt_schema"] = 6
-        config.save("schema", schema_conf)
-        current_version = 6
-
-    if current_version < 7:
-        # V6 to V7 Migration: Add Maintenance_Charge and Maintenance_Desc
-        print("Migrating receipts.csv from V6 to V7...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Maintenance_Charge"] = "0.0"
-                        row["Maintenance_Desc"] = ""
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v6_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V7: {e}")
-                
-        schema_conf["receipt_schema"] = 7
-        config.save("schema", schema_conf)
-        current_version = 7
-
-    if current_version < 8:
-        # V7 to V8 Migration: Add Previous_Arrears and Amount_Received columns
-        print("Migrating receipts.csv from V7 to V8 (Arrears & Payments)...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Previous_Arrears"] = "0.0"
-                        # Assume historically that all total bills were fully received.
-                        row["Amount_Received"] = row.get("Total", "0.0")
-                        row["Receipt_Version"] = "8"
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v7_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V8: {e}")
-                
-        schema_conf["receipt_schema"] = 8
-        config.save("schema", schema_conf)
-        current_version = 8
-
-def init_csv():
-    if not os.path.exists(RECEIPTS_CSV):
-        with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(HEADERS)
-
 def get_bill_details(bill_no):
-    init_csv()
-    with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["Bill"] == bill_no:
-                return row
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (bill_no,)).fetchone()
+    if row:
+        return _row_to_dict(row)
     return None
 
 def resolve_payment_state(current_total, previous_arrears=0.0, amount_received=None):
@@ -288,45 +57,90 @@ def resolve_payment_state(current_total, previous_arrears=0.0, amount_received=N
     }
 
 def update_payment_status(bill_no, requested_status, amount_received=None):
-    receipts = get_all_receipts()
-    receipt = next((r for r in receipts if r.get("Bill") == bill_no), None)
-    if not receipt:
-        raise ValueError("Bill not found")
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (bill_no,)).fetchone()
+        if not row:
+            raise ValueError("Receipt not found")
+        
+        current_total = float(row["total"])
+        previous_arrears = float(row["previousarrears"])
+        
+        state = resolve_payment_state(
+            current_total,
+            previous_arrears=previous_arrears,
+            amount_received=amount_received
+        )
+        status = state["payment_status"]
+        final_received = state["amount_received"]
+        
+        if requested_status in ["PENDING", "PARTIAL"]:
+            status = requested_status
 
-    grand_total = round(
-        float(receipt.get("Total", 0) or 0) +
-        float(receipt.get("Previous_Arrears", 0) or 0), 2
-    )
+        conn.execute("""
+            UPDATE receipts 
+            SET paymentstatus = ?, amountreceived = ?
+            WHERE billno = ?
+        """, (status, final_received, bill_no))
+        conn.commit()
+    return status
+def _safe_float(val, default=0.0) -> float:
+    try:
+        return float(str(val).strip() or default)
+    except Exception:
+        return default
 
-    if requested_status == "PENDING":
-        receipt["Payment_Status"] = "PENDING"
-        receipt["Amount_Received"] = 0.0
-        save_all_receipts(receipts)
-        return receipt
+def _safe_int(val, default=0) -> int:
+    try:
+        return int(float(str(val).strip() or default))
+    except Exception:
+        return default
 
-    resolved = resolve_payment_state(
-        current_total=float(receipt.get("Total", 0) or 0),
-        previous_arrears=float(receipt.get("Previous_Arrears", 0) or 0),
-        amount_received=amount_received
-    )
-
-    receipt["Payment_Status"] = resolved["payment_status"]
-    receipt["Amount_Received"] = resolved["amount_received"]
-    save_all_receipts(receipts)
-    return receipt
+def _row_to_dict(row):
+    if row is None:
+        return None
+    if not isinstance(row, dict):
+        row = dict(row)
+        
+    return {
+        "Bill": row.get("billno", ""),
+        "Date": row.get("date", ""),
+        "Month": row.get("month", ""),
+        "Tenant": row.get("tenant", ""),
+        "TenantId": row.get("tenant_id", 0) or 0,
+        "Previous": _safe_float(row.get("previous")),
+        "Current": _safe_float(row.get("current")),
+        "Units": _safe_float(row.get("units")),
+        "Rent": _safe_float(row.get("rent")),
+        "Additional": _safe_float(row.get("additional")),
+        "Water": _safe_float(row.get("water")),
+        "Tank_Water": _safe_float(row.get("tankwater")),
+        "Electricity": _safe_float(row.get("electricity")),
+        "Total": _safe_float(row.get("total")),
+        "PDF": row.get("pdf", "") or "",
+        "Tenant_Phone": row.get("tenantphone", "") or "",
+        "Tenant_Company": row.get("tenantcompany", "") or "",
+        "Tenant_Address": row.get("tenantaddress", "") or "",
+        "Rate": _safe_float(row.get("rate")),
+        "Status": row.get("status", ""),
+        "Archived_Date": row.get("archiveddate", "") or "",
+        "Archived_By": row.get("archivedby", "") or "",
+        "Deleted_Date": row.get("deleteddate", "") or "",
+        "Additional_Persons": _safe_int(row.get("additionalpersons")),
+        "Additional_Person_Rate": _safe_float(row.get("additionalpersonrate")),
+        "Receipt_Version": _safe_int(row.get("receiptversion")),
+        "Generated_By": row.get("generatedby", "Admin") or "Admin",
+        "Payment_Status": row.get("paymentstatus", "PENDING") or "PENDING",
+        "Maintenance_Charge": _safe_float(row.get("maintenancecharge")),
+        "Maintenance_Desc": row.get("maintenancedesc", "") or "",
+        "Previous_Arrears": _safe_float(row.get("previousarrears")),
+        "Amount_Received": _safe_float(row.get("amountreceived")),
+    }
 
 def get_all_receipts():
-    init_csv()
-    migrate_receipts_schema()
-    receipts = []
-    try:
-        with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                receipts.append(row)
-    except Exception as e:
-        print(f"Error loading receipts: {e}")
-    return receipts
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM receipts ORDER BY rowid DESC").fetchall()
+    return [_row_to_dict(r) for r in rows]
 
 def get_receipt(bill_no):
     receipts = get_all_receipts()
@@ -335,22 +149,28 @@ def get_receipt(bill_no):
             return r
     return None
 
-def save_all_receipts(receipts_list):
-    init_csv()
-    if os.path.exists(RECEIPTS_CSV):
-        backup_path = os.path.join(BACKUP_DIR, "receipts.csv.bak")
-        try:
-            shutil.copy2(RECEIPTS_CSV, backup_path)
-        except Exception:
-            pass
-            
-    try:
-        with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=HEADERS)
-            writer.writeheader()
-            writer.writerows(receipts_list)
-    except Exception as e:
-        print(f"Error saving receipts: {e}")
+def get_latest_receipt(tenant_name: str, exclude_bill_no: str = None):
+    with get_conn() as conn:
+        query = "SELECT * FROM receipts WHERE tenant COLLATE NOCASE = ? AND status != 'ARCHIVED'"
+        params = [tenant_name]
+        if exclude_bill_no:
+            query += " AND billno != ?"
+            params.append(exclude_bill_no)
+        query += " ORDER BY rowid DESC LIMIT 1"
+        row = conn.execute(query, tuple(params)).fetchone()
+    if row:
+        return _row_to_dict(row)
+    return None
+
+def resolve_previous_reading(tenant_name: str, exclude_bill_no: str = None) -> float:
+    from app.services.tenant_service import get_tenant_by_name
+    latest = get_latest_receipt(tenant_name, exclude_bill_no)
+    if latest:
+        return float(latest.get("Current", 0) or 0)
+    tenant = get_tenant_by_name(tenant_name)
+    if tenant:
+        return float(getattr(tenant, "previous_meter", 0) or 0)
+    return 0.0
 
 def get_billing_months():
     now = datetime.now()
@@ -387,92 +207,70 @@ def calculate_charges(current_reading, additional_persons, prev_reading, rent, w
         "previous": prev_reading
     }
 
-def create_bill(tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
-    receipts = get_all_receipts()
-    for r in receipts:
-        if r["Tenant"] == tenant_name and r["Month"] == month and r.get("Status", "ACTIVE") == "ACTIVE":
-            raise ValueError(f"A receipt for '{tenant_name}' for '{month}' already exists (Bill #{r['Bill']}). Please edit the existing bill instead.")
-            
-    billing_conf = config.get("billing", {})
-    tenants = load_tenants()
+def create_bill(tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, 
+                maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
+    from app.core.db import get_conn
+    from datetime import datetime
+    from app.services.tenant_service import load_tenants
+    import os
+    from app.core.paths import RECEIPTS_DIR
+    from app.services.pdf_service import generate_professional_pdf
     
-    tenant_details = next((t for t in tenants if t.name == tenant_name), None)
-    if not tenant_details:
+    tenants = load_tenants()
+    tenant = next((t for t in tenants if t.name == tenant_name), None)
+    if not tenant:
         raise ValueError("Tenant not found")
-        
-    t_phone = tenant_details.phone
-    t_company = tenant_details.company
-    t_address = tenant_details.address
+
+    with get_conn() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0]
+    new_bill_num = count + 1
+    bill_no = f"REC-{new_bill_num:03d}"
+    
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    
+    prev = resolve_previous_reading(tenant_name)
+    if prev > 0 and current_reading < prev:
+        raise ValueError("Current meter reading cannot be less than previous reading.")
     
     charges = calculate_charges(
-        current_reading, 
-        additional_persons,
-        prev_reading=tenant_details.previous_meter,
-        rent=tenant_details.rent,
-        water=tenant_details.water,
-        tank_water=tank_water,
-        maintenance_charge=maintenance_charge,
-        rate=tenant_details.electricity_rate,
-        add_person_charge=tenant_details.additional_person_charge
+        current_reading, additional_persons, prev,
+        tenant.rent, tenant.water, tank_water, maintenance_charge,
+        tenant.electricity_rate, tenant.additional_person_charge
     )
     
-    tenant_receipts = [r for r in receipts if r["Tenant"] == tenant_name]
-    max_seq = 0
-    for r in tenant_receipts:
-        try:
-            bill_str = r["Bill"]
-            seq = int(bill_str.split('-')[-1]) if '-' in bill_str else int(bill_str)
-            max_seq = max(max_seq, seq)
-        except ValueError:
-            pass
-            
-    bill_no = f"T{tenant_details.id}-{str(max_seq + 1).zfill(3)}"
-    date_str = datetime.now().strftime("%d %B %Y")
+    if payment_status == "PAID" and amount_received is None:
+        amount_received = charges["total"] + previous_arrears
+    elif amount_received is None:
+        amount_received = 0.0
     
-    try:
-        year_str = month.split()[-1]
-    except Exception:
-        year_str = datetime.now().strftime("%Y")
-        
-    pdf_filename = f"{bill_no}.pdf"
+    pdf_filename = f"{bill_no}_{tenant_name.replace(' ', '_')}_{month.replace(' ', '_')}.pdf"
+    pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
-    grand_total = charges["total"] + previous_arrears
-    if amount_received is None:
-        amount_received = grand_total if payment_status == "PAID" else 0.0
-        
-    resolved = resolve_payment_state(
-        current_total=charges["total"],
-        previous_arrears=previous_arrears,
-        amount_received=amount_received
-    )
-    payment_status = resolved["payment_status"]
-    amount_received = resolved["amount_received"]
-    
-    data_dict = {
+    receipt_dict = {
         "Bill": bill_no,
-        "Date": date_str,
+        "Date": current_date,
         "Month": month,
         "Tenant": tenant_name,
-        "Previous": charges["previous"],
+        "Previous": prev,
         "Current": current_reading,
         "Units": charges["units"],
-        "Rent": charges["rent"],
+        "Rent": tenant.rent,
         "Additional": charges["additional"],
-        "Water": charges["water"],
-        "Tank_Water": charges["tank_water"],
+        "Water": tenant.water,
+        "Tank_Water": tank_water,
         "Electricity": charges["electricity"],
         "Total": charges["total"],
         "PDF": pdf_filename,
-        "Tenant_Phone": t_phone,
-        "Tenant_Company": t_company,
-        "Tenant_Address": t_address,
-        "Rate": charges["rate"],
+        "Tenant_Phone": tenant.phone,
+        "Tenant_Company": tenant.company,
+        "Tenant_Address": tenant.address,
+        "Rate": tenant.electricity_rate,
         "Status": "ACTIVE",
         "Archived_Date": "",
         "Archived_By": "",
         "Deleted_Date": "",
         "Additional_Persons": additional_persons,
-        "Additional_Person_Rate": tenant_details.additional_person_charge,
+        "Additional_Person_Rate": tenant.additional_person_charge,
         "Receipt_Version": 8,
         "Generated_By": "Admin",
         "Payment_Status": payment_status,
@@ -482,91 +280,97 @@ def create_bill(tenant_name, month, current_reading, additional_persons, tank_wa
         "Amount_Received": amount_received
     }
     
-    init_csv()
-    receipts = get_all_receipts()
-    receipts.append(data_dict)
-    save_all_receipts(receipts)
-    
-    config.save("billing", billing_conf)
-    
-    tenant_details.previous_meter = float(current_reading)
-    update_tenant(tenant_details)
-    
-    return data_dict
+    try:
+        from app.core.config_service import config
+        generate_professional_pdf(receipt_dict, config.get("landlord", {}), pdf_path)
+    except BaseException as e:
+        print(f"Error generating PDF: {e}")
 
-def update_bill(bill_no, tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
-    receipts = get_all_receipts()
-    receipt = next((r for r in receipts if r["Bill"] == bill_no), None)
-    if not receipt:
-        raise ValueError("Receipt not found")
-        
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO receipts (
+                billno, date, month, tenant_id, tenant, previous, current, units, rent,
+                additional, water, tankwater, electricity, total, pdf,
+                tenantphone, tenantcompany, tenantaddress, rate, status,
+                archiveddate, archivedby, deleteddate, additionalpersons,
+                additionalpersonrate, receiptversion, generatedby, paymentstatus,
+                maintenancecharge, maintenancedesc, previousarrears, amountreceived
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            bill_no, current_date, month, tenant.id, tenant_name, prev, current_reading,
+            charges["units"], tenant.rent, charges["additional"], tenant.water, tank_water,
+            charges["electricity"], charges["total"], pdf_filename, tenant.phone, tenant.company,
+            tenant.address, tenant.electricity_rate, "ACTIVE", "", "", "",
+            additional_persons, tenant.additional_person_charge, 8, "Admin",
+            payment_status, maintenance_charge, maintenance_desc, previous_arrears, amount_received
+        ))
+        conn.commit()
+
+    return receipt_dict
+def update_bill(bill_no, tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, 
+                maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
+    from app.core.db import get_conn
+    from app.services.tenant_service import load_tenants
+    from app.services.pdf_service import generate_professional_pdf
+    import os
+    from app.core.paths import RECEIPTS_DIR
+    
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (bill_no,)).fetchone()
+        if not row:
+            raise ValueError("Receipt not found")
+        old_receipt = dict(row)
+
     tenants = load_tenants()
-    tenant_details = next((t for t in tenants if t.name == tenant_name), None)
-    
-    prev_reading = float(receipt["Previous"])
-    snap_rent = float(receipt.get("Rent", 0.0))
-    snap_water = float(receipt.get("Water", 0.0))
-    snap_tank_water = float(receipt.get("Tank_Water", 0.0))
-    snap_rate = float(receipt.get("Rate", 0.0))
-    
-    snap_add_rate = float(receipt.get("Additional_Person_Rate", 0.0))
-    if snap_add_rate == 0.0 and int(receipt.get("Receipt_Version", 2)) < 3 and tenant_details:
-        snap_add_rate = tenant_details.additional_person_charge
-    
-    charges = calculate_charges(
-        current_reading, 
-        additional_persons, 
-        prev_reading=prev_reading,
-        rent=snap_rent,
-        water=snap_water,
-        tank_water=tank_water,
-        maintenance_charge=maintenance_charge,
-        rate=snap_rate,
-        add_person_charge=snap_add_rate
-    )
-    
-    pdf_filename = receipt.get("PDF", f"{bill_no}.pdf")
-    status = receipt.get("Status", "ACTIVE")
-    
-    grand_total = charges["total"] + previous_arrears
-    if amount_received is None:
-        amount_received = grand_total if payment_status == "PAID" else 0.0
+    tenant = next((t for t in tenants if t.name == tenant_name), None)
+    if not tenant:
+        raise ValueError("Tenant not found")
         
-    resolved = resolve_payment_state(
-        current_total=charges["total"],
-        previous_arrears=previous_arrears,
-        amount_received=amount_received
+    prev = float(old_receipt["previous"])
+    if prev > 0 and current_reading < prev:
+        raise ValueError("Current meter reading cannot be less than previous reading.")
+        
+    charges = calculate_charges(
+        current_reading, additional_persons, prev,
+        tenant.rent, tenant.water, tank_water, maintenance_charge,
+        tenant.electricity_rate, tenant.additional_person_charge
     )
-    payment_status = resolved["payment_status"]
-    amount_received = resolved["amount_received"]
+    
+    if payment_status == "PAID" and amount_received is None:
+        amount_received = charges["total"] + previous_arrears
+    elif amount_received is None:
+        amount_received = 0.0
+        
+    pdf_filename = old_receipt.get("pdf", f"{bill_no}_{tenant_name.replace(' ', '_')}_{month.replace(' ', '_')}.pdf")
+    pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
     updated_dict = {
         "Bill": bill_no,
-        "Date": receipt["Date"],
+        "Date": old_receipt["date"],
         "Month": month,
         "Tenant": tenant_name,
-        "Previous": prev_reading,
+        "Previous": old_receipt["previous"],
         "Current": current_reading,
         "Units": charges["units"],
-        "Rent": charges["rent"],
+        "Rent": tenant.rent,
         "Additional": charges["additional"],
-        "Water": charges["water"],
-        "Tank_Water": charges["tank_water"],
+        "Water": tenant.water,
+        "Tank_Water": tank_water,
         "Electricity": charges["electricity"],
         "Total": charges["total"],
         "PDF": pdf_filename,
-        "Tenant_Phone": receipt.get("Tenant_Phone", ""),
-        "Tenant_Company": receipt.get("Tenant_Company", ""),
-        "Tenant_Address": receipt.get("Tenant_Address", ""),
-        "Rate": charges["rate"],
-        "Status": status,
-        "Archived_Date": receipt.get("Archived_Date", ""),
-        "Archived_By": receipt.get("Archived_By", ""),
-        "Deleted_Date": receipt.get("Deleted_Date", ""),
-        "Additional_Persons": receipt.get("Additional_Persons", 0),
-        "Additional_Person_Rate": receipt.get("Additional_Person_Rate", 0.0),
-        "Receipt_Version": receipt.get("Receipt_Version", 8),
-        "Generated_By": receipt.get("Generated_By", "Admin"),
+        "Tenant_Phone": tenant.phone,
+        "Tenant_Company": tenant.company,
+        "Tenant_Address": tenant.address,
+        "Rate": tenant.electricity_rate,
+        "Status": old_receipt["status"],
+        "Archived_Date": old_receipt["archiveddate"],
+        "Archived_By": old_receipt["archivedby"],
+        "Deleted_Date": old_receipt["deleteddate"],
+        "Additional_Persons": additional_persons,
+        "Additional_Person_Rate": tenant.additional_person_charge,
+        "Receipt_Version": old_receipt.get("receiptversion", 8),
+        "Generated_By": old_receipt.get("generatedby", "Admin"),
         "Payment_Status": payment_status,
         "Maintenance_Charge": maintenance_charge,
         "Maintenance_Desc": maintenance_desc,
@@ -574,64 +378,63 @@ def update_bill(bill_no, tenant_name, month, current_reading, additional_persons
         "Amount_Received": amount_received
     }
     
-    for idx, item in enumerate(receipts):
-        if item["Bill"] == bill_no:
-            receipts[idx] = updated_dict
-            break
-    save_all_receipts(receipts)
-    
+    try:
+        from app.core.config_service import config
+        generate_professional_pdf(updated_dict, config.get("landlord", {}), pdf_path)
+    except BaseException as e:
+        print(f"Error generating PDF: {e}")
+
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE receipts SET
+                month = ?, tenant_id = ?, tenant = ?, current = ?, units = ?, rent = ?,
+                additional = ?, water = ?, tankwater = ?, electricity = ?, total = ?,
+                pdf = ?, tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?,
+                additionalpersons = ?, additionalpersonrate = ?, paymentstatus = ?,
+                maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
+            WHERE billno = ?
+        """, (
+            month, tenant.id, tenant_name, current_reading, charges["units"], tenant.rent,
+            charges["additional"], tenant.water, tank_water, charges["electricity"], charges["total"],
+            pdf_filename, tenant.phone, tenant.company, tenant.address, tenant.electricity_rate,
+            additional_persons, tenant.additional_person_charge, payment_status,
+            maintenance_charge, maintenance_desc, previous_arrears, amount_received,
+            bill_no
+        ))
+        conn.commit()
+
     return updated_dict
-
 def archive_bill(bill_no):
-    receipts = get_all_receipts()
-    receipt = next((r for r in receipts if r["Bill"] == bill_no), None)
-    if not receipt:
-        raise ValueError("Receipt not found")
-        
-    if receipt.get("Status") == "ARCHIVED":
-        return receipt
-
-    for idx, r in enumerate(receipts):
-        if r["Bill"] == bill_no:
-            receipts[idx]["Status"] = "ARCHIVED"
-            receipts[idx]["Archived_Date"] = datetime.now().strftime("%Y-%m-%d")
-            receipts[idx]["Archived_By"] = "Admin"
-            break
-            
-    save_all_receipts(receipts)
-    return receipt
+    from app.core.db import get_conn
+    from datetime import datetime
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE receipts SET status = 'ARCHIVED', archiveddate = ?, archivedby = 'Admin'
+            WHERE billno = ? AND status != 'ARCHIVED'
+        """, (datetime.now().strftime("%Y-%m-%d"), bill_no))
+        conn.commit()
+    return get_receipt(bill_no)
 
 def restore_bill(bill_no):
-    receipts = get_all_receipts()
-    receipt = next((r for r in receipts if r["Bill"] == bill_no), None)
-    if not receipt:
-        raise ValueError("Receipt not found")
-        
-    if receipt.get("Status") == "ACTIVE":
-        return receipt
-
-    for idx, r in enumerate(receipts):
-        if r["Bill"] == bill_no:
-            receipts[idx]["Status"] = "ACTIVE"
-            receipts[idx]["Archived_Date"] = ""
-            receipts[idx]["Archived_By"] = ""
-            break
-            
-    save_all_receipts(receipts)
-    return receipt
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE receipts SET status = 'ACTIVE', archiveddate = '', archivedby = ''
+            WHERE billno = ? AND status != 'ACTIVE'
+        """, (bill_no,))
+        conn.commit()
+    return get_receipt(bill_no)
 
 def delete_bill(bill_no):
-    receipts = get_all_receipts()
-    receipt = next((r for r in receipts if r["Bill"] == bill_no), None)
-    if not receipt:
-        raise ValueError("Receipt not found")
-        
-    if receipt.get("Status") != "ARCHIVED":
-        raise ValueError("Only archived receipts can be permanently deleted.")
-        
-    receipts = [r for r in receipts if r["Bill"] != bill_no]
-    save_all_receipts(receipts)
-
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        row = conn.execute("SELECT status FROM receipts WHERE billno = ?", (bill_no,)).fetchone()
+        if not row:
+            raise ValueError("Receipt not found")
+        if row["status"] != "ARCHIVED":
+            raise ValueError("Only archived receipts can be permanently deleted.")
+        conn.execute("DELETE FROM receipts WHERE billno = ?", (bill_no,))
+        conn.commit()
 def get_dashboard_stats():
     billing_conf = config.get("billing", {})
     receipts = get_all_receipts()
@@ -671,6 +474,7 @@ def get_dashboard_stats():
     electricity_consumed_this_month = 0.0
     highest_meter_reading = 0.0
     paid_bills_count = 0
+    advance_bills_count = 0
     
     for r in active_receipts:
         try:
@@ -687,7 +491,7 @@ def get_dashboard_stats():
         received = float(raw_recv) if raw_recv not in (None, "") else (gross_amount if status == "PAID" else 0.0)
         outstanding = max(gross_amount - received, 0.0)
 
-        is_paid = status == "PAID"
+        is_paid = status in ["PAID", "ADVANCE"]
         is_partial = status == "PARTIAL"
         is_due = status in ["PENDING", "PARTIAL"]
 
@@ -706,8 +510,8 @@ def get_dashboard_stats():
 
         if is_paid:
             paid_bills_count += 1
-            
-
+            if status == "ADVANCE":
+                advance_bills_count += 1
             
         if r.get("Month") == current_month_str:
             try:
@@ -775,6 +579,8 @@ def get_dashboard_stats():
         "pending_payments_count": pending_payments_count,
         "pending_amount": pending_amount,
         "amount_collected": amount_collected,
+        "paid_bills_count": paid_bills_count,
+        "advance_bills_count": advance_bills_count,
         "collection_rate": collection_rate,
         "recent_bills": recent_bills,
         "chart_labels": chart_months,

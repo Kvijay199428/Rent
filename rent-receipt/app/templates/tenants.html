@@ -110,9 +110,12 @@
                                         <a href="{{ APP_BASE(request) }}/tenant/{{ t.id }}"
                                             class="btn btn-sm btn-light border" title="View Profile"><i
                                                 class="bi bi-person-lines-fill text-info"></i></a>
-                                        <button class="btn btn-sm btn-light border"
-                                            onclick='editTenant("{{ t.dict() | tojson | safe }}")' title="Edit Tenant">
+                                        <button class="btn btn-sm btn-light border edit-tenant-btn"
+                                            data-tenant='{{ t.dict() | tojson | safe }}' title="Edit Tenant">
                                             <i class="bi bi-pencil text-primary"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-light border" onclick="openChangePinModal('{{ t.id }}', '{{ t.name }}')" title="Change PIN">
+                                            <i class="bi bi-key text-secondary"></i>
                                         </button>
                                         <button class="btn btn-sm btn-light border" onclick="deleteTenant('{{ t.id }}')"
                                             title="Deactivate / Delete Tenant">
@@ -292,11 +295,11 @@
                                         <label for="security_deposit">Security Deposit (₹)</label>
                                     </div>
                                 </div>
-                                <div class="col-sm-6">
+                                <div class="col-sm-6" id="tenantPinContainer">
                                     <div class="form-floating">
                                         <input type="text" class="form-control" id="tenant_pin" maxlength="4"
-                                            pattern="\d{4}" value="1234">
-                                        <label for="tenant_pin">Portal PIN (4 digits)</label>
+                                            pattern="\d{4}">
+                                        <label for="tenant_pin">Portal PIN (4 digits) <span class="text-danger">*</span></label>
                                     </div>
                                 </div>
                             </div>
@@ -348,15 +351,99 @@
     </div>
 </div>
 
+<div class="modal fade" id="changePinModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-light border-bottom-0 py-3 rounded-top-4">
+                <h5 class="modal-title fw-bold text-primary">
+                    <i class="bi bi-key me-2"></i>Change PIN for <span id="changePinTenantName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 bg-body-tertiary">
+                <form id="changePinForm">
+                    <input type="hidden" id="changePinTenantId">
+                    <div class="form-floating mb-3">
+                        <input type="password" class="form-control" id="new_pin" placeholder="New PIN" required pattern="\d{4}" maxlength="4">
+                        <label for="new_pin">New PIN (4 digits)</label>
+                    </div>
+                    <div class="form-floating mb-3">
+                        <input type="password" class="form-control" id="confirm_pin" placeholder="Confirm PIN" required pattern="\d{4}" maxlength="4">
+                        <label for="confirm_pin">Confirm PIN</label>
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="logout_all" checked>
+                        <label class="form-check-label text-danger" for="logout_all">Logout tenant from all devices</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-top-0 pt-0 bg-body-tertiary">
+                <button type="button" class="btn btn-light rounded-pill px-4 border shadow-sm"
+                    data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="changePinForm" class="btn btn-primary rounded-pill px-5 fw-bold shadow-sm"
+                    id="savePinBtn">
+                    <i class="bi bi-check-circle me-2"></i>Update PIN
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="printQrArea" class="d-none">
+    <div style="text-align: center; font-family: sans-serif; padding: 20px;">
+        <h1 style="margin-bottom: 5px; font-size: 28px;" id="printTenantName"></h1>
+        <h4 style="margin-top: 0; color: #555; font-size: 18px;" id="printTenantRoom"></h4>
+        
+        <div style="margin: 20px 0; font-size: 16px;">
+            Scan to access your <strong>Tenant Portal</strong><br>
+            <span style="font-size: 12px; color: #777;" id="printPortalUrl"></span>
+        </div>
+        
+        <div id="printQrcode" style="display: flex; justify-content: center; margin-bottom: 20px;"></div>
+        
+        <div style="border: 2px dashed #333; display: inline-block; padding: 10px 30px; margin-bottom: 20px; border-radius: 8px;">
+            <div style="font-size: 14px; color: #555; text-transform: uppercase; letter-spacing: 1px;">Your PIN</div>
+            <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px;" id="printTenantPin"></div>
+        </div>
+        
+        <div style="font-size: 12px; color: #777; margin-top: 20px; text-align: left; max-width: 300px; margin-left: auto; margin-right: auto; border-top: 1px solid #ddd; padding-top: 10px;">
+            <div><strong>Generated:</strong> <span id="printDate"></span></div>
+            <div><strong>Generated By:</strong> Admin</div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        #printQrArea,
+        #printQrArea * {
+            visibility: visible;
+        }
+        #printQrArea {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            display: block !important;
+        }
+    }
+</style>
+
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
     let tenantModalInstance = null;
+    let changePinModalInstance = null;
 
     document.addEventListener("DOMContentLoaded", () => {
         // Initialize the modal
         tenantModalInstance = new bootstrap.Modal(document.getElementById('tenantModal'));
+        changePinModalInstance = new bootstrap.Modal(document.getElementById('changePinModal'));
     });
 
     function searchTenants() {
@@ -387,10 +474,18 @@
         resetForm();
         document.getElementById("formTitle").innerHTML = `<i class="bi bi-person-plus me-2" id="formIcon"></i>Add Tenant`;
         document.getElementById("historyCard").classList.add("d-none");
+        document.getElementById("tenantPinContainer").classList.remove("d-none");
+        document.getElementById("tenant_pin").required = true;
         tenantModalInstance.show();
     }
 
     // Opens the modal for EDITING an existing tenant
+    document.addEventListener("click", (e) => {
+        const btn = e.target.closest(".edit-tenant-btn");
+        if (!btn) return;
+        editTenant(JSON.parse(btn.dataset.tenant));
+    });
+
     async function editTenant(tenant) {
         resetForm(); // clear first
 
@@ -417,11 +512,13 @@
 
         // Security
         document.getElementById("security_deposit").value = tenant.security_deposit || 0;
-        document.getElementById("tenant_pin").value = tenant.tenant_pin || '1234';
+        document.getElementById("tenant_pin").value = ''; // Do not set it
+        document.getElementById("tenant_pin").required = false;
         document.getElementById("notes").value = tenant.notes || '';
 
         document.getElementById("formTitle").innerHTML = `<i class="bi bi-pencil-square me-2" id="formIcon"></i>Edit ${tenant.name}`;
         document.getElementById("historyCard").classList.remove("d-none");
+        document.getElementById("tenantPinContainer").classList.add("d-none");
 
         // Fetch Billing History for this specific tenant
         loadBillingHistory(tenant.name);
@@ -451,7 +548,7 @@
             previous_meter: parseFloat(document.getElementById("previous_meter").value) || 0,
             additional_person_charge: parseFloat(document.getElementById("additional_person_charge").value) || 0,
             security_deposit: parseFloat(document.getElementById("security_deposit").value) || 0,
-            tenant_pin: document.getElementById("tenant_pin").value || "1234"
+            tenant_pin: document.getElementById("tenant_pin").value || null
         };
 
         const isEdit = !!id;
@@ -469,8 +566,17 @@
                 body: JSON.stringify(tenantData)
             });
             if (res.ok) {
+                let resData = {};
+                try { resData = await res.json(); } catch(e) {}
                 tenantModalInstance.hide();
-                showToast("success", isEdit ? "Tenant Updated Successfully!" : "Tenant Added Successfully!");
+                
+                if (!isEdit && resData.tenant && resData.tenant.view_token) {
+                    showToast("success", "Tenant Added Successfully!");
+                    generateTenantQR(resData.tenant, tenantData.tenant_pin);
+                    tenantData.tenant_pin = null; // Clear from memory
+                } else {
+                    showToast("success", isEdit ? "Tenant Updated Successfully!" : "Tenant Added Successfully!");
+                }
                 resetForm();
                 await updateUI(); // Smooth refresh
             } else {
@@ -502,7 +608,7 @@
         emptyState.classList.add('d-none');
 
         try {
-            const res = await fetch(`api/tenant_receipts/${encodeURIComponent(tenantName)}`);
+            const res = await fetch(`${window.APP.API}/tenantreceipts/${encodeURIComponent(tenantName)}`);
             if (res.ok) {
                 const receipts = await res.json();
                 tbody.innerHTML = '';
@@ -551,7 +657,7 @@
             cancelButtonText: "Cancel"
         }).then(async (result) => {
             if (result.isConfirmed) {
-                await processTenantDeletion(id, 'delete');
+                await processTenantDeletion(id, 'hard');
             } else if (result.isDenied) {
                 await processTenantDeletion(id, 'archive');
             }
@@ -560,15 +666,23 @@
 
     async function processTenantDeletion(id, action) {
         try {
-            const res = await fetch(`api/tenants/${id}?action=${action}`, { method: "DELETE" });
+            const res = await fetch(`api/tenants/${id}?action=${encodeURIComponent(action)}`, {
+                method: "DELETE"
+            });
+
+            const data = await res.json().catch(() => ({}));
+
             if (res.ok) {
-                showToast("success", `Tenant ${action === 'delete' ? 'Deleted' : 'Archived'} Successfully!`);
-                await updateUI(); // Smooth refresh
+                showToast(
+                    "success",
+                    `Tenant ${action === "hard" ? "deleted" : action === "archive" ? "archived" : "updated"} successfully!`
+                );
+                await updateUI();
             } else {
-                showError("Failed", `Failed to ${action} tenant.`);
+                showError("Failed", data.detail || `Failed to ${action} tenant.`);
             }
         } catch (e) {
-            showError("Network Error", "An error occurred.");
+            showError("Network Error", "An error occurred while processing tenant deletion.");
         }
     }
 
@@ -581,29 +695,95 @@
         ).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const getRes = await fetch(`api/tenants/${id}`);
-                    if (!getRes.ok) throw new Error("Tenant not found");
-                    const tenant = await getRes.json();
-
-                    tenant.status = newStatus;
-
-                    const updateRes = await fetch(`api/tenants/${id}`, {
+                    const res = await fetch(`api/tenants/${id}`, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(tenant)
+                        body: JSON.stringify({ status: newStatus, name: 'dummy' }) // name is required by pydantic, but not updated if we just toggle
                     });
-
-                    if (updateRes.ok) {
-                        showToast("success", `Tenant marked as ${newStatus}!`);
-                        await updateUI(); // Smooth refresh
-                    } else {
-                        showError("Update Failed", "Failed to update tenant status.");
+                    if (res.ok) {
+                        showToast("success", `Status changed to ${newStatus}!`);
+                        await updateUI();
                     }
                 } catch (e) {
-                    showError("Error", "An error occurred while communicating with the server.");
+                    showError("Error", "Failed to change status.");
                 }
             }
         });
     }
+
+    function generateTenantQR(tenant, pin) {
+        const url = `${window.location.origin}{{ APP_BASE(request) }}/t/${tenant.view_token}`;
+        
+        document.getElementById("printTenantName").innerText = tenant.name || 'Tenant';
+        document.getElementById("printTenantRoom").innerText = tenant.room_number ? `Room: ${tenant.room_number}` : '';
+        document.getElementById("printPortalUrl").innerText = url;
+        document.getElementById("printTenantPin").innerText = pin;
+        
+        const d = new Date();
+        document.getElementById("printDate").innerText = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        
+        const printQrContainer = document.getElementById('printQrcode');
+        printQrContainer.innerHTML = '';
+        
+        new QRCode(printQrContainer, {
+            text: url, width: 250, height: 250, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H
+        });
+        
+        // Wait for QR to render then print
+        setTimeout(() => {
+            window.print();
+        }, 300);
+    }
+    
+    function openChangePinModal(id, name) {
+        document.getElementById("changePinTenantId").value = id;
+        document.getElementById("changePinTenantName").innerText = name;
+        document.getElementById("changePinForm").reset();
+        changePinModalInstance.show();
+    }
+    
+    document.getElementById("changePinForm").addEventListener("submit", async function (e) {
+        e.preventDefault();
+        
+        const newPin = document.getElementById("new_pin").value;
+        const confirmPin = document.getElementById("confirm_pin").value;
+        
+        if (newPin !== confirmPin) {
+            alert("PINs do not match!");
+            return;
+        }
+        
+        const id = document.getElementById("changePinTenantId").value;
+        const logoutAll = document.getElementById("logout_all").checked;
+        const savePinBtn = document.getElementById("savePinBtn");
+        
+        savePinBtn.disabled = true;
+        savePinBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Updating...';
+        
+        try {
+            const res = await fetch(`api/tenants/${id}/change-pin`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pin: newPin, logout_all: logoutAll })
+            });
+            
+            const data = await res.json().catch(() => ({}));
+            
+            if (res.ok) {
+                showToast("success", "PIN changed successfully!");
+                changePinModalInstance.hide();
+            } else {
+                showError("Failed", data.detail || "Failed to change PIN.");
+            }
+        } catch (e) {
+            showError("Network Error", "An error occurred.");
+        } finally {
+            savePinBtn.disabled = false;
+            savePinBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Update PIN';
+            // Clear memory
+            document.getElementById("new_pin").value = '';
+            document.getElementById("confirm_pin").value = '';
+        }
+    });
 </script>
 {% endblock %}

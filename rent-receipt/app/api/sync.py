@@ -62,7 +62,7 @@ def _build_excel_workbook(tenants_list, receipts_list):
         ws_profile.append([
             t_id_str, t.name, str(t.phone), getattr(t, 'email', ''), getattr(t, 'company', ''),
             getattr(t, 'address', ''), getattr(t, 'room_number', ''), getattr(t, 'meter_id', ''),
-            getattr(t, 'tenant_pin', '1234'), float(t.rent), float(t.water), float(t.electricity_rate),
+            getattr(t, 'tenant_pin', ''), float(t.rent), float(t.water), float(t.electricity_rate),
             float(t.additional_person_charge), float(getattr(t, 'default_tank_water_charge', 0.0)), t.status
         ])
 
@@ -172,8 +172,8 @@ async def download_excel_template():
             cell.fill = header_fill
 
     # Sample data rows
-    ws_profile.append(["T001", "John Doe", "9876543210", "john@gmail.com", "ABC Pvt Ltd", "Delhi", "A101", "MTR001", "1234", 15000, 500, 8.5, 1000, 300, "Active"])
-    ws_profile.append(["T002", "Alice Smith", "9988776655", "alice@gmail.com", "XYZ Ltd", "Noida", "B202", "MTR002", "4321", 18000, 600, 9.0, 1200, 400, "Active"])
+    ws_profile.append(["T001", "John Doe", "9876543210", "john@gmail.com", "ABC Pvt Ltd", "Delhi", "A101", "MTR001", "", 15000, 500, 8.5, 1000, 300, "Active"])
+    ws_profile.append(["T002", "Alice Smith", "9988776655", "alice@gmail.com", "XYZ Ltd", "Noida", "B202", "MTR002", "", 18000, 600, 9.0, 1200, 400, "Active"])
     ws_receipts.append(["T1-001", "T001", "January 2026", "01 Jan 2026", 120, 150, 30, 15000, 500, 255, 1000, 300, 0, 0, 17055, 17055, "PAID", "ACTIVE"])
     ws_receipts.append(["T2-001", "T002", "January 2026", "01 Jan 2026", 80, 110, 30, 18000, 600, 270, 0, 400, 0, 0, 19270, 19270, "PAID", "ACTIVE"])
 
@@ -275,10 +275,10 @@ async def import_preview_data(file: UploadFile = File(...)):
 @router.post("/api/sync/import/execute", name=Names.IMPORT_EXECUTE_DATA)
 async def import_execute_data(
     file: UploadFile = File(...),
-    selected_targets: str = Form(...),
+    selectedtargets: str = Form(...),
     background_tasks: BackgroundTasks = BackgroundTasks()
 ):
-    selected_list = json.loads(selected_targets)
+    selected_list = json.loads(selectedtargets)
     if not selected_list:
         raise HTTPException(status_code=400, detail="No tenants selected for import.")
 
@@ -312,7 +312,7 @@ async def import_execute_data(
             t.address = p.get("Address", getattr(t, 'address', ''))
             t.room_number = p.get("Room", getattr(t, 'room_number', ''))
             t.meter_id = p.get("Meter_ID", getattr(t, 'meter_id', ''))
-            t.tenant_pin = p.get("PIN", getattr(t, 'tenant_pin', '1234'))
+            t.tenant_pin = p.get("PIN") or getattr(t, 'tenant_pin', None)
             t.rent = float(p.get("Rent", t.rent) or 0.0)
             t.water = float(p.get("Water", t.water) or 0.0)
             t.electricity_rate = float(p.get("Electricity_Rate", t.electricity_rate) or 0.0)

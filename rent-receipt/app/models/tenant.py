@@ -32,8 +32,8 @@ class Tenant(BaseModel):
     # NEW: Secure access token for public QR profiles
     view_token: Optional[str] = ""
     
-    # NEW: Security PIN for Tenant Portal (Default to 1234)
-    tenant_pin: str = "1234"
+    # NEW: Security PIN for Tenant Portal
+    tenant_pin: Optional[str] = None
     
     # NEW: Current arrears (balance due)
     arrears: float = 0.0
