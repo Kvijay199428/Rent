@@ -13,7 +13,7 @@ from app.core.route_builder import RouteBuilder
 from app.core.routes import Paths, Names, Prefixes
 from typing import Optional
 from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
+from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
 
@@ -101,7 +101,7 @@ from app.core.route_builder import RouteBuilder
 from app.core.routes import Paths, Names, Prefixes
 from typing import Optional
 from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
+from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
 
@@ -131,7 +131,7 @@ async def api_filter_bills(status: str = "active"):
     elif status == "paid":
         filtered = [
             r for r in receipts
-            if r.get("Payment_Status", "PENDING") == "PAID"
+            if r.get("Payment_Status", "PENDING") in ["PAID", "ADVANCE"]
             and r.get("Status") != "ARCHIVED"
         ]
     elif status == "active":
@@ -147,8 +147,37 @@ async def api_billing_months():
     return get_billing_months()
 
 @router.get("/api/billing/preview", name=Names.API_BILLING_PREVIEW)
-async def api_billing_preview(current_reading: float, additional_persons: int):
-    return calculate_charges(current_reading, additional_persons)
+async def api_billing_preview(
+    currentreading: float,
+    additionalpersons: int,
+    prevreading: float = 0.0,
+    rent: float | None = None,
+    water: float | None = None,
+    tankwater: float = 0.0,
+    maintenancecharge: float = 0.0,
+    rate: float | None = None,
+    addpersoncharge: float | None = None,
+):
+    billing_conf = config.get("billing", {})
+    rent = float(rent if rent is not None else billing_conf.get("rent", 0.0))
+    water = float(water if water is not None else billing_conf.get("water", 0.0))
+    rate = float(rate if rate is not None else billing_conf.get("electricity_rate", 0.0))
+    addpersoncharge = float(
+        addpersoncharge if addpersoncharge is not None
+        else billing_conf.get("additional_person_charge", 0.0)
+    )
+
+    return calculate_charges(
+        currentreading,
+        additionalpersons,
+        prevreading,
+        rent,
+        water,
+        tankwater,
+        maintenancecharge,
+        rate,
+        addpersoncharge,
+    )
 
 @router.get("/api/bill/{bill_no}", name=Names.API_GET_SINGLE_BILL)
 async def api_get_single_bill(bill_no: str):
@@ -159,29 +188,24 @@ async def api_get_single_bill(bill_no: str):
 
 @router.post("/api/bill", name=Names.API_CREATE_BILL)
 async def api_create_bill(request: BillRequest, background_tasks: BackgroundTasks):
-    billing_conf = config.get("billing", {})
-    prev = float(billing_conf.get("previous_meter_reading", 0.0))
-    if request.current_reading < prev:
-        raise HTTPException(status_code=400, detail="Current meter reading cannot be less than previous reading.")
-        
     try:
         data = create_bill(
             request.tenant,
             request.month,
-            request.current_reading,
-            request.additional_persons,
-            request.tank_water,
-            request.maintenance_charge,
-            request.maintenance_desc,
-            request.previous_arrears,
-            request.amount_received,
-            request.payment_status
+            request.currentreading,
+            request.additionalpersons,
+            request.tankwater,
+            request.maintenancecharge,
+            request.maintenancedesc,
+            request.previousarrears,
+            request.amountreceived,
+            request.paymentstatus
         )
         background_tasks.add_task(create_full_backup, tag="create_bill")
         return {"status": "success", "data": data}
     except ValueError as e:
         msg = str(e)
-        if "already exists" in msg:
+        if "already exists" in msg.lower():
             raise HTTPException(status_code=409, detail=msg)
         raise HTTPException(status_code=400, detail=msg)
     except Exception as e:
@@ -189,42 +213,46 @@ async def api_create_bill(request: BillRequest, background_tasks: BackgroundTask
 
 @router.post("/api/edit_bill/{bill_no}", name=Names.API_UPDATE_BILL)
 async def api_update_bill(bill_no: str, request: BillRequest, background_tasks: BackgroundTasks):
-    receipt = get_receipt(bill_no)
-    if not receipt:
-        raise HTTPException(status_code=404, detail="Bill not found")
-        
-    prev = float(receipt["Previous"])
-    if request.current_reading < prev:
-        raise HTTPException(status_code=400, detail="Current meter reading cannot be less than previous reading.")
-        
     try:
         data = update_bill(
             bill_no,
             request.tenant,
             request.month,
-            request.current_reading,
-            request.additional_persons,
-            request.tank_water,
-            request.maintenance_charge,
-            request.maintenance_desc,
-            request.previous_arrears,
-            request.amount_received,
-            request.payment_status
+            request.currentreading,
+            request.additionalpersons or 0,
+            request.tankwater or 0.0,
+            request.maintenancecharge or 0.0,
+            request.maintenancedesc or "",
+            request.previousarrears or 0.0,
+            request.amountreceived,
+            (request.paymentstatus or "PENDING").upper()
         )
         background_tasks.add_task(create_full_backup, tag="edit_bill")
         return {"status": "success", "data": data}
+    except ValueError as e:
+        msg = str(e)
+        if "already exists" in msg.lower():
+            raise HTTPException(status_code=409, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# Update PaymentStatusUpdate with amount_received
 @router.post("/api/bill/{bill_no}/payment", name=Names.API_UPDATE_PAYMENT)
 async def api_update_payment(bill_no: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
     try:
-        if data.payment_status not in ["PAID", "PENDING", "PARTIAL", "ADVANCE"]:
-            raise ValueError("Invalid payment status")
-        update_payment_status(bill_no, data.payment_status, data.amount_received)
+        status = (data.paymentstatus or "").strip().upper()
+        if status not in {"PAID", "PENDING", "PARTIAL", "ADVANCE"}:
+            raise HTTPException(status_code=400, detail="Invalid payment status.")
+
+        amount = data.amountreceived
+        if amount is not None and amount < 0:
+            raise HTTPException(status_code=400, detail="Amount received cannot be negative.")
+
+        update_payment_status(bill_no, status, amount)
         background_tasks.add_task(create_full_backup, tag="payment_status")
         return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -272,9 +300,10 @@ async def health_check():
         "application": APP_INFO["name"],
         "version": APP_INFO["version"],
         "schema": APP_INFO["schema"],
-        "config_loaded": bool(ConfigService.get_config()),
+        "config_loaded": bool(ConfigService().get("system")),
         "storage_ready": True,  # Monitored at startup
-        "database_ready": True, # Using flat files
+        "database": "SQLite (rent.db)",
+        "database_ready": True, 
         "uptime": "N/A" # Trackable if needed
     }
 ```
@@ -289,7 +318,7 @@ from app.core.route_builder import RouteBuilder
 from app.core.routes import Paths, Names, Prefixes
 from typing import Optional
 from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
+from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
 
@@ -307,8 +336,11 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
+from app.authentication.admin.middleware import get_current_admin_api
+from datetime import datetime
+
 @router.get("/api/pdf/{bill_no}/download", name=Names.PDF_DOWNLOAD)
-async def download_pdf(bill_no: str):
+async def download_pdf(bill_no: str, admin = Depends(get_current_admin_api)):
     receipt = get_receipt(bill_no)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
@@ -330,7 +362,7 @@ async def download_pdf(bill_no: str):
     return response
 
 @router.get("/api/pdf/{bill_no}/view", name=Names.PDF_VIEW)
-async def view_pdf(bill_no: str):
+async def view_pdf(bill_no: str, admin = Depends(get_current_admin_api)):
     receipt = get_receipt(bill_no)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
@@ -367,7 +399,7 @@ from typing import Optional
 from datetime import datetime
 from app.core.paths import KYC_DIR
 from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
+from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json
 import mimetypes
 import uuid
@@ -387,7 +419,9 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
-@router.post("/api/t/{view_token}/kyc", name=Names.PUBLIC_TENANT_KYC_UPLOAD)
+from app.authentication.tenant.middleware import get_current_tenant
+
+@router.post("/t/api/{view_token}/kyc", name=Names.PUBLIC_TENANT_KYC_UPLOAD)
 async def public_tenant_kyc_upload(
     view_token: str, 
     name: str = Form(...), 
@@ -396,11 +430,12 @@ async def public_tenant_kyc_upload(
     aadhaar_back: Optional[UploadFile] = File(None),
     aadhaar_combined: Optional[UploadFile] = File(None),
     emp_front: Optional[UploadFile] = File(None),
-    emp_back: Optional[UploadFile] = File(None)
+    emp_back: Optional[UploadFile] = File(None),
+    principal = Depends(get_current_tenant)
 ):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
-    if not tenant:
+    if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     if not aadhaar_combined and not (aadhaar_front and aadhaar_back):
@@ -427,36 +462,36 @@ async def public_tenant_kyc_upload(
     now = datetime.now()
     save_occupant(tenant.id, {
         "uuid": occupant_uuid,
-        "Name": name,
-        "Mobile": mobile,
-        "Status": "Active",
-        "Aadhaar Front": af_path,
-        "Aadhaar Back": ab_path,
-        "Aadhaar Combined": ac_path,
-        "Emp Front": ef_path,
-        "Emp Back": eb_path,
-        "Upload_Date": now.strftime("%Y-%m-%dT%H:%M:%S"),
-        "Upload_Month": now.strftime("%B %Y")
+        "name": name,
+        "mobile": mobile,
+        "status": "Active",
+        "aadhaar_front": af_path,
+        "aadhaar_back": ab_path,
+        "aadhaar_combined": ac_path,
+        "emp_front": ef_path,
+        "emp_back": eb_path,
+        "uploaddate": now.strftime("%Y-%m-%dT%H:%M:%S"),
+        "uploadmonth": now.strftime("%B %Y")
     })
     
     return {"status": "success", "message": "KYC uploaded successfully"}
 
-@router.put("/api/t/{view_token}/kyc/{occupant_uuid}/inactive", name=Names.PUBLIC_TENANT_KYC_MARK_INACTIVE)
-async def public_tenant_kyc_mark_inactive(view_token: str, occupant_uuid: str):
+@router.put("/t/api/{view_token}/kyc/{occupant_uuid}/inactive", name=Names.PUBLIC_TENANT_KYC_MARK_INACTIVE)
+async def public_tenant_kyc_mark_inactive(view_token: str, occupant_uuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
-    if not tenant:
+    if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid link.")
         
     from app.services.tenant_service import update_occupant_status
     update_occupant_status(occupant_uuid, "Inactive")
     return {"status": "success"}
 
-@router.delete("/api/t/{view_token}/kyc/{occupant_uuid}", name=Names.PUBLIC_TENANT_KYC_DELETE)
-async def public_tenant_kyc_delete(view_token: str, occupant_uuid: str):
+@router.delete("/t/api/{view_token}/kyc/{occupant_uuid}", name=Names.PUBLIC_TENANT_KYC_DELETE)
+async def public_tenant_kyc_delete(view_token: str, occupant_uuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
-    if not tenant:
+    if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     occupants = get_occupants(tenant.id)
@@ -477,8 +512,8 @@ async def public_tenant_kyc_delete(view_token: str, occupant_uuid: str):
     delete_occupant(occupant_uuid)
     return {"status": "success"}
 
-@router.get("/api/kyc/{filename}", name=Names.GET_KYC_FILE)
-async def get_kyc_file(filename: str):
+@router.get("/t/api/kyc/{filename}", name="tenant_public_get_kyc_file")
+async def tenant_public_get_kyc_file(filename: str, principal = Depends(get_current_tenant)):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -486,6 +521,10 @@ async def get_kyc_file(filename: str):
     file_path = os.path.join(KYC_DIR, safe_filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
+        
+    # Ensure the file belongs to the tenant
+    if not safe_filename.startswith(f"{principal.id}_"):
+        raise HTTPException(status_code=403, detail="Forbidden: Cannot access this file")
     
     mime_type, _ = mimetypes.guess_type(file_path)
     if not mime_type:
@@ -516,7 +555,8 @@ async def api_get_config():
         "landlord": config.get("landlord", {}),
         "billing": config.get("billing", {}),
         "ui": config.get("ui", {}),
-        "backup": config.get("backup", {})
+        "backup": config.get("backup", {}),
+        "whatsapp": config.get("whatsapp", {})
     }
 
 @router.post("/api/settings/signature", name=Names.API_UPLOAD_SIGNATURE)
@@ -524,18 +564,17 @@ async def api_upload_signature(file: UploadFile = File(...)):
     sys_conf = config.get("system", {})
     max_mb = config.get("system.limits.max_upload_size_mb", 2)
     max_bytes = max_mb * 1024 * 1024
-    
+
     contents = await file.read()
     if len(contents) > max_bytes:
         raise HTTPException(status_code=400, detail=f"File too large (Max {max_mb}MB)")
     path = save_signature(contents, file.filename)
     if not path:
         raise HTTPException(status_code=500, detail="Failed to process signature image")
-        
-    # Update config with just the filename
+
     filename = os.path.basename(path)
     config.save("landlord", {"signature_image": filename})
-    
+
     return {"status": "success", "path": filename}
 
 @router.delete("/api/settings/signature", name=Names.API_DELETE_SIGNATURE)
@@ -547,26 +586,29 @@ async def api_delete_signature():
 class ConfigUpdateModel(BaseModel):
     landlord: dict
     billing: dict
+    whatsapp: dict = {}
     backup: dict = {}
 
 @router.post("/api/config", name=Names.UPDATE_CONFIG)
 async def update_config(data: ConfigUpdateModel, background_tasks: BackgroundTasks):
     background_tasks.add_task(create_full_backup, tag="settings_change")
-    
-    # Merge landlord config to preserve signature_image
+
     config.save("landlord", data.landlord)
-    
-    # Merge billing config just in case
     config.save("billing", data.billing)
+
+    if data.whatsapp:
+        config.save("whatsapp", data.whatsapp)
+
     if data.backup:
         config.save("backup", data.backup)
+
     return {"status": "success"}
 
 @router.post("/api/ui/theme", name=Names.UPDATE_THEME)
 async def update_theme(data: dict):
     theme = data.get("theme", "system")
     config.save("ui", {"theme": theme})
-    return {"status": "success"}
+    return {"status": "success", "theme": theme, "effective_theme": theme}
 ```
 
 ```python
@@ -589,6 +631,11 @@ from app.services.tenant_service import load_tenants, add_tenant, update_tenant
 from app.services.billing_service import get_all_receipts
 from app.services.backup_service import create_full_backup
 from app.core.paths import BACKUPS_DIR
+
+from app.authentication.common.utils import validate_tenant_pin, hash_pin
+from app.authentication.common.pin_vault import encrypt_admin_view_pin
+from app.authentication.tenant.sessions import revoke_all_tenant_sessions
+from app.core.db import get_conn
 
 import openpyxl
 from openpyxl.styles import Font, PatternFill
@@ -635,7 +682,7 @@ def _build_excel_workbook(tenants_list, receipts_list):
         ws_profile.append([
             t_id_str, t.name, str(t.phone), getattr(t, 'email', ''), getattr(t, 'company', ''),
             getattr(t, 'address', ''), getattr(t, 'room_number', ''), getattr(t, 'meter_id', ''),
-            getattr(t, 'tenant_pin', '1234'), float(t.rent), float(t.water), float(t.electricity_rate),
+            getattr(t, 'tenant_pin', ''), float(t.rent), float(t.water), float(t.electricity_rate),
             float(t.additional_person_charge), float(getattr(t, 'default_tank_water_charge', 0.0)), t.status
         ])
 
@@ -745,8 +792,8 @@ async def download_excel_template():
             cell.fill = header_fill
 
     # Sample data rows
-    ws_profile.append(["T001", "John Doe", "9876543210", "john@gmail.com", "ABC Pvt Ltd", "Delhi", "A101", "MTR001", "1234", 15000, 500, 8.5, 1000, 300, "Active"])
-    ws_profile.append(["T002", "Alice Smith", "9988776655", "alice@gmail.com", "XYZ Ltd", "Noida", "B202", "MTR002", "4321", 18000, 600, 9.0, 1200, 400, "Active"])
+    ws_profile.append(["T001", "John Doe", "9876543210", "john@gmail.com", "ABC Pvt Ltd", "Delhi", "A101", "MTR001", "", 15000, 500, 8.5, 1000, 300, "Active"])
+    ws_profile.append(["T002", "Alice Smith", "9988776655", "alice@gmail.com", "XYZ Ltd", "Noida", "B202", "MTR002", "", 18000, 600, 9.0, 1200, 400, "Active"])
     ws_receipts.append(["T1-001", "T001", "January 2026", "01 Jan 2026", 120, 150, 30, 15000, 500, 255, 1000, 300, 0, 0, 17055, 17055, "PAID", "ACTIVE"])
     ws_receipts.append(["T2-001", "T002", "January 2026", "01 Jan 2026", 80, 110, 30, 18000, 600, 270, 0, 400, 0, 0, 19270, 19270, "PAID", "ACTIVE"])
 
@@ -848,10 +895,10 @@ async def import_preview_data(file: UploadFile = File(...)):
 @router.post("/api/sync/import/execute", name=Names.IMPORT_EXECUTE_DATA)
 async def import_execute_data(
     file: UploadFile = File(...),
-    selected_targets: str = Form(...),
+    selectedtargets: str = Form(...),
     background_tasks: BackgroundTasks = BackgroundTasks()
 ):
-    selected_list = json.loads(selected_targets)
+    selected_list = json.loads(selectedtargets)
     if not selected_list:
         raise HTTPException(status_code=400, detail="No tenants selected for import.")
 
@@ -884,8 +931,27 @@ async def import_execute_data(
             t.company = p.get("Company", getattr(t, 'company', ''))
             t.address = p.get("Address", getattr(t, 'address', ''))
             t.room_number = p.get("Room", getattr(t, 'room_number', ''))
-            t.meter_id = p.get("Meter_ID", getattr(t, 'meter_id', ''))
-            t.tenant_pin = p.get("PIN", getattr(t, 'tenant_pin', '1234'))
+            t.meter_id = p.get("Meter_ID", getattr(t, "meter_id", ""))
+
+            # --------------------------------------------------
+            # Secure Tenant PIN Import
+            # --------------------------------------------------
+
+            plain_pin = str(p.get("PIN") or "").strip()
+
+            pin_changed = False
+            hashed_pin = None
+            encrypted_pin = None
+
+            if plain_pin:
+                validate_tenant_pin(plain_pin)
+
+                hashed_pin = hash_pin(plain_pin)
+                encrypted_pin = encrypt_admin_view_pin(plain_pin)
+
+                t.tenant_pin = hashed_pin
+                pin_changed = True
+
             t.rent = float(p.get("Rent", t.rent) or 0.0)
             t.water = float(p.get("Water", t.water) or 0.0)
             t.electricity_rate = float(p.get("Electricity_Rate", t.electricity_rate) or 0.0)
@@ -894,10 +960,55 @@ async def import_execute_data(
             t.status = p.get("Status", getattr(t, 'status', 'Active'))
 
             if is_new:
-                add_tenant(t)
+                tenant_id = add_tenant(t)
+                t.id = tenant_id
                 sys_tenants.append(t)
+
+                if pin_changed:
+                    now = datetime.datetime.utcnow().isoformat()
+                    with get_conn() as conn:
+                        conn.execute(
+                            """
+                            INSERT INTO tenant_pin_history
+                            (tenant_id, pin_hash, changed_at)
+                            VALUES (?, ?, ?)
+                            """,
+                            (tenant_id, hashed_pin, now)
+                        )
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO tenant_pin_admin_store
+                            (tenant_id, encrypted_pin, updated_at)
+                            VALUES (?, ?, ?)
+                            """,
+                            (tenant_id, encrypted_pin, now)
+                        )
+                        conn.commit()
             else:
                 update_tenant(t)
+
+                if pin_changed:
+                    now = datetime.datetime.utcnow().isoformat()
+                    with get_conn() as conn:
+                        conn.execute(
+                            """
+                            INSERT INTO tenant_pin_history
+                            (tenant_id, pin_hash, changed_at)
+                            VALUES (?, ?, ?)
+                            """,
+                            (t.id, hashed_pin, now)
+                        )
+                        conn.execute(
+                            """
+                            INSERT OR REPLACE INTO tenant_pin_admin_store
+                            (tenant_id, encrypted_pin, updated_at)
+                            VALUES (?, ?, ?)
+                            """,
+                            (t.id, encrypted_pin, now)
+                        )
+                        conn.commit()
+                    # Force tenant to login again using new PIN
+                    revoke_all_tenant_sessions(t.id)
 
             for r in t_data["receipts"]:
                 bill_no = r.get("Bill_No", "").strip()
@@ -920,21 +1031,66 @@ async def import_execute_data(
                 else:
                     sys_receipts.append(data)
 
+    # try:
+    #     if file.filename.endswith('.zip'):
+    #         with zipfile.ZipFile(io.BytesIO(content)) as z:
+    #             for zip_info in z.infolist():
+    #                 if zip_info.filename.endswith('.xlsx'):
+    #                     with z.open(zip_info) as f:
+    #                         execute_import_for_file(f.read(), zip_info.filename)
+    #     elif file.filename.endswith('.xlsx'):
+    #         execute_import_for_file(content, file.filename)
+
+    #     from app.services.billing_service import save_all_receipts
+    #     save_all_receipts(sys_receipts)
+    #     return {"status": "success"}
+    # except Exception as e:
+    #     raise HTTPException(status_code=400, detail=str(e))
     try:
-        if file.filename.endswith('.zip'):
+        if file.filename.endswith(".zip"):
             with zipfile.ZipFile(io.BytesIO(content)) as z:
                 for zip_info in z.infolist():
-                    if zip_info.filename.endswith('.xlsx'):
+                    if zip_info.filename.endswith(".xlsx"):
                         with z.open(zip_info) as f:
-                            execute_import_for_file(f.read(), zip_info.filename)
-        elif file.filename.endswith('.xlsx'):
+                            execute_import_for_file(
+                                f.read(),
+                                zip_info.filename
+                            )
+
+        elif file.filename.endswith(".xlsx"):
             execute_import_for_file(content, file.filename)
 
         from app.services.billing_service import save_all_receipts
         save_all_receipts(sys_receipts)
-        return {"status": "success"}
+
+        return {
+            "status": "success",
+            "message": "Import completed successfully."
+        }
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    finally:
+        # Close the uploaded file
+        try:
+            await file.close()
+        except Exception:
+            pass
+
+        # Remove Starlette/FastAPI temporary upload file (if one exists)
+        try:
+            temp_path = getattr(file.file, "name", None)
+
+            if (
+                isinstance(temp_path, str)
+                and os.path.isfile(temp_path)
+            ):
+                os.remove(temp_path)
+
+        except Exception:
+            # Ignore cleanup errors
+            pass
 
 
 if __name__ == "__main__":
@@ -981,9 +1137,10 @@ from app.core.route_builder import RouteBuilder
 from app.core.routes import Paths, Names, Prefixes
 from typing import Optional
 from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
+from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
+
 
 from app.services.tenant_service import (
     load_tenants, add_tenant, update_tenant, delete_tenant,
@@ -1003,96 +1160,291 @@ router = APIRouter()
 async def api_get_tenants():
     return load_tenants()
 
-@router.get("/api/tenants/{tenant_id}", name=Names.API_GET_TENANT)
-async def api_get_tenant(tenant_id: int):
+@router.get("/api/tenants/{tenantid}", name=Names.API_GET_TENANT)
+async def api_get_tenant(tenantid: int):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if t.id == tenant_id), None)
+    tenant = next((t for t in tenants if t.id == tenantid), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
 
-@router.get("/api/tenant_receipts/{tenant_name}", name=Names.API_GET_TENANT_RECEIPTS)
-async def api_get_tenant_receipts(tenant_name: str):
+@router.get("/api/tenantreceipts/{tenantname}", name=Names.API_GET_TENANT_RECEIPTS + "_legacy")
+@router.get("/api/tenant_receipts/{tenantname}", name=Names.API_GET_TENANT_RECEIPTS)
+async def api_get_tenant_receipts(tenantname: str):
     receipts = get_all_receipts()
-    tenant_receipts = [r for r in receipts if r["Tenant"] == tenant_name]
+    target = tenantname.strip().casefold()
+    tenant_receipts = [r for r in receipts if r.get("Tenant", "").strip().casefold() == target]
     tenant_receipts.reverse()
     return tenant_receipts
 
 @router.post("/api/tenants", name=Names.API_ADD_TENANT)
-async def api_add_tenant(t: Tenant, background_tasks: BackgroundTasks):
+async def api_add_tenant(t: Tenant, request: Request, background_tasks: BackgroundTasks):
+    from app.authentication.common.utils import hash_pin, validate_tenant_pin
+    from app.authentication.common.pin_vault import encrypt_admin_view_pin
+    from app.core.db import get_conn
+    from datetime import datetime
+    
     background_tasks.add_task(create_full_backup, tag="add_tenant")
-    return add_tenant(t)
-
-@router.put("/api/tenants/{tenant_id}", name=Names.API_UPDATE_TENANT)
-async def api_update_tenant(tenant_id: int, t: Tenant, background_tasks: BackgroundTasks):
+    
+    # Strictly validate 4-digit PIN on creation
+    validate_tenant_pin(t.tenant_pin)
+    
+    plain_pin = str(t.tenant_pin)
+    hashed_pin = hash_pin(plain_pin)
+    encrypted_pin = encrypt_admin_view_pin(plain_pin)
+    
+    t.tenant_pin = hashed_pin
+        
+    tenant_id = add_tenant(t)
     t.id = tenant_id
-    background_tasks.add_task(create_full_backup, tag="update_tenant")
-    return update_tenant(t)
+    
+    # Add to PIN history
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute("INSERT INTO tenant_pin_history (tenant_id, pin_hash, changed_at) VALUES (?, ?, ?)", (tenant_id, hashed_pin, now))
+        conn.execute("INSERT OR REPLACE INTO tenant_pin_admin_store (tenant_id, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenant_id, encrypted_pin, now))
+        conn.commit()
+    
+    response_tenant = t.dict()
+    response_tenant.pop("tenant_pin", None)
+    
+    return {"status": "success", "tenant": response_tenant}
 
-@router.delete("/api/tenants/{tenant_id}", name=Names.API_DELETE_TENANT)
-async def api_delete_tenant(tenant_id: int, action: str = "archive", background_tasks: BackgroundTasks = None):
-    if background_tasks:
+@router.put("/api/tenants/{tenantid}", name=Names.API_UPDATE_TENANT)
+async def api_update_tenant(tenantid: int, t: Tenant, background_tasks: BackgroundTasks):
+    t.id = tenantid
+    background_tasks.add_task(create_full_backup, tag="update_tenant")
+    
+    existing = load_tenants()
+    existing_t = next((x for x in existing if x.id == tenantid), None)
+    if not existing_t:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+        
+    # The general update endpoint does NOT change the PIN.
+    # We forcefully retain the existing PIN hash.
+    t.tenant_pin = existing_t.tenant_pin
+            
+    update_tenant(t)
+    
+    response_tenant = t.dict()
+    response_tenant.pop("tenant_pin", None)
+    
+    return {"status": "success", "tenant": response_tenant}
+
+from pydantic import BaseModel
+
+class ChangePinRequest(BaseModel):
+    pin: str
+    logout_all: bool = True
+
+@router.post("/api/tenants/{tenantid}/change-pin", name="change_tenant_pin")
+async def api_change_tenant_pin(tenantid: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
+    from app.authentication.common.utils import hash_pin, validate_tenant_pin, verify_pin
+    from app.authentication.common.pin_vault import encrypt_admin_view_pin
+    from app.authentication.tenant.sessions import revoke_all_tenant_sessions
+    from app.database.auth_repository import log_audit
+    from app.core.db import get_conn
+    from datetime import datetime
+    
+    validate_tenant_pin(payload.pin)
+    
+    # Prevent immediate reuse (last 5 PINs)
+    with get_conn() as conn:
+        history = conn.execute("SELECT pin_hash FROM tenant_pin_history WHERE tenant_id = ? ORDER BY id DESC LIMIT 5", (tenantid,)).fetchall()
+        for row in history:
+            if verify_pin(payload.pin, row["pin_hash"]):
+                raise HTTPException(status_code=400, detail="Cannot reuse a recently used PIN.")
+                
+    new_hash = hash_pin(payload.pin)
+    encrypted_pin = encrypt_admin_view_pin(payload.pin)
+    
+    existing = load_tenants()
+    existing_t = next((x for x in existing if x.id == tenantid), None)
+    if not existing_t:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+        
+    existing_t.tenant_pin = new_hash
+    update_tenant(existing_t)
+    
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute("INSERT INTO tenant_pin_history (tenant_id, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantid, new_hash, now))
+        conn.execute("INSERT OR REPLACE INTO tenant_pin_admin_store (tenant_id, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantid, encrypted_pin, now))
+        conn.commit()
+    
+    if payload.logout_all:
+        revoke_all_tenant_sessions(tenantid)
+        
+    ip = request.client.host if request.client else "Unknown IP"
+    log_audit(tenantid, "Tenant PIN Changed", ip)
+    
+    background_tasks.add_task(create_full_backup, tag="change_pin")
+    
+    return {"status": "success", "message": "PIN changed successfully."}
+
+@router.get("/api/tenants/{tenantid}/reveal-pin", name="admin_reveal_tenant_pin")
+async def admin_reveal_tenant_pin(
+    tenantid: int,
+):
+    from app.authentication.common.pin_vault import decrypt_admin_view_pin
+    from app.core.db import get_conn
+    
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT encrypted_pin, updated_at FROM tenant_pin_admin_store WHERE tenant_id = ?",
+            (tenantid,)
+        ).fetchone()
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="PIN not available for this tenant yet. Reset the PIN once to enable admin reveal."
+        )
+
+    return {
+        "status": "success",
+        "pin": decrypt_admin_view_pin(row["encrypted_pin"]),
+        "updated_at": row["updated_at"]
+    }
+
+@router.delete("/api/tenants/{tenantid}", name=Names.API_DELETE_TENANT)
+async def api_delete_tenant(
+    tenantid: int,
+    background_tasks: BackgroundTasks,
+    action: str = "archive",
+):
+    action = (action or "archive").strip().lower()
+
+    if action not in {"archive", "delete", "hard", "inactive"}:
+        raise HTTPException(status_code=400, detail="Invalid tenant action.")
+
+    tenants = load_tenants()
+    tenant = next((t for t in tenants if t.id == tenantid), None)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found.")
+
+    try:
         background_tasks.add_task(create_full_backup, tag=f"{action}_tenant")
-    delete_tenant(tenant_id, action)
+        result = delete_tenant(tenantid, action)
+        return {"status": "success", "action": action, "data": result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tenant {action} failed: {str(e)}")
+
+from app.core.paths import KYC_DIR
+import mimetypes
+
+@router.put("/api/kyc/{tenantid}/{occupant_uuid}/inactive", name="admin_tenant_kyc_mark_inactive")
+async def admin_tenant_kyc_mark_inactive(tenantid: int, occupant_uuid: str):
+    from app.services.tenant_service import update_occupant_status
+    update_occupant_status(occupant_uuid, "Inactive")
     return {"status": "success"}
+
+@router.delete("/api/kyc/{tenantid}/{occupant_uuid}", name="admin_tenant_kyc_delete")
+async def admin_tenant_kyc_delete(tenantid: int, occupant_uuid: str):
+    occupants = get_occupants(tenantid)
+    target = next((o for o in occupants if o.get("Occupant UUID") == occupant_uuid), None)
+    
+    if target:
+        doc_keys = ["Aadhaar Front", "Aadhaar Back", "Aadhaar Combined", "Emp Front", "Emp Back"]
+        for key in doc_keys:
+            filename = target.get(key)
+            if filename:
+                file_path = os.path.join(KYC_DIR, filename)
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception:
+                        pass
+            
+    delete_occupant(occupant_uuid)
+    return {"status": "success"}
+
+@router.get("/api/kyc/{filename}", name=Names.GET_KYC_FILE)
+async def admin_get_kyc_file(filename: str):
+    safe_filename = os.path.basename(filename)
+    if safe_filename != filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    file_path = os.path.join(KYC_DIR, safe_filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    mime_type, _ = mimetypes.guess_type(file_path)
+    if not mime_type:
+        mime_type = "application/octet-stream"
+        
+    headers = {
+        "Content-Disposition": f'inline; filename="{safe_filename}"'
+    }
+    return FileResponse(file_path, media_type=mime_type, headers=headers)
 ```
 
 ```python
 // File: api\whatsapp.py
-from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
-from app.core.routes import Names
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
-from app.core.dependencies import templates, config
-from app.core.route_builder import RouteBuilder
-from app.core.routes import Paths, Names, Prefixes
-from typing import Optional
+from fastapi import APIRouter, Request, HTTPException
 from urllib.parse import quote
-from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, BulkWhatsappRequest, PaymentStatusUpdate
-import os, io, re, json, datetime
-import shutil, logging
-
-from app.services.tenant_service import (
-    load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
-)
-from app.services.billing_service import (
-    get_all_receipts, get_receipt, get_billing_months,
-    calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
-)
-from app.services.backup_service import create_full_backup
+from app.core.routes import Names
+from app.core.dependencies import config
+from app.services.tenant_service import load_tenants
+from app.services.billing_service import get_receipt
+import re
 
 router = APIRouter()
-
 
 @router.get("/api/whatsapp/single/{bill_no}", name=Names.SEND_WHATSAPP_SINGLE)
 async def send_whatsapp_single(request: Request, bill_no: str):
     receipt = get_receipt(bill_no)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
-        
+
     tenants = load_tenants()
     tenant = next((t for t in tenants if t.name == receipt.get("Tenant")), None)
     if not tenant or not tenant.phone:
         raise HTTPException(status_code=400, detail="Tenant phone number not found")
-        
-    landlord_conf = config.get("landlord", {})
-    template = landlord_conf.get("whatsapp_template", "Hello {tenant_name}, here is your rent receipt for {month}. Bill No: {bill_no}. Amount: {currency}{total}. View it here: {link}")
-    
+
     if not config.get("system.features.whatsapp_sync", False):
         raise HTTPException(status_code=403, detail="WhatsApp feature is disabled.")
 
-    phone = re.sub(r'\D', '', str(tenant.phone))
+    whatsapp_conf = config.get("whatsapp", {})
+    template_conf = whatsapp_conf.get("single_template", {})
+    template = template_conf.get("message") or template_conf.get("default_message", "")
+
+    if not template.strip():
+        raise HTTPException(status_code=400, detail="WhatsApp template is empty.")
+
+    phone = re.sub(r"\D", "", str(tenant.phone))
     if len(phone) == 10:
-        country_code = config.get("system.whatsapp.country_code", "91")
+        country_code = str(whatsapp_conf.get("country_code") or "91")
         phone = country_code + phone
-        
+
     token = getattr(tenant, "view_token", "")
+    if not token:
+        import uuid
+        from app.services.tenant_service import update_tenant
+        token = str(uuid.uuid4())
+        tenant.view_token = token
+        update_tenant(tenant)
+
     link = str(request.url_for("public_tenant_profile_get", view_token=token))
-    
-    # Calculate Grand Total for WhatsApp
     grand_total = float(receipt.get("Total", 0)) + float(receipt.get("Previous_Arrears", 0))
+
+    tenant_portal_pin = "(Unavailable)"
+    try:
+        from app.authentication.common.pin_vault import decrypt_admin_view_pin
+        from app.core.db import get_conn
+        with get_conn() as conn:
+            row = conn.execute(
+                "SELECT encrypted_pin FROM tenant_pin_admin_store WHERE tenant_id = ?",
+                (tenant.id,)
+            ).fetchone()
+        if row:
+            tenant_portal_pin = decrypt_admin_view_pin(row["encrypted_pin"])
+    except Exception as e:
+        pass
 
     msg = template.format(
         tenant_name=tenant.name,
@@ -1100,53 +1452,526 @@ async def send_whatsapp_single(request: Request, bill_no: str):
         bill_no=bill_no,
         total="{:,.0f}".format(grand_total),
         currency="Rs.",
-        link=link
+        link=link,
+        tenant_pin=tenant_portal_pin
     )
-    
+
     url = f"https://api.whatsapp.com/send?phone={phone}&text={quote(msg)}"
     return {"status": "success", "url": url}
+```
 
-@router.post("/api/whatsapp/bulk", name=Names.SEND_WHATSAPP_BULK)
-async def send_whatsapp_bulk(request: Request, data: BulkWhatsappRequest):
-    tenants = load_tenants()
-    tenant = next((t for t in tenants if t.id == data.tenant_id), None)
-    if not tenant or not tenant.phone:
-        raise HTTPException(status_code=400, detail="Tenant phone number not found")
-        
-    receipts = [get_receipt(b) for b in data.bill_numbers]
-    receipts = [r for r in receipts if r]
-    if not receipts:
-        raise HTTPException(status_code=400, detail="No valid bills found")
-        
-    landlord_conf = config.get("landlord", {})
-    template = landlord_conf.get("whatsapp_bulk_template", "Hello {tenant_name}, here are your rent receipts for {bill_list}. Total Amount: {currency}{total_amount}. View them here: {link}")
-    
-    if not config.get("system.features.whatsapp_sync", False):
-        raise HTTPException(status_code=403, detail="WhatsApp feature is disabled.")
+```python
+// File: authentication\admin\__init__.py
 
-    phone = re.sub(r'\D', '', str(tenant.phone))
-    if len(phone) == 10:
-        country_code = config.get("system.whatsapp.country_code", "91")
-        phone = country_code + phone
-        
-    token = getattr(tenant, "view_token", "")
-    link = str(request.url_for("public_tenant_profile_get", view_token=token))
+```
+
+```python
+// File: authentication\admin\cookies.py
+from fastapi import Response, Request
+
+def set_admin_auth_cookies(response: Response, access_token: str, refresh_token: str, remember_me: bool, request: Request = None):
+    max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
     
-    bill_list = ", ".join([r.get("Month", "") for r in receipts])
+    root_path = request.scope.get("root_path", "") if request else ""
+    cookie_path = f"{root_path}/admin"
+    if not cookie_path.startswith("/"):
+        cookie_path = "/" + cookie_path
     
-    # Calculate Sum of Grand Totals for Bulk Messages
-    total_amount = sum([float(r.get("Total", 0)) + float(r.get("Previous_Arrears", 0)) for r in receipts])
-    
-    msg = template.format(
-        tenant_name=tenant.name,
-        bill_list=bill_list,
-        total_amount="{:,.0f}".format(total_amount),
-        currency="Rs.",
-        link=link
+    response.set_cookie(
+        key="admin_access_token",
+        value=access_token,
+        httponly=True,
+        secure=True, 
+        samesite="Lax",
+        path=cookie_path,
+        max_age=15 * 60
     )
     
-    url = f"https://api.whatsapp.com/send?phone={phone}&text={quote(msg)}"
-    return {"status": "success", "url": url}
+    response.set_cookie(
+        key="admin_refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="Strict",
+        path=cookie_path,
+        max_age=max_age_refresh
+    )
+
+def clear_admin_auth_cookies(response: Response, request: Request = None):
+    root_path = request.scope.get("root_path", "") if request else ""
+    cookie_path = f"{root_path}/admin"
+    if not cookie_path.startswith("/"):
+        cookie_path = "/" + cookie_path
+        
+    response.delete_cookie(key="admin_access_token", path=cookie_path, httponly=True, secure=True, samesite="Lax")
+    response.delete_cookie(key="admin_refresh_token", path=cookie_path, httponly=True, secure=True, samesite="Strict")
+```
+
+```python
+// File: authentication\admin\jwt.py
+import os
+from jose import jwt
+from datetime import datetime, timedelta
+
+ADMIN_JWT_SECRET = os.environ.get("ADMIN_JWT_SECRET", "REPLACE_WITH_ADMIN_SECURE_RANDOM_KEY")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+
+def create_admin_access_token(admin_id: int, session_id: str) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = {
+        "sub": str(admin_id),
+        "admin_id": admin_id,
+        "sid": session_id,
+        "role": "admin",
+        "type": "access",
+        "ver": 1,
+        "iat": datetime.utcnow(),
+        "exp": expire
+    }
+    return jwt.encode(to_encode, ADMIN_JWT_SECRET, algorithm=ALGORITHM)
+
+def decode_admin_access_token(token: str):
+    return jwt.decode(token, ADMIN_JWT_SECRET, algorithms=[ALGORITHM])
+```
+
+```python
+// File: authentication\admin\middleware.py
+from fastapi import Request, HTTPException
+from app.authentication.admin.jwt import decode_admin_access_token
+from app.authentication.admin.sessions import get_admin_session_db
+from app.authentication.common.principal import AuthPrincipal
+
+
+def _is_browser_navigation(request: Request) -> bool:
+    sec_fetch_mode = (request.headers.get("sec-fetch-mode") or "").lower()
+    sec_fetch_dest = (request.headers.get("sec-fetch-dest") or "").lower()
+    accept = (request.headers.get("accept") or "").lower()
+
+    if sec_fetch_mode == "navigate":
+        return True
+    if sec_fetch_dest in {"document", "iframe"}:
+        return True
+    if "text/html" in accept or "application/pdf" in accept:
+        return True
+    return False
+
+
+def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized"):
+    logout_url = str(request.url_for("adminlogout"))
+    if _is_browser_navigation(request):
+        raise HTTPException(status_code=303, headers={"Location": logout_url})
+    raise HTTPException(
+        status_code=401,
+        detail=detail,
+        headers={
+            "X-Session-Expired": "1",
+            "X-Redirect-Url": logout_url,
+        },
+    )
+
+
+async def get_current_admin_page(request: Request) -> AuthPrincipal:
+    token = request.cookies.get("admin_access_token")
+    if not token:
+        logout_url = str(request.url_for("adminlogout"))
+        raise HTTPException(status_code=303, headers={"Location": logout_url})
+
+    try:
+        payload = decode_admin_access_token(token)
+        if payload.get("role") != "admin":
+            logout_url = str(request.url_for("adminlogout"))
+            raise HTTPException(status_code=303, headers={"Location": logout_url})
+
+        session_id = payload.get("sid")
+        session = get_admin_session_db(session_id)
+        if not session:
+            logout_url = str(request.url_for("adminlogout"))
+            raise HTTPException(status_code=303, headers={"Location": logout_url})
+
+        admin_id = int(payload.get("admin_id") or payload.get("sub"))
+        return AuthPrincipal(
+            authentication_type="admin_page",
+            role="admin",
+            id=admin_id,
+            session_id=session_id,
+            admin_id=admin_id
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logout_url = str(request.url_for("adminlogout"))
+        raise HTTPException(status_code=303, headers={"Location": logout_url})
+
+
+async def get_current_admin_api(request: Request) -> AuthPrincipal:
+    token = request.cookies.get("admin_access_token")
+    if not token:
+        _raise_admin_session_expired(request, "Unauthorized")
+
+    try:
+        payload = decode_admin_access_token(token)
+        if payload.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Forbidden: Admin access required")
+
+        session_id = payload.get("sid")
+        session = get_admin_session_db(session_id)
+        if not session:
+            _raise_admin_session_expired(request, "Session revoked")
+
+        admin_id = int(payload.get("admin_id") or payload.get("sub"))
+        return AuthPrincipal(
+            authentication_type="admin_api",
+            role="admin",
+            id=admin_id,
+            session_id=session_id,
+            admin_id=admin_id
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        _raise_admin_session_expired(request, "Unauthorized: Token expired or invalid")
+```
+
+```python
+// File: authentication\admin\sessions.py
+import uuid
+import secrets
+from datetime import datetime, timedelta
+from app.core.db import get_conn
+from app.authentication.common.utils import hash_pin
+
+def create_admin_session(admin_id: int, request, remember_me: bool):
+    refresh_token = secrets.token_urlsafe(64)
+    refresh_hash = hash_pin(refresh_token)
+    
+    session_id = str(uuid.uuid4())
+    days = 180 if remember_me else 1
+    expires_at = (datetime.utcnow() + timedelta(days=days)).isoformat()
+    
+    user_agent = request.headers.get("User-Agent", "Unknown")
+    ip = request.client.host if request.client else "Unknown IP"
+    
+    now = datetime.utcnow().isoformat()
+    
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO admin_sessions
+            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session_id, admin_id, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
+        conn.commit()
+        
+    return session_id, refresh_token
+
+def get_admin_session_db(session_id: str):
+    with get_conn() as conn:
+        return conn.execute("SELECT * FROM admin_sessions WHERE session_id = ? AND status = 'Active'", (session_id,)).fetchone()
+
+def revoke_admin_session_db(session_id: str):
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute("UPDATE admin_sessions SET status = 'Revoked', revoked_at = ? WHERE session_id = ?", (now, session_id))
+        conn.commit()
+```
+
+```python
+// File: authentication\common\__init__.py
+
+```
+
+```python
+// File: authentication\common\middleware.py
+from fastapi import Request, HTTPException
+from app.authentication.admin.middleware import get_current_admin_api
+from app.authentication.tenant.middleware import get_current_tenant
+from app.authentication.common.principal import AuthPrincipal
+
+async def get_admin_or_tenant(request: Request) -> AuthPrincipal:
+    """Dependency that allows either an Admin or a Tenant. Returns the corresponding AuthPrincipal."""
+    # Try Admin first
+    try:
+        principal = await get_current_admin_api(request)
+        return principal
+    except HTTPException:
+        pass
+        
+    # Try Tenant next
+    try:
+        principal = await get_current_tenant(request)
+        return principal
+    except HTTPException:
+        pass
+        
+    raise HTTPException(status_code=401, detail="Unauthorized: Must be logged in as admin or tenant")
+```
+
+```python
+// File: authentication\common\pin_vault.py
+import os
+from cryptography.fernet import Fernet
+
+# Use environment variable or fallback to a generated default for dev
+# In production, this should be set via environment variable!
+PIN_VAULT_KEY_STR = os.environ.get("TENANT_PIN_VAULT_KEY", "UzZ9Uu5iAC5M1VBUBwiOHInTdRrlwmuCY01OQq7ZHCg=")
+PIN_VAULT_KEY = PIN_VAULT_KEY_STR.encode("utf-8")
+
+fernet = Fernet(PIN_VAULT_KEY)
+
+def encrypt_admin_view_pin(pin: str) -> str:
+    return fernet.encrypt(pin.encode("utf-8")).decode("utf-8")
+
+def decrypt_admin_view_pin(ciphertext: str) -> str:
+    return fernet.decrypt(ciphertext.encode("utf-8")).decode("utf-8")
+```
+
+```python
+// File: authentication\common\principal.py
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class AuthPrincipal:
+    authentication_type: str
+    role: str
+    id: int
+    session_id: str
+    tenant_id: Optional[int] = None
+    admin_id: Optional[int] = None
+```
+
+```python
+// File: authentication\common\utils.py
+import re
+from fastapi import HTTPException
+from passlib.context import CryptContext
+
+# Phase 1: PIN Security using Argon2id
+pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+def hash_pin(pin: str) -> str:
+    """Hashes a plaintext PIN or Token using Argon2id."""
+    return pwd_context.hash(pin)
+
+def verify_pin(plain_pin: str, hashed_pin: str) -> bool:
+    """Verifies a plaintext PIN against the stored Argon2id hash."""
+    try:
+        return pwd_context.verify(plain_pin, hashed_pin)
+    except Exception:
+        return False
+
+def validate_tenant_pin(pin: str) -> str:
+    """Validates that a PIN is exactly 4 digits."""
+    if not pin or not re.fullmatch(r"\d{4}", str(pin)):
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant PIN must contain exactly 4 digits."
+        )
+    return str(pin)
+```
+
+```python
+// File: authentication\tenant\__init__.py
+
+```
+
+```python
+// File: authentication\tenant\cookies.py
+from fastapi import Response, Request
+
+def set_tenant_auth_cookies(response: Response, access_token: str, refresh_token: str, remember_me: bool, request: Request = None):
+    max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
+    
+    root_path = request.scope.get("root_path", "") if request else ""
+    access_path = f"{root_path}/t"
+    if not access_path.startswith("/"): access_path = "/" + access_path
+    
+    refresh_path = f"{root_path}/api/auth"
+    if not refresh_path.startswith("/"): refresh_path = "/" + refresh_path
+    
+    response.set_cookie(
+        key="tenant_access_token",
+        value=access_token,
+        httponly=True,
+        secure=True, 
+        samesite="Lax",
+        path=access_path,
+        max_age=15 * 60
+    )
+    
+    response.set_cookie(
+        key="tenant_refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="Strict",
+        path=refresh_path,
+        max_age=max_age_refresh
+    )
+
+def clear_tenant_auth_cookies(response: Response, request: Request = None):
+    root_path = request.scope.get("root_path", "") if request else ""
+    access_path = f"{root_path}/t"
+    if not access_path.startswith("/"): access_path = "/" + access_path
+    
+    refresh_path = f"{root_path}/api/auth"
+    if not refresh_path.startswith("/"): refresh_path = "/" + refresh_path
+    
+    response.delete_cookie(key="tenant_access_token", path=access_path, httponly=True, secure=True, samesite="Lax")
+    response.delete_cookie(key="tenant_refresh_token", path=refresh_path, httponly=True, secure=True, samesite="Strict")
+```
+
+```python
+// File: authentication\tenant\jwt.py
+import os
+from jose import jwt
+from datetime import datetime, timedelta
+
+TENANT_JWT_SECRET = os.environ.get("TENANT_JWT_SECRET", "REPLACE_WITH_TENANT_SECURE_RANDOM_KEY")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+
+def create_tenant_access_token(tenant_id: int, session_id: str) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = {
+        "sub": str(tenant_id),
+        "tenant_id": tenant_id,
+        "sid": session_id,
+        "role": "tenant",
+        "type": "access",
+        "ver": 1,
+        "iat": datetime.utcnow(),
+        "exp": expire
+    }
+    return jwt.encode(to_encode, TENANT_JWT_SECRET, algorithm=ALGORITHM)
+
+def decode_tenant_access_token(token: str):
+    return jwt.decode(token, TENANT_JWT_SECRET, algorithms=[ALGORITHM])
+```
+
+```python
+// File: authentication\tenant\middleware.py
+from fastapi import Request, HTTPException
+from app.authentication.tenant.jwt import decode_tenant_access_token
+from app.authentication.tenant.sessions import get_tenant_session_db
+from app.authentication.common.principal import AuthPrincipal
+
+
+def _is_browser_navigation(request: Request) -> bool:
+    sec_fetch_mode = (request.headers.get("sec-fetch-mode") or "").lower()
+    sec_fetch_dest = (request.headers.get("sec-fetch-dest") or "").lower()
+    accept = (request.headers.get("accept") or "").lower()
+
+    if sec_fetch_mode == "navigate":
+        return True
+    if sec_fetch_dest in {"document", "iframe"}:
+        return True
+    if "text/html" in accept or "application/pdf" in accept:
+        return True
+    return False
+
+
+def _tenant_redirect_url(request: Request) -> str:
+    view_token = request.path_params.get("view_token")
+    if view_token:
+        return str(request.url_for("public_tenant_profile_get", view_token=view_token))
+
+    referer = request.headers.get("referer")
+    if referer:
+        return referer
+
+    return "/"
+
+
+def _raise_tenant_session_expired(request: Request, detail: str):
+    redirect_url = _tenant_redirect_url(request)
+    if _is_browser_navigation(request):
+        raise HTTPException(status_code=303, headers={"Location": redirect_url})
+    raise HTTPException(
+        status_code=401,
+        detail=detail,
+        headers={
+            "X-Session-Expired": "1",
+            "X-Redirect-Url": redirect_url,
+        },
+    )
+
+
+async def get_current_tenant(request: Request) -> AuthPrincipal:
+    token = request.cookies.get("tenant_access_token")
+    if not token:
+        _raise_tenant_session_expired(request, "Access token missing. Requires refresh.")
+
+    try:
+        payload = decode_tenant_access_token(token)
+        if payload.get("role") != "tenant":
+            raise HTTPException(status_code=403, detail="Forbidden: Tenant access required")
+
+        session_id = payload.get("sid")
+        session = get_tenant_session_db(session_id)
+        if not session:
+            _raise_tenant_session_expired(request, "Session revoked")
+
+        tenant_id = int(payload.get("tenant_id") or payload.get("sub"))
+        return AuthPrincipal(
+            authentication_type="tenant_api",
+            role="tenant",
+            id=tenant_id,
+            session_id=session_id,
+            tenant_id=tenant_id
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        _raise_tenant_session_expired(request, "Access token expired. Requires refresh.")
+```
+
+```python
+// File: authentication\tenant\sessions.py
+import uuid
+import secrets
+from datetime import datetime, timedelta
+from app.core.db import get_conn
+from app.authentication.common.utils import hash_pin
+
+def create_tenant_session(tenant_id: int, request, remember_me: bool):
+    refresh_token = secrets.token_urlsafe(64)
+    refresh_hash = hash_pin(refresh_token)
+    
+    session_id = str(uuid.uuid4())
+    days = 180 if remember_me else 1
+    expires_at = (datetime.utcnow() + timedelta(days=days)).isoformat()
+    
+    user_agent = request.headers.get("User-Agent", "Unknown")
+    ip = request.client.host if request.client else "Unknown IP"
+    
+    now = datetime.utcnow().isoformat()
+    
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO tenant_sessions
+            (session_id, tenant_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session_id, tenant_id, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
+        conn.commit()
+        
+    return session_id, refresh_token
+
+def get_tenant_session_db(session_id: str):
+    with get_conn() as conn:
+        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = ? AND status = 'Active'", (session_id,)).fetchone()
+
+def revoke_tenant_session_db(session_id: str):
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE session_id = ?", (now, session_id))
+        conn.commit()
+
+def revoke_all_tenant_sessions(tenant_id: int):
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE tenant_id = ?", (now, tenant_id))
+        conn.commit()
 ```
 
 ```python
@@ -1183,9 +2008,25 @@ DEFAULT_CONFIGS = {
         "bank_ifsc": "",
         "mask_bank_account": True,
         "signature_text": "Authorized Signature",
-        "signature_image": "",
-        "whatsapp_template": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {bill_no}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n\nThank you!",
-        "whatsapp_bulk_template": "Hello {tenant_name},\n\nHere are your requested rent receipts:\n\n{bill_list}\n*Total Amount:* {currency}{total_amount}\n\nYou can view and download your receipts securely here: {link}\n\nThank you!"
+        "signature_image": ""
+    },
+    "whatsapp": {
+        "single_template": {
+            "label": "Single Receipt Message Template",
+            "readonly_by_default": True,
+            "allowed_variables": [
+                "{tenant_name}",
+                "{month}",
+                "{bill_no}",
+                "{total}",
+                "{currency}",
+                "{link}",
+                "{tenant_pin}"
+            ],
+            "default_message": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {bill_no}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenant_pin}\n\nThank you!",
+            "message": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {bill_no}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenant_pin}\n\nThank you!"
+        },
+        "country_code": "91"
     },
     "ui": {
         "theme": "system",
@@ -1434,9 +2275,9 @@ config = ConfigService()
 // File: core\db.py
 import os
 import sqlite3
-from app.core.paths import DBDIR
+from app.core.paths import DB_DIR
 
-DB_PATH = os.path.join(DBDIR, "rent.db")
+DB_PATH = os.path.join(DB_DIR, "rent.db")
 
 def get_conn():
     conn = sqlite3.connect(DB_PATH)
@@ -1444,6 +2285,94 @@ def get_conn():
     conn.execute("PRAGMA foreign_keys = ON;")
     conn.execute("PRAGMA journal_mode = WAL;")
     return conn
+
+def _column_exists(conn, table_name: str, column_name: str) -> bool:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return any(r["name"] == column_name for r in rows)
+
+
+def init_db():
+    with get_conn() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS tenants (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            company TEXT,
+            phone TEXT,
+            email TEXT,
+            address TEXT,
+            roomnumber TEXT,
+            occupation TEXT,
+            notes TEXT,
+            status TEXT NOT NULL DEFAULT 'Active',
+            rent REAL NOT NULL DEFAULT 0,
+            water REAL NOT NULL DEFAULT 0,
+            electricityrate REAL NOT NULL DEFAULT 0,
+            previousmeter REAL NOT NULL DEFAULT 0,
+            additionalpersoncharge REAL NOT NULL DEFAULT 0,
+            securitydeposit REAL NOT NULL DEFAULT 0,
+            defaulttankwatercharge REAL NOT NULL DEFAULT 0,
+            meterid TEXT,
+            viewtoken TEXT,
+            tenantpin TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS receipts (
+            billno TEXT PRIMARY KEY,
+            date TEXT NOT NULL,
+            month TEXT NOT NULL,
+            tenant TEXT NOT NULL,
+            previous REAL NOT NULL DEFAULT 0,
+            current REAL NOT NULL DEFAULT 0,
+            units REAL NOT NULL DEFAULT 0,
+            rent REAL NOT NULL DEFAULT 0,
+            additional REAL NOT NULL DEFAULT 0,
+            water REAL NOT NULL DEFAULT 0,
+            tankwater REAL NOT NULL DEFAULT 0,
+            electricity REAL NOT NULL DEFAULT 0,
+            total REAL NOT NULL DEFAULT 0,
+            pdf TEXT,
+            tenantphone TEXT,
+            tenantcompany TEXT,
+            tenantaddress TEXT,
+            rate REAL NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'ACTIVE',
+            archiveddate TEXT,
+            archivedby TEXT,
+            deleteddate TEXT,
+            additionalpersons INTEGER NOT NULL DEFAULT 0,
+            additionalpersonrate REAL NOT NULL DEFAULT 0,
+            receiptversion INTEGER NOT NULL DEFAULT 8,
+            generatedby TEXT NOT NULL DEFAULT 'Admin',
+            paymentstatus TEXT NOT NULL DEFAULT 'PENDING',
+            maintenancecharge REAL NOT NULL DEFAULT 0,
+            maintenancedesc TEXT,
+            previousarrears REAL NOT NULL DEFAULT 0,
+            amountreceived REAL NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS occupants (
+            tenant_id INTEGER NOT NULL,
+            occupant_uuid TEXT PRIMARY KEY,
+            name TEXT,
+            mobile TEXT,
+            status TEXT NOT NULL DEFAULT 'Active',
+            aadhaar_front TEXT,
+            aadhaar_back TEXT,
+            aadhaar_combined TEXT,
+            emp_front TEXT,
+            emp_back TEXT,
+            uploaddate TEXT,
+            uploadmonth TEXT,
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant);
+        CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
+        CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
+        CREATE INDEX IF NOT EXISTS idx_occupants_tenant_id ON occupants(tenant_id);
+        """)
+        conn.commit()
 ```
 
 ```python
@@ -1556,6 +2485,7 @@ from app.api.whatsapp import router as whatsapp_api_router
 from app.api.sync import router as sync_api_router
 from app.api.public import router as public_api_router
 from app.api.health import router as health_api_router
+from app.routers.auth import router as auth_api_router
 
 # Page Routers
 from app.pages.dashboard import router as dashboard_page_router
@@ -1566,36 +2496,64 @@ from app.pages.settings import router as settings_page_router
 from app.pages.tenants import router as tenants_page_router
 from app.pages.backups import router as backups_page_router
 from app.pages.public import router as public_page_router
+from app.pages.redirects import router as redirects_router
 from app.pages.errors import register_exception_handlers
 
-PAGE_ROUTERS = [
+from app.routers.admin_auth import router as admin_auth_router
+from fastapi import Depends
+from app.authentication.admin.middleware import get_current_admin_page, get_current_admin_api
+
+PROTECTED_PAGE_ROUTERS = [
     dashboard_page_router,
     billing_page_router,
     history_page_router,
     archive_page_router,
     settings_page_router,
     tenants_page_router,
-    backups_page_router,
-    public_page_router
+    backups_page_router
 ]
 
-API_ROUTERS = [
+PUBLIC_PAGE_ROUTERS = [
+    public_page_router,
+    redirects_router
+]
+
+PROTECTED_API_ROUTERS = [
     billing_api_router,
     tenants_api_router,
     settings_api_router,
     backup_api_router,
-    pdf_api_router,
     whatsapp_api_router,
     sync_api_router,
+    pdf_api_router
+]
+
+PUBLIC_API_ROUTERS = [
     public_api_router,
-    health_api_router
+    health_api_router,
+    auth_api_router
+]
+
+ADMIN_AUTH_ROUTERS = [
+    admin_auth_router
 ]
 
 def register_all_routers(app: FastAPI):
-    for router in PAGE_ROUTERS:
+    page_admin_deps = [Depends(get_current_admin_page)]
+    api_admin_deps = [Depends(get_current_admin_api)]
+    
+    for router in PROTECTED_PAGE_ROUTERS:
+        app.include_router(router, prefix="/admin", dependencies=page_admin_deps)
+        
+    for router in PROTECTED_API_ROUTERS:
+        app.include_router(router, prefix="/admin", dependencies=api_admin_deps)
+        
+    for router in ADMIN_AUTH_ROUTERS:
+        app.include_router(router, prefix="/admin")
+        
+    for router in PUBLIC_PAGE_ROUTERS + PUBLIC_API_ROUTERS:
         app.include_router(router)
-    for router in API_ROUTERS:
-        app.include_router(router)
+        
     register_exception_handlers(app)
 ```
 
@@ -1712,15 +2670,23 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from app.core.config_service import ConfigService
 from app.core.paths import UPLOADS_DIR, STATIC_DIR, ensure_storage_dirs
+from app.core.db import init_db
+from app.database.auth_repository import init_auth_tables
+from app.migrations.manager import run_migrations, validate_schema
 
 class StartupManager:
     @staticmethod
     def initialize(app: FastAPI):
         StartupManager.initialize_storage()
         StartupManager.initialize_config()
+        init_db()
+        run_migrations()
+        init_auth_tables()
+        validate_schema()
         StartupManager.mount_static(app)
         StartupManager.register_middlewares(app)
         StartupManager.register_events(app)
+
 
     @staticmethod
     def initialize_storage():
@@ -1759,6 +2725,128 @@ class StartupManager:
                     tags = getattr(route, 'tags', [])
                     print(f"{methods:<10} | {route.path:<40} | {name:<35} | {tags}")
             print("==================================================")
+```
+
+```python
+// File: database\auth_repository.py
+from app.core.db import get_conn
+from datetime import datetime
+from app.authentication.common.utils import hash_pin
+
+def init_auth_tables():
+    with get_conn() as conn:
+        conn.executescript("""
+        CREATE TABLE IF NOT EXISTS tenant_sessions (
+            session_id TEXT PRIMARY KEY,
+            tenant_id INTEGER NOT NULL,
+            refresh_token_hash TEXT NOT NULL,
+            device_name TEXT,
+            browser TEXT,
+            os TEXT,
+            ip_address TEXT,
+            created_at TEXT,
+            last_activity TEXT,
+            expires_at TEXT,
+            revoked_at TEXT,
+            remember_me INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'Active',
+            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        );
+        
+        CREATE TABLE IF NOT EXISTS tenant_audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenant_id INTEGER,
+            action TEXT,
+            ip_address TEXT,
+            created_at TEXT
+        );
+        
+        CREATE TABLE IF NOT EXISTS admin_sessions (
+            session_id TEXT PRIMARY KEY,
+            admin_id INTEGER NOT NULL,
+            refresh_token_hash TEXT NOT NULL,
+            device_name TEXT,
+            browser TEXT,
+            os TEXT,
+            ip_address TEXT,
+            created_at TEXT,
+            last_activity TEXT,
+            expires_at TEXT,
+            revoked_at TEXT,
+            remember_me INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'Active',
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+        );
+        
+        -- Create Admins Table
+        
+        CREATE TABLE IF NOT EXISTS admins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        );
+        """)
+        
+        # 2. Inject default admin if table is empty (Username: admin / Password: admin123)
+        admin_exists = conn.execute("SELECT count(*) FROM admins").fetchone()[0]
+        if admin_exists == 0:
+            default_hash = hash_pin("admin123")
+            conn.execute("INSERT INTO admins (username, password_hash) VALUES (?, ?)", ("admin", default_hash))
+        conn.commit()
+
+def create_session_db(session_id, tenant_id, refresh_hash, device, ip, expires_at):
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO tenant_sessions 
+            (session_id, tenant_id, refresh_token_hash, device_name, ip_address, created_at, last_activity, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session_id, tenant_id, refresh_hash, device, ip, now, now, expires_at))
+        conn.commit()
+
+def get_session_db(session_id):
+    with get_conn() as conn:
+        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = ? AND status = 'Active'", (session_id,)).fetchone()
+
+def revoke_session_db(session_id):
+    with get_conn() as conn:
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE session_id = ?", (session_id,))
+        conn.commit()
+
+def revoke_all_tenant_sessions(tenant_id):
+    with get_conn() as conn:
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE tenant_id = ?", (tenant_id,))
+        conn.commit()
+
+def log_audit(tenant_id: int, action: str, ip: str):
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO tenant_audit_logs (tenant_id, action, ip_address, created_at) VALUES (?, ?, ?, ?)",
+            (tenant_id, action, ip, datetime.utcnow().isoformat())
+        )
+        conn.commit()
+
+def create_admin_session_db(session_id, admin_id, refresh_hash, device, ip, expires_at):
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO admin_sessions
+            (session_id, admin_id, refresh_token_hash, device_name, ip_address, created_at, last_activity, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session_id, admin_id, refresh_hash, device, ip, now, now, expires_at))
+        conn.commit()
+
+def get_admin_session_db(session_id):
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM admin_sessions WHERE session_id = ? AND status = 'Active'",
+            (session_id,)
+        ).fetchone()
+```
+
+```
+// File: database\rent.db
+
 ```
 
 ```python
@@ -1827,17 +2915,11 @@ class ProxyContextMiddleware:
 
 app = FastAPI(title=APP_INFO["name"], version=APP_INFO["version"])
 
-# Initialize Storage, Config, Static mounts
-StartupManager.initialize_storage()
-StartupManager.initialize_config()
-StartupManager.mount_static(app)
-StartupManager.register_middlewares(app)
+# Initialize Storage, Config, DB, Migrations, Static mounts, Middlewares, and Events
+StartupManager.initialize(app)
 
 # Register all modular routers
 register_all_routers(app)
-
-# Register events after routers are registered so startup diagnostics show all routes
-StartupManager.register_events(app)
 
 # Add proxy middleware — must be added AFTER routes so it sits outermost in the stack
 app.add_middleware(ProxyContextMiddleware)  # type: ignore[arg-type]
@@ -1861,8 +2943,219 @@ if __name__ == "__main__":
 ```
 
 ```python
-// File: models\receipt.py
+// File: migrations\m001_auth_v2.py
+from app.migrations.manager import get_schema_version, set_schema_version
+import logging
+
+logger = logging.getLogger(__name__)
+
+def run(conn):
+    version = get_schema_version(conn, "auth")
+    if version < 1:
+        logger.info("Running Auth migration v1: Dropping old session tables for Auth V2")
+        # In development, it is safe to drop sessions. 
+        # In production, you would migrate them, but since we are dropping
+        # it will just force a re-login.
+        conn.execute("DROP TABLE IF EXISTS admin_sessions")
+        conn.execute("DROP TABLE IF EXISTS tenant_sessions")
+        
+        set_schema_version(conn, "auth", 1)
+        logger.info("Auth migration v1 complete")
+```
+
+```python
+// File: migrations\m002_receipts_tenantid.py
+from app.migrations.manager import get_schema_version, set_schema_version
+from app.core.db import _column_exists
+import logging
+
+logger = logging.getLogger(__name__)
+
+def run(conn):
+    version = get_schema_version(conn, "receipt")
+    if version < 1:
+        logger.info("Running Receipt migration v1: Adding tenant_id to receipts")
+        if not _column_exists(conn, "receipts", "tenant_id"):
+            conn.execute("ALTER TABLE receipts ADD COLUMN tenant_id INTEGER")
+            
+        conn.execute("""
+            UPDATE receipts
+            SET tenant_id = (
+                SELECT t.id
+                FROM tenants t
+                WHERE lower(trim(t.name)) = lower(trim(receipts.tenant))
+                LIMIT 1
+            )
+            WHERE tenant_id IS NULL
+        """)
+        
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_receipts_tenant_id ON receipts(tenant_id)")
+        
+        set_schema_version(conn, "receipt", 1)
+        logger.info("Receipt migration v1 complete")
+```
+
+```python
+// File: migrations\m003_tenant_pin_history.py
+from app.migrations.manager import get_schema_version, set_schema_version
+from app.core.db import _column_exists
+import logging
+
+logger = logging.getLogger(__name__)
+
+def run(conn):
+    version = get_schema_version(conn, "tenant")
+    if version < 1:
+        logger.info("Running Tenant migration v1: Adding PIN security and brute force protection")
+        
+        if not _column_exists(conn, "tenants", "failed_attempts"):
+            conn.execute("ALTER TABLE tenants ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0")
+        if not _column_exists(conn, "tenants", "locked_until"):
+            conn.execute("ALTER TABLE tenants ADD COLUMN locked_until TEXT")
+            
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tenant_pin_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id INTEGER NOT NULL,
+                pin_hash TEXT NOT NULL,
+                changed_at TEXT NOT NULL,
+                FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+            );
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenant_pin_history_tenant_id ON tenant_pin_history(tenant_id)")
+        
+        set_schema_version(conn, "tenant", 1)
+        logger.info("Tenant migration v1 complete")
+```
+
+```python
+// File: migrations\m004_tenant_pin_admin_store.py
+import sqlite3
+import logging
+
+logger = logging.getLogger(__name__)
+
+def run(conn: sqlite3.Connection):
+    try:
+        # Check if table exists
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tenant_pin_admin_store'")
+        if not cursor.fetchone():
+            logger.info("Creating tenant_pin_admin_store table")
+            conn.execute("""
+            CREATE TABLE IF NOT EXISTS tenant_pin_admin_store (
+                tenant_id INTEGER PRIMARY KEY,
+                encrypted_pin TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+            )
+            """)
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to migrate m004_tenant_pin_admin_store: {e}")
+        raise e
+```
+
+```python
+// File: migrations\manager.py
+import logging
+from app.core.db import get_conn
+
+logger = logging.getLogger(__name__)
+
+def run_migrations():
+    from app.migrations.m001_auth_v2 import run as m001
+    from app.migrations.m002_receipts_tenantid import run as m002
+    from app.migrations.m003_tenant_pin_history import run as m003
+    from app.migrations.m004_tenant_pin_admin_store import run as m004
+    
+    migrations = [
+        (m001, "m001_auth_v2"),
+        (m002, "m002_receipts_tenantid"),
+        (m003, "m003_tenant_pin_history"),
+        (m004, "m004_tenant_pin_admin_store"),
+    ]
+    
+    with get_conn() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS app_metadata (key TEXT PRIMARY KEY, value TEXT)")
+        conn.commit()
+        
+    for migration_func, name in migrations:
+        try:
+            with get_conn() as conn:
+                logger.info(f"Checking migration: {name}")
+                conn.execute("BEGIN TRANSACTION")
+                migration_func(conn)
+                conn.commit()
+        except Exception as e:
+            logger.error(f"Migration {name} failed: {e}")
+            raise RuntimeError(f"Migration {name} failed") from e
+
+def get_schema_version(conn, domain: str) -> int:
+    row = conn.execute("SELECT value FROM app_metadata WHERE key = ?", (f"{domain}_schema_version",)).fetchone()
+    return int(row["value"]) if row else 0
+
+def set_schema_version(conn, domain: str, version: int):
+    conn.execute("INSERT OR REPLACE INTO app_metadata (key, value) VALUES (?, ?)", (f"{domain}_schema_version", str(version)))
+
+def validate_schema():
+    expected_schema = {
+        "admin_sessions": [
+            "session_id", "admin_id", "refresh_token_hash", "device_name", 
+            "browser", "os", "ip_address", "created_at", "last_activity", 
+            "expires_at", "revoked_at", "remember_me", "status"
+        ],
+        "tenant_sessions": [
+            "session_id", "tenant_id", "refresh_token_hash", "device_name", 
+            "browser", "os", "ip_address", "created_at", "last_activity", 
+            "expires_at", "revoked_at", "remember_me", "status"
+        ],
+        "tenants": ["failed_attempts", "locked_until"],
+        "tenant_pin_history": ["id", "tenant_id", "pin_hash", "changed_at"],
+        "receipts": ["tenant_id"]
+    }
+    
+    with get_conn() as conn:
+        for table, required_columns in expected_schema.items():
+            # Check table exists
+            row = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone()
+            if not row:
+                raise RuntimeError(f"Startup Validation Failed: Table '{table}' is missing.")
+            
+            # Check columns
+            cols = conn.execute(f"PRAGMA table_info({table})").fetchall()
+            col_names = [c["name"] for c in cols]
+            
+            for req_col in required_columns:
+                if req_col not in col_names:
+                    raise RuntimeError(f"Startup Validation Failed: Column '{req_col}' is missing in table '{table}'.")
+```
+
+```python
+// File: models\auth.py
 from pydantic import BaseModel
+from typing import Optional
+
+class LoginRequest(BaseModel):
+    view_token: str
+    pin: str
+    remember_me: bool = False
+
+class ChangePinRequest(BaseModel):
+    current_pin: str
+    new_pin: str
+
+class DeviceSession(BaseModel):
+    session_id: str
+    device_name: str
+    ip_address: str
+    last_activity: str
+    status: str
+```
+
+```python
+// File: models\receipt.py
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 from typing import Optional
 
 class Receipt(BaseModel):
@@ -1870,6 +3163,7 @@ class Receipt(BaseModel):
     date: str
     month: str
     tenant_name: str
+    tenant_id: int
     previous_reading: float
     current_reading: float
     units_consumed: float
@@ -1881,23 +3175,67 @@ class Receipt(BaseModel):
     pdf_filename: str
 
 class BillRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     tenant: str
     month: str
-    current_reading: float
-    additional_persons: int
-    tank_water: float = 0.0
-    maintenance_charge: float = 0.0
-    maintenance_desc: str = ""
-    previous_arrears: float = 0.0
-    amount_received: Optional[float] = None
-    payment_status: str = "PENDING"
+    currentreading: float = Field(..., alias="current_reading")
+    additionalpersons: int = Field(0, alias="additional_persons")
+    tankwater: float = Field(0.0, alias="tank_water")
+    maintenancecharge: float = Field(0.0, alias="maintenance_charge")
+    maintenancedesc: str = Field("", alias="maintenance_desc")
+    previousarrears: float = Field(0.0, alias="previous_arrears")
+    amountreceived: Optional[float] = Field(None, alias="amount_received")
+    paymentstatus: str = Field("PENDING", alias="payment_status")
+
+    @field_validator("tenant", "month", "maintenancedesc", mode="before")
+    @classmethod
+    def normalize_strs(cls, v):
+        return "" if v is None else str(v).strip()
+
+    @field_validator("additionalpersons", mode="before")
+    @classmethod
+    def normalize_int(cls, v):
+        if v in ("", None):
+            return 0
+        return int(v)
+
+    @field_validator("currentreading", "tankwater", "maintenancecharge", "previousarrears", mode="before")
+    @classmethod
+    def normalize_required_floats(cls, v):
+        if v in ("", None):
+            return 0.0
+        return float(v)
+
+    @field_validator("amountreceived", mode="before")
+    @classmethod
+    def normalize_optional_amount(cls, v):
+        if v in ("", None):
+            return None
+        return float(v)
+
+    @field_validator("paymentstatus", mode="before")
+    @classmethod
+    def normalize_status(cls, v):
+        return str(v or "PENDING").strip().upper()
 
 class PaymentStatusUpdate(BaseModel):
-    payment_status: str
-    amount_received: Optional[float] = None
+    model_config = ConfigDict(populate_by_name=True)
 
-class BulkWhatsappRequest(BaseModel):
-    bill_nos: list[str]
+    paymentstatus: str = Field(..., alias="payment_status")
+    amountreceived: Optional[float] = Field(None, alias="amount_received")
+
+    @field_validator("paymentstatus", mode="before")
+    @classmethod
+    def normalize_status(cls, v):
+        return str(v or "").strip().upper()
+
+    @field_validator("amountreceived", mode="before")
+    @classmethod
+    def normalize_amount(cls, v):
+        if v in ("", None):
+            return None
+        return float(v)
 ```
 
 ```python
@@ -1936,8 +3274,8 @@ class Tenant(BaseModel):
     # NEW: Secure access token for public QR profiles
     view_token: Optional[str] = ""
     
-    # NEW: Security PIN for Tenant Portal (Default to 1234)
-    tenant_pin: str = "1234"
+    # NEW: Security PIN for Tenant Portal
+    tenant_pin: Optional[str] = None
     
     # NEW: Current arrears (balance due)
     arrears: float = 0.0
@@ -2060,6 +3398,11 @@ from app.core.config_service import config  # Import the configuration service
 def register_exception_handlers(app: FastAPI):
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+        # Pass through redirects properly
+        if 300 <= exc.status_code < 400 and exc.headers and "Location" in exc.headers:
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=exc.headers["Location"], status_code=exc.status_code)
+            
         accept = request.headers.get("accept", "")
         if "text/html" in accept:
             return templates.TemplateResponse(
@@ -2130,12 +3473,10 @@ import os
 
 router = APIRouter()
 
-
 def _calc_arrears(tenant, tenant_receipts):
     tenant.arrears = 0.0
     active_receipts = [r for r in tenant_receipts if r.get("Status") != "ARCHIVED"]
     if active_receipts:
-        # Before reverse, active_receipts[-1] is the latest
         latest = active_receipts[-1]
         try:
             grand_total = float(latest.get("Total") or 0.0) + float(latest.get("Previous_Arrears") or 0.0)
@@ -2186,22 +3527,50 @@ async def public_tenant_profile_get(request: Request, view_token: str):
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
 
     theme = getattr(request.state, "theme", "system")
-    return templates.TemplateResponse(
-        request=request, name=Templates.TENANT_PUBLIC_PROFILE, context={
-            "tenant": tenant,
-            "theme": theme,
-            "unlocked": False,
-            "view_token": view_token,
-            "sys": getattr(request.state, "sys", config.get("system", {}))
-        }
-    )
+    unlocked = False
+    
+    # Check session
+    token = request.cookies.get("tenant_access_token")
+    if token:
+        from app.authentication.tenant.jwt import decode_tenant_access_token
+        from app.authentication.tenant.sessions import get_tenant_session_db
+        try:
+            payload = decode_tenant_access_token(token)
+            if payload.get("role") == "tenant" and int(payload.get("tenant_id") or payload.get("sub")) == tenant.id:
+                session_id = payload.get("sid")
+                if get_tenant_session_db(session_id):
+                    unlocked = True
+        except Exception:
+            pass
 
-@router.get("/favicon.ico", name=Names.FAVICON, include_in_schema=False)
-async def favicon():
-    file_path = os.path.join("app", "static", "fevicon.svg")
-    return FileResponse(file_path, media_type="image/svg+xml") if os.path.exists(file_path) else HTMLResponse(status_code=204)
-
-
+    if unlocked:
+        receipts = get_all_receipts()
+        tenant_receipts = [r for r in receipts if r["Tenant"] == tenant.name and r.get("Status") != "ARCHIVED"]
+        tenant_receipts.reverse()
+        tenant_receipts = tenant_receipts[:config.get("system.limits.public_history_months", 12)]
+        occupants = get_occupants(tenant.id)
+        
+        return templates.TemplateResponse(
+            request=request, name=Templates.TENANT_PUBLIC_PROFILE, context={
+                "tenant": tenant,
+                "receipts": tenant_receipts,
+                "occupants": occupants,
+                "theme": theme,
+                "unlocked": True,
+                "view_token": view_token,
+                "sys": getattr(request.state, "sys", config.get("system", {}))
+            }
+        )
+    else:
+        return templates.TemplateResponse(
+            request=request, name=Templates.TENANT_PUBLIC_PROFILE, context={
+                "tenant": tenant,
+                "theme": theme,
+                "unlocked": False,
+                "view_token": view_token,
+                "sys": getattr(request.state, "sys", config.get("system", {}))
+            }
+        )
 
 @router.post("/t/{view_token}", name=Names.PUBLIC_TENANT_PROFILE_POST, response_class=HTMLResponse)
 async def public_tenant_profile_post(request: Request, view_token: str, pin: str = Form(...)):
@@ -2211,9 +3580,10 @@ async def public_tenant_profile_post(request: Request, view_token: str, pin: str
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     theme = getattr(request.state, "theme", "system")
+    actual_pin_hash = getattr(tenant, "tenant_pin", None)
     
-    actual_pin = getattr(tenant, "tenant_pin", "1234")
-    if pin != actual_pin:
+    from app.authentication.common.utils import verify_pin
+    if not actual_pin_hash or not verify_pin(pin, actual_pin_hash):
         return templates.TemplateResponse(
             request=request, name=Templates.TENANT_PUBLIC_PROFILE, context={
                 "tenant": tenant,
@@ -2225,25 +3595,64 @@ async def public_tenant_profile_post(request: Request, view_token: str, pin: str
             }
         )
         
-    receipts = get_all_receipts()
-    tenant_receipts = [r for r in receipts if r["Tenant"] == tenant.name and r.get("Status") != "ARCHIVED"]
-    tenant_receipts.reverse()
-    sys_conf = config.get("system", {})
-    tenant_receipts = tenant_receipts[:config.get("system.limits.public_history_months", 12)] 
+    # Create tenant session and set authentication cookies
+    from app.authentication.tenant.sessions import create_tenant_session
+    from app.authentication.tenant.jwt import create_tenant_access_token
+    from app.authentication.tenant.cookies import set_tenant_auth_cookies
+    from fastapi.responses import RedirectResponse
     
-    occupants = get_occupants(tenant.id)
+    session_id, refresh_token = create_tenant_session(tenant.id, request, remember_me=False)
+    access_token = create_tenant_access_token(tenant.id, session_id)
+    
+    # Redirect to the profile GET page with PRG pattern
+    redirect_url = str(request.url_for(Names.PUBLIC_TENANT_PROFILE_GET, view_token=view_token))
+    response = RedirectResponse(url=redirect_url, status_code=303)
+    
+    # Format cookie value correctly
+    cookie_val = f"{session_id}:{refresh_token}"
+    set_tenant_auth_cookies(response, access_token, cookie_val, remember_me=False, request=request)
+    
+    return response
 
-    return templates.TemplateResponse(
-        request=request, name=Templates.TENANT_PUBLIC_PROFILE, context={
-            "tenant": tenant,
-            "receipts": tenant_receipts,
-            "occupants": occupants,
-            "theme": theme,
-            "unlocked": True,
-            "view_token": view_token,
-            "sys": getattr(request.state, "sys", config.get("system", {}))
-        }
-    )
+@router.get("/favicon.ico", name=Names.FAVICON, include_in_schema=False)
+async def favicon():
+    file_path = os.path.join("app", "static", "fevicon.svg")
+    return FileResponse(file_path, media_type="image/svg+xml") if os.path.exists(file_path) else HTMLResponse(status_code=204)
+```
+
+```python
+// File: pages\redirects.py
+from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse
+
+router = APIRouter(tags=["Legacy Redirects"])
+
+legacy_paths = [
+    "/dashboard",
+    "/billing",
+    "/history",
+    "/tenants",
+    "/settings",
+    "/archive",
+    "/backups",
+    "/login"
+]
+
+for path in legacy_paths:
+    # Handle GET
+    @router.get(path, include_in_schema=False)
+    async def legacy_redirect_get(request: Request, path=path):
+        return RedirectResponse(url=f"{request.scope.get('root_path', '')}/admin{path}", status_code=301)
+    
+    # Handle POST
+    @router.post(path, include_in_schema=False)
+    async def legacy_redirect_post(request: Request, path=path):
+        return RedirectResponse(url=f"{request.scope.get('root_path', '')}/admin{path}", status_code=308)
+
+# Root redirect to /admin/
+@router.get("/", include_in_schema=False)
+async def legacy_root_redirect(request: Request):
+    return RedirectResponse(url=f"{request.scope.get('root_path', '')}/admin/", status_code=301)
 ```
 
 ```python
@@ -2266,6 +3675,8 @@ async def settings_page(request: Request):
             "billing_config": billing_conf,
             "landlord_config": landlord_conf,
             "ui_config": ui_conf,
+            "backup_config": config.get("backup", {}),
+            "whatsapp_config": config.get("whatsapp", {}),
             "theme": theme,
             "sys": getattr(request.state, "sys", config.get("system", {}))
         }
@@ -2315,6 +3726,222 @@ async def tenants_page(request: Request):
             "sys": getattr(request.state, "sys", config.get("system", {}))
         }
     )
+```
+
+```python
+// File: routers\admin_auth.py
+from fastapi import APIRouter, Depends, Request, Response, Form, HTTPException
+from fastapi.responses import HTMLResponse, RedirectResponse
+from app.core.dependencies import templates
+from app.core.db import get_conn
+from app.authentication.common.utils import verify_pin
+from app.authentication.admin.jwt import create_admin_access_token
+from app.authentication.admin.sessions import create_admin_session, get_admin_session_db, revoke_admin_session_db
+from app.authentication.admin.cookies import set_admin_auth_cookies, clear_admin_auth_cookies
+
+router = APIRouter(tags=["Admin Authentication"])
+
+@router.get("/login", name="adminloginpage", response_class=HTMLResponse)
+async def adminloginpage(request: Request, error: str = None):
+    """Serves the Admin Login HTML UI"""
+    return templates.TemplateResponse(
+        request=request, 
+        name="admin_login.html", 
+        context={"request": request, "error": error}
+    )
+
+@router.post("/api/login", name="adminloginpost")
+async def adminloginpost(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    remember_me: bool = Form(False),
+):
+    """Processes the login form submission"""
+    with get_conn() as conn:
+        admin = conn.execute("SELECT id, password_hash FROM admins WHERE username = ?", (username,)).fetchone()
+        
+    # Verify Admin Username & Password Hash
+    if not admin or not verify_pin(password, admin["password_hash"]):
+        # Redirect back to login with an error message
+        login_url = f"{request.url_for('adminloginpage')}?error=Invalid+username+or+password"
+        return RedirectResponse(url=login_url, status_code=303)
+        
+    # Generate Session & Tokens
+    session_id, refresh_token = create_admin_session(admin['id'], request, remember_me)
+    access_token = create_admin_access_token(admin['id'], session_id)
+    
+    # Format cookie value correctly for rotation
+    cookie_val = f"{session_id}:{refresh_token}"
+    
+    # Redirect to the main dashboard upon success
+    from app.core.routes import Names
+    dashboard_url = str(request.url_for(Names.HOME))
+    response = RedirectResponse(url=dashboard_url, status_code=303)
+    set_admin_auth_cookies(response, access_token, cookie_val, remember_me, request)
+    
+    return response
+
+@router.post("/api/refresh")
+async def admin_refresh(request: Request, response: Response):
+    """Admin Refresh Token Rotation Flow"""
+    refresh_token = request.cookies.get("admin_refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+        
+    parts = refresh_token.split(":")
+    if len(parts) != 2:
+        raise HTTPException(status_code=401, detail="Malformed refresh token")
+    
+    session_id, token_secret = parts[0], parts[1]
+    
+    session = get_admin_session_db(session_id)
+    if not session or not verify_pin(token_secret, session["refresh_token_hash"]):
+        revoke_admin_session_db(session_id)
+        clear_admin_auth_cookies(response, request)
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+    revoke_admin_session_db(session_id) 
+    
+    new_session_id, new_refresh_token = create_admin_session(session["admin_id"], request, remember_me=True)
+    new_access_token = create_admin_access_token(session["admin_id"], new_session_id)
+    
+    new_cookie_val = f"{new_session_id}:{new_refresh_token}"
+    set_admin_auth_cookies(response, new_access_token, new_cookie_val, remember_me=True, request=request)
+    
+    return {"status": "success", "message": "Admin tokens refreshed silently"}
+
+
+@router.get("/logout", name="adminlogout")
+async def adminlogout(request: Request):
+    """Logs the admin out and clears cookies"""
+    token = request.cookies.get("admin_access_token")
+    if token:
+        try:
+            from app.authentication.admin.jwt import decode_admin_access_token
+            payload = decode_admin_access_token(token)
+            revoke_admin_session_db(payload.get("sid"))
+        except Exception:
+            pass
+            
+    login_url = str(request.url_for("adminloginpage"))
+    response = RedirectResponse(url=login_url, status_code=303)
+    clear_admin_auth_cookies(response, request)
+    return response
+```
+
+```python
+// File: routers\auth.py
+from fastapi import APIRouter, Depends, Request, Response, HTTPException
+from app.models.auth import LoginRequest, ChangePinRequest
+from app.authentication.common.utils import verify_pin, hash_pin
+from app.authentication.tenant.jwt import create_tenant_access_token
+from app.authentication.tenant.sessions import create_tenant_session, get_tenant_session_db, revoke_tenant_session_db, revoke_all_tenant_sessions
+from app.authentication.tenant.cookies import set_tenant_auth_cookies, clear_tenant_auth_cookies
+from app.authentication.tenant.middleware import get_current_tenant
+from app.database.auth_repository import log_audit
+from app.core.db import get_conn
+
+router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+
+@router.post("/login")
+async def auth_login(request: Request, response: Response, payload: LoginRequest):
+    ip = request.client.host if request.client else "Unknown IP"
+    
+    with get_conn() as conn:
+        tenant = conn.execute("SELECT id, tenantpin, failed_attempts, locked_until FROM tenants WHERE viewtoken = ?", (payload.view_token,)).fetchone()
+        
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Invalid profile link.")
+        
+    from datetime import datetime, timedelta
+    if tenant["locked_until"]:
+        locked_until = datetime.fromisoformat(tenant["locked_until"])
+        if datetime.utcnow() < locked_until:
+            raise HTTPException(status_code=429, detail="Too many failed attempts. Account locked for 15 minutes.")
+        
+    if not verify_pin(payload.pin, tenant["tenantpin"]):
+        log_audit(tenant["id"], "Login Failed - Wrong PIN", ip)
+        
+        failed_attempts = tenant["failed_attempts"] + 1
+        locked_until_str = None
+        if failed_attempts >= 5:
+            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+            
+        with get_conn() as conn:
+            conn.execute("UPDATE tenants SET failed_attempts = ?, locked_until = ? WHERE id = ?", (failed_attempts, locked_until_str, tenant["id"]))
+            conn.commit()
+            
+        raise HTTPException(status_code=401, detail="Incorrect PIN.")
+        
+    # Reset attempts on success
+    if tenant["failed_attempts"] > 0:
+        with get_conn() as conn:
+            conn.execute("UPDATE tenants SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (tenant["id"],))
+            conn.commit()
+        
+    # Generate Session & Tokens
+    session_id, refresh_token = create_tenant_session(tenant["id"], request, payload.remember_me)
+    access_token = create_tenant_access_token(tenant["id"], session_id)
+    
+    # Format cookie value correctly for rotation
+    cookie_val = f"{session_id}:{refresh_token}"
+    set_tenant_auth_cookies(response, access_token, cookie_val, payload.remember_me, request)
+    log_audit(tenant["id"], "Login Success", ip)
+    
+    return {"status": "success", "message": "Logged in successfully"}
+
+@router.post("/refresh")
+async def auth_refresh(request: Request, response: Response):
+    """Tenant Refresh Token Rotation Flow"""
+    refresh_token = request.cookies.get("tenant_refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+        
+    parts = refresh_token.split(":")
+    if len(parts) != 2:
+        raise HTTPException(status_code=401, detail="Malformed refresh token")
+    
+    session_id, token_secret = parts[0], parts[1]
+    
+    session = get_tenant_session_db(session_id)
+    if not session or not verify_pin(token_secret, session["refresh_token_hash"]):
+        revoke_tenant_session_db(session_id)
+        clear_tenant_auth_cookies(response, request)
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        
+    # Rotate Refresh Token (Invalidate old, issue new)
+    revoke_tenant_session_db(session_id) 
+    
+    # Generate new session & tokens
+    new_session_id, new_refresh_token = create_tenant_session(session["tenant_id"], request, remember_me=True)
+    new_access_token = create_tenant_access_token(session["tenant_id"], new_session_id)
+    
+    # Format cookie value correctly
+    new_cookie_val = f"{new_session_id}:{new_refresh_token}"
+    set_tenant_auth_cookies(response, new_access_token, new_cookie_val, remember_me=True, request=request)
+    
+    return {"status": "success", "message": "Tokens refreshed silently"}
+
+@router.post("/logout")
+async def auth_logout(request: Request, response: Response):
+    token = request.cookies.get("tenant_access_token")
+    if token:
+        try:
+            from app.authentication.tenant.jwt import decode_tenant_access_token
+            payload = decode_tenant_access_token(token)
+            revoke_tenant_session_db(payload.get("sid"))
+            log_audit(int(payload.get("tenant_id") or payload.get("sub")), "Logout Success", request.client.host)
+        except Exception:
+            pass
+            
+    clear_tenant_auth_cookies(response, request)
+    return {"status": "success"}
+
+@router.post("/logout-all")
+async def auth_logout_all(principal = Depends(get_current_tenant)):
+    revoke_all_tenant_sessions(principal.id)
+    return {"status": "success", "message": "All devices logged out"}
 ```
 
 ```python
@@ -2417,34 +4044,22 @@ def create_manifest(backup_id, backup_type, timestamp_str):
 
 def get_db_stats():
     # Count receipts, tenants, PDFs
-    import csv
+    from app.core.db import get_conn
+    
     receipt_count = 0
     archived_count = 0
     tenant_count = 0
     inactive_tenant_count = 0
     pdf_count = 0
     
-    if os.path.exists(os.path.join(DB_DIR, "receipts.csv")):
-        try:
-            with open(os.path.join(DB_DIR, "receipts.csv"), "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for r in reader:
-                    receipt_count += 1
-                    if r.get("Status") == "ARCHIVED":
-                        archived_count += 1
-        except:
-            pass
-            
-    if os.path.exists(os.path.join(DB_DIR, "tenants.csv")):
-        try:
-            with open(os.path.join(DB_DIR, "tenants.csv"), "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f)
-                for r in reader:
-                    tenant_count += 1
-                    if r.get("Status") == "Inactive":
-                        inactive_tenant_count += 1
-        except:
-            pass
+    try:
+        with get_conn() as conn:
+            receipt_count = conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0]
+            archived_count = conn.execute("SELECT COUNT(*) FROM receipts WHERE status = 'ARCHIVED'").fetchone()[0]
+            tenant_count = conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
+            inactive_tenant_count = conn.execute("SELECT COUNT(*) FROM tenants WHERE status = 'Inactive'").fetchone()[0]
+    except Exception as e:
+        pass
             
     for root, dirs, files in os.walk(RECEIPTS_DIR):
         for f in files:
@@ -2565,26 +4180,16 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 def create_full_backup(tag="auto"):
-    # Wrapper for existing calls in app.py
-    # Decipher tag
     if tag == "auto" or not tag:
         return create_backup(type_="Automatic", subtype="daily")
     elif tag.startswith("settings_change"):
         return create_backup(type_="Restore Point", subtype="before_settings", tag="Settings Change")
-    elif tag.startswith("create_bill"):
-        return create_backup(type_="Restore Point", subtype="before_receipt", tag="Receipt Creation")
-    elif tag.startswith("edit_bill"):
-        return create_backup(type_="Restore Point", subtype="before_edit", tag="Receipt Edit")
-    elif tag.startswith("archive_bill"):
-        return create_backup(type_="Restore Point", subtype="before_archive", tag="Receipt Archive")
     elif tag.startswith("restore_bill"):
         return create_backup(type_="Restore Point", subtype="before_restore", tag="Receipt Restore")
-    elif tag.startswith("delete_bill"):
-        return create_backup(type_="Restore Point", subtype="before_delete", tag="Receipt Delete")
     elif tag.startswith("add_tenant") or tag.startswith("update_tenant") or tag.startswith("delete_tenant"):
-        return create_backup(type_="Restore Point", subtype="before_tenant_update", tag="Tenant Update")
+        return None
     else:
-        return create_backup(type_="Manual", subtype="manual", tag=tag)
+        return None
 
 def get_all_backups():
     return load_registry()
@@ -2669,7 +4274,7 @@ def delete_backup(backup_id):
 
 ```python
 // File: services\billing_service.py
-import csv
+from app.core.db import get_conn
 import os
 import shutil
 from datetime import datetime
@@ -2679,242 +4284,11 @@ from app.services.pdf_service import generate_professional_pdf
 
 from app.core.paths import DB_DIR, BACKUPS_DIR as BACKUP_DIR, RECEIPTS_DIR
 
-RECEIPTS_CSV = os.path.join(DB_DIR, "receipts.csv")
-
-HEADERS = [
-    "Bill", "Date", "Month", "Tenant", "Previous", "Current", 
-    "Units", "Rent", "Additional", "Water", "Tank_Water", "Electricity", "Total", "PDF",
-    "Tenant_Phone", "Tenant_Company", "Tenant_Address", "Rate",
-    "Status", "Archived_Date", "Archived_By", "Deleted_Date",
-    "Additional_Persons", "Additional_Person_Rate", "Receipt_Version", "Generated_By",
-    "Payment_Status", "Maintenance_Charge", "Maintenance_Desc",
-    "Previous_Arrears", "Amount_Received" # --- NEW COLUMNS ---
-]
-
-def migrate_receipts_schema():
-    schema_conf = config.get("schema", {})
-    current_version = schema_conf.get("receipt_schema", 1)
-    
-    if current_version < 2:
-        # V1 to V2 Migration: Add lifecycle columns
-        print("Migrating receipts.csv from V1 to V2...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Status"] = "ACTIVE"
-                        row["Archived_Date"] = ""
-                        row["Archived_By"] = ""
-                        row["Deleted_Date"] = ""
-                        receipts.append(row)
-                
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v1_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-                    
-                print("Migrating PDFs to active directory structure...")
-                for row in receipts:
-                    try:
-                        year_str = row["Month"].split()[-1]
-                    except Exception:
-                        year_str = datetime.now().strftime("%Y")
-                    
-                    old_pdf_path = os.path.join(RECEIPTS_DIR, year_str, row["PDF"])
-                    new_dir = os.path.join(RECEIPTS_DIR, "active", year_str)
-                    new_pdf_path = os.path.join(new_dir, row["PDF"])
-                    
-                    if os.path.exists(old_pdf_path):
-                        os.makedirs(new_dir, exist_ok=True)
-                        shutil.move(old_pdf_path, new_pdf_path)
-            except Exception as e:
-                print(f"Error migrating receipts to V2: {e}")
-        
-        schema_conf["receipt_schema"] = 2
-        config.save("schema", schema_conf)
-
-    if current_version < 3:
-        # V2 to V3 Migration: Add Additional_Persons, Additional_Person_Rate, Receipt_Version
-        print("Migrating receipts.csv from V2 to V3...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Additional_Persons"] = "0"
-                        row["Additional_Person_Rate"] = "0.0"
-                        row["Receipt_Version"] = "3"
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v2_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V3: {e}")
-                
-        schema_conf["receipt_schema"] = 3
-        config.save("schema", schema_conf)
-        current_version = 3
-
-    if current_version < 4:
-        # V3 to V4 Migration: Add Tank_Water and Generated_By
-        print("Migrating receipts.csv from V3 to V4...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Tank_Water"] = "0.0"
-                        row["Generated_By"] = "Admin"
-                        row["Receipt_Version"] = "4"
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v3_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V4: {e}")
-                
-        schema_conf["receipt_schema"] = 4
-        config.save("schema", schema_conf)
-        current_version = 4
-
-    if current_version < 5:
-        # V4 to V5 Migration: Bump Receipt_Version for Bank Details layout
-        print("Migrating receipts.csv from V4 to V5...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Receipt_Version"] = "5"
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v4_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V5: {e}")
-                
-        schema_conf["receipt_schema"] = 5
-        config.save("schema", schema_conf)
-        current_version = 5
-
-    if current_version < 6:
-        # V5 to V6 Migration: Add Payment_Status column
-        print("Migrating receipts.csv from V5 to V6...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Payment_Status"] = "PENDING"
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v5_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V6: {e}")
-                
-        schema_conf["receipt_schema"] = 6
-        config.save("schema", schema_conf)
-        current_version = 6
-
-    if current_version < 7:
-        # V6 to V7 Migration: Add Maintenance_Charge and Maintenance_Desc
-        print("Migrating receipts.csv from V6 to V7...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Maintenance_Charge"] = "0.0"
-                        row["Maintenance_Desc"] = ""
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v6_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V7: {e}")
-                
-        schema_conf["receipt_schema"] = 7
-        config.save("schema", schema_conf)
-        current_version = 7
-
-    if current_version < 8:
-        # V7 to V8 Migration: Add Previous_Arrears and Amount_Received columns
-        print("Migrating receipts.csv from V7 to V8 (Arrears & Payments)...")
-        if os.path.exists(RECEIPTS_CSV):
-            receipts = []
-            try:
-                with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        row["Previous_Arrears"] = "0.0"
-                        # Assume historically that all total bills were fully received.
-                        row["Amount_Received"] = row.get("Total", "0.0")
-                        row["Receipt_Version"] = "8"
-                        receipts.append(row)
-                        
-                backup_path = os.path.join(BACKUP_DIR, "receipts_v7_migration.bak")
-                shutil.copy2(RECEIPTS_CSV, backup_path)
-                
-                with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=HEADERS)
-                    writer.writeheader()
-                    writer.writerows(receipts)
-            except Exception as e:
-                print(f"Error migrating receipts to V8: {e}")
-                
-        schema_conf["receipt_schema"] = 8
-        config.save("schema", schema_conf)
-        current_version = 8
-
-def init_csv():
-    if not os.path.exists(RECEIPTS_CSV):
-        with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(HEADERS)
-
 def get_bill_details(bill_no):
-    init_csv()
-    with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["Bill"] == bill_no:
-                return row
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (bill_no,)).fetchone()
+    if row:
+        return _row_to_dict(row)
     return None
 
 def resolve_payment_state(current_total, previous_arrears=0.0, amount_received=None):
@@ -2959,45 +4333,90 @@ def resolve_payment_state(current_total, previous_arrears=0.0, amount_received=N
     }
 
 def update_payment_status(bill_no, requested_status, amount_received=None):
-    receipts = get_all_receipts()
-    receipt = next((r for r in receipts if r.get("Bill") == bill_no), None)
-    if not receipt:
-        raise ValueError("Bill not found")
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (bill_no,)).fetchone()
+        if not row:
+            raise ValueError("Receipt not found")
+        
+        current_total = float(row["total"])
+        previous_arrears = float(row["previousarrears"])
+        
+        state = resolve_payment_state(
+            current_total,
+            previous_arrears=previous_arrears,
+            amount_received=amount_received
+        )
+        status = state["payment_status"]
+        final_received = state["amount_received"]
+        
+        if requested_status in ["PENDING", "PARTIAL"]:
+            status = requested_status
 
-    grand_total = round(
-        float(receipt.get("Total", 0) or 0) +
-        float(receipt.get("Previous_Arrears", 0) or 0), 2
-    )
+        conn.execute("""
+            UPDATE receipts 
+            SET paymentstatus = ?, amountreceived = ?
+            WHERE billno = ?
+        """, (status, final_received, bill_no))
+        conn.commit()
+    return status
+def _safe_float(val, default=0.0) -> float:
+    try:
+        return float(str(val).strip() or default)
+    except Exception:
+        return default
 
-    if requested_status == "PENDING":
-        receipt["Payment_Status"] = "PENDING"
-        receipt["Amount_Received"] = 0.0
-        save_all_receipts(receipts)
-        return receipt
+def _safe_int(val, default=0) -> int:
+    try:
+        return int(float(str(val).strip() or default))
+    except Exception:
+        return default
 
-    resolved = resolve_payment_state(
-        current_total=float(receipt.get("Total", 0) or 0),
-        previous_arrears=float(receipt.get("Previous_Arrears", 0) or 0),
-        amount_received=amount_received
-    )
-
-    receipt["Payment_Status"] = resolved["payment_status"]
-    receipt["Amount_Received"] = resolved["amount_received"]
-    save_all_receipts(receipts)
-    return receipt
+def _row_to_dict(row):
+    if row is None:
+        return None
+    if not isinstance(row, dict):
+        row = dict(row)
+        
+    return {
+        "Bill": row.get("billno", ""),
+        "Date": row.get("date", ""),
+        "Month": row.get("month", ""),
+        "Tenant": row.get("tenant", ""),
+        "TenantId": row.get("tenant_id", 0) or 0,
+        "Previous": _safe_float(row.get("previous")),
+        "Current": _safe_float(row.get("current")),
+        "Units": _safe_float(row.get("units")),
+        "Rent": _safe_float(row.get("rent")),
+        "Additional": _safe_float(row.get("additional")),
+        "Water": _safe_float(row.get("water")),
+        "Tank_Water": _safe_float(row.get("tankwater")),
+        "Electricity": _safe_float(row.get("electricity")),
+        "Total": _safe_float(row.get("total")),
+        "PDF": row.get("pdf", "") or "",
+        "Tenant_Phone": row.get("tenantphone", "") or "",
+        "Tenant_Company": row.get("tenantcompany", "") or "",
+        "Tenant_Address": row.get("tenantaddress", "") or "",
+        "Rate": _safe_float(row.get("rate")),
+        "Status": row.get("status", ""),
+        "Archived_Date": row.get("archiveddate", "") or "",
+        "Archived_By": row.get("archivedby", "") or "",
+        "Deleted_Date": row.get("deleteddate", "") or "",
+        "Additional_Persons": _safe_int(row.get("additionalpersons")),
+        "Additional_Person_Rate": _safe_float(row.get("additionalpersonrate")),
+        "Receipt_Version": _safe_int(row.get("receiptversion")),
+        "Generated_By": row.get("generatedby", "Admin") or "Admin",
+        "Payment_Status": row.get("paymentstatus", "PENDING") or "PENDING",
+        "Maintenance_Charge": _safe_float(row.get("maintenancecharge")),
+        "Maintenance_Desc": row.get("maintenancedesc", "") or "",
+        "Previous_Arrears": _safe_float(row.get("previousarrears")),
+        "Amount_Received": _safe_float(row.get("amountreceived")),
+    }
 
 def get_all_receipts():
-    init_csv()
-    migrate_receipts_schema()
-    receipts = []
-    try:
-        with open(RECEIPTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                receipts.append(row)
-    except Exception as e:
-        print(f"Error loading receipts: {e}")
-    return receipts
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM receipts ORDER BY rowid DESC").fetchall()
+    return [_row_to_dict(r) for r in rows]
 
 def get_receipt(bill_no):
     receipts = get_all_receipts()
@@ -3006,22 +4425,28 @@ def get_receipt(bill_no):
             return r
     return None
 
-def save_all_receipts(receipts_list):
-    init_csv()
-    if os.path.exists(RECEIPTS_CSV):
-        backup_path = os.path.join(BACKUP_DIR, "receipts.csv.bak")
-        try:
-            shutil.copy2(RECEIPTS_CSV, backup_path)
-        except Exception:
-            pass
-            
-    try:
-        with open(RECEIPTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=HEADERS)
-            writer.writeheader()
-            writer.writerows(receipts_list)
-    except Exception as e:
-        print(f"Error saving receipts: {e}")
+def get_latest_receipt(tenant_name: str, exclude_bill_no: str = None):
+    with get_conn() as conn:
+        query = "SELECT * FROM receipts WHERE tenant COLLATE NOCASE = ? AND status != 'ARCHIVED'"
+        params = [tenant_name]
+        if exclude_bill_no:
+            query += " AND billno != ?"
+            params.append(exclude_bill_no)
+        query += " ORDER BY rowid DESC LIMIT 1"
+        row = conn.execute(query, tuple(params)).fetchone()
+    if row:
+        return _row_to_dict(row)
+    return None
+
+def resolve_previous_reading(tenant_name: str, exclude_bill_no: str = None) -> float:
+    from app.services.tenant_service import get_tenant_by_name
+    latest = get_latest_receipt(tenant_name, exclude_bill_no)
+    if latest:
+        return float(latest.get("Current", 0) or 0)
+    tenant = get_tenant_by_name(tenant_name)
+    if tenant:
+        return float(getattr(tenant, "previous_meter", 0) or 0)
+    return 0.0
 
 def get_billing_months():
     now = datetime.now()
@@ -3058,92 +4483,70 @@ def calculate_charges(current_reading, additional_persons, prev_reading, rent, w
         "previous": prev_reading
     }
 
-def create_bill(tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
-    receipts = get_all_receipts()
-    for r in receipts:
-        if r["Tenant"] == tenant_name and r["Month"] == month and r.get("Status", "ACTIVE") == "ACTIVE":
-            raise ValueError(f"A receipt for '{tenant_name}' for '{month}' already exists (Bill #{r['Bill']}). Please edit the existing bill instead.")
-            
-    billing_conf = config.get("billing", {})
-    tenants = load_tenants()
+def create_bill(tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, 
+                maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
+    from app.core.db import get_conn
+    from datetime import datetime
+    from app.services.tenant_service import load_tenants
+    import os
+    from app.core.paths import RECEIPTS_DIR
+    from app.services.pdf_service import generate_professional_pdf
     
-    tenant_details = next((t for t in tenants if t.name == tenant_name), None)
-    if not tenant_details:
+    tenants = load_tenants()
+    tenant = next((t for t in tenants if t.name == tenant_name), None)
+    if not tenant:
         raise ValueError("Tenant not found")
-        
-    t_phone = tenant_details.phone
-    t_company = tenant_details.company
-    t_address = tenant_details.address
+
+    with get_conn() as conn:
+        count = conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0]
+    new_bill_num = count + 1
+    bill_no = f"REC-{new_bill_num:03d}"
+    
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    
+    prev = resolve_previous_reading(tenant_name)
+    if prev > 0 and current_reading < prev:
+        raise ValueError("Current meter reading cannot be less than previous reading.")
     
     charges = calculate_charges(
-        current_reading, 
-        additional_persons,
-        prev_reading=tenant_details.previous_meter,
-        rent=tenant_details.rent,
-        water=tenant_details.water,
-        tank_water=tank_water,
-        maintenance_charge=maintenance_charge,
-        rate=tenant_details.electricity_rate,
-        add_person_charge=tenant_details.additional_person_charge
+        current_reading, additional_persons, prev,
+        tenant.rent, tenant.water, tank_water, maintenance_charge,
+        tenant.electricity_rate, tenant.additional_person_charge
     )
     
-    tenant_receipts = [r for r in receipts if r["Tenant"] == tenant_name]
-    max_seq = 0
-    for r in tenant_receipts:
-        try:
-            bill_str = r["Bill"]
-            seq = int(bill_str.split('-')[-1]) if '-' in bill_str else int(bill_str)
-            max_seq = max(max_seq, seq)
-        except ValueError:
-            pass
-            
-    bill_no = f"T{tenant_details.id}-{str(max_seq + 1).zfill(3)}"
-    date_str = datetime.now().strftime("%d %B %Y")
+    if payment_status == "PAID" and amount_received is None:
+        amount_received = charges["total"] + previous_arrears
+    elif amount_received is None:
+        amount_received = 0.0
     
-    try:
-        year_str = month.split()[-1]
-    except Exception:
-        year_str = datetime.now().strftime("%Y")
-        
-    pdf_filename = f"{bill_no}.pdf"
+    pdf_filename = f"{bill_no}_{tenant_name.replace(' ', '_')}_{month.replace(' ', '_')}.pdf"
+    pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
-    grand_total = charges["total"] + previous_arrears
-    if amount_received is None:
-        amount_received = grand_total if payment_status == "PAID" else 0.0
-        
-    resolved = resolve_payment_state(
-        current_total=charges["total"],
-        previous_arrears=previous_arrears,
-        amount_received=amount_received
-    )
-    payment_status = resolved["payment_status"]
-    amount_received = resolved["amount_received"]
-    
-    data_dict = {
+    receipt_dict = {
         "Bill": bill_no,
-        "Date": date_str,
+        "Date": current_date,
         "Month": month,
         "Tenant": tenant_name,
-        "Previous": charges["previous"],
+        "Previous": prev,
         "Current": current_reading,
         "Units": charges["units"],
-        "Rent": charges["rent"],
+        "Rent": tenant.rent,
         "Additional": charges["additional"],
-        "Water": charges["water"],
-        "Tank_Water": charges["tank_water"],
+        "Water": tenant.water,
+        "Tank_Water": tank_water,
         "Electricity": charges["electricity"],
         "Total": charges["total"],
         "PDF": pdf_filename,
-        "Tenant_Phone": t_phone,
-        "Tenant_Company": t_company,
-        "Tenant_Address": t_address,
-        "Rate": charges["rate"],
+        "Tenant_Phone": tenant.phone,
+        "Tenant_Company": tenant.company,
+        "Tenant_Address": tenant.address,
+        "Rate": tenant.electricity_rate,
         "Status": "ACTIVE",
         "Archived_Date": "",
         "Archived_By": "",
         "Deleted_Date": "",
         "Additional_Persons": additional_persons,
-        "Additional_Person_Rate": tenant_details.additional_person_charge,
+        "Additional_Person_Rate": tenant.additional_person_charge,
         "Receipt_Version": 8,
         "Generated_By": "Admin",
         "Payment_Status": payment_status,
@@ -3153,91 +4556,97 @@ def create_bill(tenant_name, month, current_reading, additional_persons, tank_wa
         "Amount_Received": amount_received
     }
     
-    init_csv()
-    receipts = get_all_receipts()
-    receipts.append(data_dict)
-    save_all_receipts(receipts)
-    
-    config.save("billing", billing_conf)
-    
-    tenant_details.previous_meter = float(current_reading)
-    update_tenant(tenant_details)
-    
-    return data_dict
+    try:
+        from app.core.config_service import config
+        generate_professional_pdf(receipt_dict, config.get("landlord", {}), pdf_path)
+    except BaseException as e:
+        print(f"Error generating PDF: {e}")
 
-def update_bill(bill_no, tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
-    receipts = get_all_receipts()
-    receipt = next((r for r in receipts if r["Bill"] == bill_no), None)
-    if not receipt:
-        raise ValueError("Receipt not found")
-        
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO receipts (
+                billno, date, month, tenant_id, tenant, previous, current, units, rent,
+                additional, water, tankwater, electricity, total, pdf,
+                tenantphone, tenantcompany, tenantaddress, rate, status,
+                archiveddate, archivedby, deleteddate, additionalpersons,
+                additionalpersonrate, receiptversion, generatedby, paymentstatus,
+                maintenancecharge, maintenancedesc, previousarrears, amountreceived
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            bill_no, current_date, month, tenant.id, tenant_name, prev, current_reading,
+            charges["units"], tenant.rent, charges["additional"], tenant.water, tank_water,
+            charges["electricity"], charges["total"], pdf_filename, tenant.phone, tenant.company,
+            tenant.address, tenant.electricity_rate, "ACTIVE", "", "", "",
+            additional_persons, tenant.additional_person_charge, 8, "Admin",
+            payment_status, maintenance_charge, maintenance_desc, previous_arrears, amount_received
+        ))
+        conn.commit()
+
+    return receipt_dict
+def update_bill(bill_no, tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, 
+                maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
+    from app.core.db import get_conn
+    from app.services.tenant_service import load_tenants
+    from app.services.pdf_service import generate_professional_pdf
+    import os
+    from app.core.paths import RECEIPTS_DIR
+    
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (bill_no,)).fetchone()
+        if not row:
+            raise ValueError("Receipt not found")
+        old_receipt = dict(row)
+
     tenants = load_tenants()
-    tenant_details = next((t for t in tenants if t.name == tenant_name), None)
-    
-    prev_reading = float(receipt["Previous"])
-    snap_rent = float(receipt.get("Rent", 0.0))
-    snap_water = float(receipt.get("Water", 0.0))
-    snap_tank_water = float(receipt.get("Tank_Water", 0.0))
-    snap_rate = float(receipt.get("Rate", 0.0))
-    
-    snap_add_rate = float(receipt.get("Additional_Person_Rate", 0.0))
-    if snap_add_rate == 0.0 and int(receipt.get("Receipt_Version", 2)) < 3 and tenant_details:
-        snap_add_rate = tenant_details.additional_person_charge
-    
-    charges = calculate_charges(
-        current_reading, 
-        additional_persons, 
-        prev_reading=prev_reading,
-        rent=snap_rent,
-        water=snap_water,
-        tank_water=tank_water,
-        maintenance_charge=maintenance_charge,
-        rate=snap_rate,
-        add_person_charge=snap_add_rate
-    )
-    
-    pdf_filename = receipt.get("PDF", f"{bill_no}.pdf")
-    status = receipt.get("Status", "ACTIVE")
-    
-    grand_total = charges["total"] + previous_arrears
-    if amount_received is None:
-        amount_received = grand_total if payment_status == "PAID" else 0.0
+    tenant = next((t for t in tenants if t.name == tenant_name), None)
+    if not tenant:
+        raise ValueError("Tenant not found")
         
-    resolved = resolve_payment_state(
-        current_total=charges["total"],
-        previous_arrears=previous_arrears,
-        amount_received=amount_received
+    prev = float(old_receipt["previous"])
+    if prev > 0 and current_reading < prev:
+        raise ValueError("Current meter reading cannot be less than previous reading.")
+        
+    charges = calculate_charges(
+        current_reading, additional_persons, prev,
+        tenant.rent, tenant.water, tank_water, maintenance_charge,
+        tenant.electricity_rate, tenant.additional_person_charge
     )
-    payment_status = resolved["payment_status"]
-    amount_received = resolved["amount_received"]
+    
+    if payment_status == "PAID" and amount_received is None:
+        amount_received = charges["total"] + previous_arrears
+    elif amount_received is None:
+        amount_received = 0.0
+        
+    pdf_filename = old_receipt.get("pdf", f"{bill_no}_{tenant_name.replace(' ', '_')}_{month.replace(' ', '_')}.pdf")
+    pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
     updated_dict = {
         "Bill": bill_no,
-        "Date": receipt["Date"],
+        "Date": old_receipt["date"],
         "Month": month,
         "Tenant": tenant_name,
-        "Previous": prev_reading,
+        "Previous": old_receipt["previous"],
         "Current": current_reading,
         "Units": charges["units"],
-        "Rent": charges["rent"],
+        "Rent": tenant.rent,
         "Additional": charges["additional"],
-        "Water": charges["water"],
-        "Tank_Water": charges["tank_water"],
+        "Water": tenant.water,
+        "Tank_Water": tank_water,
         "Electricity": charges["electricity"],
         "Total": charges["total"],
         "PDF": pdf_filename,
-        "Tenant_Phone": receipt.get("Tenant_Phone", ""),
-        "Tenant_Company": receipt.get("Tenant_Company", ""),
-        "Tenant_Address": receipt.get("Tenant_Address", ""),
-        "Rate": charges["rate"],
-        "Status": status,
-        "Archived_Date": receipt.get("Archived_Date", ""),
-        "Archived_By": receipt.get("Archived_By", ""),
-        "Deleted_Date": receipt.get("Deleted_Date", ""),
-        "Additional_Persons": receipt.get("Additional_Persons", 0),
-        "Additional_Person_Rate": receipt.get("Additional_Person_Rate", 0.0),
-        "Receipt_Version": receipt.get("Receipt_Version", 8),
-        "Generated_By": receipt.get("Generated_By", "Admin"),
+        "Tenant_Phone": tenant.phone,
+        "Tenant_Company": tenant.company,
+        "Tenant_Address": tenant.address,
+        "Rate": tenant.electricity_rate,
+        "Status": old_receipt["status"],
+        "Archived_Date": old_receipt["archiveddate"],
+        "Archived_By": old_receipt["archivedby"],
+        "Deleted_Date": old_receipt["deleteddate"],
+        "Additional_Persons": additional_persons,
+        "Additional_Person_Rate": tenant.additional_person_charge,
+        "Receipt_Version": old_receipt.get("receiptversion", 8),
+        "Generated_By": old_receipt.get("generatedby", "Admin"),
         "Payment_Status": payment_status,
         "Maintenance_Charge": maintenance_charge,
         "Maintenance_Desc": maintenance_desc,
@@ -3245,64 +4654,63 @@ def update_bill(bill_no, tenant_name, month, current_reading, additional_persons
         "Amount_Received": amount_received
     }
     
-    for idx, item in enumerate(receipts):
-        if item["Bill"] == bill_no:
-            receipts[idx] = updated_dict
-            break
-    save_all_receipts(receipts)
-    
+    try:
+        from app.core.config_service import config
+        generate_professional_pdf(updated_dict, config.get("landlord", {}), pdf_path)
+    except BaseException as e:
+        print(f"Error generating PDF: {e}")
+
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE receipts SET
+                month = ?, tenant_id = ?, tenant = ?, current = ?, units = ?, rent = ?,
+                additional = ?, water = ?, tankwater = ?, electricity = ?, total = ?,
+                pdf = ?, tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?,
+                additionalpersons = ?, additionalpersonrate = ?, paymentstatus = ?,
+                maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
+            WHERE billno = ?
+        """, (
+            month, tenant.id, tenant_name, current_reading, charges["units"], tenant.rent,
+            charges["additional"], tenant.water, tank_water, charges["electricity"], charges["total"],
+            pdf_filename, tenant.phone, tenant.company, tenant.address, tenant.electricity_rate,
+            additional_persons, tenant.additional_person_charge, payment_status,
+            maintenance_charge, maintenance_desc, previous_arrears, amount_received,
+            bill_no
+        ))
+        conn.commit()
+
     return updated_dict
-
 def archive_bill(bill_no):
-    receipts = get_all_receipts()
-    receipt = next((r for r in receipts if r["Bill"] == bill_no), None)
-    if not receipt:
-        raise ValueError("Receipt not found")
-        
-    if receipt.get("Status") == "ARCHIVED":
-        return receipt
-
-    for idx, r in enumerate(receipts):
-        if r["Bill"] == bill_no:
-            receipts[idx]["Status"] = "ARCHIVED"
-            receipts[idx]["Archived_Date"] = datetime.now().strftime("%Y-%m-%d")
-            receipts[idx]["Archived_By"] = "Admin"
-            break
-            
-    save_all_receipts(receipts)
-    return receipt
+    from app.core.db import get_conn
+    from datetime import datetime
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE receipts SET status = 'ARCHIVED', archiveddate = ?, archivedby = 'Admin'
+            WHERE billno = ? AND status != 'ARCHIVED'
+        """, (datetime.now().strftime("%Y-%m-%d"), bill_no))
+        conn.commit()
+    return get_receipt(bill_no)
 
 def restore_bill(bill_no):
-    receipts = get_all_receipts()
-    receipt = next((r for r in receipts if r["Bill"] == bill_no), None)
-    if not receipt:
-        raise ValueError("Receipt not found")
-        
-    if receipt.get("Status") == "ACTIVE":
-        return receipt
-
-    for idx, r in enumerate(receipts):
-        if r["Bill"] == bill_no:
-            receipts[idx]["Status"] = "ACTIVE"
-            receipts[idx]["Archived_Date"] = ""
-            receipts[idx]["Archived_By"] = ""
-            break
-            
-    save_all_receipts(receipts)
-    return receipt
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        conn.execute("""
+            UPDATE receipts SET status = 'ACTIVE', archiveddate = '', archivedby = ''
+            WHERE billno = ? AND status != 'ACTIVE'
+        """, (bill_no,))
+        conn.commit()
+    return get_receipt(bill_no)
 
 def delete_bill(bill_no):
-    receipts = get_all_receipts()
-    receipt = next((r for r in receipts if r["Bill"] == bill_no), None)
-    if not receipt:
-        raise ValueError("Receipt not found")
-        
-    if receipt.get("Status") != "ARCHIVED":
-        raise ValueError("Only archived receipts can be permanently deleted.")
-        
-    receipts = [r for r in receipts if r["Bill"] != bill_no]
-    save_all_receipts(receipts)
-
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        row = conn.execute("SELECT status FROM receipts WHERE billno = ?", (bill_no,)).fetchone()
+        if not row:
+            raise ValueError("Receipt not found")
+        if row["status"] != "ARCHIVED":
+            raise ValueError("Only archived receipts can be permanently deleted.")
+        conn.execute("DELETE FROM receipts WHERE billno = ?", (bill_no,))
+        conn.commit()
 def get_dashboard_stats():
     billing_conf = config.get("billing", {})
     receipts = get_all_receipts()
@@ -3342,6 +4750,7 @@ def get_dashboard_stats():
     electricity_consumed_this_month = 0.0
     highest_meter_reading = 0.0
     paid_bills_count = 0
+    advance_bills_count = 0
     
     for r in active_receipts:
         try:
@@ -3358,7 +4767,7 @@ def get_dashboard_stats():
         received = float(raw_recv) if raw_recv not in (None, "") else (gross_amount if status == "PAID" else 0.0)
         outstanding = max(gross_amount - received, 0.0)
 
-        is_paid = status == "PAID"
+        is_paid = status in ["PAID", "ADVANCE"]
         is_partial = status == "PARTIAL"
         is_due = status in ["PENDING", "PARTIAL"]
 
@@ -3377,8 +4786,8 @@ def get_dashboard_stats():
 
         if is_paid:
             paid_bills_count += 1
-            
-
+            if status == "ADVANCE":
+                advance_bills_count += 1
             
         if r.get("Month") == current_month_str:
             try:
@@ -3446,12 +4855,76 @@ def get_dashboard_stats():
         "pending_payments_count": pending_payments_count,
         "pending_amount": pending_amount,
         "amount_collected": amount_collected,
+        "paid_bills_count": paid_bills_count,
+        "advance_bills_count": advance_bills_count,
         "collection_rate": collection_rate,
         "recent_bills": recent_bills,
         "chart_labels": chart_months,
         "chart_revenue": revenue_list,
         "chart_electricity": electricity_list
     }
+
+def save_all_receipts(receipts_list):
+    """Saves a batch of receipt dictionaries into the SQLite database. Used for imports."""
+    from app.core.db import get_conn
+    from app.services.tenant_service import load_tenants
+    
+    tenants = load_tenants()
+    tenant_map = {t.name.lower(): t for t in tenants}
+    
+    with get_conn() as conn:
+        for r in receipts_list:
+            tenant_name = r.get("Tenant", "")
+            tenant = tenant_map.get(tenant_name.lower())
+            tenant_id = tenant.id if tenant else None
+            
+            bill_no = r.get("Bill")
+            if not bill_no:
+                continue
+                
+            exists = conn.execute("SELECT 1 FROM receipts WHERE billno = ?", (bill_no,)).fetchone()
+            
+            if exists:
+                conn.execute("""
+                    UPDATE receipts SET
+                        date = ?, month = ?, tenant_id = ?, tenant = ?, previous = ?, current = ?, units = ?, rent = ?,
+                        additional = ?, water = ?, tankwater = ?, electricity = ?, total = ?, pdf = ?,
+                        tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?, status = ?,
+                        archiveddate = ?, archivedby = ?, deleteddate = ?, additionalpersons = ?,
+                        additionalpersonrate = ?, receiptversion = ?, generatedby = ?, paymentstatus = ?,
+                        maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
+                    WHERE billno = ?
+                """, (
+                    r.get("Date", ""), r.get("Month", ""), tenant_id, tenant_name, r.get("Previous", 0), r.get("Current", 0),
+                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("Tank_Water", 0),
+                    r.get("Electricity", 0), r.get("Total", 0), r.get("PDF", ""), r.get("Tenant_Phone", ""),
+                    r.get("Tenant_Company", ""), r.get("Tenant_Address", ""), r.get("Rate", 0), r.get("Status", "ACTIVE"),
+                    r.get("Archived_Date", ""), r.get("Archived_By", ""), r.get("Deleted_Date", ""), r.get("Additional_Persons", 0),
+                    r.get("Additional_Person_Rate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
+                    r.get("Payment_Status", "PENDING"), r.get("Maintenance_Charge", 0), r.get("Maintenance_Desc", ""),
+                    r.get("Previous_Arrears", 0), r.get("Amount_Received", 0), bill_no
+                ))
+            else:
+                conn.execute("""
+                    INSERT INTO receipts (
+                        billno, date, month, tenant_id, tenant, previous, current, units, rent,
+                        additional, water, tankwater, electricity, total, pdf,
+                        tenantphone, tenantcompany, tenantaddress, rate, status,
+                        archiveddate, archivedby, deleteddate, additionalpersons,
+                        additionalpersonrate, receiptversion, generatedby, paymentstatus,
+                        maintenancecharge, maintenancedesc, previousarrears, amountreceived
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    bill_no, r.get("Date", ""), r.get("Month", ""), tenant_id, tenant_name, r.get("Previous", 0), r.get("Current", 0),
+                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("Tank_Water", 0),
+                    r.get("Electricity", 0), r.get("Total", 0), r.get("PDF", ""), r.get("Tenant_Phone", ""),
+                    r.get("Tenant_Company", ""), r.get("Tenant_Address", ""), r.get("Rate", 0), r.get("Status", "ACTIVE"),
+                    r.get("Archived_Date", ""), r.get("Archived_By", ""), r.get("Deleted_Date", ""), r.get("Additional_Persons", 0),
+                    r.get("Additional_Person_Rate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
+                    r.get("Payment_Status", "PENDING"), r.get("Maintenance_Charge", 0), r.get("Maintenance_Desc", ""),
+                    r.get("Previous_Arrears", 0), r.get("Amount_Received", 0)
+                ))
+        conn.commit()
 ```
 
 ```python
@@ -3678,17 +5151,19 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     c.drawRightString(width - 60, y, f"     {grand_total:,.2f}")
 
     if amt_recv != grand_total:
-        y -= 15
-        c.setFont("NotoSans", 11)
-        c.drawString(60, y, "AMOUNT RECEIVED")
-        c.drawRightString(width - 60, y, f"     {amt_recv:,.2f}")
+        # y -= 15
+        # c.setFont("NotoSans", 11)
+        # c.drawString(60, y, "AMOUNT RECEIVED")
+        # c.drawRightString(width - 60, y, f"     {amt_recv:,.2f}")
         
-        y -= 15
-        c.setFont("NotoSans-Bold", 11)
-        if balance > 0:
-            c.drawString(60, y, "BALANCE DUE")
-            c.drawRightString(width - 60, y, f"     {balance:,.2f}")
-        elif balance < 0:
+        # if balance > 0:
+        #     y -= 15
+        #     c.setFont("NotoSans-Bold", 11)
+        #     c.drawString(60, y, "BALANCE DUE")
+        #     c.drawRightString(width - 60, y, f"     {balance:,.2f}")
+        if balance < 0:
+            y -= 15
+            c.setFont("NotoSans-Bold", 11)
             c.drawString(60, y, "ADVANCE AMOUNT")
             c.drawRightString(width - 60, y, f"     {abs(balance):,.2f}")
 
@@ -3834,7 +5309,8 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
 ```python
 // File: services\signature_service.py
 import os
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 import io
 import shutil
 
@@ -3911,365 +5387,237 @@ def delete_signature():
 
 ```python
 // File: services\tenant_service.py
-import csv
 import os
-import shutil
+from typing import List, Optional
+import uuid
+
 from app.models.tenant import Tenant
-from app.core.config_service import config
-from app.core.paths import DB_DIR, BACKUPS_DIR as BACKUP_DIR
+from app.core.db import get_conn
 
-TENANTS_CSV = os.path.join(DB_DIR, "tenants.csv")
-
-HEADERS_V1 = [
-    "ID", "Tenant Name", "Company", "Phone", "Email", 
-    "Permanent Address", "Room Number", "Occupation", "Notes", "Status"
-]
-
-HEADERS_V2 = HEADERS_V1 + [
-    "Rent", "Water", "Electricity Rate", "Previous Meter", 
-    "Additional Person", "Security Deposit"
-]
-
-HEADERS_V3 = HEADERS_V2 + [
-    "Default Tank Water"
-]
-
-HEADERS_V4 = HEADERS_V3 + [
-    "Meter ID"
-]
-
-HEADERS_V5 = HEADERS_V4 + [
-    "View Token"
-]
-
-HEADERS_V6 = HEADERS_V5 + [
-    "Tenant PIN"
-]
-
-CURRENT_HEADERS = HEADERS_V6
-
-def init_csv():
-    if not os.path.exists(TENANTS_CSV):
-        with open(TENANTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(CURRENT_HEADERS)
-
-def _migrate_database():
-    if not os.path.exists(TENANTS_CSV):
-        return
-        
-    v1_needs_migration = False
-    v2_needs_migration = False
-    v3_needs_migration = False
-    v4_needs_migration = False
-    v5_needs_migration = False
-    with open(TENANTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-        reader = csv.reader(f)
-        try:
-            headers = next(reader)
-            if "Rent" not in headers:
-                v1_needs_migration = True
-            if "Default Tank Water" not in headers:
-                v2_needs_migration = True
-            if "Meter ID" not in headers:
-                v3_needs_migration = True
-            if "View Token" not in headers:
-                v4_needs_migration = True
-            if "Tenant PIN" not in headers:
-                v5_needs_migration = True
-        except StopIteration:
-            return
-
-    if v1_needs_migration or v2_needs_migration or v3_needs_migration or v4_needs_migration or v5_needs_migration:
-        print("Migrating tenants database schema...")
-        old_rows = []
-        with open(TENANTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                old_rows.append(row)
-                
-        billing_conf = config.get("billing", {})
-        
-        def safe_float(val):
-            try:
-                return float(str(val).strip() or 0.0)
-            except:
-                return 0.0
-                
-        default_rent = safe_float(billing_conf.get("rent", 0.0) or billing_conf.get("default_rent", 0.0))
-        default_water = safe_float(billing_conf.get("water", 0.0) or billing_conf.get("default_water", 0.0))
-        default_rate = safe_float(billing_conf.get("electricity_rate", 0.0) or billing_conf.get("default_rate", 0.0))
-        default_prev = safe_float(billing_conf.get("previous_meter_reading", 0.0) or 0.0)
-        default_add = safe_float(billing_conf.get("additional_person_charge", 0.0) or billing_conf.get("default_additional_person_charge", 0.0))
-        
-        backup_path = os.path.join(BACKUP_DIR, "tenants_migration.csv.bak")
-        try:
-            shutil.copy2(TENANTS_CSV, backup_path)
-        except Exception:
-            pass
-            
-        with open(TENANTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=CURRENT_HEADERS)
-            writer.writeheader()
-            for row in old_rows:
-                if v1_needs_migration:
-                    row["Rent"] = default_rent
-                    row["Water"] = default_water
-                    row["Electricity Rate"] = default_rate
-                    row["Previous Meter"] = default_prev
-                    row["Additional Person"] = default_add
-                    row["Security Deposit"] = 0.0
-                if v2_needs_migration:
-                    row["Default Tank Water"] = 0.0
-                if v3_needs_migration:
-                    row["Meter ID"] = ""
-                if v4_needs_migration:
-                    row["View Token"] = ""
-                if v5_needs_migration:
-                    row["Tenant PIN"] = "1234"
-                writer.writerow(row)
-                
-        print("Migration complete.")
-
-def load_tenants():
-    init_csv()
-    _migrate_database()
-    
+def load_tenants() -> List[Tenant]:
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM tenants ORDER BY id").fetchall()
     tenants = []
-    try:
-        with open(TENANTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                def safe_float(val):
-                    try:
-                        return float(str(val).strip() or 0.0)
-                    except:
-                        return 0.0
-                        
-                t = Tenant(
-                    id=int(row["ID"]) if row.get("ID") else None,
-                    name=row.get("Tenant Name", ""),
-                    company=row.get("Company", ""),
-                    phone=row.get("Phone", ""),
-                    email=row.get("Email", ""),
-                    address=row.get("Permanent Address", ""),
-                    room_number=row.get("Room Number", ""),
-                    occupation=row.get("Occupation", ""),
-                    notes=row.get("Notes", ""),
-                    status=row.get("Status", "Active"),
-                    rent=safe_float(row.get("Rent")),
-                    water=safe_float(row.get("Water")),
-                    electricity_rate=safe_float(row.get("Electricity Rate")),
-                    previous_meter=safe_float(row.get("Previous Meter")),
-                    additional_person_charge=safe_float(row.get("Additional Person")),
-                    security_deposit=safe_float(row.get("Security Deposit")),
-                    default_tank_water_charge=safe_float(row.get("Default Tank Water")),
-                    meter_id=row.get("Meter ID", ""),
-                    view_token=row.get("View Token", ""),
-                    tenant_pin=row.get("Tenant PIN", "1234")
-                )
-                tenants.append(t)
-    except Exception as e:
-        print(f"Error loading tenants: {e}")
+    for row in rows:
+        t = Tenant(
+            id=int(row["id"]),
+            name=row["name"],
+            company=row["company"],
+            phone=row["phone"],
+            email=row["email"],
+            address=row["address"],
+            room_number=row["roomnumber"],
+            occupation=row["occupation"],
+            notes=row["notes"],
+            status=row["status"],
+            rent=float(row["rent"]),
+            water=float(row["water"]),
+            default_tank_water_charge=float(row["defaulttankwatercharge"]),
+            electricity_rate=float(row["electricityrate"]),
+            previous_meter=float(row["previousmeter"]),
+            additional_person_charge=float(row["additionalpersoncharge"]),
+            security_deposit=float(row["securitydeposit"]),
+            meter_id=row["meterid"],
+            view_token=row["viewtoken"],
+            tenant_pin=row["tenantpin"]
+        )
+        tenants.append(t)
     return tenants
 
-def save_all_tenants(tenants_list):
-    init_csv()
-    if os.path.exists(TENANTS_CSV):
-        backup_path = os.path.join(BACKUP_DIR, "tenants.csv.bak")
-        try:
-            shutil.copy2(TENANTS_CSV, backup_path)
-        except Exception:
-            pass
-            
-    try:
-        with open(TENANTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=CURRENT_HEADERS)
-            writer.writeheader()
-            for t in tenants_list:
-                row = {
-                    "ID": t.id,
-                    "Tenant Name": t.name,
-                    "Company": t.company,
-                    "Phone": t.phone,
-                    "Email": t.email,
-                    "Permanent Address": t.address,
-                    "Room Number": t.room_number,
-                    "Occupation": t.occupation,
-                    "Notes": t.notes,
-                    "Status": t.status,
-                    "Rent": t.rent,
-                    "Water": t.water,
-                    "Electricity Rate": t.electricity_rate,
-                    "Previous Meter": t.previous_meter,
-                    "Additional Person": t.additional_person_charge,
-                    "Security Deposit": t.security_deposit,
-                    "Default Tank Water": t.default_tank_water_charge,
-                    "Meter ID": t.meter_id,
-                    "View Token": getattr(t, "view_token", ""),
-                    "Tenant PIN": getattr(t, "tenant_pin", "1234")
-                }
-                writer.writerow(row)
-    except Exception as e:
-        print(f"Error saving tenants: {e}")
+def get_tenant_by_name(name: str) -> Optional[Tenant]:
+    if not name:
+        return None
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM tenants WHERE name COLLATE NOCASE = ?", (name,)).fetchone()
+    if not row:
+        return None
+    return Tenant(
+        id=int(row["id"]),
+        name=row["name"],
+        company=row["company"],
+        phone=row["phone"],
+        email=row["email"],
+        address=row["address"],
+        room_number=row["roomnumber"],
+        occupation=row["occupation"],
+        notes=row["notes"],
+        status=row["status"],
+        rent=float(row["rent"]),
+        water=float(row["water"]),
+        default_tank_water_charge=float(row["defaulttankwatercharge"]),
+        electricity_rate=float(row["electricityrate"]),
+        previous_meter=float(row["previousmeter"]),
+        additional_person_charge=float(row["additionalpersoncharge"]),
+        security_deposit=float(row["securitydeposit"]),
+        meter_id=row["meterid"],
+        view_token=row["viewtoken"],
+        tenant_pin=row["tenantpin"]
+    )
+
+def save_all_tenants(tenants_list: List[Tenant]):
+    for t in tenants_list:
+        update_tenant(t)
 
 def add_tenant(t: Tenant):
-    tenants = load_tenants()
-    next_id = 1
-    if tenants:
-        next_id = max(x.id for x in tenants if x.id is not None) + 1
-    t.id = next_id
+    # Retrieve tenantpin and viewtoken from dict logic if present, else defaults
+    # Since Pydantic model might not have them natively in current snapshot, we default if missing
+    t_dict = t.dict()
+    viewtoken = t_dict.get("view_token") or ""
+    tenantpin = t_dict.get("tenant_pin") or ""
     
-    # --- NEW: Auto-generate Meter ID if left blank ---
-    if not t.meter_id:
-        t.meter_id = f"MTR - F - {str(next_id).zfill(2)}"
-        
-    tenants.append(t)
-    save_all_tenants(tenants)
-    return t
+    with get_conn() as conn:
+        conn.execute('''
+            INSERT INTO tenants (
+                id, name, company, phone, email, address, roomnumber, occupation,
+                notes, status, rent, water, electricityrate, previousmeter,
+                additionalpersoncharge, securitydeposit, defaulttankwatercharge,
+                meterid, viewtoken, tenantpin
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            t.id, t.name, t.company, t.phone, t.email, t.address, t.room_number,
+            t.occupation, t.notes, t.status, t.rent, t.water, t.electricity_rate,
+            t.previous_meter, t.additional_person_charge, t.security_deposit,
+            t.default_tank_water_charge, t.meter_id, viewtoken, tenantpin
+        ))
+        if t.id is None:
+            t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        conn.commit()
+    return t.id
 
 def update_tenant(t: Tenant):
-    tenants = load_tenants()
-    for idx, item in enumerate(tenants):
-        if item.id == t.id:
-            tenants[idx] = t
-            break
-    save_all_tenants(tenants)
-    return t
+    t_dict = t.dict()
+    viewtoken = t_dict.get("view_token") or ""
+    tenantpin = t_dict.get("tenant_pin") or ""
+    
+    with get_conn() as conn:
+        conn.execute('''
+            UPDATE tenants SET
+                name=?, company=?, phone=?, email=?, address=?, roomnumber=?, occupation=?,
+                notes=?, status=?, rent=?, water=?, electricityrate=?, previousmeter=?,
+                additionalpersoncharge=?, securitydeposit=?, defaulttankwatercharge=?,
+                meterid=?, viewtoken=?, tenantpin=?
+            WHERE id=?
+        ''', (
+            t.name, t.company, t.phone, t.email, t.address, t.room_number,
+            t.occupation, t.notes, t.status, t.rent, t.water, t.electricity_rate,
+            t.previous_meter, t.additional_person_charge, t.security_deposit,
+            t.default_tank_water_charge, t.meter_id, viewtoken, tenantpin,
+            t.id
+        ))
+        conn.commit()
 
 def delete_tenant(tenant_id: int, action: str = "archive"):
-    tenants = load_tenants()
-    target_tenant = next((t for t in tenants if t.id == tenant_id), None)
-    if not target_tenant:
-        return
-        
-    from app.services.billing_service import get_all_receipts, archive_bill, delete_bill
-    receipts = get_all_receipts()
-    tenant_receipts = [r for r in receipts if r["Tenant"] == target_tenant.name]
-    
-    if action == "archive":
-        target_tenant.status = "Inactive"
-        update_tenant(target_tenant)
-        # Archive all associated receipts
-        for r in tenant_receipts:
-            if r.get("Status") != "ARCHIVED":
-                try:
-                    archive_bill(r["Bill"])
-                except Exception:
-                    pass
-                    
-    elif action == "delete":
-        # Force delete all associated receipts
-        for r in tenant_receipts:
-            # We must archive it first to bypass the safety check in delete_bill
-            if r.get("Status") != "ARCHIVED":
-                try:
-                    archive_bill(r["Bill"])
-                except Exception:
-                    pass
-            try:
-                delete_bill(r["Bill"])
-            except Exception:
-                pass
-        
-        # Remove tenant completely
-        tenants = [t for t in tenants if t.id != tenant_id]
-        save_all_tenants(tenants)
+    action = (action or "archive").strip().lower()
 
-# --- OCCUPANT / KYC MANAGEMENT ---
-OCCUPANTS_CSV = os.path.join(DB_DIR, "occupants.csv")
-OCC_HEADERS = [
-    "Tenant ID", "Occupant UUID", "Name", "Mobile", "Status",
-    "Aadhaar Front", "Aadhaar Back", "Aadhaar Combined", "Emp Front", "Emp Back",
-    "Upload_Date", "Upload_Month"
-]
+    with get_conn() as conn:
+        tenant_row = conn.execute(
+            "SELECT id, name FROM tenants WHERE id = ?",
+            (tenant_id,)
+        ).fetchone()
 
-def init_occupants_csv():
-    if not os.path.exists(OCCUPANTS_CSV):
-        with open(OCCUPANTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(OCC_HEADERS)
+        if not tenant_row:
+            raise ValueError("Tenant not found.")
 
-def get_occupants(tenant_id: int):
-    init_occupants_csv()
-    occupants = []
-    try:
-        with open(OCCUPANTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if str(row["Tenant ID"]) == str(tenant_id):
-                    if not row.get("Upload_Month"):
-                        row["Upload_Month"] = "Legacy Uploads"
-                    occupants.append(row)
-    except Exception as e:
-        print(f"Error loading occupants: {e}")
-    return occupants
+        tenant_name = tenant_row["name"]
+
+        if action in {"hard", "delete"}:
+            conn.execute("DELETE FROM occupants WHERE tenant_id = ?", (tenant_id,))
+            conn.execute(
+                """
+                DELETE FROM receipts
+                WHERE tenant_id = ?
+                   OR lower(trim(tenant)) = lower(trim(?))
+                """,
+                (tenant_id, tenant_name)
+            )
+            conn.execute("DELETE FROM tenants WHERE id = ?", (tenant_id,))
+            conn.commit()
+            return {"tenant_id": tenant_id, "deleted": True}
+
+        if action == "archive":
+            conn.execute(
+                "UPDATE tenants SET status = ? WHERE id = ?",
+                ("Archived", tenant_id)
+            )
+            receipt_result = conn.execute(
+                """
+                UPDATE receipts
+                SET status = ?,
+                    tenant_id = COALESCE(tenant_id, ?)
+                WHERE (tenant_id = ? OR lower(trim(tenant)) = lower(trim(?)))
+                  AND status != ?
+                """,
+                ("ARCHIVED", tenant_id, tenant_id, tenant_name, "ARCHIVED")
+            )
+            conn.commit()
+            return {
+                "tenant_id": tenant_id,
+                "archived": True,
+                "receipts_updated": receipt_result.rowcount,
+            }
+
+        if action == "inactive":
+            conn.execute(
+                "UPDATE tenants SET status = ? WHERE id = ?",
+                ("Inactive", tenant_id)
+            )
+            conn.commit()
+            return {"tenant_id": tenant_id, "inactive": True}
+
+        raise ValueError(f"Unsupported action: {action}")
+
+def get_occupants(tenant_id: int) -> List[dict]:
+    with get_conn() as conn:
+        rows = conn.execute("SELECT * FROM occupants WHERE tenant_id = ?", (tenant_id,)).fetchall()
+    return [dict(r) for r in rows]
 
 def save_occupant(tenant_id: int, occ_data: dict):
-    init_occupants_csv()
-    all_rows = []
-    updated = False
-    
-    with open(OCCUPANTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["Occupant UUID"] == occ_data["uuid"]:
-                for key in occ_data:
-                    if key in OCC_HEADERS or key in row:
-                        row[key] = occ_data[key]
-                updated = True
-            all_rows.append(row)
-            
-    if not updated:
-        new_row = {
-            "Tenant ID": tenant_id,
-            "Occupant UUID": occ_data["uuid"],
-            "Name": occ_data["Name"],
-            "Mobile": occ_data["Mobile"],
-            "Status": occ_data.get("Status", "Active"),
-            "Aadhaar Front": occ_data.get("Aadhaar Front", ""),
-            "Aadhaar Back": occ_data.get("Aadhaar Back", ""),
-            "Aadhaar Combined": occ_data.get("Aadhaar Combined", ""),
-            "Emp Front": occ_data.get("Emp Front", ""),
-            "Emp Back": occ_data.get("Emp Back", ""),
-            "Upload_Date": occ_data.get("Upload_Date", ""),
-            "Upload_Month": occ_data.get("Upload_Month", "")
-        }
-        all_rows.append(new_row)
+    uuid_val = occ_data.get("occupant_uuid") or occ_data.get("uuid")
+    if not uuid_val:
+        uuid_val = str(uuid.uuid4())
         
-    with open(OCCUPANTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=OCC_HEADERS)
-        writer.writeheader()
-        writer.writerows(all_rows)
+    with get_conn() as conn:
+        # Try updating first
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE occupants SET
+                name = ?, mobile = ?, status = ?, aadhaar_front = ?, aadhaar_back = ?,
+                aadhaar_combined = ?, emp_front = ?, emp_back = ?, uploaddate = ?, uploadmonth = ?
+            WHERE occupant_uuid = ?
+        ''', (
+            occ_data.get("name", ""),
+            occ_data.get("mobile", ""),
+            occ_data.get("status", "Active"),
+            occ_data.get("aadhaar_front", ""),
+            occ_data.get("aadhaar_back", ""),
+            occ_data.get("aadhaar_combined", ""),
+            occ_data.get("emp_front", ""),
+            occ_data.get("emp_back", ""),
+            occ_data.get("uploaddate", ""),
+            occ_data.get("uploadmonth", ""),
+            uuid_val
+        ))
+        
+        if cursor.rowcount == 0:
+            cursor.execute('''
+                INSERT INTO occupants (tenant_id, occupant_uuid, name, mobile, status, aadhaar_front, aadhaar_back, aadhaar_combined, emp_front, emp_back, uploaddate, uploadmonth)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                tenant_id, uuid_val, occ_data.get("name", ""), occ_data.get("mobile", ""), occ_data.get("status", "Active"),
+                occ_data.get("aadhaar_front", ""), occ_data.get("aadhaar_back", ""), occ_data.get("aadhaar_combined", ""),
+                occ_data.get("emp_front", ""), occ_data.get("emp_back", ""), occ_data.get("uploaddate", ""), occ_data.get("uploadmonth", "")
+            ))
+        conn.commit()
 
 def update_occupant_status(occupant_uuid: str, status: str):
-    init_occupants_csv()
-    all_rows = []
-    with open(OCCUPANTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["Occupant UUID"] == occupant_uuid:
-                row["Status"] = status
-            all_rows.append(row)
-            
-    with open(OCCUPANTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=OCC_HEADERS)
-        writer.writeheader()
-        writer.writerows(all_rows)
+    with get_conn() as conn:
+        conn.execute("UPDATE occupants SET status = ? WHERE occupant_uuid = ?", (status, occupant_uuid))
+        conn.commit()
 
 def delete_occupant(occupant_uuid: str):
-    init_occupants_csv()
-    all_rows = []
-    with open(OCCUPANTS_CSV, mode='r', newline='', encoding='utf-8') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            if row["Occupant UUID"] != occupant_uuid:
-                all_rows.append(row)
-                
-    with open(OCCUPANTS_CSV, mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=OCC_HEADERS)
-        writer.writeheader()
-        writer.writerows(all_rows)
+    with get_conn() as conn:
+        conn.execute("DELETE FROM occupants WHERE occupant_uuid = ?", (occupant_uuid,))
+        conn.commit()
 ```
 
 ```css
@@ -4516,6 +5864,130 @@ body {
     letter-spacing: 1px;
     text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
+
+/* --- Theme Settings UI --- */
+
+/* Theme Option Cards */
+.theme-option-btn {
+    display: block;
+    background: var(--bs-body-bg);
+    border: 2px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    padding: 1rem;
+    color: var(--bs-body-color);
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+.theme-option-btn:hover {
+    border-color: var(--bs-primary-border-subtle);
+    background-color: var(--bs-secondary-bg);
+}
+.theme-option-btn[aria-pressed="true"] {
+    border-color: var(--bs-primary);
+    background-color: var(--bs-primary-bg-subtle);
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.1);
+}
+
+/* Theme Icons */
+.theme-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+.theme-icon-light {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #ffc107;
+}
+.theme-icon-dark {
+    background-color: rgba(13, 110, 253, 0.15);
+    color: #0d6efd;
+}
+.theme-icon-system {
+    background-color: rgba(108, 117, 125, 0.15);
+    color: #6c757d;
+}
+
+/* Active Badge */
+.theme-active-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--bs-primary);
+    background: rgba(13, 110, 253, 0.15);
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+}
+
+/* Theme Save Status Chip */
+.theme-save-status-wrap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.theme-save-status {
+    font-size: 0.8rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 2rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+}
+.theme-save-status.idle {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-secondary-color);
+}
+.theme-save-status.saving {
+    background: rgba(13, 110, 253, 0.1);
+    color: var(--bs-primary);
+}
+.theme-save-status.saved {
+    background: rgba(25, 135, 84, 0.1);
+    color: var(--bs-success);
+}
+.theme-save-status.error {
+    background: rgba(220, 53, 69, 0.1);
+    color: var(--bs-danger);
+}
+
+/* Live Meta labels */
+.theme-live-meta {
+    padding: 1rem;
+    background: var(--bs-secondary-bg);
+    border-radius: 0.5rem;
+    border: 1px solid var(--bs-border-color);
+}
+
+/* Accent Preview Dots */
+.accent-preview-dot {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: var(--accent-preview);
+    border: 2px solid var(--bs-body-bg);
+    box-shadow: 0 0 0 1px var(--bs-border-color);
+    transition: all 0.2s;
+}
+.accent-preview-dot.active {
+    box-shadow: 0 0 0 2px var(--bs-primary);
+}
+.accent-preview-dot.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Header theme dropdown checkmark */
+.theme-menu-check {
+    color: var(--bs-primary);
+    font-weight: bold;
+}
 ```
 
 ```javascript
@@ -4635,13 +6107,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const toggle = document.getElementById("menuToggle");
     const closeBtn = document.getElementById("sidebarCloseBtn");
 
-    function closeSidebar(){
-        if(sidebar) sidebar.classList.remove("open");
-        if(overlay) overlay.classList.remove("show");
+    function closeSidebar() {
+        if (sidebar) sidebar.classList.remove("open");
+        if (overlay) overlay.classList.remove("show");
         document.body.classList.remove("sidebar-open");
     }
 
-    if(toggle) {
+    if (toggle) {
         toggle.addEventListener("click", () => {
             sidebar.classList.toggle("open");
             overlay.classList.toggle("show");
@@ -4649,8 +6121,8 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    if(overlay) overlay.addEventListener("click", closeSidebar);
-    if(closeBtn) closeBtn.addEventListener("click", closeSidebar);
+    if (overlay) overlay.addEventListener("click", closeSidebar);
+    if (closeBtn) closeBtn.addEventListener("click", closeSidebar);
 
     document.querySelectorAll(".sidebar a").forEach(link => {
         link.addEventListener("click", closeSidebar);
@@ -4663,11 +6135,11 @@ async function smoothUpdate(selectors) {
         const res = await fetch(window.location.href);
         const htmlText = await res.text();
         const doc = new DOMParser().parseFromString(htmlText, 'text/html');
-        
+
         selectors.forEach(selector => {
             const currentElements = document.querySelectorAll(selector);
             const newElements = doc.querySelectorAll(selector);
-            
+
             // Replace the HTML of the target containers
             currentElements.forEach((el, index) => {
                 if (newElements[index]) {
@@ -4675,11 +6147,11 @@ async function smoothUpdate(selectors) {
                 }
             });
         });
-        
+
         // Re-trigger visual scripts if they exist on the page
         if (typeof calculateYearStats === 'function') calculateYearStats();
         if (typeof searchTenants === 'function') searchTenants();
-    } catch(e) {
+    } catch (e) {
         console.error("Smooth update failed", e);
         window.location.reload(); // Safe fallback
     }
@@ -4704,23 +6176,141 @@ async function updateUI() {
 }
 
 // --- Instant Theme Handler ---
-async function setTheme(themeName) {
-    try {
-        const res = await fetch(window.APP.API + "/ui/theme", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ theme: themeName })
-        });
-        if (res.ok) {
-            // Apply theme instantly without reloading
-            const targetTheme = themeName === 'system' 
-                ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') 
-                : themeName;
-            document.documentElement.setAttribute('data-bs-theme', targetTheme);
+const ThemeManager = {
+    STORAGE_KEY: "rrg-theme",
+
+    getStoredTheme() {
+        return localStorage.getItem(this.STORAGE_KEY) || document.documentElement.getAttribute("data-user-theme") || "system";
+    },
+
+    getEffectiveTheme(theme) {
+        if (theme === "system") {
+            return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
         }
-    } catch (e) {
-        showError("Theme Error", "Failed to switch theme.");
+        return theme;
+    },
+
+    applyTheme(theme) {
+        const effective = this.getEffectiveTheme(theme);
+        document.documentElement.setAttribute("data-bs-theme", effective);
+        document.documentElement.setAttribute("data-user-theme", theme);
+        return effective;
+    },
+
+    syncThemeControls(theme, effectiveTheme) {
+        // Sync Settings Page UI if it exists
+        document.querySelectorAll(".theme-option-btn").forEach(btn => {
+            const opt = btn.getAttribute("data-theme-option");
+            const isActive = opt === theme;
+            btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+
+            const badge = btn.querySelector(".theme-active-badge");
+            if (badge) {
+                if (isActive) badge.classList.remove("d-none");
+                else badge.classList.add("d-none");
+            }
+        });
+
+        const selectedLabel = document.getElementById("themeSelectedLabel");
+        if (selectedLabel) {
+            selectedLabel.textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
+        }
+
+        const appliedLabel = document.getElementById("themeAppliedLabel");
+        if (appliedLabel) {
+            appliedLabel.textContent = effectiveTheme.charAt(0).toUpperCase() + effectiveTheme.slice(1);
+        }
+
+        // Sync Header Dropdown
+        document.querySelectorAll(".theme-menu .dropdown-item").forEach(btn => {
+            const opt = btn.getAttribute("data-theme-option");
+            const check = btn.querySelector(".theme-menu-check");
+            if (check) {
+                if (opt === theme) check.classList.remove("d-none");
+                else check.classList.add("d-none");
+            }
+        });
+    },
+
+    async saveTheme(theme) {
+        const statusEl = document.getElementById("themeSaveStatus");
+        if (statusEl) {
+            statusEl.className = "theme-save-status saving";
+            statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1" style="width:1rem;height:1rem;" role="status"></span> Saving...';
+        }
+
+        localStorage.setItem(this.STORAGE_KEY, theme);
+
+        try {
+            const url = (window.RouteManifest && window.RouteManifest.api && window.RouteManifest.api.themeUpdate)
+                ? window.RouteManifest.api.themeUpdate
+                : (window.APP.API + "/ui/theme");
+
+            const res = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ theme: theme })
+            });
+
+            if (res.ok) {
+                if (statusEl) {
+                    statusEl.className = "theme-save-status saved";
+                    statusEl.innerHTML = '<i class="bi bi-check-circle-fill me-1 text-success"></i> Saved';
+                    setTimeout(() => {
+                        if (statusEl.className.includes("saved")) {
+                            statusEl.className = "theme-save-status idle";
+                            statusEl.innerHTML = '<i class="bi bi-circle-fill me-1 small text-muted"></i> Ready';
+                        }
+                    }, 2000);
+                }
+            } else {
+                throw new Error("Failed to save");
+            }
+        } catch (e) {
+            if (statusEl) {
+                statusEl.className = "theme-save-status error text-danger fw-bold";
+                statusEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i> Could not save preference';
+            } else {
+                showError("Theme Error", "Failed to switch theme persistently.");
+            }
+        }
+    },
+
+    init() {
+        const current = this.getStoredTheme();
+        const effective = this.applyTheme(current);
+        // Only run sync on DOMContentLoaded to ensure elements exist
+        document.addEventListener("DOMContentLoaded", () => {
+            this.syncThemeControls(current, effective);
+        });
+
+        document.addEventListener("click", (e) => {
+            const btn = e.target.closest("[data-theme-option]");
+            if (btn) {
+                const theme = btn.getAttribute("data-theme-option");
+                const effective = this.applyTheme(theme);
+                this.syncThemeControls(theme, effective);
+                this.saveTheme(theme);
+            }
+        });
+
+        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+            const current = this.getStoredTheme();
+            if (current === "system") {
+                const effective = this.applyTheme("system");
+                this.syncThemeControls("system", effective);
+            }
+        });
     }
+};
+
+ThemeManager.init();
+
+// Provide backward compatibility just in case
+function setTheme(theme) {
+    const effective = ThemeManager.applyTheme(theme);
+    ThemeManager.syncThemeControls(theme, effective);
+    ThemeManager.saveTheme(theme);
 }
 
 // --- Smooth Payment Status Toggle with Arrears Logic ---
@@ -4730,48 +6320,35 @@ async function togglePaymentStatus(billNo, currentStatus, grandTotal, currentRec
         if (!reset.isConfirmed) return;
 
         try {
-            await fetch(`${window.APP.BASE}/api/bill/${billNo}/payment`, {
+            const res = await fetch(`${window.APP.BASE}/api/bill/${billNo}/payment`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    payment_status: "PENDING",
-                    amount_received: 0
-                })
+                body: JSON.stringify({ paymentstatus: "PENDING", amountreceived: 0 })
             });
+            const result = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                showError("Payment Update Failed", result.detail || "Could not update payment.");
+                return;
+            }
             await updateUI();
         } catch (e) {
-            showError("Network Error", "Could not reach server");
+            showError("Network Error", "Could not reach server.");
         }
         return;
     }
 
     const defaultAmount = parseFloat(currentReceived) > 0 ? parseFloat(currentReceived) : parseFloat(grandTotal);
-
     const { value: input } = await Swal.fire({
-        title: 'Amount Received',
+        title: "Amount Received",
         text: `Total Bill: ₹${parseFloat(grandTotal).toFixed(2)}`,
-        input: 'number',
+        input: "number",
         inputValue: defaultAmount.toFixed(2),
         showCancelButton: true,
-        confirmButtonText: 'Update',
-        confirmButtonColor: '#198754',
-        didOpen: () => {
-            const swalInput = Swal.getInput();
-            if (swalInput) {
-                swalInput.select();
-            }
-        },
-        inputValidator: (value) => {
-            if (!value && value !== '0') {
-                return 'Please enter an amount!';
-            }
-            if (parseFloat(value) < 0) {
-                return 'Amount cannot be negative!';
-            }
-        }
+        confirmButtonText: "Update",
+        confirmButtonColor: "#198754"
     });
 
-    if (input === undefined || input === null) return;
+    if (input === undefined || input === null || input === "") return;
 
     const amount = parseFloat(input);
     if (Number.isNaN(amount) || amount < 0) {
@@ -4783,24 +6360,17 @@ async function togglePaymentStatus(billNo, currentStatus, grandTotal, currentRec
         const res = await fetch(`${window.APP.BASE}/api/bill/${billNo}/payment`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                payment_status: "PAID",
-                amount_received: amount
-            })
+            body: JSON.stringify({ paymentstatus: "PAID", amountreceived: amount })
         });
-
-        const result = await res.json();
+        const result = await res.json().catch(() => ({}));
         if (!res.ok) {
             showError("Payment Update Failed", result.detail || "Could not update payment.");
             return;
         }
-
-        if (typeof showToast === 'function') {
-            showToast('success', `Bill #${billNo} payment updated!`);
-        }
+        showToast("success", `Bill ${billNo} payment updated!`);
         await updateUI();
     } catch (e) {
-        showError("Network Error", "Could not reach server");
+        showError("Network Error", "Could not reach server.");
     }
 }
 
@@ -4846,7 +6416,7 @@ async function secureDownload(url, filename) {
 function openGlobalPDFPreview(billNo) {
     const iframe = document.getElementById('globalPdfIframe');
     const modalEl = document.getElementById('globalPdfModal');
-    
+
     if (!iframe || !modalEl) {
         console.error("Global PDF Modal elements not found in the DOM.");
         if (typeof showError === 'function') showError("UI Error", "Cannot find PDF viewer components.");
@@ -4855,7 +6425,7 @@ function openGlobalPDFPreview(billNo) {
 
     // Point the iframe directly to your existing FastAPI PDF endpoint
     iframe.src = window.APP.API + `/pdf/${billNo}/view`;
-    
+
     // Initialize and show the Bootstrap modal
     const pdfModal = new bootstrap.Modal(modalEl);
     pdfModal.show();
@@ -4873,6 +6443,12 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- Live Global Search Engine ---
+function appUrl(path) {
+    const base = (window.APP?.BASE || "").replace(/\/+$/, "");
+    const cleanPath = String(path || "").replace(/^\/+/, "");
+    return `${base}/${cleanPath}`;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const globalSearch = document.getElementById('globalSearchBar');
     const dropdown = document.getElementById('globalSearchDropdown');
@@ -4880,10 +6456,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (globalSearch && dropdown) {
         let searchTimeout;
 
-        globalSearch.addEventListener('input', function() {
+        globalSearch.addEventListener('input', function () {
             clearTimeout(searchTimeout);
             const query = this.value.trim().toLowerCase();
-            
+
             if (query.length < 2) {
                 dropdown.style.display = 'none';
                 return;
@@ -4898,21 +6474,31 @@ document.addEventListener('DOMContentLoaded', () => {
                     ]);
                     const tenants = await tRes.json();
                     const bills = await rRes.json();
-                    
+
                     let html = '';
-                    
+
                     // Filter Tenants
                     const matchT = tenants.filter(t => t.name.toLowerCase().includes(query) || `t${t.id}`.includes(query) || (t.company && t.company.toLowerCase().includes(query)));
                     if (matchT.length > 0) {
                         html += `<li><h6 class="dropdown-header text-primary fw-bold">Tenants</h6></li>`;
                         matchT.slice(0, 3).forEach(t => {
-                            html += `<li><a class="dropdown-item" href="tenant/${t.id}">
-                                <div class="d-flex align-items-center"><i class="bi bi-person bg-primary-subtle text-primary p-1 rounded me-2"></i> 
-                                <div><div class="fw-semibold">${t.name} (T${t.id})</div>
-                                <div class="text-muted" style="font-size: 0.7rem;">${t.company || 'Individual'}</div></div></div></a></li>`;
+                            const tenantUrl = appUrl(`tenant/${t.id}`);
+                            html += `
+                                <li>
+                                    <a class="dropdown-item" href="${tenantUrl}">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-person bg-primary-subtle text-primary p-1 rounded me-2"></i>
+                                            <div>
+                                                <div class="fw-semibold">${t.name} (T-${t.id})</div>
+                                                <div class="text-muted" style="font-size: 0.7rem;">${t.company || "Individual"}</div>
+                                            </div>
+                                        </div>
+                                    </a>
+                                </li>
+                            `;
                         });
                     }
-                    
+
                     // Filter Bills
                     const matchB = bills.filter(b => b.Tenant.toLowerCase().includes(query) || b.Bill.toLowerCase().includes(query) || String(b.Total).includes(query));
                     if (matchB.length > 0) {
@@ -4925,11 +6511,11 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <span class="text-muted fs-7">${b.Tenant}</span></div></a></li>`;
                         });
                     }
-                    
+
                     if (!html) {
                         html = `<li><span class="dropdown-item text-muted py-3 text-center"><i class="bi bi-search d-block fs-4 mb-2"></i>No results found for "${query}"</span></li>`;
                     }
-                    
+
                     dropdown.innerHTML = html;
                     dropdown.style.display = 'block';
                 } catch (e) {
@@ -4950,11 +6536,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 dropdown.style.display = 'none';
+
                 const query = this.value.trim().toUpperCase();
-                if (query.startsWith('T') && !isNaN(query.substring(1))) {
-                    window.location.href = window.APP.BASE + `/tenant/${query.substring(1)}`;
+
+                if (/^T\d+$/.test(query)) {
+                    window.location.href = appUrl(`tenant/${query.substring(1)}`);
                 } else {
-                    window.location.href = window.APP.BASE + `/history?q=${query}`;
+                    window.location.href = appUrl(`history?q=${encodeURIComponent(query)}`);
                 }
             }
         });
@@ -4962,7 +6550,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Helper for live dropdown PDF preview
-window.dropdownPreview = function(billNo) {
+window.dropdownPreview = function (billNo) {
     document.getElementById('globalSearchDropdown').style.display = 'none';
     openGlobalPDFPreview(billNo);
 };
@@ -4972,9 +6560,9 @@ function showSyncOverlay(message = "Processing Data...") {
     const overlay = document.getElementById('globalSyncOverlay');
     const textEl = document.getElementById('syncOverlayText');
     if (overlay) {
-        if(textEl) textEl.innerText = message;
+        if (textEl) textEl.innerText = message;
         overlay.classList.add('active');
-        document.activeElement.blur(); 
+        document.activeElement.blur();
     }
 }
 
@@ -4985,15 +6573,17 @@ function hideSyncOverlay() {
 
 window.showLoadingOverlay = showSyncOverlay;
 window.hideLoadingOverlay = hideSyncOverlay;
+window.showLoading = window.showLoadingOverlay || function () { };
+window.hideLoading = window.hideLoadingOverlay || function () { };
 
 async function executeExport(format) {
     showSyncOverlay(`Generating ${format === 'template' ? 'Template' : format.toUpperCase() + ' Backup'}...`);
-    
+
     try {
         const endpoint = format === 'template' ? window.APP.BASE + '/api/sync/template' : window.APP.API + `/sync/export/${format}`;
         const response = await fetch(endpoint);
         if (!response.ok) throw new Error("Failed to generate export file.");
-        
+
         const disposition = response.headers.get('Content-Disposition');
         let filename = `Rent_Data_Export.${format}`;
         if (disposition && disposition.includes('filename="')) {
@@ -5002,17 +6592,17 @@ async function executeExport(format) {
 
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);
-        
+
         const a = document.createElement('a');
         a.style.display = 'none';
         a.href = blobUrl;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
-        
+
         window.URL.revokeObjectURL(blobUrl);
         a.remove();
-        
+
         setTimeout(() => {
             hideSyncOverlay();
             if (typeof showToast === 'function') showToast('success', `${format === 'template' ? 'Template' : format.toUpperCase() + ' Export'} completed successfully!`);
@@ -5068,7 +6658,7 @@ async function secureDownload(url, filename) {
 function openGlobalPDFPreview(billNo) {
     const iframe = document.getElementById('globalPdfIframe');
     const modalEl = document.getElementById('globalPdfModal');
-    
+
     if (!iframe || !modalEl) {
         console.error("Global PDF Modal elements not found in the DOM.");
         if (typeof showError === 'function') showError("UI Error", "Cannot find PDF viewer components.");
@@ -5077,7 +6667,7 @@ function openGlobalPDFPreview(billNo) {
 
     // Point the iframe directly to your existing FastAPI PDF endpoint
     iframe.src = window.APP.API + `/pdf/${billNo}/view`;
-    
+
     // Initialize and show the Bootstrap modal
     const pdfModal = new bootstrap.Modal(modalEl);
     pdfModal.show();
@@ -5094,109 +6684,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// --- Live Global Search Engine ---
-document.addEventListener('DOMContentLoaded', () => {
-    const globalSearch = document.getElementById('globalSearchBar');
-    const dropdown = document.getElementById('globalSearchDropdown');
 
-    if (globalSearch && dropdown) {
-        let searchTimeout;
-
-        globalSearch.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            const query = this.value.trim().toLowerCase();
-            
-            if (query.length < 2) {
-                dropdown.style.display = 'none';
-                return;
-            }
-
-            // Debounce the API call to prevent spamming the backend
-            searchTimeout = setTimeout(async () => {
-                try {
-                    const [tRes, rRes] = await Promise.all([
-                        fetch(window.APP.API + "/tenants"),
-                        fetch(window.APP.API + "/bills/filter?status=all")
-                    ]);
-                    const tenants = await tRes.json();
-                    const bills = await rRes.json();
-                    
-                    let html = '';
-                    
-                    // Filter Tenants
-                    const matchT = tenants.filter(t => t.name.toLowerCase().includes(query) || `t${t.id}`.includes(query) || (t.company && t.company.toLowerCase().includes(query)));
-                    if (matchT.length > 0) {
-                        html += `<li><h6 class="dropdown-header text-primary fw-bold">Tenants</h6></li>`;
-                        matchT.slice(0, 3).forEach(t => {
-                            html += `<li><a class="dropdown-item" href="tenant/${t.id}">
-                                <div class="d-flex align-items-center"><i class="bi bi-person bg-primary-subtle text-primary p-1 rounded me-2"></i> 
-                                <div><div class="fw-semibold">${t.name} (T${t.id})</div>
-                                <div class="text-muted" style="font-size: 0.7rem;">${t.company || 'Individual'}</div></div></div></a></li>`;
-                        });
-                    }
-                    
-                    // Filter Bills
-                    const matchB = bills.filter(b => b.Tenant.toLowerCase().includes(query) || b.Bill.toLowerCase().includes(query) || String(b.Total).includes(query));
-                    if (matchB.length > 0) {
-                        if (html) html += `<li><hr class="dropdown-divider"></li>`;
-                        html += `<li><h6 class="dropdown-header text-success fw-bold">Receipts</h6></li>`;
-                        matchB.slice(0, 5).forEach(b => {
-                            html += `<li><a class="dropdown-item" href="javascript:void(0)" onclick="dropdownPreview('${b.Bill}')">
-                                <div class="d-flex justify-content-between align-items-center">
-                                <div><i class="bi bi-receipt bg-success-subtle text-success p-1 rounded me-2"></i><span class="fw-semibold">#${b.Bill}</span></div>
-                                <span class="text-muted fs-7">${b.Tenant}</span></div></a></li>`;
-                        });
-                    }
-                    
-                    if (!html) {
-                        html = `<li><span class="dropdown-item text-muted py-3 text-center"><i class="bi bi-search d-block fs-4 mb-2"></i>No results found for "${query}"</span></li>`;
-                    }
-                    
-                    dropdown.innerHTML = html;
-                    dropdown.style.display = 'block';
-                } catch (e) {
-                    console.error("Live search failed", e);
-                }
-            }, 300); // 300ms debounce
-        });
-
-        // Hide dropdown on click outside
-        document.addEventListener('click', (e) => {
-            if (!globalSearch.contains(e.target) && !dropdown.contains(e.target)) {
-                dropdown.style.display = 'none';
-            }
-        });
-
-        // Keep the Enter key to redirect
-        globalSearch.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                dropdown.style.display = 'none';
-                const query = this.value.trim().toUpperCase();
-                if (query.startsWith('T') && !isNaN(query.substring(1))) {
-                    window.location.href = window.APP.BASE + `/tenant/${query.substring(1)}`;
-                } else {
-                    window.location.href = window.APP.BASE + `/history?q=${query}`;
-                }
-            }
-        });
-    }
-});
-
-// Helper for live dropdown PDF preview
-window.dropdownPreview = function(billNo) {
-    document.getElementById('globalSearchDropdown').style.display = 'none';
-    openGlobalPDFPreview(billNo);
-};
 
 // --- Global Sync Overlay Controls ---
 function showSyncOverlay(message = "Processing Data...") {
     const overlay = document.getElementById('globalSyncOverlay');
     const textEl = document.getElementById('syncOverlayText');
     if (overlay) {
-        if(textEl) textEl.innerText = message;
+        if (textEl) textEl.innerText = message;
         overlay.classList.add('active');
-        document.activeElement.blur(); 
+        document.activeElement.blur();
     }
 }
 
@@ -5210,12 +6707,12 @@ window.hideLoadingOverlay = hideSyncOverlay;
 
 async function executeExport(format) {
     showSyncOverlay(`Generating ${format === 'template' ? 'Template' : format.toUpperCase() + ' Backup'}...`);
-    
+
     try {
-        const endpoint = format === 'template' ? window.APP.BASE + '/api/sync/template' : window.APP.API + `/sync/export/${format}`;
+        const endpoint = format === 'template' ? window.APP.API + '/sync/template' : window.APP.API + `/sync/export/${format}`;
         const response = await fetch(endpoint);
         if (!response.ok) throw new Error("Failed to generate export file.");
-        
+
         const disposition = response.headers.get('Content-Disposition');
         let filename = `Rent_Data_Export.${format}`;
         if (disposition && disposition.includes('filename="')) {
@@ -5224,17 +6721,17 @@ async function executeExport(format) {
 
         const blob = await response.blob();
         const blobUrl = window.URL.createObjectURL(blob);
-        
+
         const a = document.createElement('a');
         a.style.display = 'none';
         a.href = blobUrl;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
-        
+
         window.URL.revokeObjectURL(blobUrl);
         a.remove();
-        
+
         setTimeout(() => {
             hideSyncOverlay();
             if (typeof showToast === 'function') showToast('success', `${format === 'template' ? 'Template' : format.toUpperCase() + ' Export'} completed successfully!`);
@@ -5255,17 +6752,17 @@ async function updatePaymentStatus(billNo, newStatus, amountReceived) {
         if (!amount) return; // User cancelled
         amountReceived = parseFloat(amount);
     }
-    
+
     try {
         const response = await fetch(window.APP.API + `/bills/${billNo}/status`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 payment_status: newStatus,
                 amount_received: amountReceived
             })
         });
-        
+
         if (response.ok) {
             showToast('success', `Bill #${billNo} marked as ${newStatus}!`);
             await updateUI();
@@ -5277,11 +6774,14 @@ async function updatePaymentStatus(billNo, newStatus, amountReceived) {
     }
 }
 
-// Global fix for Chrome aria-hidden focus warning on Bootstrap modals
+// Fix for Chrome aria-hidden focus warning on Edit Modal
 document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.modal').forEach(modal => {
-        modal.addEventListener('hide.bs.modal', function () {
-            if (document.activeElement) {
+    const modalsToUnfocus = ["globalEditBillModal", "globalPdfModal"];
+
+    modalsToUnfocus.forEach(modalId => {
+        const modalEl = document.getElementById(modalId);
+        modalEl?.addEventListener("hide.bs.modal", function () {
+            if (document.activeElement && modalEl.contains(document.activeElement)) {
                 document.activeElement.blur();
             }
         });
@@ -5357,6 +6857,81 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 ```
 
 ```html
+// File: templates\admin_login.html
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - Rent Receipt System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        body {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #121212;
+        }
+
+        .login-card {
+            max-width: 400px;
+            width: 100%;
+            padding: 2rem;
+            border-radius: 12px;
+            background: #1e1e1e;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="login-card border border-secondary">
+        <div class="text-center mb-4">
+            <i class="bi bi-shield-lock text-primary" style="font-size: 3rem;"></i>
+            <h3 class="mt-2 text-light">System Admin</h3>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-danger py-2 text-center" role="alert">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ request.url_for('adminloginpost') }}">
+            <div class="mb-3">
+                <label class="form-label text-secondary">Username</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary"><i
+                            class="bi bi-person text-secondary"></i></span>
+                    <input type="text" name="username" class="form-control bg-dark text-light border-secondary" required
+                        autofocus>
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="form-label text-secondary">Password</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-secondary"><i
+                            class="bi bi-key text-secondary"></i></span>
+                    <input type="password" name="password" class="form-control bg-dark text-light border-secondary"
+                        required>
+                </div>
+            </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" name="remember_me" id="rememberMe" value="true">
+                <label class="form-check-label text-secondary" for="rememberMe">Keep me logged in</label>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 fw-bold">Login to Dashboard</button>
+        </form>
+    </div>
+
+</body>
+
+</html>
+```
+
+```html
 // File: templates\archive.html
 {% extends "base.html" %}
 
@@ -5365,11 +6940,13 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
     <h1 class="h2 mb-0 fw-bold">Archived Receipts</h1>
-    
+
     <!-- Global Search for Archive -->
     <div class="input-group ms-auto mt-3 mt-md-0 shadow-sm" style="max-width: 400px;">
-        <span class="input-group-text bg-white border-end-0 rounded-start-pill"><i class="bi bi-search text-muted"></i></span>
-        <input type="text" class="form-control border-start-0 rounded-end-pill" id="globalSearch" placeholder="Search Tenant, Company, Amount...">
+        <span class="input-group-text bg-white border-end-0 rounded-start-pill"><i
+                class="bi bi-search text-muted"></i></span>
+        <input type="text" class="form-control border-start-0 rounded-end-pill" id="globalSearch"
+            placeholder="Search Tenant, Company, Amount...">
     </div>
 </div>
 
@@ -5380,7 +6957,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="card-title mb-0 fw-bold opacity-75">Archived Receipts</h6>
-                    <div class="bg-white bg-opacity-25 rounded p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <div class="bg-white bg-opacity-25 rounded p-2 d-flex align-items-center justify-content-center"
+                        style="width: 40px; height: 40px;">
                         <i class="bi bi-archive fs-5"></i>
                     </div>
                 </div>
@@ -5388,20 +6966,21 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-4">
         <div class="card shadow-sm h-100 border-0 card-hover">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="card-title mb-0 fw-bold text-muted">Archived Years</h6>
-                    <div class="bg-primary-subtle text-primary rounded p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <div class="bg-primary-subtle text-primary rounded p-2 d-flex align-items-center justify-content-center"
+                        style="width: 40px; height: 40px;">
                         <i class="bi bi-calendar3 fs-5"></i>
                     </div>
                 </div>
                 {% set unique_years = [] %}
                 {% for r in receipts %}
-                    {% set y = (r.Month.split(' ')[1]) if (r.Month.split(' ')|length > 1) else 'Unknown' %}
-                    {% if y not in unique_years %}{% set _ = unique_years.append(y) %}{% endif %}
+                {% set y = (r.Month.split(' ')[1]) if (r.Month.split(' ')|length > 1) else 'Unknown' %}
+                {% if y not in unique_years %}{% set _ = unique_years.append(y) %}{% endif %}
                 {% endfor %}
                 <h2 class="display-6 fw-bold mb-0 text-dark">{{ unique_years|length }}</h2>
             </div>
@@ -5413,13 +6992,14 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h6 class="card-title mb-0 fw-bold text-muted">Total Archived Revenue</h6>
-                    <div class="bg-success-subtle text-success rounded p-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                    <div class="bg-success-subtle text-success rounded p-2 d-flex align-items-center justify-content-center"
+                        style="width: 40px; height: 40px;">
                         <i class="bi bi-currency-rupee fs-5"></i>
                     </div>
                 </div>
                 {% set total_revenue = 0 %}
                 {% for r in receipts %}
-                    {% set total_revenue = total_revenue + r.Total|float %}
+                {% set total_revenue = total_revenue + r.Total|float %}
                 {% endfor %}
                 <h2 class="display-6 fw-bold mb-0 text-dark">₹{{ "{:,.2f}".format(total_revenue) }}</h2>
             </div>
@@ -5430,149 +7010,172 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 <div class="accordion" id="archiveAccordion">
     {% set current_year = '' %}
     {% set current_month = '' %}
-    
+
     {% for r in receipts %}
-        {% set parts = r.Month.split(' ') %}
-        {% set m = parts[0] %}
-        {% set y = parts[1] if parts|length > 1 else 'Unknown' %}
-        
-        {% if y != current_year %}
-            {% if current_year != '' %}
-                    </div> <!-- End Accordion Body -->
-                </div> <!-- End Collapse -->
-            </div> <!-- End Accordion Item -->
-            {% endif %}
-            
-            <div class="accordion-item mb-4 shadow-sm border-0 year-group" data-year="{{ y }}">
-                <h2 class="accordion-header" id="heading-{{ y }}">
-                    <button class="accordion-button bg-body-tertiary fw-bold fs-5" type="button" data-bs-toggle="collapse" data-bs-target="#collapse-{{ y }}" aria-expanded="true" aria-controls="collapse-{{ y }}">
-                        <i class="bi bi-calendar3 me-3 text-primary"></i> {{ y }}
-                        
-                        <!-- Year Summary Stats injected via JS -->
-                        <div class="ms-auto me-3 d-none d-md-flex gap-4 text-muted fs-7 fw-normal">
-                            <span><i class="bi bi-archive"></i> <span class="year-bills-count">0</span> Archived</span>
-                        </div>
-                    </button>
-                </h2>
-                <div id="collapse-{{ y }}" class="accordion-collapse collapse show" aria-labelledby="heading-{{ y }}">
-                    <div class="accordion-body p-0">
+    {% set parts = r.Month.split(' ') %}
+    {% set m = parts[0] %}
+    {% set y = parts[1] if parts|length > 1 else 'Unknown' %}
+
+    {% if y != current_year %}
+    {% if current_year != '' %}
+</div> <!-- End Accordion Body -->
+</div> <!-- End Collapse -->
+</div> <!-- End Accordion Item -->
+{% endif %}
+
+<div class="accordion-item mb-4 shadow-sm border-0 year-group" data-year="{{ y }}">
+    <h2 class="accordion-header" id="heading-{{ y }}">
+        <button class="accordion-button bg-body-tertiary fw-bold fs-5" type="button" data-bs-toggle="collapse"
+            data-bs-target="#collapse-{{ y }}" aria-expanded="true" aria-controls="collapse-{{ y }}">
+            <i class="bi bi-calendar3 me-3 text-primary"></i> {{ y }}
+
+            <!-- Year Summary Stats injected via JS -->
+            <div class="ms-auto me-3 d-none d-md-flex gap-4 text-muted fs-7 fw-normal">
+                <span><i class="bi bi-archive"></i> <span class="year-bills-count">0</span> Archived</span>
+            </div>
+        </button>
+    </h2>
+    <div id="collapse-{{ y }}" class="accordion-collapse collapse show" aria-labelledby="heading-{{ y }}">
+        <div class="accordion-body p-0">
             {% set current_year = y %}
             {% set current_month = '' %}
-        {% endif %}
-        
-        {% if m != current_month %}
+            {% endif %}
+
+            {% if m != current_month %}
             <div class="bg-light p-2 px-4 border-bottom fw-bold text-secondary month-header">
                 <i class="bi bi-chevron-down me-2 fs-7"></i> {{ m }}
             </div>
             {% set current_month = m %}
-        {% endif %}
-        
-        <!-- Receipt Row -->
-        <div class="p-3 px-4 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center receipt-row transition-hover" 
-             data-tenant="{{ r.Tenant|lower }}" data-company="{{ r.Tenant_Company|lower }}" data-month="{{ m|lower }}" data-year="{{ y }}" data-bill="{{ r.Bill }}" data-total="{{ r.Total }}">
-            {% set curr_total = r.Total|default(0,true)|float %}
-            {% set prev_arr = r.Previous_Arrears|default(0,true)|float %}
-            {% set grand_total = curr_total + prev_arr %}
-            {% set amt_recv = r.Amount_Received|default(0, true)|float %}
-            {% set balance = grand_total - amt_recv %}
-            {% set advance_amount = 0 - balance if balance < 0 else 0 %}
-            
-            <div class="d-flex align-items-center mb-3 mb-md-0">
-                <div class="bg-secondary-subtle text-secondary rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 48px; height: 48px;">
-                    <i class="bi bi-archive fs-5"></i>
-                </div>
-                <div>
-                    <h6 class="fw-bold mb-1">{{ r.Tenant }}</h6>
-                    <div class="text-muted fs-7">
-                        <span class="badge bg-secondary-subtle text-secondary me-2">#{{ r.Bill }}</span>
-                        {% if r.Archived_Date %}
-                        <i class="bi bi-clock-history me-1"></i> Archived on {{ r.Archived_Date }}
-                        {% else %}
-                        <i class="bi bi-calendar-event me-1"></i> {{ r.Date }}
-                        {% endif %}
+            {% endif %}
+
+            <!-- Receipt Row -->
+            <div class="p-3 px-4 border-bottom d-flex flex-column flex-md-row justify-content-between align-items-md-center receipt-row transition-hover"
+                data-tenant="{{ r.Tenant|lower }}" data-company="{{ r.Tenant_Company|lower }}"
+                data-month="{{ m|lower }}" data-year="{{ y }}" data-bill="{{ r.Bill }}" data-total="{{ r.Total }}">
+                {% set curr_total = r.Total|default(0,true)|float %}
+                {% set prev_arr = r.Previous_Arrears|default(0,true)|float %}
+                {% set grand_total = curr_total + prev_arr %}
+                {% set amt_recv = r.Amount_Received|default(0, true)|float %}
+                {% set balance = grand_total - amt_recv %}
+                {% set advance_amount = 0 - balance if balance < 0 else 0 %} <div
+                    class="d-flex align-items-center mb-3 mb-md-0">
+                    <div class="bg-secondary-subtle text-secondary rounded-circle d-flex align-items-center justify-content-center me-3"
+                        style="width: 48px; height: 48px;">
+                        <i class="bi bi-archive fs-5"></i>
                     </div>
-                </div>
+                    <div>
+                        <h6 class="fw-bold mb-1">{{ r.Tenant }}</h6>
+                        <div class="text-muted fs-7">
+                            <span class="badge bg-secondary-subtle text-secondary me-2">#{{ r.Bill }}</span>
+                            {% if r.Archived_Date %}
+                            <i class="bi bi-clock-history me-1"></i> Archived on {{ r.Archived_Date }}
+                            {% else %}
+                            <i class="bi bi-calendar-event me-1"></i> {{ r.Date }}
+                            {% endif %}
+                        </div>
+                    </div>
             </div>
-            
+
             <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 gap-md-5">
-                <div class="d-flex flex-row flex-md-column align-items-center align-items-md-end justify-content-between gap-2">
+                <div
+                    class="d-flex flex-row flex-md-column align-items-center align-items-md-end justify-content-between gap-2">
                     <div class="text-md-end">
                         <div class="fs-7 text-muted mb-1">Total Payable</div>
                         <div class="fw-bold text-dark fs-5">₹{{ "{:,.2f}".format(grand_total) }}</div>
                         <div class="text-success fs-7">Paid: ₹{{ "{:,.2f}".format(amt_recv) }}</div>
                         {% if balance > 0 %}
                         <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}</div>
-                        {% elif balance < 0 %}
-                        <div class="text-info fw-semibold fs-7">Advance: ₹{{ "{:,.2f}".format(advance_amount) }}</div>
-                        {% endif %}
+                        {% elif balance < 0 %} <div class="text-info fw-semibold fs-7">Advance: ₹{{
+                            "{:,.2f}".format(advance_amount) }}
                     </div>
-                        <div>
-                            {% if r.Payment_Status == "PAID" %}
-                                <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
-                            {% elif r.Payment_Status == "PARTIAL" %}
-                                <span class="badge bg-warning text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
-                            {% elif r.Payment_Status == "ADVANCE" %}
-                                <span class="badge bg-info text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
-                            {% else %}
-                                <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
-                            {% endif %}
-                        </div>
-                </div>
-                
-                <div class="btn-group shadow-sm rounded-pill mt-3 mt-md-0">
-                    {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
-                    <button class="btn btn-sm btn-light border" onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')" title="Mark Pending">
-                        <i class="bi bi-arrow-counterclockwise text-secondary"></i>
-                    </button>
-                    {% else %}
-                    <button class="btn btn-sm btn-light border" onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')" title="Mark Paid">
-                        <i class="bi bi-check2 text-success"></i>
-                    </button>
                     {% endif %}
-                    <button class="btn btn-sm btn-light border text-success" onclick="sendWhatsApp('{{ r.Bill }}')" title="Send via WhatsApp">
-                        <i class="bi bi-whatsapp"></i>
-                    </button>
-                    <button class="btn btn-sm btn-light border" onclick="openGlobalPDFPreview('{{ r.Bill }}')" title="View PDF">
-                        <i class="bi bi-eye"></i>
-                    <span class="d-none d-lg-inline ms-1">View</span></button>
-                    <button class="btn btn-sm btn-light border" onclick="restoreBill('{{ r.Bill }}')" title="Restore">
-                        <i class="bi bi-arrow-counterclockwise text-primary"></i> <span class="d-none d-lg-inline ms-1">Restore</span>
-                    </button>
-                    <a href="javascript:void(0)" onclick="secureDownload('api/pdf/{{ r.Bill }}/download', 'Receipt_{{ r.Bill }}.pdf')" class="btn btn-sm btn-light border" title="Download PDF">
-                        <i class="bi bi-download text-success"></i> <span class="d-none d-lg-inline ms-1">DL</span>
-                    </a>
-                    <button class="btn btn-sm btn-light border" onclick="permanentlyDeleteBill('{{ r.Bill }}')" title="Delete Permanently">
-                        <i class="bi bi-trash text-danger"></i> <span class="d-none d-lg-inline ms-1">Delete</span>
-                    </button>
+                </div>
+                <div>
+                    {% if r.Payment_Status == "PAID" %}
+                    <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i>
+                        Paid</span>
+                    {% elif r.Payment_Status == "PARTIAL" %}
+                    <span class="badge bg-warning text-dark rounded-pill px-3"><i
+                            class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
+                    {% elif r.Payment_Status == "ADVANCE" %}
+                    <span class="badge bg-info text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i>
+                        Advance</span>
+                    {% else %}
+                    <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i>
+                        Pending</span>
+                    {% endif %}
                 </div>
             </div>
+
+            <div class="btn-group shadow-sm rounded-pill mt-3 mt-md-0">
+                {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
+                <button class="btn btn-sm btn-light border"
+                    onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')"
+                    title="Mark Pending">
+                    <i class="bi bi-arrow-counterclockwise text-secondary"></i>
+                </button>
+                {% else %}
+                <button class="btn btn-sm btn-light border"
+                    onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')"
+                    title="Mark Paid">
+                    <i class="bi bi-check2 text-success"></i>
+                </button>
+                {% endif %}
+                <button class="btn btn-sm btn-light border text-success" onclick="sendWhatsApp('{{ r.Bill }}')"
+                    title="Send via WhatsApp">
+                    <i class="bi bi-whatsapp"></i>
+                </button>
+                <button class="btn btn-sm btn-light border" onclick="openGlobalPDFPreview('{{ r.Bill }}')"
+                    title="View PDF">
+                    <i class="bi bi-eye"></i>
+                    <span class="d-none d-lg-inline ms-1">View</span></button>
+                <button class="btn btn-sm btn-light border" onclick="restoreBill('{{ r.Bill }}')" title="Restore">
+                    <i class="bi bi-arrow-counterclockwise text-primary"></i> <span
+                        class="d-none d-lg-inline ms-1">Restore</span>
+                </button>
+                <a href="javascript:void(0)"
+                    onclick="secureDownload('api/pdf/{{ r.Bill }}/download', 'Receipt_{{ r.Bill }}.pdf')"
+                    class="btn btn-sm btn-light border" title="Download PDF">
+                    <i class="bi bi-download text-success"></i> <span class="d-none d-lg-inline ms-1">DL</span>
+                </a>
+                <button class="btn btn-sm btn-light border" onclick="permanentlyDeleteBill('{{ r.Bill }}')"
+                    title="Delete Permanently">
+                    <i class="bi bi-trash text-danger"></i> <span class="d-none d-lg-inline ms-1">Delete</span>
+                </button>
+            </div>
         </div>
-        
-    {% endfor %}
-    
-    {% if current_year != '' %}
-            </div> <!-- End Accordion Body -->
-        </div> <!-- End Collapse -->
-    </div> <!-- End Accordion Item -->
-    {% else %}
-    <div class="text-center py-5 text-muted">
-        <i class="bi bi-box-seam fs-1 d-block mb-3 opacity-50"></i>
-        <h5>No Archived Receipts</h5>
-        <p class="fs-7">Receipts you archive will appear here.</p>
     </div>
-    {% endif %}
+
+    {% endfor %}
+
+    {% if current_year != '' %}
+</div> <!-- End Accordion Body -->
+</div> <!-- End Collapse -->
+</div> <!-- End Accordion Item -->
+{% else %}
+<div class="text-center py-5 text-muted">
+    <i class="bi bi-box-seam fs-1 d-block mb-3 opacity-50"></i>
+    <h5>No Archived Receipts</h5>
+    <p class="fs-7">Receipts you archive will appear here.</p>
+</div>
+{% endif %}
 </div>
 
 {% endblock %}
 
 {% block scripts %}
 <style>
-    .transition-hover { transition: background-color 0.2s ease; }
-    .transition-hover:hover { background-color: var(--bs-secondary-bg); }
+    .transition-hover {
+        transition: background-color 0.2s ease;
+    }
+
+    .transition-hover:hover {
+        background-color: var(--bs-secondary-bg);
+    }
 </style>
 <script src="{{ STATIC_URL(request, '/js/search.js') }}"></script>
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
+    document.addEventListener("DOMContentLoaded", function () {
         calculateYearStats();
         initializeSharedSearch('globalSearch', '.year-group', '.receipt-row');
     });
@@ -5583,7 +7186,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             const rows = group.querySelectorAll('.receipt-row');
             let count = rows.length;
             const countEl = group.querySelector('.year-bills-count');
-            if(countEl) countEl.innerText = count;
+            if (countEl) countEl.innerText = count;
         });
     }
 
@@ -5591,14 +7194,14 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
     function restoreBill(billNo) {
         confirmAction(
-            "Restore Receipt?", 
+            "Restore Receipt?",
             `Receipt #${billNo} will be restored to active bills.`,
             "Restore",
             "#0d6efd"
         ).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const res = await fetch(`api/bill/${billNo}/restore`, { method: "POST" });
+                    const res = await fetch(`${window.APP.API}/bill/${billNo}/restore`, { method: "POST" });
                     if (res.ok) {
                         showSuccess("Restored!", "The receipt has been restored.").then(async () => {
                             await updateUI(); // Smooth refresh
@@ -5606,7 +7209,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     } else {
                         showError("Failed", "Could not restore the receipt.");
                     }
-                } catch(e) {
+                } catch (e) {
                     showError("Network Error", "An error occurred.");
                 }
             }
@@ -5615,14 +7218,14 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
     function permanentlyDeleteBill(billNo) {
         confirmAction(
-            "Delete Permanently?", 
+            "Delete Permanently?",
             `This action cannot be undone. Receipt #${billNo} will be permanently removed.`,
             "Delete",
             "#dc3545"
         ).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const res = await fetch(`api/archive/${billNo}`, { method: "DELETE" });
+                    const res = await fetch(`${window.APP.API}/archive/${billNo}`, { method: "DELETE" });
                     if (res.ok) {
                         showSuccess("Deleted!", "The receipt has been permanently deleted.").then(async () => {
                             await updateUI(); // Smooth refresh
@@ -5630,7 +7233,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     } else {
                         showError("Failed", "Could not delete the receipt.");
                     }
-                } catch(e) {
+                } catch (e) {
                     showError("Network Error", "An error occurred.");
                 }
             }
@@ -5692,18 +7295,21 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         <div class="modal-content border-0 shadow-lg rounded-4">
             <div class="modal-header border-bottom-0 bg-primary bg-gradient text-white rounded-top-4">
                 <h5 class="modal-title fw-bold"><i class="bi bi-arrow-counterclockwise me-2"></i>Restore System</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
             <div class="modal-body p-4">
-                
+
                 <!-- Wizard Steps -->
                 <div id="wizard-step-1" class="text-center py-4">
                     <i class="bi bi-shield-exclamation text-warning" style="font-size: 4rem;"></i>
                     <h4 class="fw-bold mt-3">Confirm Restore</h4>
-                    <p class="text-muted">You are about to restore the system to:<br><strong id="restore-target-name" class="text-dark"></strong></p>
-                    
+                    <p class="text-muted">You are about to restore the system to:<br><strong id="restore-target-name"
+                            class="text-dark"></strong></p>
+
                     <div class="alert alert-info text-start fs-7">
-                        <i class="bi bi-info-circle me-2"></i>A temporary restore point will be created automatically before the rollback.
+                        <i class="bi bi-info-circle me-2"></i>A temporary restore point will be created automatically
+                        before the rollback.
                     </div>
                 </div>
 
@@ -5714,14 +7320,15 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     <h5 class="fw-bold mt-3">Validating Backup...</h5>
                     <p class="text-muted fs-7">Checking checksums and archive integrity.</p>
                 </div>
-                
+
                 <div id="wizard-step-3" class="d-none">
                     <h5 class="fw-bold mb-3 text-center">Compatibility Check</h5>
                     <div class="card bg-body-tertiary border-0 mb-3">
                         <div class="card-body">
                             <div class="d-flex justify-content-between mb-2">
                                 <span class="text-muted">Schema Compatibility:</span>
-                                <span class="fw-bold text-success" id="compat-schema"><i class="bi bi-check-circle-fill me-1"></i>YES</span>
+                                <span class="fw-bold text-success" id="compat-schema"><i
+                                        class="bi bi-check-circle-fill me-1"></i>YES</span>
                             </div>
                             <div class="d-flex justify-content-between mb-2">
                                 <span class="text-muted">Receipts:</span>
@@ -5734,22 +7341,26 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         </div>
                     </div>
                     <div class="alert alert-warning fs-7 mb-0">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Warning:</strong> Restoring will completely overwrite the current database and configuration.
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Warning:</strong> Restoring will
+                        completely overwrite the current database and configuration.
                     </div>
                 </div>
-                
+
                 <div id="wizard-step-4" class="d-none text-center py-5">
                     <div class="spinner-border text-success" role="status" style="width: 3rem; height: 3rem;">
                         <span class="visually-hidden">Loading...</span>
                     </div>
                     <h5 class="fw-bold mt-3">Restoring System...</h5>
-                    <p class="text-muted fs-7" id="restore-progress-text">Extracting files and safely replacing database.</p>
+                    <p class="text-muted fs-7" id="restore-progress-text">Extracting files and safely replacing
+                        database.</p>
                 </div>
 
             </div>
             <div class="modal-footer border-top-0 pt-0 pb-4 px-4 justify-content-center gap-2">
-                <button type="button" class="btn btn-light border rounded-pill px-4" data-bs-dismiss="modal" id="btn-cancel">Cancel</button>
-                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm" id="btn-next">Continue</button>
+                <button type="button" class="btn btn-light border rounded-pill px-4" data-bs-dismiss="modal"
+                    id="btn-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold shadow-sm"
+                    id="btn-next">Continue</button>
             </div>
         </div>
     </div>
@@ -5762,9 +7373,9 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     let currentFilter = 'all';
     let targetBackup = null;
 
-    document.addEventListener("DOMContentLoaded", function() {
+    document.addEventListener("DOMContentLoaded", function () {
         loadBackups();
-        
+
         // Filter logic
         document.querySelectorAll('#backup-filters .nav-link').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -5774,7 +7385,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 renderBackups();
             });
         });
-        
+
         // Wizard logic
         document.getElementById('btn-next').addEventListener('click', handleWizardNext);
     });
@@ -5787,7 +7398,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 allBackups = data.backups || [];
                 renderBackups();
             }
-        } catch(e) {
+        } catch (e) {
             showToast('error', 'Failed to load backups.');
         }
     }
@@ -5795,27 +7406,27 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     function renderBackups() {
         const container = document.getElementById('backup-container');
         container.innerHTML = '';
-        
+
         let filtered = allBackups;
         if (currentFilter !== 'all') {
             filtered = allBackups.filter(b => b.type === currentFilter);
         }
-        
+
         if (filtered.length === 0) {
             container.innerHTML = `<div class="col-12 text-center py-5"><h5 class="text-muted">No backups found in this category.</h5></div>`;
             return;
         }
-        
+
         filtered.forEach(b => {
             let badgeClass = "bg-primary";
             let icon = "bi-archive";
-            
+
             if (b.type === "Automatic") { badgeClass = "bg-info"; icon = "bi-clock-history"; }
             if (b.type === "Restore Point") { badgeClass = "bg-warning text-dark"; icon = "bi-pin-angle"; }
             if (b.type === "Emergency") { badgeClass = "bg-danger"; icon = "bi-exclamation-triangle"; }
-            
+
             const dateStr = new Date(b.date).toLocaleString();
-            
+
             const card = `
                 <div class="col-md-6 col-lg-4">
                     <div class="card h-100 shadow-sm border-0 rounded-4 backup-card">
@@ -5878,24 +7489,24 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             } else {
                 showError('Error', 'Failed to create backup.');
             }
-        } catch(e) {
+        } catch (e) {
             hideLoadingOverlay();
             showError('Network Error', 'Failed to communicate with server.');
         }
     }
-    
+
     async function deleteBackup(id) {
         confirmAction("Delete Backup?", "This action cannot be undone.", "Delete", "#dc3545").then(async (result) => {
-            if(result.isConfirmed) {
+            if (result.isConfirmed) {
                 try {
-                    const res = await fetch(`api/backups/${id}`, { method: 'DELETE' });
-                    if(res.ok) {
+                    const res = await fetch(`${window.APP.API}/backups/${id}`, { method: 'DELETE' });
+                    if (res.ok) {
                         showToast('success', 'Backup deleted.');
                         loadBackups();
                     } else {
                         showError('Error', 'Failed to delete backup.');
                     }
-                } catch(e) {
+                } catch (e) {
                     showError('Error', 'Network error.');
                 }
             }
@@ -5905,7 +7516,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     async function verifyBackup(id) {
         showLoadingOverlay("Verifying Backup Integrity...");
         try {
-            const res = await fetch(`api/backups/${id}/verify`);
+            const res = await fetch(`${window.APP.API}/backups/${id}/verify`);
             const data = await res.json();
             hideLoadingOverlay();
             if (res.ok && data.status === 'success') {
@@ -5913,7 +7524,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             } else {
                 Swal.fire('Integrity Error', data.message, 'error');
             }
-        } catch(e) {
+        } catch (e) {
             hideLoadingOverlay();
             showError('Error', 'Verification failed.');
         }
@@ -5925,23 +7536,23 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
     function startRestore(id) {
         targetBackup = allBackups.find(b => b.id === id);
-        if(!targetBackup) return;
-        
+        if (!targetBackup) return;
+
         wizardStep = 1;
         document.getElementById('restore-target-name').innerText = targetBackup.notes || targetBackup.id;
         showWizardStep(1);
-        
+
         document.getElementById('btn-next').innerText = "Validate Integrity";
         document.getElementById('btn-next').className = "btn btn-primary rounded-pill px-4 fw-bold shadow-sm";
         document.getElementById('btn-next').disabled = false;
         document.getElementById('btn-cancel').disabled = false;
-        
+
         restoreModal = new bootstrap.Modal(document.getElementById('restoreWizardModal'));
         restoreModal.show();
     }
 
     function showWizardStep(step) {
-        for(let i=1; i<=4; i++) {
+        for (let i = 1; i <= 4; i++) {
             document.getElementById(`wizard-step-${i}`).classList.add('d-none');
         }
         document.getElementById(`wizard-step-${step}`).classList.remove('d-none');
@@ -5954,19 +7565,19 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             showWizardStep(2);
             document.getElementById('btn-next').disabled = true;
             document.getElementById('btn-cancel').disabled = true;
-            
+
             try {
-                const res = await fetch(`api/backups/${targetBackup.id}/verify`);
+                const res = await fetch(`${window.APP.API}/backups/${targetBackup.id}/verify`);
                 const data = await res.json();
                 if (res.ok && data.status === 'success') {
                     // Success, move to Step 3
                     setTimeout(() => {
                         wizardStep = 3;
                         showWizardStep(3);
-                        
+
                         document.getElementById('compat-receipts').innerText = `${targetBackup.receipt_count || 0}`;
                         document.getElementById('compat-tenants').innerText = `${targetBackup.tenant_count || 0}`;
-                        
+
                         document.getElementById('btn-next').innerText = "Execute Restore";
                         document.getElementById('btn-next').className = "btn btn-danger rounded-pill px-4 fw-bold shadow-sm";
                         document.getElementById('btn-next').disabled = false;
@@ -5976,20 +7587,20 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     restoreModal.hide();
                     Swal.fire('Validation Failed', data.message, 'error');
                 }
-            } catch(e) {
+            } catch (e) {
                 restoreModal.hide();
                 showError('Error', 'Validation process failed.');
             }
-        } 
+        }
         else if (wizardStep === 3) {
             // Move to Step 4: Execute
             wizardStep = 4;
             showWizardStep(4);
             document.getElementById('btn-next').disabled = true;
             document.getElementById('btn-cancel').disabled = true;
-            
+
             try {
-                const res = await fetch(`api/backups/${targetBackup.id}/restore`, { method: 'POST' });
+                const res = await fetch(`${window.APP.API}/backups/${targetBackup.id}/restore`, { method: 'POST' });
                 if (res.ok) {
                     document.getElementById('restore-progress-text').innerText = "Success! Reloading system...";
                     setTimeout(() => {
@@ -6000,7 +7611,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     restoreModal.hide();
                     Swal.fire('Restore Failed', data.detail || 'An error occurred during restoration.', 'error');
                 }
-            } catch(e) {
+            } catch (e) {
                 restoreModal.hide();
                 showError('Error', 'Network error during restore.');
             }
@@ -6033,15 +7644,18 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
     <!-- Early Theme Script to prevent flash -->
     <script>
-        function applySystemTheme() {
-            const theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            document.documentElement.setAttribute('data-bs-theme', theme);
-        }
-        const currentTheme = "{{ theme }}";
-        if (currentTheme === 'system') {
-            applySystemTheme();
-            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applySystemTheme);
-        }
+        (function () {
+            const STORAGE_KEY = "rrg-theme";
+            const serverTheme = "{{ theme }}";
+            const savedTheme = localStorage.getItem(STORAGE_KEY);
+            const preferredTheme = savedTheme || serverTheme || "system";
+            const effectiveTheme = preferredTheme === "system"
+                ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+                : preferredTheme;
+
+            document.documentElement.setAttribute("data-bs-theme", effectiveTheme);
+            document.documentElement.setAttribute("data-user-theme", preferredTheme);
+        })();
     </script>
     {% block head %}{% endblock %}
     <script>
@@ -6058,7 +7672,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             api: {
                 billing: "{{ route(request, Names.API_FILTER_BILLS) }}",
                 tenants: "{{ route(request, Names.API_GET_TENANTS) }}",
-                pdf: "{{ route(request, Names.PDF_DOWNLOAD, bill_no='REPLACE') }}".replace('REPLACE', '')
+                pdf: "{{ route(request, Names.PDF_DOWNLOAD, bill_no='REPLACE') }}".replace('REPLACE', ''),
+                themeUpdate: "{{ route(request, Names.UPDATE_THEME) }}"
             },
             static: {
                 base: "{{ STATIC_URL(request, '/') }}"
@@ -6068,7 +7683,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         // Legacy compat alias
         window.APP = {
             BASE: window.APP_BASE,
-            API: window.APP_BASE + "/api",
+            API: window.APP_BASE + "/admin/api",
             STATIC: window.RouteManifest.static.base
         };
     </script>
@@ -6108,18 +7723,39 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         class="bi bi-bell fs-5"></i></a>
 
                 <div class="dropdown">
-                    <button
-                        class="btn btn-sm btn-light dropdown-toggle d-flex align-items-center rounded-pill px-3 shadow-sm"
-                        type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                        <i class="bi bi-circle-half me-2"></i> Theme
+                    <button class="btn btn-sm btn-light dropdown-toggle d-flex align-items-center rounded-pill px-3 shadow-sm"
+                            type="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false">
+                        <i class="bi bi-circle-half me-2"></i>
+                        <span id="headerThemeLabel">Theme</span>
                     </button>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><button class="dropdown-item d-flex align-items-center" onclick="setTheme('light')"><i
-                                    class="bi bi-sun-fill me-2"></i> Light</button></li>
-                        <li><button class="dropdown-item d-flex align-items-center" onclick="setTheme('dark')"><i
-                                    class="bi bi-moon-stars-fill me-2"></i> Dark</button></li>
-                        <li><button class="dropdown-item d-flex align-items-center" onclick="setTheme('system')"><i
-                                    class="bi bi-laptop me-2"></i> System</button></li>
+
+                    <ul class="dropdown-menu dropdown-menu-end theme-menu">
+                        <li>
+                            <button class="dropdown-item d-flex align-items-center justify-content-between"
+                                    type="button"
+                                    data-theme-option="light">
+                                <span><i class="bi bi-sun-fill me-2"></i>Light</span>
+                                <i class="bi bi-check2 theme-menu-check d-none"></i>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item d-flex align-items-center justify-content-between"
+                                    type="button"
+                                    data-theme-option="dark">
+                                <span><i class="bi bi-moon-stars-fill me-2"></i>Dark</span>
+                                <i class="bi bi-check2 theme-menu-check d-none"></i>
+                            </button>
+                        </li>
+                        <li>
+                            <button class="dropdown-item d-flex align-items-center justify-content-between"
+                                    type="button"
+                                    data-theme-option="system">
+                                <span><i class="bi bi-laptop me-2"></i>System</span>
+                                <i class="bi bi-check2 theme-menu-check d-none"></i>
+                            </button>
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -6561,7 +8197,14 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 btn.innerHTML = originalBtnHtml;
 
                 if (res.ok) {
-                    bootstrap.Modal.getInstance(document.getElementById('globalEditBillModal')).hide();
+                    const modalEl = document.getElementById("globalEditBillModal");
+                    if (document.activeElement) {
+                        document.activeElement.blur();
+                    }
+                    const modalInstance = bootstrap.Modal.getInstance(modalEl);
+                    if (modalInstance) {
+                        modalInstance.hide();
+                    }
                     if (typeof showSuccess === 'function') {
                         showSuccess("Updated!", `Receipt #${billNo} has been updated.`).then(() => {
                             if (typeof updateUI === 'function') updateUI(); else window.location.reload();
@@ -6611,6 +8254,46 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         <div class="sync-text" id="syncOverlayText">Processing Data...</div>
     </div>
 
+    <script>
+    (function () {
+      if (window.__authSessionInterceptorInstalled) return;
+      window.__authSessionInterceptorInstalled = true;
+
+      const originalFetch = window.fetch.bind(window);
+      let authRedirectInProgress = false;
+
+      function redirectNow(url) {
+        if (authRedirectInProgress) return;
+        authRedirectInProgress = true;
+        window.location.replace(url || "/");
+      }
+
+      function isSessionExpiredResponse(response) {
+        if (!response) return false;
+        if (response.status !== 401 && response.status !== 403) return false;
+        return response.headers.get("X-Session-Expired") === "1";
+      }
+
+      function getRedirectUrl(response) {
+        return response.headers.get("X-Redirect-Url") || "/admin/logout";
+      }
+
+      window.fetch = async function (...args) {
+        const response = await originalFetch(...args);
+
+        if (isSessionExpiredResponse(response)) {
+          redirectNow(getRedirectUrl(response));
+          throw new Error("Session expired");
+        }
+
+        return response;
+      };
+
+      window.addEventListener("pageshow", function () {
+        authRedirectInProgress = false;
+      });
+    })();
+    </script>
 </body>
 
 </html>
@@ -6725,6 +8408,10 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         <i class="bi bi-lightning-charge-fill me-2"></i>
                         <span>Consumed Units: <strong id="consumed_units_label" class="fs-5 ms-1">0.0</strong></span>
                     </div>
+                    <div id="meter_validation" class="alert alert-danger mt-2 d-none">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Current Reading must be greater than or equal to Previous Reading.
+                    </div>
 
                     <h5 class="fw-bold mb-3 mt-4 text-secondary border-bottom pb-2">Occupancy</h5>
                     <div class="row g-3 mb-4">
@@ -6745,28 +8432,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         </div>
                     </div>
 
-                    <h5 class="fw-bold mb-3 mt-4 text-secondary border-bottom pb-2">Arrears & Payments</h5>
-                    <div class="row g-3 mb-4">
-                        <div class="col-sm-6">
-                            <div class="form-floating">
-                                <input type="number" class="form-control border-warning fw-bold text-warning-emphasis"
-                                    id="previous_arrears" step="0.1" placeholder="0.00" value="0.00"
-                                    oninput="calculateLiveTotal()">
-                                <label for="previous_arrears" class="text-warning-emphasis">Previous Arrears (₹)</label>
-                            </div>
-                            <div class="form-text fs-8 text-muted mt-1">Automatically carries over balance from the last
-                                bill.</div>
-                        </div>
-                        <div class="col-sm-6">
-                            <div class="form-floating">
-                                <input type="number" class="form-control border-success fw-bold text-success"
-                                    id="amount_received" step="0.1" placeholder="Leave empty for full payment"
-                                    oninput="calculateLiveTotal()">
-                                <label for="amount_received" class="text-success">Amount Received (₹)</label>
-                            </div>
-                            <div class="form-text fs-8 text-muted mt-1">Leave empty to assume full payment.</div>
-                        </div>
-                    </div>
+
 
                     <!-- Live Total Details Area -->
                     <div class="card bg-success bg-gradient text-white border-0 shadow-sm mb-4">
@@ -6864,14 +8530,12 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 const t = await tRes.json();
                 defaultRent = t.rent || 0;
                 defaultWater = t.water || 0;
-                prevMeterVal = t.previous_meter || 0;
                 electricityRate = t.electricity_rate || 0;
                 additionalPersonCharge = t.additional_person_charge || 0;
                 defaultTankWater = t.default_tank_water_charge || 0;
 
                 document.getElementById("rent_val").value = defaultRent > 0 ? defaultRent.toFixed(2) : "";
                 document.getElementById("water_val").value = defaultWater > 0 ? defaultWater.toFixed(2) : "";
-                document.getElementById("prev_reading").value = prevMeterVal > 0 ? prevMeterVal.toFixed(1) : "";
                 document.getElementById("additional_persons").value = "";
                 document.getElementById("rate_display_input").value = `₹${electricityRate.toFixed(2)}`;
                 document.getElementById("add_rate_display_input").value = `₹${additionalPersonCharge.toFixed(2)}`;
@@ -6880,7 +8544,16 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 let calculatedArrears = 0;
                 let maxSeq = 0;
                 if (recRes.ok) {
-                    const receipts = await recRes.json();
+                    let receipts = await recRes.json();
+                    
+                    let previousReading = 0;
+                    if (receipts.length > 0) {
+                        previousReading = Number(receipts[0].Current || 0);
+                    } else {
+                        previousReading = Number(t.previous_meter || 0);
+                    }
+                    prevMeterVal = previousReading;
+                    document.getElementById("prev_reading").value = previousReading.toFixed(1);
                     
                     receipts.forEach(r => {
                         let bStr = r.Bill;
@@ -6904,6 +8577,10 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             calculatedArrears = grandTotal - lastRecv;
                         }
                     }
+                } else {
+                    let previousReading = Number(t.previous_meter || 0);
+                    prevMeterVal = previousReading;
+                    document.getElementById("prev_reading").value = previousReading.toFixed(1);
                 }
 
                 calculatedArrearsVal = calculatedArrears;
@@ -6946,12 +8623,42 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         }
     }
 
-    function calculateLiveTotal() {
-        const currentVal = parseFloat(document.getElementById("current_reading").value) || 0;
-        const addPersons = parseInt(document.getElementById("additional_persons").value) || 0;
+    function showReadingError(previous, current) {
+        const box = document.getElementById("meter_validation");
+        box.classList.remove("d-none");
+        box.innerHTML = `<i class="bi bi-exclamation-triangle-fill me-2"></i> Current Reading (${current}) cannot be smaller than Previous Reading (${previous}).`;
+    }
 
-        let consumed = Math.max(0, currentVal - prevMeterVal);
-        let electricity = consumed * electricityRate;
+    function hideReadingError() {
+        document.getElementById("meter_validation").classList.add("d-none");
+    }
+
+    function calculateLiveTotal() {
+        const previous = parseFloat(prevMeterVal) || 0;
+        const current = parseFloat(document.getElementById("current_reading").value) || 0;
+        const consumed = current - previous;
+        
+        const label = document.getElementById("consumed_units_label");
+        const input = document.getElementById("current_reading");
+        const submit = document.getElementById("submitBtn");
+
+        let electricity = 0;
+        const rawCurrentInput = document.getElementById("current_reading").value;
+        
+        if (consumed < 0 && rawCurrentInput !== "") {
+            label.innerHTML = '<span class="text-danger fw-bold">' + consumed.toFixed(1) + '</span>';
+            input.classList.add("is-invalid");
+            if (submit) submit.disabled = true;
+            showReadingError(previous, current);
+        } else {
+            label.innerHTML = Math.max(0, consumed).toFixed(1);
+            input.classList.remove("is-invalid");
+            if (submit) submit.disabled = false;
+            hideReadingError();
+            electricity = Math.max(0, consumed) * electricityRate;
+        }
+
+        const addPersons = parseInt(document.getElementById("additional_persons").value) || 0;
         let additional = addPersons * additionalPersonCharge;
         let tankWater = parseFloat(document.getElementById("tank_water_val").value) || 0;
         let maintenance = parseFloat(document.getElementById("maintenance_val").value) || 0;
@@ -7185,7 +8892,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     Paid Bills</h6>
                 <h3 class="fw-bold mb-1">{{ stats.paid_bills_count }} <span
                         class="fs-6 fw-normal text-white-50">Bills</span></h3>
-                <span class="text-white-50 fs-8 d-block mt-1">Paid receipts count</span>
+                <span class="text-white-50 fs-8 d-block mt-1">{{ stats.advance_bills_count }} In Advance</span>
             </div>
         </div>
     </div>
@@ -7366,219 +9073,229 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                 <td>{{ b.month }}</td>
                                 <td class="text-dark fw-bold">₹{{ "{:,.2f}".format(b.total|float) }}</td>
                                 <td>
-                                    {% set grand_total = (b.total|float) + (b.previous_arrears|default(0, true)|float) %}
+                                    {% set grand_total = (b.total|float) + (b.previous_arrears|default(0, true)|float)
+                                    %}
                                     {% set amount_received = b.get("amount_received")|default(0, true)|float %}
                                     {% set balance_due = grand_total - amount_received %}
-                                    {% set advance_amount = 0 - balance_due if balance_due < 0 else 0 %}
-
-                                    {% if b.payment_status == "PAID" %}
-                                        <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
-                                    {% elif b.payment_status == "PARTIAL" %}
-                                        <span class="badge bg-warning text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
-                                    {% elif b.payment_status == "ADVANCE" %}
-                                        <span class="badge bg-info text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
-                                    {% else %}
-                                        <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
-                                    {% endif %}
-                                    <div class="small text-muted mt-1">Recv: ₹{{ "{:,.2f}".format(amount_received) }}</div>
-                                    {% if balance_due > 0 %}
-                                    <div class="small text-danger fw-semibold">Rem: ₹{{ "{:,.2f}".format(balance_due) }}</div>
-                                    {% elif balance_due < 0 %}
-                                    <div class="small text-info fw-semibold">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}</div>
-                                    {% endif %}
-                                </td>
-                                <td class="text-end pe-4">
-                                    <div class="btn-group gap-1">
-                                        {% if b.payment_status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
-                                        <button
-                                            onclick="togglePaymentStatus('{{ b.bill_no }}', '{{ b.payment_status }}', '{{ grand_total }}', '{{ amount_received }}')"
-                                            class="btn btn-sm btn-outline-secondary rounded-pill px-2 shadow-sm"
-                                            title="Mark Pending">
-                                            <i class="bi bi-arrow-counterclockwise"></i>
-                                        </button>
+                                    {% set advance_amount = 0 - balance_due if balance_due < 0 else 0 %} {% if
+                                        b.payment_status=="PAID" %} <span class="badge bg-success rounded-pill px-3"><i
+                                            class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                                        {% elif b.payment_status == "PARTIAL" %}
+                                        <span class="badge bg-warning text-dark rounded-pill px-3"><i
+                                                class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
+                                        {% elif b.payment_status == "ADVANCE" %}
+                                        <span class="badge bg-info text-dark rounded-pill px-3"><i
+                                                class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
                                         {% else %}
-                                        <button
-                                            onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ grand_total }}', '0')"
-                                            class="btn btn-sm btn-outline-success rounded-pill px-2 shadow-sm"
-                                            title="Mark Paid">
-                                            <i class="bi bi-check2"></i> <span class="d-none d-xl-inline">Paid</span>
-                                        </button>
+                                        <span class="badge bg-danger rounded-pill px-3"><i
+                                                class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
                                         {% endif %}
-                                        <button onclick="openGlobalPDFPreview('{{ b.bill_no }}')"
-                                            class="btn btn-sm btn-light border rounded-pill px-3 shadow-sm"
-                                            title="View PDF">
-                                            <i class="bi bi-eye"></i> View
-                                        </button>
-                                        <a href="javascript:void(0)"
-                                            onclick="secureDownload('api/pdf/{{ b.bill_no }}/download', 'Receipt_{{ b.bill_no }}.pdf')"
-                                            class="btn btn-sm btn-light border rounded-pill px-3 shadow-sm"
-                                            title="Download PDF">
-                                            <i class="bi bi-download"></i> DL
-                                        </a>
-                                        {% if config.get('system', 'features.whatsapp_sync') %}
-                                        <button class="btn btn-sm btn-light border text-success"
-                                            onclick="sendWhatsApp('{{ b.bill_no }}')" title="Send via WhatsApp">
-                                            <i class="bi bi-whatsapp"></i>
-                                        </button>
-                                        {% endif %}
-                                        <button onclick="openEditBillModal('{{ b.bill_no }}')"
-                                            class="btn btn-sm btn-light border rounded-pill px-3 shadow-sm text-warning"
-                                            title="Edit Bill">
-                                            <i class="bi bi-pencil"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            {% if not stats.recent_bills %}
-                            <tr>
-                                <td colspan="5" class="text-center py-5 text-muted">
-                                    <i class="bi bi-receipt fs-1 d-block mb-3 opacity-50"></i>
-                                    <h5>No Receipts Yet</h5>
-                                    <p class="fs-7">Generate your first receipt to see it here.</p>
-                                    <a href="{{ APP_BASE(request) }}/billing"
-                                        class="btn btn-primary rounded-pill mt-2">Generate Receipt</a>
-                                </td>
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
-                </div>
-                <!-- Mobile Card View -->
-                <div class="d-md-none p-3">
-                    <div class="d-flex flex-column gap-3">
-                        {% for b in stats.recent_bills %}
-                        <div class="card shadow-sm border-0 bg-body-secondary">
-                            <div class="card-body p-3">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <div>
-                                        <span class="badge bg-light text-dark border me-1">{{ loop.index }}</span>
-                                        <span class="badge bg-secondary">{{ b.bill_no }}</span>
-                                    </div>
-                                    <span class="text-dark fw-bold fs-5">₹{{ "{:,.2f}".format(b.total|float) }}</span>
-                                </div>
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    {% set grand_total = (b.total|float) + (b.previous_arrears|default(0, true)|float) %}
-                                    {% set amount_received = b.get("amount_received")|default(0, true)|float %}
-                                    {% set balance_due = grand_total - amount_received %}
-                                    {% set advance_amount = 0 - balance_due if balance_due < 0 else 0 %}
-                                    <h6 class="fw-bold text-primary mb-0">{{ b.tenant_name }}</h6>
-                                    {% if b.payment_status == "PAID" %}
-                                        <span class="badge bg-success rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
-                                    {% elif b.payment_status == "PARTIAL" %}
-                                        <span class="badge bg-warning text-dark rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
-                                    {% elif b.payment_status == "ADVANCE" %}
-                                        <span class="badge bg-info text-dark rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
-                                    {% else %}
-                                        <span class="badge bg-danger rounded-pill"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
-                                    {% endif %}
-                                </div>
-                                <div class="d-flex justify-content-between mb-3">
-                                    <p class="text-muted fs-7 mb-0"><i class="bi bi-calendar3 me-1"></i> {{ b.month }}</p>
-                                    <div class="text-end">
-                                        <div class="small text-muted" style="font-size: 0.75rem;">Recv: ₹{{ "{:,.2f}".format(amount_received) }}</div>
+                                        <div class="small text-muted mt-1">Recv: ₹{{ "{:,.2f}".format(amount_received)
+                                            }}</div>
                                         {% if balance_due > 0 %}
-                                        <div class="small text-danger fw-semibold" style="font-size: 0.75rem;">Rem: ₹{{ "{:,.2f}".format(balance_due) }}</div>
-                                        {% elif balance_due < 0 %}
-                                        <div class="small text-info fw-semibold" style="font-size: 0.75rem;">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}</div>
-                                        {% endif %}
-                                    </div>
-                                </div>
-                                <div class="d-flex flex-wrap gap-2">
-                                    {% if b.payment_status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
-                                    <button onclick="togglePaymentStatus('{{ b.bill_no }}', '{{ b.payment_status }}', '{{ grand_total }}', '{{ amount_received }}')"
-                                        class="btn btn-sm btn-outline-secondary rounded-pill flex-grow-1 shadow-sm"><i
-                                            class="bi bi-arrow-counterclockwise"></i> Undo</button>
-                                    {% else %}
-                                    <button onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ grand_total }}', '0')"
-                                        class="btn btn-sm btn-outline-success rounded-pill flex-grow-1 shadow-sm"><i
-                                            class="bi bi-check2"></i> Mark Paid</button>
-                                    {% endif %}
-                                    <button onclick="openGlobalPDFPreview('{{ b.bill_no }}')"
-                                        class="btn btn-sm btn-light border rounded-pill flex-grow-1 shadow-sm"><i
-                                            class="bi bi-eye"></i> View</button>
-                                    {% if config.get('system', 'features.whatsapp_sync') %}
-                                    <button class="btn btn-sm btn-light border text-success flex-grow-1"
-                                        onclick="sendWhatsApp('{{ b.bill_no }}')" title="Send via WhatsApp"><i
-                                            class="bi bi-whatsapp"></i></button>
-                                    {% endif %}
-                                    <button onclick="openEditBillModal('{{ b.bill_no }}')"
-                                        class="btn btn-sm btn-light border rounded-pill flex-grow-1 shadow-sm text-warning"><i
-                                            class="bi bi-pencil"></i> Edit</button>
-                                </div>
-                            </div>
-                        </div>
-                        {% endfor %}
-                        {% if not stats.recent_bills %}
-                        <div class="text-center py-5 text-muted">
-                            <i class="bi bi-receipt fs-1 d-block mb-3 opacity-50"></i>
-                            <h5>No Receipts Yet</h5>
-                            <p class="fs-7">Generate your first receipt to see it here.</p>
-                            <a href="{{ APP_BASE(request) }}/billing" class="btn btn-primary rounded-pill mt-2">Generate
-                                Receipt</a>
-                        </div>
+                                        <div class="small text-danger fw-semibold">Rem: ₹{{
+                                            "{:,.2f}".format(balance_due) }}</div>
+                                        {% elif balance_due < 0 %} <div class="small text-info fw-semibold">Adv: ₹{{
+                                            "{:,.2f}".format(advance_amount) }}
+                </div>
+                {% endif %}
+                </td>
+                <td class="text-end pe-4">
+                    <div class="btn-group gap-1">
+                        {% if b.payment_status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
+                        <button
+                            onclick="togglePaymentStatus('{{ b.bill_no }}', '{{ b.payment_status }}', '{{ grand_total }}', '{{ amount_received }}')"
+                            class="btn btn-sm btn-outline-secondary rounded-pill px-2 shadow-sm" title="Mark Pending">
+                            <i class="bi bi-arrow-counterclockwise"></i>
+                        </button>
+                        {% else %}
+                        <button onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ grand_total }}', '0')"
+                            class="btn btn-sm btn-outline-success rounded-pill px-2 shadow-sm" title="Mark Paid">
+                            <i class="bi bi-check2"></i> <span class="d-none d-xl-inline">Paid</span>
+                        </button>
                         {% endif %}
+                        <button onclick="openGlobalPDFPreview('{{ b.bill_no }}')"
+                            class="btn btn-sm btn-light border rounded-pill px-3 shadow-sm" title="View PDF">
+                            <i class="bi bi-eye"></i> View
+                        </button>
+                        <a href="javascript:void(0)"
+                            onclick="secureDownload('api/pdf/{{ b.bill_no }}/download', 'Receipt_{{ b.bill_no }}.pdf')"
+                            class="btn btn-sm btn-light border rounded-pill px-3 shadow-sm" title="Download PDF">
+                            <i class="bi bi-download"></i> DL
+                        </a>
+                        {% if config.get('system', 'features.whatsapp_sync') %}
+                        <button class="btn btn-sm btn-light border text-success"
+                            onclick="sendWhatsApp('{{ b.bill_no }}')" title="Send via WhatsApp">
+                            <i class="bi bi-whatsapp"></i>
+                        </button>
+                        {% endif %}
+                        <button onclick="openEditBillModal('{{ b.bill_no }}')"
+                            class="btn btn-sm btn-light border rounded-pill px-3 shadow-sm text-warning"
+                            title="Edit Bill">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+                    </div>
+                </td>
+                </tr>
+                {% endfor %}
+                {% if not stats.recent_bills %}
+                <tr>
+                    <td colspan="5" class="text-center py-5 text-muted">
+                        <i class="bi bi-receipt fs-1 d-block mb-3 opacity-50"></i>
+                        <h5>No Receipts Yet</h5>
+                        <p class="fs-7">Generate your first receipt to see it here.</p>
+                        <a href="{{ APP_BASE(request) }}/billing" class="btn btn-primary rounded-pill mt-2">Generate
+                            Receipt</a>
+                    </td>
+                </tr>
+                {% endif %}
+                </tbody>
+                </table>
+            </div>
+            <!-- Mobile Card View -->
+            <div class="d-md-none p-3">
+                <div class="d-flex flex-column gap-3">
+                    {% for b in stats.recent_bills %}
+                    <div class="card shadow-sm border-0 bg-body-secondary">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <div>
+                                    <span class="badge bg-light text-dark border me-1">{{ loop.index }}</span>
+                                    <span class="badge bg-secondary">{{ b.bill_no }}</span>
+                                </div>
+                                <span class="text-dark fw-bold fs-5">₹{{ "{:,.2f}".format(b.total|float) }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                {% set grand_total = (b.total|float) + (b.previous_arrears|default(0, true)|float) %}
+                                {% set amount_received = b.get("amount_received")|default(0, true)|float %}
+                                {% set balance_due = grand_total - amount_received %}
+                                {% set advance_amount = 0 - balance_due if balance_due < 0 else 0 %} <h6
+                                    class="fw-bold text-primary mb-0">{{ b.tenant_name }}</h6>
+                                    {% if b.payment_status == "PAID" %}
+                                    <span class="badge bg-success rounded-pill"><i
+                                            class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
+                                    {% elif b.payment_status == "PARTIAL" %}
+                                    <span class="badge bg-warning text-dark rounded-pill"><i
+                                            class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
+                                    {% elif b.payment_status == "ADVANCE" %}
+                                    <span class="badge bg-info text-dark rounded-pill"><i
+                                            class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
+                                    {% else %}
+                                    <span class="badge bg-danger rounded-pill"><i
+                                            class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
+                                    {% endif %}
+                            </div>
+                            <div class="d-flex justify-content-between mb-3">
+                                <p class="text-muted fs-7 mb-0"><i class="bi bi-calendar3 me-1"></i> {{ b.month }}</p>
+                                <div class="text-end">
+                                    <div class="small text-muted" style="font-size: 0.75rem;">Recv: ₹{{
+                                        "{:,.2f}".format(amount_received) }}</div>
+                                    {% if balance_due > 0 %}
+                                    <div class="small text-danger fw-semibold" style="font-size: 0.75rem;">Rem: ₹{{
+                                        "{:,.2f}".format(balance_due) }}</div>
+                                    {% elif balance_due < 0 %} <div class="small text-info fw-semibold"
+                                        style="font-size: 0.75rem;">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            {% if b.payment_status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
+                            <button
+                                onclick="togglePaymentStatus('{{ b.bill_no }}', '{{ b.payment_status }}', '{{ grand_total }}', '{{ amount_received }}')"
+                                class="btn btn-sm btn-outline-secondary rounded-pill flex-grow-1 shadow-sm"><i
+                                    class="bi bi-arrow-counterclockwise"></i> Undo</button>
+                            {% else %}
+                            <button
+                                onclick="togglePaymentStatus('{{ b.bill_no }}', 'PENDING', '{{ grand_total }}', '0')"
+                                class="btn btn-sm btn-outline-success rounded-pill flex-grow-1 shadow-sm"><i
+                                    class="bi bi-check2"></i> Mark Paid</button>
+                            {% endif %}
+                            <button onclick="openGlobalPDFPreview('{{ b.bill_no }}')"
+                                class="btn btn-sm btn-light border rounded-pill flex-grow-1 shadow-sm"><i
+                                    class="bi bi-eye"></i> View</button>
+                            {% if config.get('system', 'features.whatsapp_sync') %}
+                            <button class="btn btn-sm btn-light border text-success flex-grow-1"
+                                onclick="sendWhatsApp('{{ b.bill_no }}')" title="Send via WhatsApp"><i
+                                    class="bi bi-whatsapp"></i></button>
+                            {% endif %}
+                            <button onclick="openEditBillModal('{{ b.bill_no }}')"
+                                class="btn btn-sm btn-light border rounded-pill flex-grow-1 shadow-sm text-warning"><i
+                                    class="bi bi-pencil"></i> Edit</button>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% if not stats.recent_bills %}
+                <div class="text-center py-5 text-muted">
+                    <i class="bi bi-receipt fs-1 d-block mb-3 opacity-50"></i>
+                    <h5>No Receipts Yet</h5>
+                    <p class="fs-7">Generate your first receipt to see it here.</p>
+                    <a href="{{ APP_BASE(request) }}/billing" class="btn btn-primary rounded-pill mt-2">Generate
+                        Receipt</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- Recent Activity -->
+<div class="col-xl-4">
+    <div class="card shadow-sm border-0 h-100">
+        <div class="card-header bg-transparent border-0 pt-4 pb-3 px-4">
+            <h5 class="fw-bold mb-0"><i class="bi bi-activity me-2 text-danger"></i>Recent Activity</h5>
+        </div>
+        <div class="card-body px-4 pt-0">
+            <div class="position-relative mt-3">
+                <!-- Placeholder Activity Feed -->
+                <div class="d-flex mb-4">
+                    <div class="flex-shrink-0">
+                        <div class="bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center"
+                            style="width: 40px; height: 40px;">
+                            <i class="bi bi-file-earmark-check fs-5"></i>
+                        </div>
+                    </div>
+                    <div class="ms-3 flex-grow-1 border-bottom pb-3">
+                        <h6 class="mb-1 fw-bold">Receipt Generated</h6>
+                        <p class="text-muted fs-7 mb-0">System automatically saved receipt #001 for L T Elevator.
+                        </p>
+                        <small class="text-secondary fs-8">2 hours ago</small>
+                    </div>
+                </div>
+
+                <div class="d-flex mb-4">
+                    <div class="flex-shrink-0">
+                        <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center"
+                            style="width: 40px; height: 40px;">
+                            <i class="bi bi-person-plus fs-5"></i>
+                        </div>
+                    </div>
+                    <div class="ms-3 flex-grow-1 border-bottom pb-3">
+                        <h6 class="mb-1 fw-bold">Tenant Added</h6>
+                        <p class="text-muted fs-7 mb-0">New tenant profile created.</p>
+                        <small class="text-secondary fs-8">Yesterday</small>
+                    </div>
+                </div>
+
+                <div class="d-flex">
+                    <div class="flex-shrink-0">
+                        <div class="bg-warning-subtle text-warning rounded-circle d-flex align-items-center justify-content-center"
+                            style="width: 40px; height: 40px;">
+                            <i class="bi bi-gear fs-5"></i>
+                        </div>
+                    </div>
+                    <div class="ms-3 flex-grow-1">
+                        <h6 class="mb-1 fw-bold">Settings Updated</h6>
+                        <p class="text-muted fs-7 mb-0">Billing configuration modified.</p>
+                        <small class="text-secondary fs-8">3 days ago</small>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
-    <!-- Recent Activity -->
-    <div class="col-xl-4">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-transparent border-0 pt-4 pb-3 px-4">
-                <h5 class="fw-bold mb-0"><i class="bi bi-activity me-2 text-danger"></i>Recent Activity</h5>
-            </div>
-            <div class="card-body px-4 pt-0">
-                <div class="position-relative mt-3">
-                    <!-- Placeholder Activity Feed -->
-                    <div class="d-flex mb-4">
-                        <div class="flex-shrink-0">
-                            <div class="bg-success-subtle text-success rounded-circle d-flex align-items-center justify-content-center"
-                                style="width: 40px; height: 40px;">
-                                <i class="bi bi-file-earmark-check fs-5"></i>
-                            </div>
-                        </div>
-                        <div class="ms-3 flex-grow-1 border-bottom pb-3">
-                            <h6 class="mb-1 fw-bold">Receipt Generated</h6>
-                            <p class="text-muted fs-7 mb-0">System automatically saved receipt #001 for L T Elevator.
-                            </p>
-                            <small class="text-secondary fs-8">2 hours ago</small>
-                        </div>
-                    </div>
-
-                    <div class="d-flex mb-4">
-                        <div class="flex-shrink-0">
-                            <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center"
-                                style="width: 40px; height: 40px;">
-                                <i class="bi bi-person-plus fs-5"></i>
-                            </div>
-                        </div>
-                        <div class="ms-3 flex-grow-1 border-bottom pb-3">
-                            <h6 class="mb-1 fw-bold">Tenant Added</h6>
-                            <p class="text-muted fs-7 mb-0">New tenant profile created.</p>
-                            <small class="text-secondary fs-8">Yesterday</small>
-                        </div>
-                    </div>
-
-                    <div class="d-flex">
-                        <div class="flex-shrink-0">
-                            <div class="bg-warning-subtle text-warning rounded-circle d-flex align-items-center justify-content-center"
-                                style="width: 40px; height: 40px;">
-                                <i class="bi bi-gear fs-5"></i>
-                            </div>
-                        </div>
-                        <div class="ms-3 flex-grow-1">
-                            <h6 class="mb-1 fw-bold">Settings Updated</h6>
-                            <p class="text-muted fs-7 mb-0">Billing configuration modified.</p>
-                            <small class="text-secondary fs-8">3 days ago</small>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+</div>
 </div>
 {% endblock %}
 
@@ -7729,7 +9446,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         modal.show();
 
         try {
-            const res = await fetch(`api/bills/filter?status=${statusType}`);
+            const res = await fetch(`${window.APP.API}/bills/filter?status=${statusType}`);
             const bills = await res.json();
 
             tbody.innerHTML = '';
@@ -7754,12 +9471,12 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 let amountReceived = b.Amount_Received !== undefined && b.Amount_Received !== null ? parseFloat(b.Amount_Received) : (b.Payment_Status === 'PAID' ? grandTotal : 0);
                 let balanceDue = grandTotal - amountReceived;
                 let advanceAmount = balanceDue < 0 ? Math.abs(balanceDue) : 0;
-                
-                let detailsHtml = `<div class="small text-muted mt-1">Recv: ₹${amountReceived.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>`;
+
+                let detailsHtml = `<div class="small text-muted mt-1">Recv: ₹${amountReceived.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>`;
                 if (balanceDue > 0) {
-                    detailsHtml += `<div class="small text-danger">Rem: ₹${balanceDue.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>`;
+                    detailsHtml += `<div class="small text-danger">Rem: ₹${balanceDue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>`;
                 } else if (balanceDue < 0) {
-                    detailsHtml += `<div class="small text-info">Adv: ₹${advanceAmount.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>`;
+                    detailsHtml += `<div class="small text-info">Adv: ₹${advanceAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>`;
                 }
 
                 tbody.innerHTML += `
@@ -7774,7 +9491,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             <div class="text-muted fs-8">${b.Month}</div>
                         </td>
                         <td class="text-end pe-3">
-                            <div class="text-success fw-bold fs-7">₹${grandTotal.toLocaleString('en-IN', {maximumFractionDigits: 0})}</div>
+                            <div class="text-success fw-bold fs-7">₹${grandTotal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</div>
                             <button class="btn btn-sm btn-light border rounded-pill mt-1" style="font-size: 0.7rem;"><i class="bi bi-eye"></i> View</button>
                         </td>
                     </tr>
@@ -7894,9 +9611,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 {% set grand_total = curr_total + prev_arr %}
                 {% set amt_recv = r.Amount_Received|default(0, true)|float %}
                 {% set balance = grand_total - amt_recv %}
-                {% set advance_amount = 0 - balance if balance < 0 else 0 %}
-
-                <div class="d-flex align-items-center mb-3 mb-md-0">
+                {% set advance_amount = 0 - balance if balance < 0 else 0 %} <div
+                    class="d-flex align-items-center mb-3 mb-md-0">
                     <div class="bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center me-3"
                         style="width: 48px; height: 48px;">
                         <i class="bi bi-receipt fs-5"></i>
@@ -7908,69 +9624,78 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             <i class="bi bi-calendar-event me-1"></i> {{ r.Date }}
                         </div>
                     </div>
+            </div>
+
+            <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 gap-md-5">
+                <div
+                    class="d-flex flex-row flex-md-column align-items-center align-items-md-end justify-content-between gap-2">
+                    <div class="text-md-end">
+                        <div class="fs-7 text-muted mb-1">Total Payable</div>
+                        <div class="fw-bold text-dark fs-5">₹{{ "{:,.2f}".format(grand_total) }}</div>
+                        <div class="text-success fs-7">Paid: ₹{{ "{:,.2f}".format(amt_recv) }}</div>
+                        {% if balance > 0 %}
+                        <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}</div>
+                        {% elif balance < 0 %} <div class="text-info fw-semibold fs-7">Advance: ₹{{
+                            "{:,.2f}".format(advance_amount) }}
+                    </div>
+                    {% endif %}
                 </div>
-
-                <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 gap-md-5">
-                    <div
-                        class="d-flex flex-row flex-md-column align-items-center align-items-md-end justify-content-between gap-2">
-                        <div class="text-md-end">
-                            <div class="fs-7 text-muted mb-1">Total Payable</div>
-                            <div class="fw-bold text-dark fs-5">₹{{ "{:,.2f}".format(grand_total) }}</div>
-                            <div class="text-success fs-7">Paid: ₹{{ "{:,.2f}".format(amt_recv) }}</div>
-                            {% if balance > 0 %}
-                            <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}</div>
-                            {% elif balance < 0 %}
-                            <div class="text-info fw-semibold fs-7">Advance: ₹{{ "{:,.2f}".format(advance_amount) }}</div>
-                            {% endif %}
-                        </div>
-                        <div>
-                            {% if r.Payment_Status == "PAID" %}
-                                <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Paid</span>
-                            {% elif r.Payment_Status == "PARTIAL" %}
-                                <span class="badge bg-warning text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
-                            {% elif r.Payment_Status == "ADVANCE" %}
-                                <span class="badge bg-info text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Advance</span>
-                            {% else %}
-                                <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i> Pending</span>
-                            {% endif %}
-                        </div>
-                    </div>
-
-                    <div class="btn-group shadow-sm rounded-pill">
-                        {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
-                        <button class="btn btn-sm btn-light border"
-                            onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')" title="Mark Pending">
-                            <i class="bi bi-arrow-counterclockwise text-secondary"></i>
-                        </button>
-                        {% else %}
-                        <button class="btn btn-sm btn-light border"
-                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')" title="Mark Paid">
-                            <i class="bi bi-check2 text-success"></i>
-                        </button>
-                        {% endif %}
-                        <button class="btn btn-sm btn-light border text-success" onclick="sendWhatsApp('{{ r.Bill }}')" title="Send via WhatsApp">
-                            <i class="bi bi-whatsapp"></i>
-                        </button>
-                        <button class="btn btn-sm btn-light border" onclick="openGlobalPDFPreview('{{ r.Bill }}')"
-                            title="View PDF">
-                            <i class="bi bi-eye text-primary"></i> <span class="d-none d-lg-inline ms-1">View</span>
-                        </button>
-                        <button onclick="openEditBillModal('{{ r.Bill }}')" class="btn btn-sm btn-light border" title="Edit Bill">
-                            <i class="bi bi-pencil text-warning"></i> <span class="d-none d-lg-inline ms-1">Edit</span>
-                        </button>
-                        <button class="btn btn-sm btn-light border" onclick="archiveBill('{{ r.Bill }}')"
-                            title="Archive/Delete">
-                            <i class="bi bi-archive text-danger"></i>
-                        </button>
-                    </div>
+                <div>
+                    {% if r.Payment_Status == "PAID" %}
+                    <span class="badge bg-success rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i>
+                        Paid</span>
+                    {% elif r.Payment_Status == "PARTIAL" %}
+                    <span class="badge bg-warning text-dark rounded-pill px-3"><i
+                            class="bi bi-circle-fill fs-9 me-1"></i> Partial</span>
+                    {% elif r.Payment_Status == "ADVANCE" %}
+                    <span class="badge bg-info text-dark rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i>
+                        Advance</span>
+                    {% else %}
+                    <span class="badge bg-danger rounded-pill px-3"><i class="bi bi-circle-fill fs-9 me-1"></i>
+                        Pending</span>
+                    {% endif %}
                 </div>
             </div>
 
-            {% endfor %}
+            <div class="btn-group shadow-sm rounded-pill">
+                {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
+                <button class="btn btn-sm btn-light border"
+                    onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')"
+                    title="Mark Pending">
+                    <i class="bi bi-arrow-counterclockwise text-secondary"></i>
+                </button>
+                {% else %}
+                <button class="btn btn-sm btn-light border"
+                    onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')"
+                    title="Mark Paid">
+                    <i class="bi bi-check2 text-success"></i>
+                </button>
+                {% endif %}
+                <button class="btn btn-sm btn-light border text-success" onclick="sendWhatsApp('{{ r.Bill }}')"
+                    title="Send via WhatsApp">
+                    <i class="bi bi-whatsapp"></i>
+                </button>
+                <button class="btn btn-sm btn-light border" onclick="openGlobalPDFPreview('{{ r.Bill }}')"
+                    title="View PDF">
+                    <i class="bi bi-eye text-primary"></i> <span class="d-none d-lg-inline ms-1">View</span>
+                </button>
+                <button onclick="openEditBillModal('{{ r.Bill }}')" class="btn btn-sm btn-light border"
+                    title="Edit Bill">
+                    <i class="bi bi-pencil text-warning"></i> <span class="d-none d-lg-inline ms-1">Edit</span>
+                </button>
+                <button class="btn btn-sm btn-light border" onclick="archiveBill('{{ r.Bill }}')"
+                    title="Archive/Delete">
+                    <i class="bi bi-archive text-danger"></i>
+                </button>
+            </div>
+        </div>
+    </div>
 
-            {% if current_year != '' %}
-        </div> <!-- End Accordion Body -->
-    </div> <!-- End Collapse -->
+    {% endfor %}
+
+    {% if current_year != '' %}
+</div> <!-- End Accordion Body -->
+</div> <!-- End Collapse -->
 </div> <!-- End Accordion Item -->
 {% else %}
 <div class="text-center py-5 text-muted">
@@ -7999,7 +9724,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     document.addEventListener("DOMContentLoaded", function () {
         calculateYearStats();
         initializeSharedSearch('globalSearch', '.year-group', '.receipt-row');
-        
+
         // Auto-fill and trigger search if coming from the Top Nav search bar
         const urlParams = new URLSearchParams(window.location.search);
         const q = urlParams.get('q');
@@ -8041,7 +9766,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         ).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const res = await fetch(`api/bill/${billNo}/archive`, { method: "POST" });
+                    const res = await fetch(`${window.APP.API}/bill/${billNo}/archive`, { method: "POST" });
                     if (res.ok) {
                         showSuccess("Archived!", "The receipt has been archived.").then(async () => {
                             await updateUI(); // Smooth refresh
@@ -8129,16 +9854,20 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         <div class="card shadow-sm border-0">
             <div class="card-body p-2">
                 <div class="nav flex-column nav-pills" id="settingsTabs" role="tablist" aria-orientation="vertical">
-                    <button class="nav-link text-start active fw-semibold py-3 px-4 mb-1" id="billing-tab" data-bs-toggle="pill" data-bs-target="#billing" type="button" role="tab">
+                    <button class="nav-link text-start active fw-semibold py-3 px-4 mb-1" id="billing-tab"
+                        data-bs-toggle="pill" data-bs-target="#billing" type="button" role="tab">
                         <i class="bi bi-receipt-cutoff me-3"></i>Billing Defaults
                     </button>
-                    <button class="nav-link text-start fw-semibold py-3 px-4 mb-1" id="landlord-tab" data-bs-toggle="pill" data-bs-target="#landlord" type="button" role="tab">
+                    <button class="nav-link text-start fw-semibold py-3 px-4 mb-1" id="landlord-tab"
+                        data-bs-toggle="pill" data-bs-target="#landlord" type="button" role="tab">
                         <i class="bi bi-person-badge me-3"></i>Landlord Info
                     </button>
-                    <button class="nav-link text-start fw-semibold py-3 px-4 mb-1" id="appearance-tab" data-bs-toggle="pill" data-bs-target="#appearance" type="button" role="tab">
+                    <button class="nav-link text-start fw-semibold py-3 px-4 mb-1" id="appearance-tab"
+                        data-bs-toggle="pill" data-bs-target="#appearance" type="button" role="tab">
                         <i class="bi bi-palette me-3"></i>Appearance
                     </button>
-                    <button class="nav-link text-start fw-semibold py-3 px-4" id="backup-tab" data-bs-toggle="pill" data-bs-target="#backup" type="button" role="tab">
+                    <button class="nav-link text-start fw-semibold py-3 px-4" id="backup-tab" data-bs-toggle="pill"
+                        data-bs-target="#backup" type="button" role="tab">
                         <i class="bi bi-cloud-download me-3"></i>Backup & Data
                     </button>
                 </div>
@@ -8152,44 +9881,51 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             <div class="card-body p-4 p-md-5">
                 <form id="settingsForm">
                     <div class="tab-content" id="settingsTabContent">
-                        
+
                         <!-- Billing Settings -->
-                        <div class="tab-pane fade show active" id="billing" role="tabpanel" aria-labelledby="billing-tab">
+                        <div class="tab-pane fade show active" id="billing" role="tabpanel"
+                            aria-labelledby="billing-tab">
                             <h4 class="fw-bold mb-4 border-bottom pb-2">Application Billing Defaults</h4>
-                            <p class="text-muted mb-4">These values will be automatically assigned to <strong>newly created tenants</strong>. Existing tenants will not be affected.</p>
-                            
+                            <p class="text-muted mb-4">These values will be automatically assigned to <strong>newly
+                                    created tenants</strong>. Existing tenants will not be affected.</p>
+
                             <div class="row g-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="number" class="form-control" id="b_rent" value="{{ billing_config.rent }}" required>
+                                        <input type="number" class="form-control" id="b_rent"
+                                            value="{{ billing_config.rent }}" required>
                                         <label for="b_rent">Default Rent (₹)</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="number" class="form-control" id="b_water" value="{{ billing_config.water }}" required>
+                                        <input type="number" class="form-control" id="b_water"
+                                            value="{{ billing_config.water }}" required>
                                         <label for="b_water">Default Water (₹)</label>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="row g-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="number" class="form-control" id="b_elec_rate" step="0.1" value="{{ billing_config.electricity_rate }}" required>
+                                        <input type="number" class="form-control" id="b_elec_rate" step="0.1"
+                                            value="{{ billing_config.electricity_rate }}" required>
                                         <label for="b_elec_rate">Electricity Rate (₹/unit)</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="number" class="form-control" id="b_prev_meter" step="0.1" value="{{ billing_config.previous_meter_reading }}" required>
+                                        <input type="number" class="form-control" id="b_prev_meter" step="0.1"
+                                            value="{{ billing_config.previous_meter_reading }}" required>
                                         <label for="b_prev_meter">Default Meter Reading</label>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="form-floating mb-3">
-                                <input type="number" class="form-control" id="b_add_person" value="{{ billing_config.additional_person_charge }}">
+                                <input type="number" class="form-control" id="b_add_person"
+                                    value="{{ billing_config.additional_person_charge }}">
                                 <label for="b_add_person">Additional Person Charge (₹)</label>
                             </div>
                         </div>
@@ -8197,90 +9933,106 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         <!-- Landlord Settings -->
                         <div class="tab-pane fade" id="landlord" role="tabpanel" aria-labelledby="landlord-tab">
                             <h4 class="fw-bold mb-4 border-bottom pb-2">Landlord Information</h4>
-                            <p class="text-muted mb-4">This information will be printed on the generated PDF receipts.</p>
-                            
+                            <p class="text-muted mb-4">This information will be printed on the generated PDF receipts.
+                            </p>
+
                             <div class="form-floating mb-3">
-                                <input type="text" class="form-control" id="l_name" value="{{ landlord_config.name }}" required>
+                                <input type="text" class="form-control" id="l_name" value="{{ landlord_config.name }}"
+                                    required>
                                 <label for="l_name">Landlord Name</label>
                             </div>
-                            
+
                             <div class="row g-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="tel" class="form-control" id="l_phone" value="{{ landlord_config.phone }}">
+                                        <input type="tel" class="form-control" id="l_phone"
+                                            value="{{ landlord_config.phone }}">
                                         <label for="l_phone">Phone Number</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="email" class="form-control" id="l_email" value="{{ landlord_config.email }}">
+                                        <input type="email" class="form-control" id="l_email"
+                                            value="{{ landlord_config.email }}">
                                         <label for="l_email">Email Address</label>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="form-floating mb-3">
-                                <textarea class="form-control" id="l_address" style="height: 100px" required>{{ landlord_config.address }}</textarea>
+                                <textarea class="form-control" id="l_address" style="height: 100px"
+                                    required>{{ landlord_config.address }}</textarea>
                                 <label for="l_address">Property Address</label>
                             </div>
-                            
+
                             <div class="row g-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_pan" value="{{ landlord_config.pan }}">
+                                        <input type="text" class="form-control" id="l_pan"
+                                            value="{{ landlord_config.pan }}">
                                         <label for="l_pan">PAN Number</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_sign" value="{{ landlord_config.signature_text }}">
+                                        <input type="text" class="form-control" id="l_sign"
+                                            value="{{ landlord_config.signature_text }}">
                                         <label for="l_sign">Signature Text</label>
                                     </div>
                                 </div>
                             </div>
 
-                            <h5 class="fw-bold mb-3 mt-4 border-bottom pb-2">Bank Details <span class="badge bg-secondary ms-2 fw-normal fs-8">Optional</span></h5>
-                            <p class="text-muted mb-4 fs-7">If provided, payment instructions will be added to your receipts.</p>
-                            
+                            <h5 class="fw-bold mb-3 mt-4 border-bottom pb-2">Bank Details <span
+                                    class="badge bg-secondary ms-2 fw-normal fs-8">Optional</span></h5>
+                            <p class="text-muted mb-4 fs-7">If provided, payment instructions will be added to your
+                                receipts.</p>
+
                             <div class="row g-3">
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_bank_acc_name" value="{{ landlord_config.bank_account_name }}">
+                                        <input type="text" class="form-control" id="l_bank_acc_name"
+                                            value="{{ landlord_config.bank_account_name }}">
                                         <label for="l_bank_acc_name">Account Holder Name</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-6">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_bank_acc_no" value="{{ landlord_config.bank_account_number }}">
+                                        <input type="text" class="form-control" id="l_bank_acc_no"
+                                            value="{{ landlord_config.bank_account_number }}">
                                         <label for="l_bank_acc_no">Account Number</label>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="row g-3">
                                 <div class="col-sm-5">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_bank_name" value="{{ landlord_config.bank_name }}">
+                                        <input type="text" class="form-control" id="l_bank_name"
+                                            value="{{ landlord_config.bank_name }}">
                                         <label for="l_bank_name">Bank Name</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-4">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_bank_branch" value="{{ landlord_config.bank_branch }}">
+                                        <input type="text" class="form-control" id="l_bank_branch"
+                                            value="{{ landlord_config.bank_branch }}">
                                         <label for="l_bank_branch">Branch</label>
                                     </div>
                                 </div>
                                 <div class="col-sm-3">
                                     <div class="form-floating mb-3">
-                                        <input type="text" class="form-control" id="l_bank_ifsc" value="{{ landlord_config.bank_ifsc }}" style="text-transform: uppercase;">
+                                        <input type="text" class="form-control" id="l_bank_ifsc"
+                                            value="{{ landlord_config.bank_ifsc }}" style="text-transform: uppercase;">
                                         <label for="l_bank_ifsc">IFSC Code</label>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="form-check form-switch mb-4">
-                                <input class="form-check-input" type="checkbox" role="switch" id="l_mask_bank" {% if landlord_config.mask_bank_account %}checked{% endif %}>
-                                <label class="form-check-label" for="l_mask_bank">Mask account number on printed receipts</label>
+                                <input class="form-check-input" type="checkbox" role="switch" id="l_mask_bank" {% if
+                                    landlord_config.mask_bank_account %}checked{% endif %}>
+                                <label class="form-check-label" for="l_mask_bank">Mask account number on printed
+                                    receipts</label>
                             </div>
 
                             <h5 class="fw-bold mb-3 mt-4 border-bottom pb-2">Digital Signature</h5>
@@ -8288,21 +10040,36 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                 <div class="col-12">
                                     <div class="card bg-body-tertiary border-0">
                                         <div class="card-body p-4 text-center">
-                                            <div id="signaturePreviewContainer" class="mb-3 {% if landlord_config.signature_image %}d-block{% else %}d-none{% endif %}">
-                                                <img id="signaturePreview" src="{% if landlord_config.signature_image %}{{ APP_BASE(request) }}/static/uploads/{{ landlord_config.signature_image }}{% endif %}" alt="Landlord Signature" class="img-fluid border rounded bg-white p-2" style="max-height: 100px;">
+                                            <div id="signaturePreviewContainer"
+                                                class="mb-3 {% if landlord_config.signature_image %}d-block{% else %}d-none{% endif %}">
+                                                <img id="signaturePreview"
+                                                    src="{% if landlord_config.signature_image %}{{ APP_BASE(request) }}/static/uploads/{{ landlord_config.signature_image }}{% endif %}"
+                                                    alt="Landlord Signature"
+                                                    class="img-fluid border rounded bg-white p-2"
+                                                    style="max-height: 100px;">
                                                 <div class="mt-2">
-                                                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="removeSignature()">
+                                                    <button type="button"
+                                                        class="btn btn-sm btn-outline-danger rounded-pill px-3"
+                                                        onclick="removeSignature()">
                                                         <i class="bi bi-trash me-1"></i>Remove Signature
                                                     </button>
                                                 </div>
                                             </div>
-                                            
-                                            <div id="signatureUploadContainer" class="p-4 rounded-3 bg-body {% if landlord_config.signature_image %}d-none{% else %}d-block{% endif %}" onclick="document.getElementById('signatureFile').click()">
-                                                <i class="bi bi-cloud-arrow-up text-primary mb-2 d-block" style="font-size: 2.5rem;"></i>
+
+                                            <div id="signatureUploadContainer"
+                                                class="p-4 rounded-3 bg-body {% if landlord_config.signature_image %}d-none{% else %}d-block{% endif %}"
+                                                onclick="document.getElementById('signatureFile').click()">
+                                                <i class="bi bi-cloud-arrow-up text-primary mb-2 d-block"
+                                                    style="font-size: 2.5rem;"></i>
                                                 <h6 class="fw-bold">Drag & Drop Signature</h6>
-                                                <p class="text-muted fs-7 mb-3">Or click to browse. Accepted: PNG, JPG, WEBP. Max size: 2MB.<br>The background will be automatically removed.</p>
-                                                <input type="file" class="form-control d-none" id="signatureFile" accept="image/png, image/jpeg, image/webp" onchange="uploadSignature()">
-                                                <button type="button" class="btn btn-outline-primary rounded-pill px-4" onclick="event.stopPropagation(); document.getElementById('signatureFile').click()">
+                                                <p class="text-muted fs-7 mb-3">Or click to browse. Accepted: PNG, JPG,
+                                                    WEBP. Max size: 2MB.<br>The background will be automatically
+                                                    removed.</p>
+                                                <input type="file" class="form-control d-none" id="signatureFile"
+                                                    accept="image/png, image/jpeg, image/webp"
+                                                    onchange="uploadSignature()">
+                                                <button type="button" class="btn btn-outline-primary rounded-pill px-4"
+                                                    onclick="event.stopPropagation(); document.getElementById('signatureFile').click()">
                                                     <i class="bi bi-upload me-2"></i>Select Image
                                                 </button>
                                             </div>
@@ -8311,19 +10078,36 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                 </div>
                             </div>
 
-                            <h5 class="fw-bold mb-3 mt-4 border-bottom pb-2">WhatsApp Templates</h5>
-                            <p class="text-muted fs-7 mb-3">Customize the messages sent to tenants. You can use the following variables:<br>
-                            <code>{tenant_name}</code>, <code>{month}</code>, <code>{bill_no}</code>, <code>{total}</code>, <code>{currency}</code>, <code>{link}</code></p>
-                            
-                            <div class="form-floating mb-3">
-                                <textarea class="form-control" id="l_wa_template" style="height: 150px" required>{{ landlord_config.whatsapp_template }}</textarea>
-                                <label for="l_wa_template">Single Receipt Message Template</label>
+                            <h5 class="fw-bold mb-3 mt-4 border-bottom pb-2">WhatsApp Template</h5>
+                            <p class="text-muted mb-3 fs-7">
+                                Customize the WhatsApp message using the allowed variables below.
+                            </p>
+
+                            <div class="d-flex flex-wrap gap-2 mb-3" id="waVariablesBar"></div>
+
+                            <div class="d-flex flex-wrap gap-2 mb-3">
+                                <button type="button" class="btn btn-outline-primary btn-sm rounded-pill"
+                                    id="btnEditWaTemplate">
+                                    <i class="bi bi-pencil-square me-1"></i>Edit Template
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill d-none"
+                                    id="btnLockWaTemplate">
+                                    <i class="bi bi-lock me-1"></i>Lock Template
+                                </button>
+                                <button type="button" class="btn btn-outline-warning btn-sm rounded-pill"
+                                    id="btnResetWaTemplate">
+                                    <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to Default
+                                </button>
                             </div>
-                            
+
                             <div class="form-floating mb-4">
-                                <textarea class="form-control" id="l_wa_bulk_template" style="height: 150px" required>{{ landlord_config.whatsapp_bulk_template }}</textarea>
-                                <label for="l_wa_bulk_template">Bulk Receipts Message Template</label>
-                                <div class="form-text fs-8">Use <code>{bill_list}</code> and <code>{total_amount}</code> instead of single bill variables here.</div>
+                                <textarea class="form-control" id="l_wa_template" style="height: 180px" readonly
+                                    placeholder="Enter template here">{{ whatsapp_config.single_template.message }}</textarea>
+
+                                <div class="form-text fs-8">
+                                    Read-only by default. Click <strong>Edit Template</strong> to modify. Click a
+                                    variable chip to insert it at the cursor position.
+                                </div>
                             </div>
 
                         </div>
@@ -8331,73 +10115,185 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         <!-- Appearance Settings -->
                         <div class="tab-pane fade" id="appearance" role="tabpanel" aria-labelledby="appearance-tab">
                             <h4 class="fw-bold mb-4 border-bottom pb-2">Appearance</h4>
-                            
-                            <h6 class="fw-semibold mb-3">Base Theme</h6>
-                            <div class="d-flex gap-3 mb-5">
-                                <button type="button" class="btn btn-outline-secondary px-4 py-3 rounded-3 {% if theme == 'light' %}active border-primary{% endif %}" onclick="setTheme('light')">
-                                    <i class="bi bi-sun-fill fs-4 d-block mb-2 text-warning"></i> Light
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary px-4 py-3 rounded-3 {% if theme == 'dark' %}active border-primary{% endif %}" onclick="setTheme('dark')">
-                                    <i class="bi bi-moon-stars-fill fs-4 d-block mb-2 text-primary"></i> Dark
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary px-4 py-3 rounded-3 {% if theme == 'system' %}active border-primary{% endif %}" onclick="setTheme('system')">
-                                    <i class="bi bi-laptop fs-4 d-block mb-2 text-secondary"></i> System
-                                </button>
+
+                            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                                <div class="card-body p-4">
+                                    <div
+                                        class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-4">
+                                        <div>
+                                            <h6 class="fw-semibold mb-1">Base Theme</h6>
+                                            <p class="text-muted fs-7 mb-0">
+                                                Choose how the app should look across all pages.
+                                            </p>
+                                        </div>
+
+                                        <div class="theme-save-status-wrap">
+                                            <span id="themeSaveStatus" class="theme-save-status idle">
+                                                <i class="bi bi-circle-fill me-1 small"></i>
+                                                Ready
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3 mb-3" id="themeSelectorGroup">
+                                        <div class="col-md-4">
+                                            <button type="button" class="theme-option-btn w-100 text-start"
+                                                data-theme-option="light"
+                                                aria-pressed="{{ 'true' if theme == 'light' else 'false' }}">
+                                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                                    <div class="theme-icon theme-icon-light">
+                                                        <i class="bi bi-sun-fill"></i>
+                                                    </div>
+                                                    <span class="theme-active-badge d-none">
+                                                        <i class="bi bi-check2-circle me-1"></i>Active
+                                                    </span>
+                                                </div>
+                                                <div class="fw-bold mb-1">Light</div>
+                                                <div class="text-muted fs-8">Bright interface for daytime use.</div>
+                                            </button>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <button type="button" class="theme-option-btn w-100 text-start"
+                                                data-theme-option="dark"
+                                                aria-pressed="{{ 'true' if theme == 'dark' else 'false' }}">
+                                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                                    <div class="theme-icon theme-icon-dark">
+                                                        <i class="bi bi-moon-stars-fill"></i>
+                                                    </div>
+                                                    <span class="theme-active-badge d-none">
+                                                        <i class="bi bi-check2-circle me-1"></i>Active
+                                                    </span>
+                                                </div>
+                                                <div class="fw-bold mb-1">Dark</div>
+                                                <div class="text-muted fs-8">Low-glare interface for night use.</div>
+                                            </button>
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <button type="button" class="theme-option-btn w-100 text-start"
+                                                data-theme-option="system"
+                                                aria-pressed="{{ 'true' if theme == 'system' else 'false' }}">
+                                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                                    <div class="theme-icon theme-icon-system">
+                                                        <i class="bi bi-laptop"></i>
+                                                    </div>
+                                                    <span class="theme-active-badge d-none">
+                                                        <i class="bi bi-check2-circle me-1"></i>Active
+                                                    </span>
+                                                </div>
+                                                <div class="fw-bold mb-1">System</div>
+                                                <div class="text-muted fs-8">Automatically follows your device
+                                                    preference.</div>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="theme-live-meta d-flex flex-column flex-md-row gap-2 gap-md-4">
+                                        <div>
+                                            <span class="text-muted fs-8 text-uppercase fw-semibold">Selected</span>
+                                            <div id="themeSelectedLabel" class="fw-semibold">System</div>
+                                        </div>
+                                        <div>
+                                            <span class="text-muted fs-8 text-uppercase fw-semibold">Applied now</span>
+                                            <div id="themeAppliedLabel" class="fw-semibold">Light</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            
-                            <h6 class="fw-semibold mb-3">Accent Color <span class="badge bg-secondary-subtle text-secondary ms-2 fw-normal fs-8">Coming Soon</span></h6>
-                            <div class="d-flex gap-2 mb-3">
-                                <div class="rounded-circle bg-primary" style="width: 32px; height: 32px; cursor: pointer; border: 2px solid white; outline: 2px solid var(--bs-primary);"></div>
-                                <div class="rounded-circle bg-success" style="width: 32px; height: 32px; cursor: not-allowed; opacity: 0.5;"></div>
-                                <div class="rounded-circle" style="background-color: #6f42c1; width: 32px; height: 32px; cursor: not-allowed; opacity: 0.5;"></div>
-                                <div class="rounded-circle bg-danger" style="width: 32px; height: 32px; cursor: not-allowed; opacity: 0.5;"></div>
+
+                            <div class="card shadow-sm border-0 rounded-4 mb-4">
+                                <div class="card-body p-4">
+                                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+                                        <div>
+                                            <h6 class="fw-semibold mb-1">
+                                                Accent Color
+                                                <span
+                                                    class="badge bg-secondary-subtle text-secondary ms-2 fw-normal fs-8">Coming
+                                                    Soon</span>
+                                            </h6>
+                                            <p class="text-muted fs-7 mb-0">
+                                                This preview is not clickable yet, but shows where accent
+                                                personalization will appear.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex gap-2 mb-3">
+                                        <span class="accent-preview-dot active"
+                                            style="--accent-preview:#0d6efd;"></span>
+                                        <span class="accent-preview-dot disabled"
+                                            style="--accent-preview:#198754;"></span>
+                                        <span class="accent-preview-dot disabled"
+                                            style="--accent-preview:#6f42c1;"></span>
+                                        <span class="accent-preview-dot disabled"
+                                            style="--accent-preview:#dc3545;"></span>
+                                    </div>
+
+                                    <p class="text-muted fs-8 mb-0">
+                                        For now, theme switching is fully interactive; accent color remains visual-only.
+                                    </p>
+                                </div>
                             </div>
-                            <p class="text-muted fs-7">Custom accent colors are currently in development.</p>
                         </div>
-                        
+
                         <!-- Backup Settings -->
                         <div class="tab-pane fade" id="backup" role="tabpanel" aria-labelledby="backup-tab">
                             <div class="card shadow-sm border-0 mb-4 rounded-4">
-                                <div class="card-header bg-success bg-gradient text-white py-3 px-4 d-flex align-items-center rounded-top-4">
+                                <div
+                                    class="card-header bg-success bg-gradient text-white py-3 px-4 d-flex align-items-center rounded-top-4">
                                     <i class="bi bi-file-earmark-spreadsheet fs-5 me-3"></i>
                                     <h5 class="mb-0 fw-bold">Excel Import & Export (Relational)</h5>
                                 </div>
                                 <div class="card-body p-4">
                                     <p class="text-muted mb-4 fs-7">
-                                        Manage your tenants and receipts using a highly organized Excel format (.xlsx). The workbook separates Tenant Profiles and Receipts into distinct sheets to prevent duplication and make editing easier.
+                                        Manage your tenants and receipts using a highly organized Excel format (.xlsx).
+                                        The workbook separates Tenant Profiles and Receipts into distinct sheets to
+                                        prevent duplication and make editing easier.
                                     </p>
-                            
+
                                     <div class="row g-3">
                                         <div class="col-md-4">
-                                            <button onclick="executeExport('template')" type="button" class="btn btn-outline-success w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
-                                                <span><i class="bi bi-grid-3x3 me-2 text-success"></i> Blank Excel Template</span>
+                                            <button onclick="executeExport('template')" type="button"
+                                                class="btn btn-outline-success w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
+                                                <span><i class="bi bi-grid-3x3 me-2 text-success"></i> Blank Excel
+                                                    Template</span>
                                                 <i class="bi bi-download"></i>
                                             </button>
                                         </div>
                                         <div class="col-md-4">
-                                            <button onclick="executeExport('xlsx')" type="button" class="btn btn-outline-primary w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
-                                                <span><i class="bi bi-file-excel-fill me-2 text-primary"></i> Export to Excel (.xlsx)</span>
+                                            <button onclick="executeExport('xlsx')" type="button"
+                                                class="btn btn-outline-primary w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
+                                                <span><i class="bi bi-file-excel-fill me-2 text-primary"></i> Export to
+                                                    Excel (.xlsx)</span>
                                                 <i class="bi bi-box-arrow-up-right"></i>
                                             </button>
                                         </div>
                                         <div class="col-md-4">
-                                            <button onclick="executeExport('zip')" type="button" class="btn btn-outline-primary w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
-                                                <span><i class="bi bi-file-zip-fill me-2 text-primary"></i> Export as ZIP Archive</span>
+                                            <button onclick="executeExport('zip')" type="button"
+                                                class="btn btn-outline-primary w-100 py-2 fw-bold text-start rounded-3 shadow-sm d-flex align-items-center justify-content-between">
+                                                <span><i class="bi bi-file-zip-fill me-2 text-primary"></i> Export as
+                                                    ZIP Archive</span>
                                                 <i class="bi bi-box-arrow-up-right"></i>
                                             </button>
                                         </div>
                                     </div>
-                                    
+
                                     <hr class="my-4 text-muted">
-                                    
-                                    <div class="d-flex align-items-center justify-content-between bg-primary-subtle p-3 rounded-3 border border-primary">
+
+                                    <div
+                                        class="d-flex align-items-center justify-content-between bg-primary-subtle p-3 rounded-3 border border-primary">
                                         <div>
                                             <h6 class="fw-bold text-primary mb-1">Import Excel Data</h6>
-                                            <div class="fs-8 text-muted">Select an .xlsx file or a .zip containing multiple .xlsx files.</div>
+                                            <div class="fs-8 text-muted">Select an .xlsx file or a .zip containing
+                                                multiple .xlsx files.</div>
                                         </div>
                                         <div>
-                                            <input type="file" id="importExcelFile" accept=".xlsx, .zip" class="d-none" onchange="handleExcelImport(this)">
-                                            <button type="button" onclick="document.getElementById('importExcelFile').click()" class="btn btn-primary fw-bold shadow-sm rounded-pill px-4">
+                                            <input type="file" id="importExcelFile" accept=".xlsx, .zip" class="d-none"
+                                                onchange="handleExcelImport(this)">
+                                            <button type="button"
+                                                onclick="document.getElementById('importExcelFile').click()"
+                                                class="btn btn-primary fw-bold shadow-sm rounded-pill px-4">
                                                 <i class="bi bi-cloud-arrow-up-fill me-2"></i> Select File to Import
                                             </button>
                                         </div>
@@ -8407,10 +10303,11 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         </div>
 
                     </div>
-                    
+
                     <!-- Save Button Area -->
                     <div class="mt-4 pt-4 border-top">
-                        <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm fw-bold" id="saveBtn">
+                        <button type="submit" class="btn btn-primary btn-lg rounded-pill px-5 shadow-sm fw-bold"
+                            id="saveBtn">
                             <i class="bi bi-save me-2"></i>Save All Settings
                         </button>
                     </div>
@@ -8426,22 +10323,24 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 <h5 class="modal-title fw-bold fs-6">
                     <i class="bi bi-file-excel me-2 text-success"></i> Data Import Preview
                 </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"
+                    aria-label="Close"></button>
             </div>
-            
+
             <div class="modal-body p-0 d-flex flex-row h-100" style="overflow: hidden;">
-                
+
                 <div class="border-end bg-body-tertiary d-flex flex-column h-100" style="width: 20%; min-width: 250px;">
-                    <div class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center shadow-sm z-1">
+                    <div
+                        class="p-2 border-bottom bg-light d-flex justify-content-between align-items-center shadow-sm z-1">
                         <h6 class="fw-bold mb-0 text-secondary fs-7 px-2">Select Tenants</h6>
                     </div>
-                    
+
                     <div class="overflow-auto flex-grow-1 p-2" id="importTreeList">
-                        </div>
+                    </div>
                 </div>
 
                 <div class="bg-body d-flex flex-column h-100" style="width: 80%;">
-                    
+
                     <div class="p-3 border-bottom bg-primary-subtle shadow-sm z-1 d-none" id="previewProfileCard">
                         <div class="row align-items-center">
                             <div class="col-md-4">
@@ -8450,37 +10349,48 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             </div>
                             <div class="col-md-8">
                                 <div class="row fs-7 text-dark fw-semibold">
-                                    <div class="col-4"><i class="bi bi-telephone me-1"></i> <span id="prev_t_phone"></span></div>
-                                    <div class="col-4"><i class="bi bi-building me-1"></i> <span id="prev_t_company"></span></div>
+                                    <div class="col-4"><i class="bi bi-telephone me-1"></i> <span
+                                            id="prev_t_phone"></span></div>
+                                    <div class="col-4"><i class="bi bi-building me-1"></i> <span
+                                            id="prev_t_company"></span></div>
                                     <div class="col-4">Rent: ₹<span id="prev_t_rent"></span></div>
-                                    <div class="col-4"><i class="bi bi-lightning-charge me-1"></i> ₹<span id="prev_t_rate"></span>/unit</div>
+                                    <div class="col-4"><i class="bi bi-lightning-charge me-1"></i> ₹<span
+                                            id="prev_t_rate"></span>/unit</div>
                                     <div class="col-4">Water: ₹<span id="prev_t_water"></span></div>
                                     <div class="col-4"><span class="badge bg-success" id="prev_t_status"></span></div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="px-3 py-2 border-bottom bg-light d-flex justify-content-between align-items-center" id="previewHeaderBar">
-                        <h6 class="fw-bold mb-0 text-secondary" id="previewTableName">Select a tenant on the left to preview receipts</h6>
+
+                    <div class="px-3 py-2 border-bottom bg-light d-flex justify-content-between align-items-center"
+                        id="previewHeaderBar">
+                        <h6 class="fw-bold mb-0 text-secondary" id="previewTableName">Select a tenant on the left to
+                            preview receipts</h6>
                         <span class="badge bg-secondary" id="previewTableRowsCount">0 Receipts</span>
                     </div>
-                    
+
                     <div class="table-responsive flex-grow-1 p-0 m-0 bg-white" style="overflow-y: auto;">
                         <table class="table table-hover table-sm fs-8 m-0 border-top-0" id="previewTable">
                             <thead class="table-dark sticky-top" id="previewTableHead"></thead>
                             <tbody id="previewTableBody">
-                                <tr><td colspan="100%" class="text-center text-muted py-5 mt-5"><i class="bi bi-inboxes d-block fs-1 mb-3 opacity-50"></i>No preview available</td></tr>
+                                <tr>
+                                    <td colspan="100%" class="text-center text-muted py-5 mt-5"><i
+                                            class="bi bi-inboxes d-block fs-1 mb-3 opacity-50"></i>No preview available
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
             </div>
-            
+
             <div class="modal-footer bg-light border-top-0 py-2">
-                <button type="button" class="btn btn-outline-secondary fw-bold rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-success fw-bold rounded-pill px-5 shadow-sm" id="btnExecuteImport" onclick="executeExcelImport()">
+                <button type="button" class="btn btn-outline-secondary fw-bold rounded-pill px-4"
+                    data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success fw-bold rounded-pill px-5 shadow-sm" id="btnExecuteImport"
+                    onclick="executeExcelImport()">
                     <i class="bi bi-cloud-check-fill me-2"></i> Import Selected Tenants
                 </button>
             </div>
@@ -8495,19 +10405,85 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     #signatureUploadContainer {
         border: 2px dashed #dee2e6;
         transition: all 0.2s ease-in-out;
-        cursor: pointer;
     }
+
     #signatureUploadContainer.drag-over {
         border-color: var(--bs-primary);
         background-color: var(--bs-primary-bg-subtle) !important;
     }
 </style>
+<script id="whatsapp_config_data" type="application/json">
+    {{ whatsapp_config|tojson }}
+</script>
 <script>
-    document.getElementById("settingsForm").addEventListener("submit", async function(e) {
+    const whatsappConfig = JSON.parse(document.getElementById('whatsapp_config_data').textContent);
+    const waTemplateConfig = whatsappConfig.single_template || {};
+    const waAllowedVariables = waTemplateConfig.allowed_variables || [];
+    const waDefaultMessage = waTemplateConfig.default_message || "";
+    const waTextarea = document.getElementById("l_wa_template");
+    const waVariablesBar = document.getElementById("waVariablesBar");
+    const btnEditWaTemplate = document.getElementById("btnEditWaTemplate");
+    const btnLockWaTemplate = document.getElementById("btnLockWaTemplate");
+    const btnResetWaTemplate = document.getElementById("btnResetWaTemplate");
+
+    function insertAtCursor(textarea, text) {
+        const start = textarea.selectionStart ?? textarea.value.length;
+        const end = textarea.selectionEnd ?? textarea.value.length;
+        const before = textarea.value.substring(0, start);
+        const after = textarea.value.substring(end);
+        textarea.value = before + text + after;
+        const nextPos = start + text.length;
+        textarea.focus();
+        textarea.setSelectionRange(nextPos, nextPos);
+    }
+
+    function renderWhatsappVariables() {
+        waVariablesBar.innerHTML = "";
+        waAllowedVariables.forEach(variable => {
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.className = "btn btn-outline-dark btn-sm rounded-pill";
+            btn.textContent = variable;
+            btn.addEventListener("click", () => {
+                if (waTextarea.hasAttribute("readonly")) return;
+                insertAtCursor(waTextarea, variable);
+            });
+            waVariablesBar.appendChild(btn);
+        });
+    }
+
+    btnEditWaTemplate.addEventListener("click", () => {
+        waTextarea.removeAttribute("readonly");
+        waTextarea.focus();
+        btnEditWaTemplate.classList.add("d-none");
+        btnLockWaTemplate.classList.remove("d-none");
+    });
+
+    btnLockWaTemplate.addEventListener("click", () => {
+        waTextarea.setAttribute("readonly", "readonly");
+        btnLockWaTemplate.classList.add("d-none");
+        btnEditWaTemplate.classList.remove("d-none");
+    });
+
+    btnResetWaTemplate.addEventListener("click", async () => {
+        const result = await Swal.fire({
+            title: "Reset template?",
+            text: "This will restore the default WhatsApp message.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Yes, Reset",
+            confirmButtonColor: "#f59f00"
+        });
+
+        if (!result.isConfirmed) return;
+        waTextarea.value = waDefaultMessage;
+    });
+
+    renderWhatsappVariables();
+
+    document.getElementById("settingsForm").addEventListener("submit", async function (e) {
         e.preventDefault();
-        
-        // Because "Appearance" and "Backup" don't have form fields to save,
-        // we only gather Landlord and Billing fields.
+
         const landlordData = {
             name: document.getElementById("l_name").value,
             phone: document.getElementById("l_phone").value,
@@ -8520,23 +10496,9 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             bank_branch: document.getElementById("l_bank_branch").value.trim(),
             bank_ifsc: document.getElementById("l_bank_ifsc").value.toUpperCase(),
             mask_bank_account: document.getElementById("l_mask_bank").checked,
-            signature_text: document.getElementById("l_sign").value,
-            whatsapp_template: document.getElementById("l_wa_template").value,
-            whatsapp_bulk_template: document.getElementById("l_wa_bulk_template").value
+            signature_text: document.getElementById("l_sign").value
         };
-        
-        // Bank Validation
-        if (landlordData.bank_account_name || landlordData.bank_account_number || landlordData.bank_name || landlordData.bank_branch || landlordData.bank_ifsc) {
-            if (!landlordData.bank_account_number) {
-                showError("Validation Error", "Account Number is required if bank details are provided.");
-                return;
-            }
-            if (landlordData.bank_ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(landlordData.bank_ifsc)) {
-                showError("Validation Error", "Invalid IFSC Code format. Example: SBIN0001234");
-                return;
-            }
-        }
-        
+
         const billingData = {
             rent: parseFloat(document.getElementById("b_rent").value),
             water: parseFloat(document.getElementById("b_water").value),
@@ -8544,29 +10506,39 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             previous_meter_reading: parseFloat(document.getElementById("b_prev_meter").value),
             additional_person_charge: parseFloat(document.getElementById("b_add_person").value) || 0
         };
-        
+
+        const whatsappData = {
+            single_template: {
+                ...waTemplateConfig,
+                message: waTextarea.value
+            },
+            country_code: whatsappConfig.country_code || "91"
+        };
+
         const saveBtn = document.getElementById("saveBtn");
         saveBtn.disabled = true;
         saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...';
-        
+
         try {
             const res = await fetch("api/config", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     landlord: landlordData,
-                    billing: billingData
+                    billing: billingData,
+                    whatsapp: whatsappData
                 })
             });
+
             if (res.ok) {
-                showToast('success', 'Settings Saved Successfully');
-                setTimeout(() => window.location.reload(), 1500);
+                showToast("success", "Settings Saved Successfully");
+                setTimeout(() => window.location.reload(), 1200);
             } else {
-                showError('Error', 'Failed to save settings.');
+                showError("Error", "Failed to save settings.");
                 resetSaveBtn(saveBtn);
             }
         } catch (e) {
-            showError('Network Error', 'A connection error occurred.');
+            showError("Network Error", "A connection error occurred.");
             resetSaveBtn(saveBtn);
         }
     });
@@ -8581,38 +10553,38 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
     async function handleExcelImport(inputEl) {
         if (!inputEl.files || inputEl.files.length === 0) return;
-        
+
         currentExcelFileObj = inputEl.files[0];
         const formData = new FormData();
         formData.append("file", currentExcelFileObj);
-        
+
         showSyncOverlay("Parsing Excel structure...");
-        
+
         try {
             const res = await fetch("api/sync/import/preview", { method: "POST", body: formData });
             hideSyncOverlay();
-            
+
             if (!res.ok) {
                 const data = await res.json();
                 showError("Parse Error", data.detail || "Unable to read file contents.");
                 inputEl.value = '';
                 return;
             }
-            
+
             const data = await res.json();
             importExcelCache = data.files; // Format: { "Rent_Data.xlsx": { "T001": { profile: {}, receipts: [] } } }
-            
+
             renderImportTreeList();
-            
+
             // Hide right side preview initially
             document.getElementById('previewProfileCard').classList.add('d-none');
             document.getElementById('previewTableBody').innerHTML = '<tr><td colspan="100%" class="text-center text-muted py-5 mt-5"><i class="bi bi-inboxes d-block fs-1 mb-3 opacity-50"></i>Select a tenant on the left to preview data.</td></tr>';
             document.getElementById('previewTableHead').innerHTML = '';
-            
+
             const modal = new bootstrap.Modal(document.getElementById('importPreviewModal'));
             modal.show();
-            
-        } catch(e) {
+
+        } catch (e) {
             hideSyncOverlay();
             showError("Network Error", "Could not reach the server.");
         }
@@ -8622,16 +10594,16 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     function renderImportTreeList() {
         const listContainer = document.getElementById('importTreeList');
         listContainer.innerHTML = '';
-        
+
         let isFirst = true;
 
         // Loop over files (Will be 1 if just .xlsx, multiple if .zip)
         for (const [filename, tenantsObj] of Object.entries(importExcelCache)) {
-            
+
             // File Header
             const fileGroup = document.createElement('div');
             fileGroup.className = "mb-3 border rounded-3 bg-white overflow-hidden shadow-sm";
-            
+
             const fileHeader = document.createElement('div');
             fileHeader.className = "bg-body-tertiary p-2 border-bottom d-flex align-items-center justify-content-between";
             fileHeader.innerHTML = `
@@ -8641,30 +10613,30 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 <input type="checkbox" class="form-check-input file-group-checkbox" checked onchange="toggleFileGroup(this, '${filename.replace(/[^a-zA-Z0-9]/g, '_')}')" title="Select All in File">
             `;
             fileGroup.appendChild(fileHeader);
-            
+
             const tenantList = document.createElement('div');
             tenantList.className = "list-group list-group-flush";
             tenantList.id = `group_${filename.replace(/[^a-zA-Z0-9]/g, '_')}`;
-            
+
             // Loop over Tenants inside this file
             for (const [tenantId, data] of Object.entries(tenantsObj)) {
                 const tName = data.profile.Tenant_Name || "Unknown Tenant";
                 const receiptCount = data.receipts.length;
-                
+
                 const tItem = document.createElement('div');
                 tItem.className = `list-group-item list-group-item-action d-flex align-items-center gap-2 py-2 px-3 border-bottom-0 tenant-select-item ${isFirst ? 'bg-primary-subtle' : ''}`;
                 tItem.style.cursor = "pointer";
-                
+
                 // Handle clicking the row to preview
                 tItem.onclick = (e) => {
-                    if(e.target.type === 'checkbox') return;
-                    
+                    if (e.target.type === 'checkbox') return;
+
                     document.querySelectorAll('.tenant-select-item').forEach(el => el.classList.remove('bg-primary-subtle'));
                     tItem.classList.add('bg-primary-subtle');
-                    
+
                     renderRightSidePreview(filename, tenantId);
                 };
-                
+
                 tItem.innerHTML = `
                     <input class="form-check-input import-tenant-checkbox" type="checkbox" value="${filename}::${tenantId}" checked>
                     <div class="d-flex flex-column w-100" style="overflow: hidden;">
@@ -8675,22 +10647,22 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         </div>
                     </div>
                 `;
-                
+
                 tenantList.appendChild(tItem);
-                
+
                 if (isFirst) {
                     renderRightSidePreview(filename, tenantId);
                     isFirst = false;
                 }
             }
-            
+
             fileGroup.appendChild(tenantList);
             listContainer.appendChild(fileGroup);
         }
     }
 
     // Must attach toggleFileGroup to window to work with inline onchange
-    window.toggleFileGroup = function(checkbox, groupId) {
+    window.toggleFileGroup = function (checkbox, groupId) {
         const group = document.getElementById(`group_${groupId}`);
         if (group) {
             group.querySelectorAll('.import-tenant-checkbox').forEach(cb => cb.checked = checkbox.checked);
@@ -8699,10 +10671,10 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
     function renderRightSidePreview(filename, tenantId) {
         const data = importExcelCache[filename][tenantId];
-        
+
         // 1. Render Profile Summary Card
         document.getElementById('previewProfileCard').classList.remove('d-none');
-        
+
         const p = data.profile;
         document.getElementById('prev_t_name').innerText = p.Tenant_Name || "-";
         document.getElementById('prev_t_id').innerText = tenantId;
@@ -8712,40 +10684,40 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         document.getElementById('prev_t_rate').innerText = p.Electricity_Rate || "0";
         document.getElementById('prev_t_water').innerText = p.Water || "0";
         document.getElementById('prev_t_status').innerText = p.Status || "Active";
-        
+
         // 2. Render Receipts Table
         document.getElementById('previewTableName').innerText = `Receipt History`;
         document.getElementById('previewTableRowsCount').innerText = `${data.receipts.length} Receipts`;
-        
+
         const thead = document.getElementById('previewTableHead');
         const tbody = document.getElementById('previewTableBody');
-        
+
         if (data.receipts.length === 0) {
             thead.innerHTML = "";
             tbody.innerHTML = `<tr><td colspan="100%" class="text-center text-muted py-5"><i class="bi bi-inbox d-block fs-1 mb-2 opacity-50"></i>No receipts found for this tenant.</td></tr>`;
             return;
         }
-        
+
         // Extract headers from first receipt object keys dynamically
         const headers = Object.keys(data.receipts[0]);
-        
+
         let trHead = '<tr>';
         headers.forEach(h => { trHead += `<th class="text-nowrap">${h}</th>`; });
         trHead += '</tr>';
         thead.innerHTML = trHead;
-        
+
         let trBody = '';
         data.receipts.forEach(row => {
             trBody += '<tr>';
             headers.forEach(h => {
                 const val = row[h] || '-';
-                
+
                 // Color code statuses visually for preview
                 let styledVal = val;
                 if (h === 'Payment_Status') {
                     styledVal = val === 'PAID' ? `<span class="text-success fw-bold">${val}</span>` : `<span class="text-danger fw-bold">${val}</span>`;
                 }
-                
+
                 trBody += `<td class="text-nowrap">${styledVal}</td>`;
             });
             trBody += '</tr>';
@@ -8756,32 +10728,34 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     async function executeExcelImport() {
         const checkboxes = document.querySelectorAll('.import-tenant-checkbox:checked');
         const selectedTargets = Array.from(checkboxes).map(cb => cb.value); // ["RentData.xlsx::T001", ...]
-        
+
         if (selectedTargets.length === 0) {
             showError("Selection Required", "Please check at least one tenant from the list on the left to import.");
             return;
         }
-        
+
         const btn = document.getElementById('btnExecuteImport');
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Importing...';
-        
+
         document.activeElement.blur(); // Remove focus to prevent ARIA hidden warnings
         bootstrap.Modal.getInstance(document.getElementById('importPreviewModal')).hide(); // Hide the modal first
         showSyncOverlay("Importing & Syncing Data...");
-        
+
         const formData = new FormData();
         formData.append("file", currentExcelFileObj);
-        formData.append("selected_targets", JSON.stringify(selectedTargets));
-        
+        formData.append("selectedtargets", JSON.stringify(selectedTargets));
+
+        console.log("Submitting sync execute with selectedtargets:", JSON.stringify(selectedTargets));
+
         try {
             const res = await fetch("api/sync/import/execute", { method: "POST", body: formData });
             hideSyncOverlay();
-            
+
             btn.disabled = false;
             btn.innerHTML = originalHtml;
-            
+
             if (res.ok) {
                 Swal.fire({
                     icon: 'success',
@@ -8795,8 +10769,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 const errData = await res.json();
                 showError("Import Failed", errData.detail || "An error occurred while merging Excel data.");
             }
-            
-        } catch(e) {
+
+        } catch (e) {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
             hideSyncOverlay();
@@ -8808,16 +10782,16 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         const fileInput = document.getElementById('signatureFile');
         const file = fileInput.files[0];
         if (!file) return;
-        
+
         if (file.size > 2 * 1024 * 1024) {
             showError('Error', 'File is too large. Max 2MB allowed.');
             fileInput.value = '';
             return;
         }
-        
+
         const formData = new FormData();
         formData.append('file', file);
-        
+
         showLoadingOverlay('Uploading and processing signature...');
         try {
             const res = await fetch('api/settings/signature', {
@@ -8826,7 +10800,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             });
             const data = await res.json();
             hideLoadingOverlay();
-            
+
             if (res.ok) {
                 showToast('success', 'Signature uploaded and processed successfully.');
                 document.getElementById('signaturePreview').src = "static/uploads/" + data.path + "?t=" + new Date().getTime();
@@ -8855,7 +10829,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     } else {
                         showError('Error', 'Failed to remove signature.');
                     }
-                } catch(e) {
+                } catch (e) {
                     showError('Error', 'Network error.');
                 }
             }
@@ -8915,24 +10889,27 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 {% block content %}
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-3 mb-4 border-bottom">
     <div class="d-flex align-items-center">
-        <a href="{{ APP_BASE(request) }}/tenants" class="btn btn-sm btn-outline-secondary rounded-pill me-3"><i class="bi bi-arrow-left"></i>
+        <a href="{{ APP_BASE(request) }}/tenants" class="btn btn-sm btn-outline-secondary rounded-pill me-3"><i
+                class="bi bi-arrow-left"></i>
             Back</a>
         <h1 class="h2 mb-0 fw-bold">Tenant Profile</h1>
     </div>
     <div class="d-flex align-items-center gap-2">
         {% if tenant.arrears > 0 %}
-        <span class="badge bg-danger fs-6 px-3 py-2 rounded-pill shadow-sm me-2">Due: ₹{{ "%.2f"|format(tenant.arrears) }}</span>
+        <span class="badge bg-danger fs-6 px-3 py-2 rounded-pill shadow-sm me-2">Due: ₹{{ "%.2f"|format(tenant.arrears)
+            }}</span>
         {% endif %}
         <button onclick="openKycModal()" class="btn btn-info text-white rounded-pill shadow-sm">
             <i class="bi bi-person-vcard me-2"></i>Occupants List
         </button>
-        
-        <button onclick="showQRCode('{{ tenant.view_token }}')" class="btn btn-dark rounded-pill shadow-sm">
+
+        <!-- <button onclick="showQRCode('{{ tenant.view_token }}', '{{ tenant.id }})" class="btn btn-dark rounded-pill shadow-sm"></button> -->
+        <button onclick="showQRCode('{{ tenant.view_token }}', '{{ tenant.id }}')"
+            class="btn btn-dark rounded-pill shadow-sm">
             <i class="bi bi-qr-code-scan me-2"></i>Tenant QR
         </button>
 
-        <button
-            onclick="window.open(window.APP_BASE + '/t/{{ tenant.view_token }}', '_blank')"
+        <button onclick="window.open(window.APP_BASE + '/t/{{ tenant.view_token }}', '_blank')"
             class="btn btn-primary rounded-pill shadow-sm">
             <i class="bi bi-box-arrow-up-right me-2"></i>Tenant Portal
         </button>
@@ -8979,10 +10956,20 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         <div><strong class="d-block text-muted fs-8 text-uppercase">Address</strong> {{ tenant.address
                             or "-" }}</div>
                     </div>
-                    <div class="mb-3 d-flex align-items-start">
-                        <i class="bi bi-key text-primary me-3 mt-1"></i>
-                        <div><strong class="d-block text-muted fs-8 text-uppercase">Portal PIN</strong> <span
-                                class="badge bg-secondary font-monospace">{{ tenant.tenant_pin }}</span></div>
+                    <div class="mb-3 align-items-start">
+                        <i class="bi bi-key text-primary me-3 mt-1 float-start"></i>
+                        <div class="ms-4">
+                            <strong class="d-block text-muted fs-8 text-uppercase mb-1">Portal PIN</strong>
+                            <div class="input-group input-group-sm mb-1" style="max-width: 200px;">
+                                <input id="tenantPinField" class="form-control font-monospace" type="text" value="••••"
+                                    readonly>
+                                <button id="revealPinBtn" class="btn btn-outline-primary" type="button"
+                                    data-url="{{ route(request, 'admin_reveal_tenant_pin', tenantid=tenant.id) }}">
+                                    Reveal
+                                </button>
+                            </div>
+                            <small class="text-muted fs-8">Visible only to logged-in admin.</small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -9025,12 +11012,13 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 class="card-header bg-transparent border-0 pt-4 pb-3 px-4 d-flex justify-content-between align-items-center">
                 <h5 class="fw-bold mb-0"><i class="bi bi-clock-history me-2 text-primary"></i>Receipt History</h5>
                 <div class="d-flex gap-2">
-                    {% if config.get('system', 'features.whatsapp_sync') %}
+                    <!-- {% if config.get('system', 'features.whatsapp_sync') %}
                     <button class="btn btn-sm btn-outline-success rounded-pill" onclick="sendBulkWhatsApp()">
                         <i class="bi bi-whatsapp me-1"></i>Bulk Send
-                    </button>
+                    </button> -->
                     {% endif %}
-                    <a href="{{ APP_BASE(request) }}/billing" class="btn btn-sm btn-primary rounded-pill"><i class="bi bi-plus-lg me-1"></i>New
+                    <a href="{{ APP_BASE(request) }}/billing" class="btn btn-sm btn-primary rounded-pill"><i
+                            class="bi bi-plus-lg me-1"></i>New
                         Bill</a>
                 </div>
             </div>
@@ -9057,8 +11045,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                             {% set grand_total = curr_total + prev_arr %}
                             {% set amt_recv = r.Amount_Received|default(0, true)|float %}
                             {% set balance = grand_total - amt_recv %}
-                            {% set advance_amount = 0 - balance if balance < 0 else 0 %}
-                            <tr>
+                            {% set advance_amount = 0 - balance if balance < 0 else 0 %} <tr>
                                 <td class="ps-4">
                                     <input class="form-check-input bill-checkbox" type="checkbox" value="{{ r.Bill }}">
                                 </td>
@@ -9070,77 +11057,73 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                     {% if balance > 0 %}
                                     <div class="text-danger fw-semibold fs-7">Due: ₹{{ "{:,.2f}".format(balance) }}
                                     </div>
-                                    {% elif balance < 0 %}
-                                    <div class="text-info fw-semibold fs-7">Adv: ₹{{ "{:,.2f}".format(advance_amount) }}
-                                    </div>
-                                    {% endif %}
-                                    {% if prev_arr > 0 %}
-                                    <div class="text-warning-emphasis fs-8">Arr: ₹{{ "{:,.2f}".format(prev_arr) }}</div>
-                                    {% elif prev_arr < 0 %}
-                                    <div class="text-info-emphasis fs-8">Adv: ₹{{ "{:,.2f}".format(prev_arr|abs) }}</div>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% if r.Payment_Status == "PAID" %}
-                                        <span class="badge bg-success rounded-pill px-2"><i class="bi bi-check2"></i> Paid</span>
-                                    {% elif r.Payment_Status == "PARTIAL" %}
-                                        <span class="badge bg-warning text-dark rounded-pill px-2">Partial</span>
-                                    {% elif r.Payment_Status == "ADVANCE" %}
-                                        <span class="badge bg-info text-dark rounded-pill px-2">Advance</span>
-                                    {% else %}
-                                        <span class="badge bg-danger rounded-pill px-2">Pending</span>
-                                    {% endif %}
-
-                                    {% if r.Status == 'ARCHIVED' %}
-                                    <span class="badge bg-warning text-dark rounded-pill ms-1 px-2"><i
-                                            class="bi bi-archive"></i></span>
-                                    {% endif %}
-                                </td>
-                                <td class="text-end pe-4">
-                                    <div class="btn-group gap-1 rounded-pill shadow-sm">
-                                        {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
-                                        <button
-                                            onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')"
-                                            class="btn btn-sm btn-light border py-1" title="Mark Pending"><i
-                                                class="bi bi-arrow-counterclockwise text-secondary"></i></button>
-                                        {% else %}
-                                        <button
-                                            onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')"
-                                            class="btn btn-sm btn-light border py-1" title="Mark Paid"><i
-                                                class="bi bi-check2 text-success"></i></button>
-                                        {% endif %}
-                                        {% if config.get('system', 'features.whatsapp_sync') %}
-                                        <button class="btn btn-sm btn-light border py-1 text-success"
-                                            onclick="sendWhatsApp('{{ r.Bill }}')" title="Send via WhatsApp"><i
-                                                class="bi bi-whatsapp"></i></button>
-                                        {% endif %}
-                                        <button class="btn btn-sm btn-light border py-1"
-                                            onclick="openGlobalPDFPreview('{{ r.Bill }}')" title="View PDF"><i
-                                                class="bi bi-eye text-primary"></i></button>
-                                        <button onclick="openEditBillModal('{{ r.Bill }}')"
-                                            class="btn btn-sm btn-light border py-1 text-warning" title="Edit Bill"><i
-                                                class="bi bi-pencil"></i></button>
-                                    </div>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                            {% if not receipts %}
-                            <tr>
-                                <td colspan="5" class="text-center py-5 text-muted">
-                                    <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
-                                    <h5>No Receipts Found</h5>
-                                    <p class="fs-7">Generate the first receipt for {{ tenant.name }}.</p>
-                                </td>
-                            </tr>
-                            {% endif %}
-                        </tbody>
-                    </table>
+                                    {% elif balance < 0 %} <div class="text-info fw-semibold fs-7">Adv: ₹{{
+                                        "{:,.2f}".format(advance_amount) }}
                 </div>
+                {% endif %}
+                {% if prev_arr > 0 %}
+                <div class="text-warning-emphasis fs-8">Arr: ₹{{ "{:,.2f}".format(prev_arr) }}</div>
+                {% elif prev_arr < 0 %} <div class="text-info-emphasis fs-8">Adv: ₹{{ "{:,.2f}".format(prev_arr|abs) }}
             </div>
+            {% endif %}
+            </td>
+            <td>
+                {% if r.Payment_Status == "PAID" %}
+                <span class="badge bg-success rounded-pill px-2"><i class="bi bi-check2"></i> Paid</span>
+                {% elif r.Payment_Status == "PARTIAL" %}
+                <span class="badge bg-warning text-dark rounded-pill px-2">Partial</span>
+                {% elif r.Payment_Status == "ADVANCE" %}
+                <span class="badge bg-info text-dark rounded-pill px-2">Advance</span>
+                {% else %}
+                <span class="badge bg-danger rounded-pill px-2">Pending</span>
+                {% endif %}
+
+                {% if r.Status == 'ARCHIVED' %}
+                <span class="badge bg-warning text-dark rounded-pill ms-1 px-2"><i class="bi bi-archive"></i></span>
+                {% endif %}
+            </td>
+            <td class="text-end pe-4">
+                <div class="btn-group gap-1 rounded-pill shadow-sm">
+                    {% if r.Payment_Status in ['PAID', 'PARTIAL', 'ADVANCE'] %}
+                    <button
+                        onclick="togglePaymentStatus('{{ r.Bill }}', '{{ r.Payment_Status }}', '{{ grand_total }}', '{{ amt_recv }}')"
+                        class="btn btn-sm btn-light border py-1" title="Mark Pending"><i
+                            class="bi bi-arrow-counterclockwise text-secondary"></i></button>
+                    {% else %}
+                    <button onclick="togglePaymentStatus('{{ r.Bill }}', 'PENDING', '{{ grand_total }}', '0')"
+                        class="btn btn-sm btn-light border py-1" title="Mark Paid"><i
+                            class="bi bi-check2 text-success"></i></button>
+                    {% endif %}
+                    {% if config.get('system', 'features.whatsapp_sync') %}
+                    <button class="btn btn-sm btn-light border py-1 text-success" onclick="sendWhatsApp('{{ r.Bill }}')"
+                        title="Send via WhatsApp"><i class="bi bi-whatsapp"></i></button>
+                    {% endif %}
+                    <button class="btn btn-sm btn-light border py-1" onclick="openGlobalPDFPreview('{{ r.Bill }}')"
+                        title="View PDF"><i class="bi bi-eye text-primary"></i></button>
+                    <button onclick="openEditBillModal('{{ r.Bill }}')"
+                        class="btn btn-sm btn-light border py-1 text-warning" title="Edit Bill"><i
+                            class="bi bi-pencil"></i></button>
+                </div>
+            </td>
+            </tr>
+            {% endfor %}
+            {% if not receipts %}
+            <tr>
+                <td colspan="5" class="text-center py-5 text-muted">
+                    <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
+                    <h5>No Receipts Found</h5>
+                    <p class="fs-7">Generate the first receipt for {{ tenant.name }}.</p>
+                </td>
+            </tr>
+            {% endif %}
+            </tbody>
+            </table>
         </div>
-
-
     </div>
+</div>
+
+
+</div>
 </div>
 
 <div id="printQrArea" class="d-none">
@@ -9159,6 +11142,13 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             Room: {{ tenant.room_number }}
         </div>
         {% endif %}
+
+        <div style="margin-top: 20px;">
+            <span
+                style="display: inline-block; padding: 10px 25px; font-size: 1.5rem; font-weight: bold; border: 2px solid #000; border-radius: 10px;">
+                Tenant PIN: <span id="printTenantPin">••••</span>
+            </span>
+        </div>
     </div>
 </div>
 
@@ -9169,10 +11159,15 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             <p class="text-muted fs-7 mb-4">Scan to view the latest 12 months of bills</p>
             <div id="qrcode" class="d-flex justify-content-center mb-4 p-3 bg-white border rounded-3"></div>
 
+            <div class="mb-3 text-center">
+                <span class="fs-7 text-muted">Portal PIN:</span>
+                <strong id="modalTenantPin" class="fs-5 font-monospace text-primary ms-2">••••</strong>
+            </div>
+
             <div class="d-flex gap-2">
-                <button type="button" class="btn btn-primary rounded-pill w-100 fw-bold shadow-sm"
-                    onclick="window.print()">
-                    <i class="bi bi-printer me-2"></i>Print
+                <button type="button" id="qrPrintBtn" class="btn btn-primary rounded-pill w-100 fw-bold shadow-sm"
+                    onclick="window.print()" disabled>
+                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                 </button>
                 <button type="button" class="btn btn-light rounded-pill w-100 fw-bold border"
                     data-bs-dismiss="modal">Close</button>
@@ -9499,7 +11494,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         document.getElementById('documentViewerContainer').innerHTML = '';
     }
 
-    function showQRCode(token) {
+    async function showQRCode(token, tenantId) {
         if (!token) {
             alert("Token generating... Please refresh the page once.");
             return;
@@ -9525,6 +11520,38 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
         const modal = new bootstrap.Modal(document.getElementById('qrModal'));
         modal.show();
+
+        const printBtn = document.getElementById('qrPrintBtn');
+        const modalPin = document.getElementById('modalTenantPin');
+        const printPin = document.getElementById('printTenantPin');
+
+        printBtn.disabled = true;
+        printBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Loading...';
+        modalPin.textContent = '••••';
+        printPin.textContent = '••••';
+
+        // Fetch decrypted PIN to show in the print area
+        if (tenantId) {
+            try {
+                const res = await fetch(window.APP.API + '/tenants/' + tenantId + '/reveal-pin', {
+                    headers: { 'Accept': 'application/json' }
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'success') {
+                    printPin.textContent = data.pin;
+                    modalPin.textContent = data.pin;
+                } else {
+                    printPin.textContent = "(Unavailable)";
+                    modalPin.textContent = "(Unavailable)";
+                }
+            } catch (e) {
+                printPin.textContent = "(Error)";
+                modalPin.textContent = "(Error)";
+            }
+        }
+
+        printBtn.disabled = false;
+        printBtn.innerHTML = '<i class="bi bi-printer me-2"></i>Print';
     }
 
     // --- Occupant KYC Admin Logic ---
@@ -9558,8 +11585,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         ).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    // We cleverly reuse the public API route by passing the tenant's token
-                    const res = await fetch(window.APP.API + `/t/${token}/kyc/${uuid}/inactive`, { method: "PUT" });
+                    // Use the admin KYC route
+                    const res = await fetch(window.APP.API + `/kyc/{{ tenant.id }}/${uuid}/inactive`, { method: "PUT" });
                     if (res.ok) {
                         showToast("success", "Occupant marked inactive.");
                         setTimeout(() => window.location.reload(), 1000);
@@ -9582,7 +11609,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         ).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const res = await fetch(window.APP.API + `/t/${token}/kyc/${uuid}`, { method: "DELETE" });
+                    const res = await fetch(window.APP.API + `/kyc/{{ tenant.id }}/${uuid}`, { method: "DELETE" });
                     if (res.ok) {
                         showToast("success", "Occupant record deleted.");
                         setTimeout(() => window.location.reload(), 1000);
@@ -9595,6 +11622,32 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             }
         });
     }
+    document.addEventListener("DOMContentLoaded", () => {
+        const btn = document.getElementById("revealPinBtn");
+        const field = document.getElementById("tenantPinField");
+        if (!btn || !field) return;
+
+        btn.addEventListener("click", async () => {
+            try {
+                btn.disabled = true;
+                const res = await fetch(btn.dataset.url, {
+                    method: "GET",
+                    headers: { "Accept": "application/json" }
+                });
+
+                const data = await res.json();
+                if (!res.ok || data.status !== "success") {
+                    throw new Error(data.detail || data.message || "Failed to reveal PIN");
+                }
+
+                field.value = data.pin;
+                btn.textContent = "Revealed";
+            } catch (err) {
+                showError("Reveal Failed", err.message || "Unable to reveal PIN");
+                btn.disabled = false;
+            }
+        });
+    });
 </script>
 {% endblock %}
 ```
@@ -9886,7 +11939,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                         <div class="text-info fw-semibold fs-7 mt-1">Adv: ₹{{ "{:,.0f}".format(advance_amount) }}</div>
                                     {% endif %}
                                 </div>
-                                <a href="{{ request.url_for(Names.PDF_VIEW, bill_no=r.Bill) }}" target="_blank"
+                                <!-- <a href="{{ request.url_for(Names.PDF_VIEW, bill_no=r.Bill) }}" target="_blank" -->
+                                <a href="{{ request.url_for(Names.PDF_VIEW, bill_no=r.Bill) }}?view_token={{ view_token }}" target="_blank"
                                     class="btn btn-primary btn-sm rounded-circle ms-4 shadow-sm d-flex align-items-center justify-content-center"
                                     style="width: 45px; height: 45px;" title="View PDF">
                                     <i class="bi bi-file-earmark-pdf fs-4"></i>
@@ -10105,8 +12159,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 container.innerHTML = '';
 
                 const filtered = rawOccupants.filter(o => {
-                    const matchName = o.Name.toLowerCase().includes(search);
-                    const matchStatus = currentFilter === 'All' || o.Status === currentFilter;
+                    const matchName = o.name.toLowerCase().includes(search);
+                    const matchStatus = currentFilter === 'All' || o.status === currentFilter;
                     return matchName && matchStatus;
                 });
 
@@ -10147,7 +12201,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     html += `<div class="collapse show timeline-content" id="collapse-${safeId}">`;
 
                     occs.forEach(o => {
-                        const isActive = o.Status === 'Active';
+                        const isActive = o.status === 'Active';
                         const statusBadge = isActive
                             ? `<span class="badge bg-success bg-opacity-10 text-success border border-success"><i class="bi bi-check-circle-fill me-1"></i>Active</span>`
                             : `<span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary"><i class="bi bi-dash-circle-fill me-1"></i>Inactive</span>`;
@@ -10157,8 +12211,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         if (o['Emp Front']) docsHtml += `<span class="badge bg-info bg-opacity-10 text-info border border-info"><i class="bi bi-briefcase-fill me-1"></i>Emp ID</span>`;
 
                         let dateHtml = '';
-                        if (o.Upload_Date && o.Upload_Date !== '') {
-                            const d = parseDate(o.Upload_Date);
+                        if (o.uploaddate && o.uploaddate !== '') {
+                            const d = parseDate(o.uploaddate);
                             dateHtml = `<div class="text-muted fs-8 mt-2"><i class="bi bi-clock me-1"></i>Uploaded: ${d.toLocaleDateString()}</div>`;
                         }
 
@@ -10167,10 +12221,10 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                         html += `
                         <div class="occupant-card" onclick="viewOccupant(this, '${encodedData}')">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <h6 class="fw-bold mb-0">${o.Name}</h6>
+                                <h6 class="fw-bold mb-0">${o.name}</h6>
                                 ${statusBadge}
                             </div>
-                            <div class="fs-7 text-muted mb-2"><i class="bi bi-telephone me-1"></i>${o.Mobile}</div>
+                            <div class="fs-7 text-muted mb-2"><i class="bi bi-telephone me-1"></i>${o.mobile}</div>
                             <div>${docsHtml}</div>
                             ${dateHtml}
                         </div>
@@ -10192,17 +12246,17 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 document.getElementById('viewerPlaceholder').classList.add('d-none');
                 document.getElementById('viewerContent').classList.remove('d-none');
 
-                document.getElementById('previewName').innerText = occ.Name;
-                document.getElementById('previewMobile').innerText = occ.Mobile;
+                document.getElementById('previewName').innerText = occ.name;
+                document.getElementById('previewMobile').innerText = occ.mobile;
 
                 const badge = document.getElementById('previewStatus');
-                if (occ.Status === 'Active') {
+                if (occ.status === 'Active') {
                     badge.className = 'badge bg-success';
                     badge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Active';
 
                     const markBtn = document.getElementById('btnMarkInactive');
                     markBtn.classList.remove('d-none');
-                    markBtn.onclick = () => markInactive(occ['Occupant UUID']);
+                    markBtn.onclick = () => markInactive(occ.occupant_uuid);
                 } else {
                     badge.className = 'badge bg-secondary';
                     badge.innerHTML = '<i class="bi bi-dash-circle-fill me-1"></i>Inactive';
@@ -10230,14 +12284,14 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                     toggleBar.appendChild(btn);
                 };
 
-                if (occ['Aadhaar Combined']) {
-                    addToggleButton('<i class="bi bi-file-earmark-person me-1"></i>Aadhaar (Combined)', occ['Aadhaar Combined'], 'pdf');
+                if (occ.aadhaar_combined) {
+                    addToggleButton('<i class="bi bi-file-earmark-person me-1"></i>Aadhaar (Combined)', occ.aadhaar_combined, 'pdf');
                 } else {
-                    addToggleButton('<i class="bi bi-person-bounding-box me-1"></i>Aadhaar Front', occ['Aadhaar Front'], 'img');
-                    addToggleButton('<i class="bi bi-upc-scan me-1"></i>Aadhaar Back', occ['Aadhaar Back'], 'img');
+                    addToggleButton('<i class="bi bi-person-bounding-box me-1"></i>Aadhaar Front', occ.aadhaar_front, 'img');
+                    addToggleButton('<i class="bi bi-upc-scan me-1"></i>Aadhaar Back', occ.aadhaar_back, 'img');
                 }
-                addToggleButton('<i class="bi bi-briefcase me-1"></i>Emp ID Front', occ['Emp Front'], 'img');
-                addToggleButton('<i class="bi bi-briefcase-fill me-1"></i>Emp ID Back', occ['Emp Back'], 'img');
+                addToggleButton('<i class="bi bi-briefcase me-1"></i>Emp ID Front', occ.emp_front, 'img');
+                addToggleButton('<i class="bi bi-briefcase-fill me-1"></i>Emp ID Back', occ.emp_back, 'img');
 
                 if (firstDocPath) {
                     toggleBar.firstChild.classList.add('active');
@@ -10331,7 +12385,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 formData.append('pin', '{{ tenant.tenant_pin }}');
 
                 try {
-                    const res = await fetch("../api/t/{{ view_token }}/kyc", { method: "POST", body: formData });
+                    const res = await fetch("../t/api/{{ view_token }}/kyc", { method: "POST", body: formData });
                     if (res.ok) {
                         refreshUnlockedPage();
                     } else {
@@ -10362,7 +12416,8 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 }).then(async (result) => {
                     if (result.isConfirmed) {
                         try {
-                            const res = await fetch(`../api/t/{{ view_token }}/kyc/${uuid}/inactive`, { method: "PUT" });
+                            // We cleverly reuse the public API route by passing the tenant's token
+                            const res = await fetch(`../t/api/{{ view_token }}/kyc/${uuid}/inactive`, { method: "PUT" });
                             if (res.ok) {
                                 Swal.fire('Updated!', 'Occupant marked inactive.', 'success').then(() => refreshUnlockedPage());
                             } else {
@@ -10392,6 +12447,50 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
     </div>
 
+    <script>
+    (function () {
+      if (window.__tenantSessionInterceptorInstalled) return;
+      window.__tenantSessionInterceptorInstalled = true;
+
+      const originalFetch = window.fetch.bind(window);
+      let authRedirectInProgress = false;
+
+      function fallbackTenantUrl() {
+        return window.location.pathname + window.location.search;
+      }
+
+      function redirectNow(url) {
+        if (authRedirectInProgress) return;
+        authRedirectInProgress = true;
+        window.location.replace(url || fallbackTenantUrl());
+      }
+
+      function isSessionExpiredResponse(response) {
+        if (!response) return false;
+        if (response.status !== 401 && response.status !== 403) return false;
+        return response.headers.get("X-Session-Expired") === "1";
+      }
+
+      function getRedirectUrl(response) {
+        return response.headers.get("X-Redirect-Url") || fallbackTenantUrl();
+      }
+
+      window.fetch = async function (...args) {
+        const response = await originalFetch(...args);
+
+        if (isSessionExpiredResponse(response)) {
+          redirectNow(getRedirectUrl(response));
+          throw new Error("Session expired");
+        }
+
+        return response;
+      };
+
+      window.addEventListener("pageshow", function () {
+        authRedirectInProgress = false;
+      });
+    })();
+    </script>
 </body>
 
 </html>
@@ -10511,9 +12610,12 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                         <a href="{{ APP_BASE(request) }}/tenant/{{ t.id }}"
                                             class="btn btn-sm btn-light border" title="View Profile"><i
                                                 class="bi bi-person-lines-fill text-info"></i></a>
-                                        <button class="btn btn-sm btn-light border"
-                                            onclick='editTenant("{{ t.dict() | tojson | safe }}")' title="Edit Tenant">
+                                        <button class="btn btn-sm btn-light border edit-tenant-btn"
+                                            data-tenant='{{ t.dict() | tojson | safe }}' title="Edit Tenant">
                                             <i class="bi bi-pencil text-primary"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-light border" onclick="openChangePinModal('{{ t.id }}', '{{ t.name }}')" title="Change PIN">
+                                            <i class="bi bi-key text-secondary"></i>
                                         </button>
                                         <button class="btn btn-sm btn-light border" onclick="deleteTenant('{{ t.id }}')"
                                             title="Deactivate / Delete Tenant">
@@ -10693,11 +12795,11 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                                         <label for="security_deposit">Security Deposit (₹)</label>
                                     </div>
                                 </div>
-                                <div class="col-sm-6">
+                                <div class="col-sm-6" id="tenantPinContainer">
                                     <div class="form-floating">
                                         <input type="text" class="form-control" id="tenant_pin" maxlength="4"
-                                            pattern="\d{4}" value="1234">
-                                        <label for="tenant_pin">Portal PIN (4 digits)</label>
+                                            pattern="\d{4}">
+                                        <label for="tenant_pin">Portal PIN (4 digits) <span class="text-danger">*</span></label>
                                     </div>
                                 </div>
                             </div>
@@ -10749,15 +12851,99 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
     </div>
 </div>
 
+<div class="modal fade" id="changePinModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header bg-light border-bottom-0 py-3 rounded-top-4">
+                <h5 class="modal-title fw-bold text-primary">
+                    <i class="bi bi-key me-2"></i>Change PIN for <span id="changePinTenantName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 bg-body-tertiary">
+                <form id="changePinForm">
+                    <input type="hidden" id="changePinTenantId">
+                    <div class="form-floating mb-3">
+                        <input type="password" class="form-control" id="new_pin" placeholder="New PIN" required pattern="\d{4}" maxlength="4">
+                        <label for="new_pin">New PIN (4 digits)</label>
+                    </div>
+                    <div class="form-floating mb-3">
+                        <input type="password" class="form-control" id="confirm_pin" placeholder="Confirm PIN" required pattern="\d{4}" maxlength="4">
+                        <label for="confirm_pin">Confirm PIN</label>
+                    </div>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="logout_all" checked>
+                        <label class="form-check-label text-danger" for="logout_all">Logout tenant from all devices</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-top-0 pt-0 bg-body-tertiary">
+                <button type="button" class="btn btn-light rounded-pill px-4 border shadow-sm"
+                    data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="changePinForm" class="btn btn-primary rounded-pill px-5 fw-bold shadow-sm"
+                    id="savePinBtn">
+                    <i class="bi bi-check-circle me-2"></i>Update PIN
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="printQrArea" class="d-none">
+    <div style="text-align: center; font-family: sans-serif; padding: 20px;">
+        <h1 style="margin-bottom: 5px; font-size: 28px;" id="printTenantName"></h1>
+        <h4 style="margin-top: 0; color: #555; font-size: 18px;" id="printTenantRoom"></h4>
+        
+        <div style="margin: 20px 0; font-size: 16px;">
+            Scan to access your <strong>Tenant Portal</strong><br>
+            <span style="font-size: 12px; color: #777;" id="printPortalUrl"></span>
+        </div>
+        
+        <div id="printQrcode" style="display: flex; justify-content: center; margin-bottom: 20px;"></div>
+        
+        <div style="border: 2px dashed #333; display: inline-block; padding: 10px 30px; margin-bottom: 20px; border-radius: 8px;">
+            <div style="font-size: 14px; color: #555; text-transform: uppercase; letter-spacing: 1px;">Your PIN</div>
+            <div style="font-size: 32px; font-weight: bold; letter-spacing: 4px;" id="printTenantPin"></div>
+        </div>
+        
+        <div style="font-size: 12px; color: #777; margin-top: 20px; text-align: left; max-width: 300px; margin-left: auto; margin-right: auto; border-top: 1px solid #ddd; padding-top: 10px;">
+            <div><strong>Generated:</strong> <span id="printDate"></span></div>
+            <div><strong>Generated By:</strong> Admin</div>
+        </div>
+    </div>
+</div>
+
+<style>
+    @media print {
+        body * {
+            visibility: hidden;
+        }
+        #printQrArea,
+        #printQrArea * {
+            visibility: visible;
+        }
+        #printQrArea {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            display: block !important;
+        }
+    }
+</style>
+
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
     let tenantModalInstance = null;
+    let changePinModalInstance = null;
 
     document.addEventListener("DOMContentLoaded", () => {
         // Initialize the modal
         tenantModalInstance = new bootstrap.Modal(document.getElementById('tenantModal'));
+        changePinModalInstance = new bootstrap.Modal(document.getElementById('changePinModal'));
     });
 
     function searchTenants() {
@@ -10788,10 +12974,18 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         resetForm();
         document.getElementById("formTitle").innerHTML = `<i class="bi bi-person-plus me-2" id="formIcon"></i>Add Tenant`;
         document.getElementById("historyCard").classList.add("d-none");
+        document.getElementById("tenantPinContainer").classList.remove("d-none");
+        document.getElementById("tenant_pin").required = true;
         tenantModalInstance.show();
     }
 
     // Opens the modal for EDITING an existing tenant
+    document.addEventListener("click", (e) => {
+        const btn = e.target.closest(".edit-tenant-btn");
+        if (!btn) return;
+        editTenant(JSON.parse(btn.dataset.tenant));
+    });
+
     async function editTenant(tenant) {
         resetForm(); // clear first
 
@@ -10818,11 +13012,13 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
         // Security
         document.getElementById("security_deposit").value = tenant.security_deposit || 0;
-        document.getElementById("tenant_pin").value = tenant.tenant_pin || '1234';
+        document.getElementById("tenant_pin").value = ''; // Do not set it
+        document.getElementById("tenant_pin").required = false;
         document.getElementById("notes").value = tenant.notes || '';
 
         document.getElementById("formTitle").innerHTML = `<i class="bi bi-pencil-square me-2" id="formIcon"></i>Edit ${tenant.name}`;
         document.getElementById("historyCard").classList.remove("d-none");
+        document.getElementById("tenantPinContainer").classList.add("d-none");
 
         // Fetch Billing History for this specific tenant
         loadBillingHistory(tenant.name);
@@ -10852,7 +13048,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             previous_meter: parseFloat(document.getElementById("previous_meter").value) || 0,
             additional_person_charge: parseFloat(document.getElementById("additional_person_charge").value) || 0,
             security_deposit: parseFloat(document.getElementById("security_deposit").value) || 0,
-            tenant_pin: document.getElementById("tenant_pin").value || "1234"
+            tenant_pin: document.getElementById("tenant_pin").value || null
         };
 
         const isEdit = !!id;
@@ -10870,8 +13066,17 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
                 body: JSON.stringify(tenantData)
             });
             if (res.ok) {
+                let resData = {};
+                try { resData = await res.json(); } catch(e) {}
                 tenantModalInstance.hide();
-                showToast("success", isEdit ? "Tenant Updated Successfully!" : "Tenant Added Successfully!");
+                
+                if (!isEdit && resData.tenant && resData.tenant.view_token) {
+                    showToast("success", "Tenant Added Successfully!");
+                    generateTenantQR(resData.tenant, tenantData.tenant_pin);
+                    tenantData.tenant_pin = null; // Clear from memory
+                } else {
+                    showToast("success", isEdit ? "Tenant Updated Successfully!" : "Tenant Added Successfully!");
+                }
                 resetForm();
                 await updateUI(); // Smooth refresh
             } else {
@@ -10903,7 +13108,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         emptyState.classList.add('d-none');
 
         try {
-            const res = await fetch(`api/tenant_receipts/${encodeURIComponent(tenantName)}`);
+            const res = await fetch(`${window.APP.API}/tenantreceipts/${encodeURIComponent(tenantName)}`);
             if (res.ok) {
                 const receipts = await res.json();
                 tbody.innerHTML = '';
@@ -10952,7 +13157,7 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
             cancelButtonText: "Cancel"
         }).then(async (result) => {
             if (result.isConfirmed) {
-                await processTenantDeletion(id, 'delete');
+                await processTenantDeletion(id, 'hard');
             } else if (result.isDenied) {
                 await processTenantDeletion(id, 'archive');
             }
@@ -10961,15 +13166,23 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
 
     async function processTenantDeletion(id, action) {
         try {
-            const res = await fetch(`api/tenants/${id}?action=${action}`, { method: "DELETE" });
+            const res = await fetch(`api/tenants/${id}?action=${encodeURIComponent(action)}`, {
+                method: "DELETE"
+            });
+
+            const data = await res.json().catch(() => ({}));
+
             if (res.ok) {
-                showToast("success", `Tenant ${action === 'delete' ? 'Deleted' : 'Archived'} Successfully!`);
-                await updateUI(); // Smooth refresh
+                showToast(
+                    "success",
+                    `Tenant ${action === "hard" ? "deleted" : action === "archive" ? "archived" : "updated"} successfully!`
+                );
+                await updateUI();
             } else {
-                showError("Failed", `Failed to ${action} tenant.`);
+                showError("Failed", data.detail || `Failed to ${action} tenant.`);
             }
         } catch (e) {
-            showError("Network Error", "An error occurred.");
+            showError("Network Error", "An error occurred while processing tenant deletion.");
         }
     }
 
@@ -10982,30 +13195,96 @@ function initializeSharedSearch(searchInputId, containerSelector, rowSelector) {
         ).then(async (result) => {
             if (result.isConfirmed) {
                 try {
-                    const getRes = await fetch(`api/tenants/${id}`);
-                    if (!getRes.ok) throw new Error("Tenant not found");
-                    const tenant = await getRes.json();
-
-                    tenant.status = newStatus;
-
-                    const updateRes = await fetch(`api/tenants/${id}`, {
+                    const res = await fetch(`api/tenants/${id}`, {
                         method: "PUT",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(tenant)
+                        body: JSON.stringify({ status: newStatus, name: 'dummy' }) // name is required by pydantic, but not updated if we just toggle
                     });
-
-                    if (updateRes.ok) {
-                        showToast("success", `Tenant marked as ${newStatus}!`);
-                        await updateUI(); // Smooth refresh
-                    } else {
-                        showError("Update Failed", "Failed to update tenant status.");
+                    if (res.ok) {
+                        showToast("success", `Status changed to ${newStatus}!`);
+                        await updateUI();
                     }
                 } catch (e) {
-                    showError("Error", "An error occurred while communicating with the server.");
+                    showError("Error", "Failed to change status.");
                 }
             }
         });
     }
+
+    function generateTenantQR(tenant, pin) {
+        const url = `${window.location.origin}{{ APP_BASE(request) }}/t/${tenant.view_token}`;
+        
+        document.getElementById("printTenantName").innerText = tenant.name || 'Tenant';
+        document.getElementById("printTenantRoom").innerText = tenant.room_number ? `Room: ${tenant.room_number}` : '';
+        document.getElementById("printPortalUrl").innerText = url;
+        document.getElementById("printTenantPin").innerText = pin;
+        
+        const d = new Date();
+        document.getElementById("printDate").innerText = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        
+        const printQrContainer = document.getElementById('printQrcode');
+        printQrContainer.innerHTML = '';
+        
+        new QRCode(printQrContainer, {
+            text: url, width: 250, height: 250, colorDark: "#000000", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.H
+        });
+        
+        // Wait for QR to render then print
+        setTimeout(() => {
+            window.print();
+        }, 300);
+    }
+    
+    function openChangePinModal(id, name) {
+        document.getElementById("changePinTenantId").value = id;
+        document.getElementById("changePinTenantName").innerText = name;
+        document.getElementById("changePinForm").reset();
+        changePinModalInstance.show();
+    }
+    
+    document.getElementById("changePinForm").addEventListener("submit", async function (e) {
+        e.preventDefault();
+        
+        const newPin = document.getElementById("new_pin").value;
+        const confirmPin = document.getElementById("confirm_pin").value;
+        
+        if (newPin !== confirmPin) {
+            alert("PINs do not match!");
+            return;
+        }
+        
+        const id = document.getElementById("changePinTenantId").value;
+        const logoutAll = document.getElementById("logout_all").checked;
+        const savePinBtn = document.getElementById("savePinBtn");
+        
+        savePinBtn.disabled = true;
+        savePinBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Updating...';
+        
+        try {
+            const res = await fetch(`api/tenants/${id}/change-pin`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ pin: newPin, logout_all: logoutAll })
+            });
+            
+            const data = await res.json().catch(() => ({}));
+            
+            if (res.ok) {
+                showToast("success", "PIN changed successfully!");
+                changePinModalInstance.hide();
+            } else {
+                showError("Failed", data.detail || "Failed to change PIN.");
+            }
+        } catch (e) {
+            showError("Network Error", "An error occurred.");
+        } finally {
+            savePinBtn.disabled = false;
+            savePinBtn.innerHTML = '<i class="bi bi-check-circle me-2"></i>Update PIN';
+            // Clear memory
+            document.getElementById("new_pin").value = '';
+            document.getElementById("confirm_pin").value = '';
+        }
+    });
 </script>
 {% endblock %}
 ```

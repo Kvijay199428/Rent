@@ -791,6 +791,50 @@
 
     </div>
 
+    <script>
+    (function () {
+      if (window.__tenantSessionInterceptorInstalled) return;
+      window.__tenantSessionInterceptorInstalled = true;
+
+      const originalFetch = window.fetch.bind(window);
+      let authRedirectInProgress = false;
+
+      function fallbackTenantUrl() {
+        return window.location.pathname + window.location.search;
+      }
+
+      function redirectNow(url) {
+        if (authRedirectInProgress) return;
+        authRedirectInProgress = true;
+        window.location.replace(url || fallbackTenantUrl());
+      }
+
+      function isSessionExpiredResponse(response) {
+        if (!response) return false;
+        if (response.status !== 401 && response.status !== 403) return false;
+        return response.headers.get("X-Session-Expired") === "1";
+      }
+
+      function getRedirectUrl(response) {
+        return response.headers.get("X-Redirect-Url") || fallbackTenantUrl();
+      }
+
+      window.fetch = async function (...args) {
+        const response = await originalFetch(...args);
+
+        if (isSessionExpiredResponse(response)) {
+          redirectNow(getRedirectUrl(response));
+          throw new Error("Session expired");
+        }
+
+        return response;
+      };
+
+      window.addEventListener("pageshow", function () {
+        authRedirectInProgress = false;
+      });
+    })();
+    </script>
 </body>
 
 </html>

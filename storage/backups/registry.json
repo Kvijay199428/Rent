@@ -1,0 +1,33 @@
+{
+    "version": 1,
+    "backups": [
+        {
+            "id": "BKP-20260705-160728",
+            "type": "Manual",
+            "date": "2026-07-05T16:07:28.074083",
+            "application_version": "3.0.0",
+            "schema_version": 4,
+            "created_by": "System",
+            "machine_name": "VEGA",
+            "os": "Windows",
+            "receipt_count": 0,
+            "archived_receipt_count": 0,
+            "tenant_count": 0,
+            "inactive_tenant_count": 0,
+            "pdf_count": 0,
+            "theme": "system",
+            "checksums": {
+                "database": "221b5945fdeeb5cb69fefc6d802ef28fd161a258101686a5db3fc9218c5e2b00",
+                "config": "a59f47a439765ad69f2aeb064e92c4985bc256d5cd42b55425eeff960e08d898",
+                "receipts": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            "verified": true,
+            "compressed": true,
+            "password_protected": false,
+            "size": "0.0 MB",
+            "filename": "manual_20260705_160728.zip",
+            "path": "manual/manual_20260705_160728.zip",
+            "zip_sha256": "112b77a16d0e5992e2230a87b5ac3a97663ed8d91579f093a18ac7cfdf682339"
+        }
+    ]
+}

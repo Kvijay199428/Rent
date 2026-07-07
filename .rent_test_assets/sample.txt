@@ -1,0 +1,1 @@
+rent endpoint automated test file
