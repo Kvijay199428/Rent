@@ -9,6 +9,8 @@ Usage:
     python script-copier.py --dry-run    # preview what would be copied
 """
 
+from PIL import GimpGradientFile
+from PIL import GimpGradientFile
 import os
 import sys
 import argparse
@@ -23,46 +25,39 @@ if sys.stdout.encoding.lower() != 'utf-8':
 # ── Configuration ──────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent
 
-SOURCE_DIR = [
-                BASE_DIR / "rent-receipt" / "app",
-                BASE_DIR / "rent-receipt" / "config",
-                BASE_DIR / "rent-receipt" / "nginx",
-                BASE_DIR / "rent-receipt" / "docker-compose.yml",
-                BASE_DIR / "rent-receipt" / "Dockerfile",
-                BASE_DIR / "rent-receipt" / "requirements.txt",
-                
-                
-#                Path(r"D:\VEGA\VEGA_RRG\frontend"),
-#                Path(r"D:\VEGA\VEGA_RRG\storage\config\rrg"),
-#                Path(r"D:\VEGA\VEGA_RRG\storage\config"),
-#                Path(r"D:\VEGA\VEGA_RRG\storage\user")
-                ]
+# Specify sources as relative string paths (can be files or directories)
+SOURCE_PATHS = [
+    "frontend/admin-app",
+    "frontend/tenant-app",
+    "app",
+    
+]
+
+SOURCE_FILE_PATHS = [
+    "docker-compose.yml",
+    "Dockerfile",
+    "shared/routes.json",
+]
 
 # Directories to exclude from scanning
-EXCLUDE_DIRS = {
-    BASE_DIR / "copy.py",
-    BASE_DIR / "rent-receipt" / "server.log",
-    BASE_DIR / "__pycache__",
-    BASE_DIR / "install.log",
-    BASE_DIR / "api" / "__pycache__",
-    BASE_DIR / "core" / "__pycache__",
-    BASE_DIR / "models" / "__pycache__",
-    BASE_DIR / "pages" / "__pycache__",
-    BASE_DIR / "services" / "__pycache__",
-    BASE_DIR / "static" / "__pycache__",
-    BASE_DIR / "templates" / "__pycache__",
-    
-    
-#    Path(r"D:\VEGA\VEGA_RRG\backend\target"),
-#    Path(r"D:\VEGA\VEGA_RRG\frontend\node_modules"),
-    
-}
+EXCLUDE_DIR_PATHS = [
+    "frontend/admin-app/dist",
+    "frontend/admin-app/node_modules",
+    "frontend/tenant-app/dist",
+    "frontend/tenant-app/node_modules",
+]
 
-EXCLUDE_FILES = {
-    BASE_DIR / "copy.py",
-    BASE_DIR / "rent.md",
-    BASE_DIR / "rent-receipt" / "server.log"
-}
+# Files to exclude
+EXCLUDE_FILE_PATHS = [
+    "copy.py",
+    "rent.md",
+    "README.md"
+]
+
+# Convert strings to resolved Paths internally
+SOURCE_DIR = [BASE_DIR / p for p in SOURCE_PATHS] + [BASE_DIR / p for p in SOURCE_FILE_PATHS]
+EXCLUDE_DIRS = {(BASE_DIR / p).resolve() for p in EXCLUDE_DIR_PATHS}
+EXCLUDE_FILES = {(BASE_DIR / p).resolve() for p in EXCLUDE_FILE_PATHS}
 
 OUTPUT_FILE = BASE_DIR / "rent.md"
 
@@ -93,6 +88,7 @@ EXTENSION_LANG = {
     ".cfg":        "ini",
     ".ini":        "ini",
     ".toml":       "toml",
+    "Dockerfile":  "Dockerfile",
 }
 
 # Extensions to skip (binary / non-script files)
@@ -106,15 +102,23 @@ def collect_files(sources: list[Path]) -> list[tuple[Path, Path]]:
     files = []
     for source_dir in sources:
         if not source_dir.exists():
-            print(f"❌ Source directory not found: {source_dir}")
+            print(f"❌ Source not found: {source_dir}")
             continue
+            
+        if source_dir.is_file():
+            if source_dir.resolve() in EXCLUDE_FILES:
+                continue
+            if source_dir.suffix.lower() in SKIP_EXTENSIONS:
+                continue
+            files.append((source_dir, BASE_DIR))
+            continue
+            
         for root, dirs, filenames in os.walk(source_dir):
             # Prune excluded directories in-place so os.walk skips them
-            dirs[:] = [d for d in dirs if Path(root, d).resolve() not in
-                       {p.resolve() for p in EXCLUDE_DIRS}]
+            dirs[:] = [d for d in dirs if Path(root, d).resolve() not in EXCLUDE_DIRS]
             for fname in filenames:
                 fpath = Path(root) / fname
-                if fpath.resolve() in {p.resolve() for p in EXCLUDE_FILES}:
+                if fpath.resolve() in EXCLUDE_FILES:
                     continue
                 if fpath.suffix.lower() in SKIP_EXTENSIONS:
                     continue
@@ -133,7 +137,7 @@ def build_markdown(files: list[tuple[Path, Path]]) -> str:
     lines: list[str] = []
 
     for fpath, source_dir in files:
-        rel = fpath.relative_to(source_dir)
+        rel = fpath.relative_to(BASE_DIR)
         tag = lang_tag(fpath)
 
         try:
@@ -180,7 +184,7 @@ def main():
     print("─" * 84)
     total_bytes = 0
     for i, (f, src) in enumerate(files, 1):
-        rel = f.relative_to(src)
+        rel = f.relative_to(BASE_DIR)
         size = f.stat().st_size
         total_bytes += size
         print(f"{i:<4} {str(rel):<70} {size:>8}")

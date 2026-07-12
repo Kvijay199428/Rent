@@ -1,0 +1,142 @@
+{
+  "basePath": "/rent",
+  "health": {
+    "check": "/health"
+  },
+  "static": {
+    "uploads": "/static/uploads",
+    "static": "/static",
+    "adminAssets": "/admin/assets",
+    "tenantAssets": "/tenant/assets",
+    "favicon": "/admin/favicon.svg"
+  },
+  "admin": {
+    "pages": {
+      "root": "/admin/",
+      "home": "/admin/home",
+      "login": "/admin/login",
+      "logout": "/admin/logout",
+      "dashboard": "/admin/dashboard",
+      "billing": "/admin/billing",
+      "history": "/admin/history",
+      "tenants": "/admin/tenants",
+      "settings": "/admin/settings",
+      "archive": "/admin/archive",
+      "backups": "/admin/backups",
+      "catchAll": "/admin/*",
+      "tenantProfile": "/admin/tenant/{tenantId}"
+    },
+    "api": {
+      "setup": {
+        "required": "/admin/api/setup/required",
+        "create": "/admin/api/setup/create"
+      },
+      "auth": {
+        "publicKey": "/admin/api/auth/public-key",
+        "login": "/admin/api/login",
+        "loginTotp": "/admin/api/login/totp",
+        "refresh": "/admin/api/refresh",
+        "logout": "/admin/api/logout/json",
+        "me": "/admin/api/me"
+      },
+      "totp": {
+        "qr": "/admin/api/totp/qr",
+        "regenerate": "/admin/api/totp/regenerate"
+      },
+      "password": {
+        "forgotVerify": "/admin/api/forgot-password/verify",
+        "forgotReset": "/admin/api/forgot-password/reset"
+      },
+      "dashboard": {
+        "stats": "/admin/api/dashboard"
+      },
+      "config": {
+        "get": "/admin/api/config",
+        "update": "/admin/api/config/update",
+        "theme": "/admin/api/ui/theme"
+      },
+      "billing": {
+        "filter": "/admin/api/receipts/filter",
+        "months": "/admin/api/receipts/months",
+        "preview": "/admin/api/receipts/preview",
+        "create": "/admin/api/receipts/create",
+        "get": "/admin/api/receipts/{billNo}",
+        "update": "/admin/api/receipts/{billNo}",
+        "updatePayment": "/admin/api/receipts/{billNo}/payment-status",
+        "archive": "/admin/api/receipts/{billNo}/archive",
+        "restore": "/admin/api/receipts/{billNo}/restore",
+        "delete": "/admin/api/receipts/{billNo}"
+      },
+      "tenants": {
+        "list": "/admin/api/tenants",
+        "create": "/admin/api/tenants",
+        "get": "/admin/api/tenants/{tenantId}",
+        "update": "/admin/api/tenants/{tenantId}",
+        "delete": "/admin/api/tenants/{tenantId}",
+        "changePin": "/admin/api/tenants/{tenantId}/change-pin",
+        "revealPin": "/admin/api/tenants/{tenantId}/reveal-pin",
+        "receipts": "/admin/api/tenants/{tenantName}/receipts"
+      },
+      "occupants": {
+        "list": "/admin/api/occupants",
+        "create": "/admin/api/occupants",
+        "markInactive": "/admin/api/occupants/{tenantId}/{occupantUuid}/inactive",
+        "delete": "/admin/api/occupants/{tenantId}/{occupantUuid}",
+        "getFile": "/admin/api/occupants/file/{filename}"
+      },
+      "pdf": {
+        "download": "/admin/api/pdf/receipt/{billNo}",
+        "view": "/admin/api/pdf/receipt/{billNo}/view"
+      },
+      "whatsapp": {
+        "sendSingle": "/admin/api/whatsapp/send-single/{billNo}"
+      },
+      "sync": {
+        "exportCsv": "/admin/api/export-csv",
+        "exportZip": "/admin/api/export-zip",
+        "template": "/admin/api/import-template",
+        "exportExcel": "/admin/api/export-excel?format={format}",
+        "importPreview": "/admin/api/import-preview",
+        "importExecute": "/admin/api/import-execute"
+      },
+      "backups": {
+        "list": "/admin/api/backups",
+        "createManual": "/admin/api/backups/manual",
+        "delete": "/admin/api/backups/{backupId}",
+        "verify": "/admin/api/backups/{backupId}/verify",
+        "restore": "/admin/api/backups/{backupId}/restore",
+        "download": "/admin/api/backups/{backupId}/download",
+        "metadata": "/admin/api/backups/{backupId}/metadata"
+      },
+      "settings": {
+        "uploadSignature": "/admin/api/settings/upload-signature",
+        "deleteSignature": "/admin/api/settings/delete-signature"
+      }
+    }
+  },
+  "tenant": {
+    "pages": {
+      "root": "/",
+      "catchAll": "/*",
+      "profile": "/t/{viewToken}"
+    },
+    "api": {
+      "auth": {
+        "publicKey": "/api/auth/public-key",
+        "login": "/api/auth/login/{viewToken}",
+        "refresh": "/api/auth/refresh",
+        "logout": "/api/auth/logout",
+        "logoutAll": "/api/auth/logout-all"
+      },
+      "profile": {
+        "get": "/api/tenant-profile/{viewToken}"
+      },
+      "kyc": {
+        "upload": "/api/tenant-profile/{viewToken}/kyc",
+        "markInactive": "/api/tenant-profile/{viewToken}/kyc/{occupantUuid}/inactive",
+        "delete": "/api/tenant-profile/{viewToken}/kyc/{occupantUuid}",
+        "getFile": "/api/tenant-profile/kyc/file/{filename}"
+      }
+    }
+  }
+}

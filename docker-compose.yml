@@ -1,0 +1,58 @@
+services:
+  rent-app-20081:
+    build: .
+    container_name: rent-app-20081
+    environment:
+      APP_BASE_PATH: /rent
+      RENT_STORAGE_DIR: /code/storage
+    volumes:
+      - ./storage:/code/storage
+    restart: unless-stopped
+    networks:
+      - vega_gateway_net
+    # ------------------------------------------------------------------
+    # Health check: prevents routing traffic to unhealthy containers
+    # ------------------------------------------------------------------
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:20081/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s  # Allow time for migrations on first boot
+    # ------------------------------------------------------------------
+    # Resource limits to prevent runaway restarts from consuming all resources
+    # ------------------------------------------------------------------
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5  # Prevent infinite restart loops
+        window: 120s
+
+networks:
+  vega_gateway_net:
+    external: true
+
+# services:
+#   rent-app-20081:
+#     build: .
+#     container_name: rent-app-20081
+#     environment:
+#       APP_BASE_PATH: /rent
+#       RENT_STORAGE_DIR: /code/storage
+#     volumes:
+#       - ./storage:/code/storage
+#     restart: unless-stopped
+#     networks:
+#       - vega_gateway_net
+
+# networks:
+#   vega_gateway_net:
+#     external: true

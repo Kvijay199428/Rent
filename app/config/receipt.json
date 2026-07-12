@@ -1,0 +1,23 @@
+{
+    "layout": {
+        "receipt_version": 9,
+        "receipt_prefix": "T",
+        "date_format": "%d %B %Y",
+        "page_margin": 25,
+        "line_spacing": 18
+    },
+    "typography": {
+        "font_family_regular": "NotoSans",
+        "font_family_bold": "NotoSans-Bold",
+        "font_size_normal": 10,
+        "font_size_header": 12,
+        "font_size_title": 24
+    },
+    "toggles": {
+        "show_bank_details": true,
+        "show_signature": true,
+        "show_payment_summary": true,
+        "show_previous_balance": true,
+        "show_qr": true
+    }
+}
