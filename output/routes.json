@@ -24,7 +24,7 @@
       "archive": "/admin/archive",
       "backups": "/admin/backups",
       "catchAll": "/admin/*",
-      "tenantProfile": "/admin/tenant/{tenantId}"
+      "TENANTPROFILE": "/admin/tenant/{tenantId}"
     },
     "api": {
       "setup": {

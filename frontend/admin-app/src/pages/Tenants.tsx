@@ -318,7 +318,7 @@ export default function Tenants() {
 
     try {
       setSavingQrPin(true);
-      await api.changeTenantPin(qrTenant.id, { pin: newQrPin, logout_all: true });
+      await api.CHANGETENANTPIN(qrTenant.id, { pin: newQrPin, logout_all: true });
       setQrPin(newQrPin);
       setNewQrPin('');
       setShowQrPinEditor(false);
@@ -362,10 +362,10 @@ export default function Tenants() {
           Bill: r.Bill,
           Month: r.Month,
           Status: r.Status,
-          PaymentStatus: r.Payment_Status,
+          PaymentStatus: r.paymentStatus,
           Total: r.Total,
-          PreviousArrears: r.Previous_Arrears,
-          AmountReceived: r.Amount_Received,
+          PreviousArrears: r.previousArrears,
+          AmountReceived: r.amountReceived,
         }));
       setTenantBills(active);
       setSelectedBill(null);
@@ -390,8 +390,8 @@ export default function Tenants() {
           const active = receipts.filter((r: any) => r.Status !== 'ARCHIVED');
           if (active.length > 0) {
             const latest = active[0];
-            const grandTotal = Number(latest.Total || 0) + Number(latest.Previous_Arrears || 0);
-            const amtRecv = latest.Amount_Received != null ? Number(latest.Amount_Received) : grandTotal;
+            const grandTotal = Number(latest.Total || 0) + Number(latest.previousArrears || 0);
+            const amtRecv = latest.amountReceived != null ? Number(latest.amountReceived) : grandTotal;
             t.arrears = grandTotal - amtRecv;
           } else {
             t.arrears = 0;
@@ -539,7 +539,7 @@ export default function Tenants() {
               }}
               onChangePin={async (pin) => {
                 try {
-                  await api.changeTenantPin(editingTenant.id, { pin, logout_all: true });
+                  await api.CHANGETENANTPIN(editingTenant.id, { pin, logout_all: true });
                   toast.success('Tenant PIN changed');
                   loadTenants();
                 } catch (e: any) {
@@ -561,7 +561,7 @@ export default function Tenants() {
             <DialogTitle className="text-base">{qrTenant?.name} QR</DialogTitle>
           </DialogHeader>
 
-          {qrTenant?.view_token && (
+          {qrTenant?.viewToken && (
             <div className="flex justify-center">
               <div className="w-full max-w-[340px] rounded-[22px] border-[3px] border-neutral-900 bg-white px-5 py-5 text-center shadow-sm">
                 <h3 className="text-[16px] font-bold tracking-tight text-gray-500">
@@ -574,7 +574,7 @@ export default function Tenants() {
 
                 <div className="mt-4 flex justify-center bg-white p-2">
                   <QRCode
-                    value={`${window.location.origin}/rent/t/${qrTenant.view_token}`}
+                    value={`${window.location.origin}/rent/t/${qrTenant.viewToken}`}
                     size={200}
                     level="H"
                   />
@@ -583,7 +583,7 @@ export default function Tenants() {
                 <div className="my-4 border-t border-dashed border-gray-200" />
 
                 <div className="text-lg font-bold text-gray-500">
-                  Room: {qrTenant.room_number || '-'}
+                  Room: {qrTenant.roomNumber || '-'}
                 </div>
 
                 {qrPinMissing && (
@@ -833,14 +833,14 @@ function TenantCard({
               <MapPin size={14} /> {tenant.address}
             </div>
           )}
-          {tenant.room_number && (
+          {tenant.roomNumber && (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Receipt size={14} /> Room {tenant.room_number}
+              <Receipt size={14} /> Room {tenant.roomNumber}
             </div>
           )}
-          {tenant.meter_id && (
+          {tenant.meterId && (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Gauge size={14} /> Meter: {tenant.meter_id}
+              <Gauge size={14} /> Meter: {tenant.meterId}
             </div>
           )}
         </div>
@@ -856,7 +856,7 @@ function TenantCard({
           </div>
           <div className="text-center">
             <div className="text-xs text-muted-foreground">Elec Rate</div>
-            <div className="font-semibold text-sm">₹{tenant.electricity_rate}</div>
+            <div className="font-semibold text-sm">₹{tenant.electricityRate}</div>
           </div>
         </div>
 
@@ -865,9 +865,9 @@ function TenantCard({
             variant="outline"
             size="sm"
             className="w-full"
-            disabled={!tenant.view_token}
-            onClick={() => tenant.view_token && window.open(`/rent/t/${tenant.view_token}`, '_blank')}
-            title={!tenant.view_token ? 'Portal token missing for this tenant' : 'Open public profile'}
+            disabled={!tenant.viewToken}
+            onClick={() => tenant.viewToken && window.open(`/rent/t/${tenant.viewToken}`, '_blank')}
+            title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Open public profile'}
           >
             Public Profile
           </Button>
@@ -876,9 +876,9 @@ function TenantCard({
             variant="outline"
             size="sm"
             className="w-full"
-            disabled={!tenant.view_token}
+            disabled={!tenant.viewToken}
             onClick={onShowQr}
-            title={!tenant.view_token ? 'Portal token missing for this tenant' : 'Show QR'}
+            title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Show QR'}
           >
             QR
           </Button>
@@ -887,11 +887,11 @@ function TenantCard({
             variant="outline"
             size="sm"
             className="w-full"
-            disabled={!tenant.view_token}
+            disabled={!tenant.viewToken}
             onClick={async () => {
-              if (!tenant.view_token) return;
+              if (!tenant.viewToken) return;
 
-              const url = `${window.location.origin}/rent/t/${tenant.view_token}`;
+              const url = `${window.location.origin}/rent/t/${tenant.viewToken}`;
 
               let pin = '----';
               try {
@@ -903,7 +903,7 @@ function TenantCard({
 
               const htmlContent = buildQrPrintHtml({
                 tenantName: tenant.name,
-                roomNumber: tenant.room_number || '-',
+                roomNumber: tenant.roomNumber || '-',
                 pin,
                 url,
               });
@@ -915,7 +915,7 @@ function TenantCard({
                 toast.error('Failed to open print dialog');
               }
             }}
-            title={!tenant.view_token ? 'Portal token missing for this tenant' : 'Print QR'}
+            title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Print QR'}
           >
             Print QR
           </Button>
@@ -974,16 +974,16 @@ function TenantForm({
     email: tenant?.email || '',
     company: tenant?.company || '',
     address: tenant?.address || '',
-    room_number: tenant?.room_number || '',
-    meter_id: tenant?.meter_id || '',
+    roomNumber: tenant?.roomNumber || '',
+    meterId: tenant?.meterId || '',
     rent: tenant?.rent || 8000,
     water: tenant?.water || 500,
-    electricity_rate: tenant?.electricity_rate || 15,
-    additional_person_charge: tenant?.additional_person_charge || 1000,
-    default_tank_water_charge: tenant?.default_tank_water_charge || 0,
-    previous_meter: tenant?.previous_meter || 0,
+    electricityRate: tenant?.electricityRate || 15,
+    additionalPersonCharge: tenant?.additionalPersonCharge || 1000,
+    defaulttankWaterCharge: tenant?.defaulttankWaterCharge || 0,
+    previousMeter: tenant?.previousMeter || 0,
     status: tenant?.status || 'Active',
-    tenant_pin: '',
+    tenantPin: '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1023,11 +1023,11 @@ function TenantForm({
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
           <Label>Room #</Label>
-          <Input value={form.room_number} onChange={(e) => setForm({ ...form, room_number: e.target.value })} />
+          <Input value={form.roomNumber} onChange={(e) => setForm({ ...form, roomNumber: e.target.value })} />
         </div>
         <div className="space-y-2">
           <Label>Meter ID</Label>
-          <Input value={form.meter_id} onChange={(e) => setForm({ ...form, meter_id: e.target.value })} />
+          <Input value={form.meterId} onChange={(e) => setForm({ ...form, meterId: e.target.value })} />
         </div>
         <div className="space-y-2">
           <Label>Status</Label>
@@ -1053,8 +1053,8 @@ function TenantForm({
             <Input
               type="number"
               step="0.1"
-              value={form.electricity_rate}
-              onChange={(e) => setForm({ ...form, electricity_rate: parseFloat(e.target.value) || 0 })}
+              value={form.electricityRate}
+              onChange={(e) => setForm({ ...form, electricityRate: parseFloat(e.target.value) || 0 })}
             />
           </div>
         </div>
@@ -1064,8 +1064,8 @@ function TenantForm({
             <Label>Add Person (₹)</Label>
             <Input
               type="number"
-              value={form.additional_person_charge}
-              onChange={(e) => setForm({ ...form, additional_person_charge: parseFloat(e.target.value) || 0 })}
+              value={form.additionalPersonCharge}
+              onChange={(e) => setForm({ ...form, additionalPersonCharge: parseFloat(e.target.value) || 0 })}
             />
           </div>
           <div className="space-y-2">
@@ -1073,8 +1073,8 @@ function TenantForm({
             <Input
               type="number"
               step="0.1"
-              value={form.default_tank_water_charge}
-              onChange={(e) => setForm({ ...form, default_tank_water_charge: parseFloat(e.target.value) || 0 })}
+              value={form.defaulttankWaterCharge}
+              onChange={(e) => setForm({ ...form, defaulttankWaterCharge: parseFloat(e.target.value) || 0 })}
             />
           </div>
           <div className="space-y-2">
@@ -1082,8 +1082,8 @@ function TenantForm({
             <Input
               type="number"
               step="0.1"
-              value={form.previous_meter}
-              onChange={(e) => setForm({ ...form, previous_meter: parseFloat(e.target.value) || 0 })}
+              value={form.previousMeter}
+              onChange={(e) => setForm({ ...form, previousMeter: parseFloat(e.target.value) || 0 })}
             />
           </div>
         </div>
@@ -1096,8 +1096,8 @@ function TenantForm({
             type="password"
             maxLength={4}
             pattern="\d{4}"
-            value={form.tenant_pin}
-            onChange={(e) => setForm({ ...form, tenant_pin: e.target.value })}
+            value={form.tenantPin}
+            onChange={(e) => setForm({ ...form, tenantPin: e.target.value })}
             placeholder="Required for tenant portal access"
             required={!tenant}
           />

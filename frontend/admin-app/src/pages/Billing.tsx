@@ -30,7 +30,7 @@ export default function Billing() {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [rent, setRent] = useState(0);
   const [water, setWater] = useState(0);
-  const [tankWater, setTankWater] = useState(0);
+  const [tankWater, settankWater] = useState(0);
   const [maintenance, setMaintenance] = useState(0);
   const [maintenanceDesc, setMaintenanceDesc] = useState('');
   const [prevReading, setPrevReading] = useState(0);
@@ -39,7 +39,7 @@ export default function Billing() {
   const [addPersons, setAddPersons] = useState(0);
   const [addPersonRate, setAddPersonRate] = useState(0);
   const [calculatedArrears, setCalculatedArrears] = useState(0);
-  const [nextBillNo, setNextBillNo] = useState('');
+  const [nextbillNo, setNextbillNo] = useState('');
   const [meterError, setMeterError] = useState('');
 
   // Result
@@ -74,9 +74,9 @@ export default function Billing() {
 
       setRent(tRes.rent || 0);
       setWater(tRes.water || 0);
-      setElecRate(tRes.electricity_rate || 0);
-      setAddPersonRate(tRes.additional_person_charge || 0);
-      setTankWater(tRes.default_tank_water_charge || 0);
+      setElecRate(tRes.electricityRate || 0);
+      setAddPersonRate(tRes.additionalPersonCharge || 0);
+      settankWater(tRes.defaulttankWaterCharge || 0);
 
       const receipts = recRes;
       let previousReading = 0;
@@ -93,21 +93,21 @@ export default function Billing() {
 
         const last = receipts[0];
         const lastTotal = parseFloat(String(last.Total)) || 0;
-        const lastPrevArr = parseFloat(String(last.Previous_Arrears)) || 0;
+        const lastPrevArr = parseFloat(String(last.previousArrears)) || 0;
         const grandTotal = lastTotal + lastPrevArr;
-        const lastRecv = last.Amount_Received !== null && last.Amount_Received !== undefined
-          ? parseFloat(String(last.Amount_Received))
+        const lastRecv = last.amountReceived !== null && last.amountReceived !== undefined
+          ? parseFloat(String(last.amountReceived))
           : grandTotal;
         if (!isNaN(lastRecv)) {
           arrears = grandTotal - lastRecv;
         }
       } else {
-        previousReading = Number(tRes.previous_meter || 0);
+        previousReading = Number(tRes.previousMeter || 0);
       }
 
       setPrevReading(previousReading);
       setCalculatedArrears(arrears);
-      setNextBillNo(`T${tenant.id}-${String(maxSeq + 1).padStart(3, '0')}`);
+      setNextbillNo(`T${tenant.id}-${String(maxSeq + 1).padStart(3, '0')}`);
       setCurrentReading('');
       setAddPersons(0);
       setMaintenance(0);
@@ -149,12 +149,12 @@ export default function Billing() {
         month: selectedMonth,
         current_reading: currentVal,
         additional_persons: addPersons,
-        tank_water: tankWater,
-        maintenance_charge: maintenance,
-        maintenance_desc: maintenanceDesc,
-        previous_arrears: calculatedArrears,
-        amount_received: null,
-        payment_status: 'PENDING',
+        tankWater: tankWater,
+        MaintenanceCharge: maintenance,
+        MaintenanceDesc: maintenanceDesc,
+        previousArrears: calculatedArrears,
+        amountReceived: null,
+        paymentStatus: 'PENDING',
       });
 
       setGeneratedBill(res.data.Bill);
@@ -176,7 +176,7 @@ export default function Billing() {
     setSelectedMonth(currentMonth);
     setRent(0);
     setWater(0);
-    setTankWater(0);
+    settankWater(0);
     setMaintenance(0);
     setMaintenanceDesc('');
     setPrevReading(0);
@@ -185,7 +185,7 @@ export default function Billing() {
     setAddPersons(0);
     setAddPersonRate(0);
     setCalculatedArrears(0);
-    setNextBillNo('');
+    setNextbillNo('');
     setMeterError('');
     setShowSuccess(false);
     setGeneratedBill(null);
@@ -206,8 +206,8 @@ export default function Billing() {
           <CardTitle className="flex items-center gap-2 text-lg">
             <FileText className="h-5 w-5" />
             Generate New Receipt
-            {nextBillNo && (
-              <span className="ml-2 px-2 py-0.5 rounded bg-white/20 text-sm font-mono">{nextBillNo}</span>
+            {nextbillNo && (
+              <span className="ml-2 px-2 py-0.5 rounded bg-white/20 text-sm font-mono">{nextbillNo}</span>
             )}
           </CardTitle>
         </CardHeader>
@@ -223,7 +223,7 @@ export default function Billing() {
                 <SelectContent>
                   {tenants.map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>
-                      {t.name} {t.room_number ? `(Room ${t.room_number})` : ''}
+                      {t.name} {t.roomNumber ? `(Room ${t.roomNumber})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -261,7 +261,7 @@ export default function Billing() {
                 </div>
                 <div className="space-y-2">
                   <Label>Tank Water Charge (₹)</Label>
-                  <Input type="number" step="0.1" value={tankWater || ''} onChange={(e) => setTankWater(parseFloat(e.target.value) || 0)} />
+                  <Input type="number" step="0.1" value={tankWater || ''} onChange={(e) => settankWater(parseFloat(e.target.value) || 0)} />
                 </div>
               </div>
             </div>

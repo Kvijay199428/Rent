@@ -8,14 +8,14 @@ import base64
 
 
 
-def create_session_db(session_id, tenant_id, refresh_hash, device, ip, expires_at):
+def create_session_db(session_id, tenantId, refresh_hash, device, ip, expires_at):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO tenant_sessions 
-            (session_id, tenant_id, refresh_token_hash, device_name, ip_address, created_at, last_activity, expires_at)
+            (session_id, tenantId, refresh_token_hash, device_name, ip_address, created_at, last_activity, expires_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (session_id, tenant_id, refresh_hash, device, ip, now, now, expires_at))
+        """, (session_id, tenantId, refresh_hash, device, ip, now, now, expires_at))
         conn.commit()
 
 def get_session_db(session_id):
@@ -27,16 +27,16 @@ def revoke_session_db(session_id):
         conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE session_id = ?", (session_id,))
         conn.commit()
 
-def revoke_all_tenant_sessions(tenant_id):
+def revoke_all_tenant_sessions(tenantId):
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE tenant_id = ?", (tenant_id,))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE tenantId = ?", (tenantId,))
         conn.commit()
 
-def log_audit(tenant_id: int, action: str, ip: str):
+def log_audit(tenantId: int, action: str, ip: str):
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO tenant_audit_logs (tenant_id, action, ip_address, created_at) VALUES (?, ?, ?, ?)",
-            (tenant_id, action, ip, datetime.utcnow().isoformat())
+            "INSERT INTO tenant_audit_logs (tenantId, action, ip_address, created_at) VALUES (?, ?, ?, ?)",
+            (tenantId, action, ip, datetime.utcnow().isoformat())
         )
         conn.commit()
 

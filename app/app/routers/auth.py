@@ -14,9 +14,9 @@ from app.core.routes_manifest import Routes, Names  # ADD Names import
 router = APIRouter(tags=["Authentication"])
 
 
-def _verify_tenant_view_token(request: Request, view_token: str) -> None:
+def _verify_tenant_viewToken(request: Request, viewToken: str) -> None:
     """
-    Validates that the view_token in the URL path matches the tenant 
+    Validates that the viewToken in the URL path matches the tenant 
     identity from the JWT cookie. Prevents cross-tenant session attacks.
     """
     token = request.cookies.get("tenant_access_token")
@@ -26,15 +26,15 @@ def _verify_tenant_view_token(request: Request, view_token: str) -> None:
     from app.authentication.tenant.jwt import decode_tenant_access_token
     try:
         payload = decode_tenant_access_token(token)
-        tenant_id = int(payload.get("tenant_id") or payload.get("sub"))
+        tenantId = int(payload.get("tenantId") or payload.get("sub"))
         
-        # Look up tenant's view_token from database
+        # Look up tenant's viewToken from database
         tenants = load_tenants()
-        tenant = next((t for t in tenants if t.id == tenant_id), None)
+        tenant = next((t for t in tenants if t.id == tenantId), None)
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
         
-        if getattr(tenant, "view_token", "") != view_token:
+        if getattr(tenant, "viewToken", "") != viewToken:
             raise HTTPException(status_code=403, detail="View token mismatch")
             
     except HTTPException:
@@ -43,15 +43,15 @@ def _verify_tenant_view_token(request: Request, view_token: str) -> None:
         raise HTTPException(status_code=401, detail="Invalid access token")
 
 
-@router.post(Routes.TENANT_API_AUTH_LOGIN)
-async def auth_login(view_token: str, request: Request, response: Response, payload: LoginRequest):
-    """Unchanged - login already receives view_token via path"""
+@router.post(Routes.TENANTAPIAUTHLOGIN)
+async def auth_login(viewToken: str, request: Request, response: Response, payload: LoginRequest):
+    """Unchanged - login already receives viewToken via path"""
     ip = request.client.host if request.client else "Unknown IP"
     
     with get_conn() as conn:
         tenant = conn.execute(
-            "SELECT id, tenantpin, failed_attempts, locked_until FROM tenants WHERE view_token = ?", 
-            (payload.view_token,)
+            "SELECT id, tenantpin, failed_attempts, locked_until FROM tenants WHERE viewToken = ?", 
+            (payload.viewToken,)
         ).fetchone()
         
     if not tenant:
@@ -101,15 +101,15 @@ async def auth_login(view_token: str, request: Request, response: Response, payl
     return {"status": "success", "message": "Logged in successfully"}
 
 
-@router.post(Routes.TENANT_API_AUTH_REFRESH)
+@router.post(Routes.TENANTAPIAUTHREFRESH)
 async def auth_refresh(
-    view_token: str = Path(..., description="Tenant view token from URL"),
+    viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None, 
     response: Response = None
 ):
-    """Tenant Refresh Token Rotation Flow — now requires view_token in path"""
-    # Security: Validate URL view_token matches cookie JWT identity
-    _verify_tenant_view_token(request, view_token)
+    """Tenant Refresh Token Rotation Flow — now requires viewToken in path"""
+    # Security: Validate URL viewToken matches cookie JWT identity
+    _verify_tenant_viewToken(request, viewToken)
     
     refresh_token = request.cookies.get("tenant_refresh_token")
     if not refresh_token:
@@ -131,8 +131,8 @@ async def auth_refresh(
     revoke_tenant_session_db(session_id) 
     
     # Generate new session & tokens
-    new_session_id, new_refresh_token = create_tenant_session(session["tenant_id"], request, remember_me=True)
-    new_access_token = create_tenant_access_token(session["tenant_id"], new_session_id)
+    new_session_id, new_refresh_token = create_tenant_session(session["tenantId"], request, remember_me=True)
+    new_access_token = create_tenant_access_token(session["tenantId"], new_session_id)
     
     # Format cookie value correctly
     new_cookie_val = f"{new_session_id}:{new_refresh_token}"
@@ -141,15 +141,15 @@ async def auth_refresh(
     return {"status": "success", "message": "Tokens refreshed silently"}
 
 
-@router.post(Routes.TENANT_API_AUTH_LOGOUT)
+@router.post(Routes.TENANTAPIAUTHLOGOUT)
 async def auth_logout(
-    view_token: str = Path(..., description="Tenant view token from URL"),
+    viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None, 
     response: Response = None
 ):
-    """Tenant logout — now requires view_token in path"""
-    # Security: Validate URL view_token matches cookie JWT identity
-    _verify_tenant_view_token(request, view_token)
+    """Tenant logout — now requires viewToken in path"""
+    # Security: Validate URL viewToken matches cookie JWT identity
+    _verify_tenant_viewToken(request, viewToken)
     
     token = request.cookies.get("tenant_access_token")
     if token:
@@ -157,7 +157,7 @@ async def auth_logout(
             from app.authentication.tenant.jwt import decode_tenant_access_token
             payload = decode_tenant_access_token(token)
             revoke_tenant_session_db(payload.get("sid"))
-            log_audit(int(payload.get("tenant_id") or payload.get("sub")), "Logout Success", request.client.host)
+            log_audit(int(payload.get("tenantId") or payload.get("sub")), "Logout Success", request.client.host)
         except Exception:
             pass
             
@@ -165,15 +165,15 @@ async def auth_logout(
     return {"status": "success"}
 
 
-@router.post(Routes.TENANT_API_AUTH_LOGOUT_ALL)
+@router.post(Routes.TENANTAPIAUTHLOGOUTALL)
 async def auth_logout_all(
-    view_token: str = Path(..., description="Tenant view token from URL"),
+    viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None,
     principal = Depends(get_current_tenant)
 ):
-    """Logout all devices — now requires view_token in path"""
-    # Security: Validate URL view_token matches cookie JWT identity
-    _verify_tenant_view_token(request, view_token)
+    """Logout all devices — now requires viewToken in path"""
+    # Security: Validate URL viewToken matches cookie JWT identity
+    _verify_tenant_viewToken(request, viewToken)
     
     revoke_all_tenant_sessions(principal.id)
     return {"status": "success", "message": "All devices logged out"}
@@ -192,12 +192,12 @@ async def auth_logout_all(
 
 # router = APIRouter(tags=["Authentication"])
 
-# @router.post(Routes.TENANT_API_AUTH_LOGIN)
-# async def auth_login(view_token: str, request: Request, response: Response, payload: LoginRequest):
+# @router.post(Routes.TENANTAPIAUTHLOGIN)
+# async def auth_login(viewToken: str, request: Request, response: Response, payload: LoginRequest):
 #     ip = request.client.host if request.client else "Unknown IP"
     
 #     with get_conn() as conn:
-#         tenant = conn.execute("SELECT id, tenantpin, failed_attempts, locked_until FROM tenants WHERE view_token = ?", (payload.view_token,)).fetchone()
+#         tenant = conn.execute("SELECT id, tenantpin, failed_attempts, locked_until FROM tenants WHERE viewToken = ?", (payload.viewToken,)).fetchone()
         
 #     if not tenant:
 #         raise HTTPException(status_code=404, detail="Invalid profile link.")
@@ -239,7 +239,7 @@ async def auth_logout_all(
     
 #     return {"status": "success", "message": "Logged in successfully"}
 
-# @router.post(Routes.TENANT_API_AUTH_REFRESH)
+# @router.post(Routes.TENANTAPIAUTHREFRESH)
 # async def auth_refresh(request: Request, response: Response):
 #     """Tenant Refresh Token Rotation Flow"""
 #     refresh_token = request.cookies.get("tenant_refresh_token")
@@ -262,8 +262,8 @@ async def auth_logout_all(
 #     revoke_tenant_session_db(session_id) 
     
 #     # Generate new session & tokens
-#     new_session_id, new_refresh_token = create_tenant_session(session["tenant_id"], request, remember_me=True)
-#     new_access_token = create_tenant_access_token(session["tenant_id"], new_session_id)
+#     new_session_id, new_refresh_token = create_tenant_session(session["tenantId"], request, remember_me=True)
+#     new_access_token = create_tenant_access_token(session["tenantId"], new_session_id)
     
 #     # Format cookie value correctly
 #     new_cookie_val = f"{new_session_id}:{new_refresh_token}"
@@ -271,7 +271,7 @@ async def auth_logout_all(
     
 #     return {"status": "success", "message": "Tokens refreshed silently"}
 
-# @router.post(Routes.TENANT_API_AUTH_LOGOUT)
+# @router.post(Routes.TENANTAPIAUTHLOGOUT)
 # async def auth_logout(request: Request, response: Response):
 #     token = request.cookies.get("tenant_access_token")
 #     if token:
@@ -279,14 +279,14 @@ async def auth_logout_all(
 #             from app.authentication.tenant.jwt import decode_tenant_access_token
 #             payload = decode_tenant_access_token(token)
 #             revoke_tenant_session_db(payload.get("sid"))
-#             log_audit(int(payload.get("tenant_id") or payload.get("sub")), "Logout Success", request.client.host)
+#             log_audit(int(payload.get("tenantId") or payload.get("sub")), "Logout Success", request.client.host)
 #         except Exception:
 #             pass
             
 #     clear_tenant_auth_cookies(response, request)
 #     return {"status": "success"}
 
-# @router.post(Routes.TENANT_API_AUTH_LOGOUT_ALL)
+# @router.post(Routes.TENANTAPIAUTHLOGOUTALL)
 # async def auth_logout_all(principal = Depends(get_current_tenant)):
 #     revoke_all_tenant_sessions(principal.id)
 #     return {"status": "success", "message": "All devices logged out"}

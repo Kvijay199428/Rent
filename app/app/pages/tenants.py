@@ -9,7 +9,7 @@ from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_TENANTS, name=Names.TENANTS_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGETENANTS, name=Names.TENANTSPAGE, response_class=HTMLResponse)
 async def tenants_page(request: Request):
     tenants = load_tenants()
     receipts = get_all_receipts()
@@ -19,13 +19,13 @@ async def tenants_page(request: Request):
         if active_receipts:
             latest = active_receipts[-1]
             try:
-                grand_total = float(latest.get("Total") or 0.0) + float(latest.get("Previous_Arrears") or 0.0)
-                amount_received_str = latest.get("Amount_Received", "")
-                if amount_received_str in (None, ""):
-                    amount_received = grand_total
+                grandTotal = float(latest.get("Total") or 0.0) + float(latest.get("previousArrears") or 0.0)
+                amountReceived_str = latest.get("amountReceived", "")
+                if amountReceived_str in (None, ""):
+                    amountReceived = grandTotal
                 else:
-                    amount_received = float(amount_received_str)
-                tenant.arrears = grand_total - amount_received
+                    amountReceived = float(amountReceived_str)
+                tenant.arrears = grandTotal - amountReceived
             except ValueError:
                 tenant.arrears = 0.0
         else:

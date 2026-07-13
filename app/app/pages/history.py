@@ -8,7 +8,7 @@ from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_HISTORY, name=Names.HISTORY_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGEHISTORY, name=Names.HISTORYPAGE, response_class=HTMLResponse)
 async def history_page(request: Request):
     receipts = get_all_receipts()
     active_receipts = [r for r in receipts if r.get("Status", "ACTIVE") == "ACTIVE"]

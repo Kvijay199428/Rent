@@ -2,7 +2,7 @@
 from typing import Optional
 
 class LoginRequest(BaseModel):
-    view_token: str
+    viewToken: str
     pin: str
     remember_me: bool = False
 

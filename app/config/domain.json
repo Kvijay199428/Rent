@@ -13,13 +13,13 @@
     },
     "tenant_profile": {
         "max_occupants": 20,
-        "require_security_deposit": true,
+        "require_securityDeposit": true,
         "enable_meter_reading": true,
         "history_months_visible": 12
     },
     "billing": {
-        "enable_maintenance_charge": true,
-        "enable_tank_water": true,
+        "enable_MaintenanceCharge": true,
+        "enable_tankWater": true,
         "default_currency": "₹"
     }
 }

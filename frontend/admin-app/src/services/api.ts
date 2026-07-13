@@ -11,7 +11,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
     },
   });
   if (res.status === 401 || res.status === 303) {
-    window.location.href = ROUTES.ADMIN_PAGE_LOGIN;
+    window.location.href = ROUTES.ADMINPAGELOGIN;
     throw new Error("Unauthorized");
   }
   return res;
@@ -20,7 +20,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
 export const api = {
   // Dashboard
   getDashboardStats: async (): Promise<DashboardStats> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_DASHBOARD_STATS);
+    const res = await fetchWithAuth(ROUTES.ADMINAPIDASHBOARDSTATS);
     if (!res.ok) throw new Error("Failed to fetch dashboard stats");
     const data = await res.json();
     return data.stats || data;
@@ -28,19 +28,19 @@ export const api = {
 
   // Tenants
   getTenants: async (): Promise<Tenant[]> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_TENANTS_LIST);
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSLIST);
     if (!res.ok) throw new Error("Failed to fetch tenants");
     return res.json();
   },
 
   getTenant: async (id: number): Promise<Tenant> => {
-    const res = await fetchWithAuth(ROUTES.adminApiTenantsGet(id));
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSGET(id));
     if (!res.ok) throw new Error("Failed to fetch tenant");
     return res.json();
   },
 
   addTenant: async (tenant: Omit<Tenant, "id">): Promise<{ status: string; tenant: Tenant }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_TENANTS_CREATE, {
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSCREATE, {
       method: "POST",
       body: JSON.stringify(tenant),
     });
@@ -49,7 +49,7 @@ export const api = {
   },
 
   updateTenant: async (id: number, tenant: Tenant): Promise<{ status: string; tenant: Tenant }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiTenantsUpdate(id), {
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSUPDATE(id), {
       method: "PUT",
       body: JSON.stringify(tenant),
     });
@@ -58,13 +58,13 @@ export const api = {
   },
 
   revealTenantPin: async (id: number): Promise<{ status: string; pin: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiTenantsRevealPin(id));
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSREVEALPIN(id));
     if (!res.ok) throw new Error("Failed to reveal PIN");
     return res.json();
   },
 
-  changeTenantPin: async (tenantId: number, payload: { pin: string; logout_all?: boolean }) => {
-    const res = await fetch(ROUTES.adminApiTenantsChangePin(tenantId), {
+  CHANGETENANTPIN: async (tenantId: number, payload: { pin: string; logout_all?: boolean }) => {
+    const res = await fetch(ROUTES.ADMINAPITENANTSCHANGEPIN(tenantId), {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -76,7 +76,7 @@ export const api = {
   },
 
   deleteTenant: async (id: number, action: string = "archive"): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(`${ROUTES.adminApiTenantsDelete(id)}?action=${action}`, {
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPITENANTSDELETE(id)}?action=${action}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete tenant");
@@ -84,39 +84,39 @@ export const api = {
   },
 
   getTenantReceipts: async (tenantName: string): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(ROUTES.adminApiTenantsReceipts(tenantName));
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSRECEIPTS(tenantName));
     if (!res.ok) throw new Error("Failed to fetch tenant receipts");
     return res.json();
   },
 
   // Bills / Receipts
   getAllReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMIN_API_BILLING_FILTER}?status=all`);
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGFILTER}?status=all`);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     return res.json();
   },
 
   getActiveReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMIN_API_BILLING_FILTER}?status=active`);
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGFILTER}?status=active`);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     return res.json();
   },
 
   getArchivedReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMIN_API_BILLING_FILTER}?status=all`);
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGFILTER}?status=all`);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     const data = await res.json();
     return data.filter((r: Receipt) => r.Status === "ARCHIVED");
   },
 
   getReceipt: async (billNo: string): Promise<Receipt> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingGet(billNo));
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGGET(billNo));
     if (!res.ok) throw new Error("Failed to fetch receipt");
     return res.json();
   },
 
   createBill: async (data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_BILLING_CREATE, {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGCREATE, {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -126,7 +126,7 @@ export const api = {
   },
 
   updateBill: async (billNo: string, data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingUpdate(billNo), {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGUPDATE(billNo), {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -136,7 +136,7 @@ export const api = {
   },
 
   updatePaymentStatus: async (billNo: string, data: PaymentStatusUpdate): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingUpdatePayment(billNo), {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGUPDATEPAYMENT(billNo), {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -145,46 +145,46 @@ export const api = {
   },
 
   archiveBill: async (billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingArchive(billNo), { method: "POST" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVE(billNo), { method: "POST" });
     if (!res.ok) throw new Error("Failed to archive bill");
     return res.json();
   },
 
   restoreBill: async (billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingRestore(billNo), { method: "POST" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGRESTORE(billNo), { method: "POST" });
     if (!res.ok) throw new Error("Failed to restore bill");
     return res.json();
   },
 
   permanentlyDeleteBill: async (billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingDelete(billNo), { method: "DELETE" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGDELETE(billNo), { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete bill");
     return res.json();
   },
 
   // Billing
   getBillingMonths: async (): Promise<{ months: string[]; currentMonth: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_BILLING_MONTHS);
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGMONTHS);
     if (!res.ok) throw new Error("Failed to fetch billing months");
     return res.json();
   },
 
   previewBilling: async (params: Record<string, string | number>): Promise<Record<string, number>> => {
     const query = new URLSearchParams(params as Record<string, string>).toString();
-    const res = await fetchWithAuth(`${ROUTES.ADMIN_API_BILLING_PREVIEW}?${query}`);
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGPREVIEW}?${query}`);
     if (!res.ok) throw new Error("Failed to preview billing");
     return res.json();
   },
 
   // Settings
   getConfig: async (): Promise<AppConfig> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_CONFIG_GET);
+    const res = await fetchWithAuth(ROUTES.ADMINAPICONFIGGET);
     if (!res.ok) throw new Error('Failed to fetch config');
     return res.json();
   },
 
   saveConfig: async (config: Partial<AppConfig>): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_CONFIG_UPDATE, {
+    const res = await fetchWithAuth(ROUTES.ADMINAPICONFIGUPDATE, {
       method: 'POST',
       body: JSON.stringify(config),
     });
@@ -192,8 +192,8 @@ export const api = {
     return res.json();
   },
 
-  updateTheme: async (theme: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_CONFIG_THEME, {
+  UPDATETHEME: async (theme: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPICONFIGTHEME, {
       method: 'POST',
       body: JSON.stringify({ theme }),
     });
@@ -201,12 +201,12 @@ export const api = {
     return res.json();
   },
 
-  downloadTemplate: (): string => ROUTES.ADMIN_API_SYNC_TEMPLATE,
+  downloadTemplate: (): string => ROUTES.ADMINAPISYNCTEMPLATE,
 
-  exportExcel: (format: string): string => ROUTES.adminApiSyncExportExcel(format),
+  exportExcel: (format: string): string => ROUTES.ADMINAPISYNCEXPORTEXCEL(format),
 
   importPreview: async (data: FormData): Promise<any> => {
-    const res = await fetch(ROUTES.ADMIN_API_SYNC_IMPORT_PREVIEW, {
+    const res = await fetch(ROUTES.ADMINAPISYNCIMPORTPREVIEW, {
       method: 'POST',
       body: data,
       credentials: 'include',
@@ -219,7 +219,7 @@ export const api = {
   },
 
   importExecute: async (data: FormData): Promise<{ status: string }> => {
-    const res = await fetch(ROUTES.ADMIN_API_SYNC_IMPORT_EXECUTE, {
+    const res = await fetch(ROUTES.ADMINAPISYNCIMPORTEXECUTE, {
       method: 'POST',
       body: data,
       credentials: 'include',
@@ -233,41 +233,41 @@ export const api = {
 
   // Backups
   getBackups: async (): Promise<{ backups: Backup[] }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_BACKUPS_LIST);
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSLIST);
     if (!res.ok) throw new Error("Failed to fetch backups");
     return res.json();
   },
 
   createManualBackup: async (): Promise<{ status: string; data: Backup }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_BACKUPS_CREATE_MANUAL, { method: "POST" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSCREATEMANUAL, { method: "POST" });
     if (!res.ok) throw new Error("Failed to create backup");
     return res.json();
   },
 
   deleteBackup: async (id: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBackupsDelete(id), { method: "DELETE" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSDELETE(id), { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete backup");
     return res.json();
   },
 
   verifyBackup: async (id: string): Promise<{ status: string; message: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBackupsVerify(id));
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSVERIFY(id));
     return res.json();
   },
 
   restoreBackup: async (id: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBackupsRestore(id), { method: "POST" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSRESTORE(id), { method: "POST" });
     if (!res.ok) throw new Error("Failed to restore backup");
     return res.json();
   },
 
   // PDF
-  getPDFViewUrl: (billNo: string): string => ROUTES.adminApiPdfView(billNo),
-  getPDFDownloadUrl: (billNo: string): string => ROUTES.adminApiPdfDownload(billNo),
+  getPDFViewUrl: (billNo: string): string => ROUTES.ADMINAPIPDFVIEW(billNo),
+  getPDFDownloadUrl: (billNo: string): string => ROUTES.ADMINAPIPDFDOWNLOAD(billNo),
 
   // WhatsApp
   sendWhatsApp: async (billNo: string): Promise<{ status: string; url: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiWhatsappSendSingle(billNo));
+    const res = await fetchWithAuth(ROUTES.ADMINAPIWHATSAPPSENDSINGLE(billNo));
     if (!res.ok) throw new Error("Failed to generate WhatsApp link");
     return res.json();
   },
@@ -278,7 +278,7 @@ export const api = {
     formData.append("username", username);
     formData.append("password", password);
     formData.append("remember_me", String(rememberMe));
-    return fetch(ROUTES.ADMIN_API_AUTH_LOGIN, {
+    return fetch(ROUTES.ADMINAPIAUTHLOGIN, {
       method: "POST",
       body: formData,
       credentials: "include",
@@ -287,20 +287,20 @@ export const api = {
   },
 
   logout: async (): Promise<void> => {
-    await fetch(ROUTES.ADMIN_API_AUTH_LOGOUT, { credentials: "include" });
-    window.location.href = ROUTES.ADMIN_PAGE_LOGIN;
+    await fetch(ROUTES.ADMINAPIAUTHLOGOUT, { credentials: "include" });
+    window.location.href = ROUTES.ADMINPAGELOGIN;
   },
 
   // Occupants
   getOccupants: async (tenantId: string | number): Promise<Occupant[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMIN_API_OCCUPANTS_LIST}?tenant_id=${tenantId}`);
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPIOCCUPANTSLIST}?tenantId=${tenantId}`);
     if (!res.ok) throw new Error("Failed to fetch occupants");
     const data = await res.json();
     return data.occupants || [];
   },
 
   saveOccupant: async (tenantId: string | number, data: FormData): Promise<{ status: string }> => {
-    const res = await fetch(`${ROUTES.ADMIN_API_OCCUPANTS_LIST}?tenant_id=${tenantId}`, {
+    const res = await fetch(`${ROUTES.ADMINAPIOCCUPANTSLIST}?tenantId=${tenantId}`, {
       method: "POST",
       body: data,
       credentials: "include",
@@ -314,12 +314,12 @@ export const api = {
 
   deleteOccupant: async (tenantId: string | number, occupantUuid: string): Promise<{ status: string }> => {
     const res = await fetchWithAuth(
-      ROUTES.adminApiOccupantsDelete(Number(tenantId), occupantUuid),
+      ROUTES.ADMINAPIOCCUPANTSDELETE(Number(tenantId), occupantUuid),
       { method: "DELETE" }
     );
     if (!res.ok) throw new Error("Failed to delete occupant");
     return res.json();
   },
 
-  // downloadTemplate: (): string => ROUTES.ADMIN_API_SYNC_TEMPLATE,
+  // downloadTemplate: (): string => ROUTES.ADMINAPISYNCTEMPLATE,
 };

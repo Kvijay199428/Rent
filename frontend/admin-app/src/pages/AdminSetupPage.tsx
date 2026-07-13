@@ -43,10 +43,10 @@ export default function AdminSetupPage() {
 
   useEffect(() => {
     // Check if setup is required
-    apiGet(ROUTES.ADMIN_API_SETUP_REQUIRED)
+    apiGet(ROUTES.ADMINAPISETUPREQUIRED)
       .then((data: any) => {
         if (!data.setup_required) {
-          navigate(ROUTES.ADMIN_PAGE_LOGIN);
+          navigate(ROUTES.ADMINPAGELOGIN);
         }
       })
       .catch(() => {
@@ -76,7 +76,7 @@ export default function AdminSetupPage() {
     setLoading(true);
 
     try {
-      const result = await apiPost(ROUTES.ADMIN_API_SETUP_CREATE, {
+      const result = await apiPost(ROUTES.ADMINAPISETUPCREATE, {
         username: formData.username,
         password: formData.password,
         confirm_password: formData.confirmPassword,

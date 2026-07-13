@@ -151,8 +151,8 @@ export default function History() {
         })
       )}
 
-      <PDFPreviewModal billno={previewBill} onClose={() => setPreviewBill(null)} />
-      <EditBillModal billno={editBill} onClose={() => setEditBill(null)} onSaved={loadReceipts} />
+      <PDFPreviewModal billNo={previewBill} onClose={() => setPreviewBill(null)} />
+      <EditBillModal billNo={editBill} onClose={() => setEditBill(null)} onSaved={loadReceipts} />
     </div>
   );
 }

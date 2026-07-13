@@ -119,9 +119,9 @@ export default function BillsModal({
 
         return bills.filter((bill) => {
             const month = formatMonthLabel(bill.Month).toLowerCase();
-            const billno = String(bill.Bill || '').toLowerCase();
+            const billNo = String(bill.Bill || '').toLowerCase();
             const status = String(bill.PaymentStatus || '').toLowerCase();
-            return month.includes(q) || billno.includes(q) || status.includes(q);
+            return month.includes(q) || billNo.includes(q) || status.includes(q);
         });
     }, [bills, query]);
 
@@ -474,9 +474,9 @@ export default function BillsModal({
 
 //         return bills.filter((bill) => {
 //             const month = formatMonthLabel(bill.Month).toLowerCase();
-//             const billno = String(bill.Bill || '').toLowerCase();
+//             const billNo = String(bill.Bill || '').toLowerCase();
 //             const status = String(bill.PaymentStatus || '').toLowerCase();
-//             return month.includes(q) || billno.includes(q) || status.includes(q);
+//             return month.includes(q) || billNo.includes(q) || status.includes(q);
 //         });
 //     }, [bills, query]);
 

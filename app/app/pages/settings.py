@@ -6,7 +6,7 @@ from app.core.routes_manifest import Routes, Names, Templates
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_SETTINGS, name=Names.SETTINGS_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGESETTINGS, name=Names.SETTINGSPAGE, response_class=HTMLResponse)
 async def settings_page(request: Request):
     billing_conf = config.get("billing", {})
     landlord_conf = config.get("landlord", {})

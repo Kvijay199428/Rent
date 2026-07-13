@@ -214,7 +214,7 @@ export default function Backups() {
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                         const a = document.createElement('a');
-                        a.href = ROUTES.adminApiBackupsDownload(b.id);
+                        a.href = ROUTES.ADMINAPIBACKUPSDOWNLOAD(b.id);
                         a.download = b.filename;
                         a.click();
                       }} title="Download">

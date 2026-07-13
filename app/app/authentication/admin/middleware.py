@@ -19,7 +19,7 @@ def _is_browser_navigation(request: Request) -> bool:
 
 
 def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized"):
-    logout_url = str(request.url_for("adminlogout"))
+    logout_url = str(request.url_for("ADMINLOGOUT"))
     if _is_browser_navigation(request):
         raise HTTPException(status_code=303, headers={"Location": logout_url})
     raise HTTPException(
@@ -35,19 +35,19 @@ def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized")
 async def get_current_admin_page(request: Request) -> AuthPrincipal:
     token = request.cookies.get("admin_access_token")
     if not token:
-        logout_url = str(request.url_for("adminlogout"))
+        logout_url = str(request.url_for("ADMINLOGOUT"))
         raise HTTPException(status_code=303, headers={"Location": logout_url})
 
     try:
         payload = decode_admin_access_token(token)
         if payload.get("role") != "admin":
-            logout_url = str(request.url_for("adminlogout"))
+            logout_url = str(request.url_for("ADMINLOGOUT"))
             raise HTTPException(status_code=303, headers={"Location": logout_url})
 
         session_id = payload.get("sid")
         session = get_admin_session_db(session_id)
         if not session:
-            logout_url = str(request.url_for("adminlogout"))
+            logout_url = str(request.url_for("ADMINLOGOUT"))
             raise HTTPException(status_code=303, headers={"Location": logout_url})
 
         admin_id = int(payload.get("admin_id") or payload.get("sub"))
@@ -61,7 +61,7 @@ async def get_current_admin_page(request: Request) -> AuthPrincipal:
     except HTTPException:
         raise
     except Exception:
-        logout_url = str(request.url_for("adminlogout"))
+        logout_url = str(request.url_for("ADMINLOGOUT"))
         raise HTTPException(status_code=303, headers={"Location": logout_url})
 
 

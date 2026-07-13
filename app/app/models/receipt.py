@@ -2,11 +2,11 @@
 from typing import Optional
 
 class Receipt(BaseModel):
-    billno: str
+    billNo: str
     date: str
     month: str
-    tenant_name: str
-    tenant_id: int
+    tenantName: str
+    tenantId: int
     previous_reading: float
     current_reading: float
     units_consumed: float
@@ -24,12 +24,12 @@ class BillRequest(BaseModel):
     month: str
     currentreading: float = Field(..., alias="current_reading")
     additionalpersons: int = Field(0, alias="additional_persons")
-    tankwater: float = Field(0.0, alias="tank_water")
-    maintenancecharge: float = Field(0.0, alias="maintenance_charge")
-    maintenancedesc: str = Field("", alias="maintenance_desc")
-    previousarrears: float = Field(0.0, alias="previous_arrears")
-    amountreceived: Optional[float] = Field(None, alias="amount_received")
-    paymentstatus: str = Field("PENDING", alias="payment_status")
+    tankWater: float = Field(0.0, alias="tankWater")
+    maintenancecharge: float = Field(0.0, alias="MaintenanceCharge")
+    maintenancedesc: str = Field("", alias="MaintenanceDesc")
+    previousarrears: float = Field(0.0, alias="previousArrears")
+    amountreceived: Optional[float] = Field(None, alias="amountReceived")
+    paymentstatus: str = Field("PENDING", alias="paymentStatus")
 
     @field_validator("tenant", "month", "maintenancedesc", mode="before")
     @classmethod
@@ -43,7 +43,7 @@ class BillRequest(BaseModel):
             return 0
         return int(v)
 
-    @field_validator("currentreading", "tankwater", "maintenancecharge", "previousarrears", mode="before")
+    @field_validator("currentreading", "tankWater", "maintenancecharge", "previousarrears", mode="before")
     @classmethod
     def normalize_required_floats(cls, v):
         if v in ("", None):
@@ -65,8 +65,8 @@ class BillRequest(BaseModel):
 class PaymentStatusUpdate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    paymentstatus: str = Field(..., alias="payment_status")
-    amountreceived: Optional[float] = Field(None, alias="amount_received")
+    paymentstatus: str = Field(..., alias="paymentStatus")
+    amountreceived: Optional[float] = Field(None, alias="amountReceived")
 
     @field_validator("paymentstatus", mode="before")
     @classmethod

@@ -24,7 +24,7 @@
       "archive": "/admin/archive",
       "backups": "/admin/backups",
       "catchAll": "/admin/*",
-      "tenantProfile": "/admin/tenant/{tenant_id}"
+      "TENANTPROFILE": "/admin/tenant/{tenantId}"
     },
     "api": {
       "setup": {
@@ -60,36 +60,36 @@
         "months": "/admin/api/receipts/months",
         "preview": "/admin/api/receipts/preview",
         "create": "/admin/api/receipts/create",
-        "get": "/admin/api/receipts/{billno}",
-        "update": "/admin/api/receipts/{billno}",
-        "updatePayment": "/admin/api/receipts/{billno}/payment-status",
-        "archive": "/admin/api/receipts/{billno}/archive",
-        "restore": "/admin/api/receipts/{billno}/restore",
-        "delete": "/admin/api/receipts/{billno}"
+        "get": "/admin/api/receipts/{billNo}",
+        "update": "/admin/api/receipts/{billNo}",
+        "updatePayment": "/admin/api/receipts/{billNo}/payment-status",
+        "archive": "/admin/api/receipts/{billNo}/archive",
+        "restore": "/admin/api/receipts/{billNo}/restore",
+        "delete": "/admin/api/receipts/{billNo}"
       },
       "tenants": {
         "list": "/admin/api/tenants",
         "create": "/admin/api/tenants",
-        "get": "/admin/api/tenants/{tenant_id}",
-        "update": "/admin/api/tenants/{tenant_id}",
-        "delete": "/admin/api/tenants/{tenant_id}",
-        "changePin": "/admin/api/tenants/{tenant_id}/change-pin",
-        "revealPin": "/admin/api/tenants/{tenant_id}/reveal-pin",
-        "receipts": "/admin/api/tenants/{tenant_name}/receipts"
+        "get": "/admin/api/tenants/{tenantId}",
+        "update": "/admin/api/tenants/{tenantId}",
+        "delete": "/admin/api/tenants/{tenantId}",
+        "changePin": "/admin/api/tenants/{tenantId}/change-pin",
+        "revealPin": "/admin/api/tenants/{tenantId}/reveal-pin",
+        "receipts": "/admin/api/tenants/{tenantName}/receipts"
       },
       "occupants": {
         "list": "/admin/api/occupants",
         "create": "/admin/api/occupants",
-        "markInactive": "/admin/api/occupants/{tenant_id}/{occupant_uuid}/inactive",
-        "delete": "/admin/api/occupants/{tenant_id}/{occupant_uuid}",
+        "markInactive": "/admin/api/occupants/{tenantId}/{occupantUuid}/inactive",
+        "delete": "/admin/api/occupants/{tenantId}/{occupantUuid}",
         "getFile": "/admin/api/occupants/file/{filename}"
       },
       "pdf": {
-        "download": "/admin/api/pdf/receipt/{billno}",
-        "view": "/admin/api/pdf/receipt/{billno}/view"
+        "download": "/admin/api/pdf/receipt/{billNo}",
+        "view": "/admin/api/pdf/receipt/{billNo}/view"
       },
       "whatsapp": {
-        "sendSingle": "/admin/api/whatsapp/send-single/{billno}"
+        "sendSingle": "/admin/api/whatsapp/send-single/{billNo}"
       },
       "sync": {
         "exportCsv": "/admin/api/export-csv",
@@ -102,11 +102,11 @@
       "backups": {
         "list": "/admin/api/backups",
         "createManual": "/admin/api/backups/manual",
-        "delete": "/admin/api/backups/{backup_id}",
-        "verify": "/admin/api/backups/{backup_id}/verify",
-        "restore": "/admin/api/backups/{backup_id}/restore",
-        "download": "/admin/api/backups/{backup_id}/download",
-        "metadata": "/admin/api/backups/{backup_id}/metadata"
+        "delete": "/admin/api/backups/{backupId}",
+        "verify": "/admin/api/backups/{backupId}/verify",
+        "restore": "/admin/api/backups/{backupId}/restore",
+        "download": "/admin/api/backups/{backupId}/download",
+        "metadata": "/admin/api/backups/{backupId}/metadata"
       },
       "settings": {
         "uploadSignature": "/admin/api/settings/upload-signature",
@@ -118,28 +118,28 @@
     "pages": {
       "root": "/",
       "catchAll": "/*",
-      "profile": "/t/{view_token}"
+      "profile": "/t/{viewToken}"
     },
     "api": {
       "auth": {
         "publicKey": "/api/auth/public-key",
-        "login": "/api/auth/login/{view_token}",
-        "refresh": "/api/auth/refresh/{view_token}",
-        "logout": "/api/auth/logout/{view_token}",
-        "logoutAll": "/api/auth/logout-all/{view_token}"
+        "login": "/api/auth/login/{viewToken}",
+        "refresh": "/api/auth/refresh/{viewToken}",
+        "logout": "/api/auth/logout/{viewToken}",
+        "logoutAll": "/api/auth/logout-all/{viewToken}"
       },
       "profile": {
-        "get": "/api/{view_token}"
+        "get": "/api/{viewToken}"
       },
       "kyc": {
-        "upload": "/api/{view_token}/kyc",
-        "markInactive": "/api/{view_token}/kyc/{occupant_uuid}/inactive",
-        "delete": "/api/{view_token}/kyc/{occupant_uuid}",
-        "getFile": "/api/{view_token}/kyc/file/{filename}"
+        "upload": "/api/{viewToken}/kyc",
+        "markInactive": "/api/{viewToken}/kyc/{occupantUuid}/inactive",
+        "delete": "/api/{viewToken}/kyc/{occupantUuid}",
+        "getFile": "/api/{viewToken}/kyc/file/{filename}"
       },
       "pdf": {
-        "view": "/t/api/{view_token}/pdf/{billno}/view",
-        "download": "/t/api/{view_token}/pdf/{billno}/download"
+        "view": "/t/api/{viewToken}/pdf/{billNo}/view",
+        "download": "/t/api/{viewToken}/pdf/{billNo}/download"
       }
     }
   }

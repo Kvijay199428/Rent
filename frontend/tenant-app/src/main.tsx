@@ -7,8 +7,8 @@ import "./index.css";
 import routesJson from "@shared/routes.json";
 
 // Compute the effective basename for the tenant app
-// The tenant app is served from /rent/t/{view_token}
-// So the router basename should be /rent/t to handle the /{view_token} part as routes
+// The tenant app is served from /rent/t/{viewToken}
+// So the router basename should be /rent/t to handle the /{viewToken} part as routes
 const TENANT_BASE = `${routesJson.basePath}/t`;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

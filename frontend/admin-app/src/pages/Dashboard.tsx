@@ -245,8 +245,8 @@ export default function Dashboard() {
                     </tr>
                   )}
                   {(stats.recent_bills ?? []).map((b, i) => {
-                    const grandTotal = b.total + (b.Previous_Arrears || 0);
-                    const amtRecv = b.amount_received || 0;
+                    const grandTotal = b.total + (b.previousArrears || 0);
+                    const amtRecv = b.amountReceived || 0;
                     const balanceDue = grandTotal - amtRecv;
 
                     const statusColors: Record<string, string> = {
@@ -257,20 +257,20 @@ export default function Dashboard() {
                     };
 
                     return (
-                      <tr key={b.billno} className="border-b last:border-0 hover:bg-accent/50 transition-colors">
+                      <tr key={b.billNo} className="border-b last:border-0 hover:bg-accent/50 transition-colors">
                         <td className="px-4 py-2 text-muted-foreground">{i + 1}</td>
                         <td className="px-4 py-2">
-                          <span className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">{b.billno}</span>
+                          <span className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">{b.billNo}</span>
                         </td>
-                        <td className="px-4 py-2 font-medium text-primary">{b.tenant_name}</td>
+                        <td className="px-4 py-2 font-medium text-primary">{b.tenantName}</td>
                         <td className="px-4 py-2 text-muted-foreground">{b.month}</td>
                         <td className="px-4 py-2 font-bold">
                           ₹{b.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-2">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[b.payment_status] || statusColors.PENDING}`}>
-                            {b.payment_status === 'PAID' ? <Check size={10} /> : <AlertCircle size={10} />}
-                            {b.payment_status}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[b.paymentStatus] || statusColors.PENDING}`}>
+                            {b.paymentStatus === 'PAID' ? <Check size={10} /> : <AlertCircle size={10} />}
+                            {b.paymentStatus}
                           </span>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             Recv: ₹{amtRecv.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -283,24 +283,24 @@ export default function Dashboard() {
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewBill(b.billno)} title="View">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewBill(b.billNo)} title="View">
                               <Eye size={14} />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditBill(b.billno)} title="Edit">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditBill(b.billNo)} title="Edit">
                               <Pencil size={14} className="text-yellow-500" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
-                              const url = api.getPDFDownloadUrl(b.billno);
+                              const url = api.getPDFDownloadUrl(b.billNo);
                               const a = document.createElement('a');
                               a.href = url;
-                              a.download = `Receipt_${b.billno}.pdf`;
+                              a.download = `Receipt_${b.billNo}.pdf`;
                               a.click();
                             }} title="Download">
                               <Download size={14} className="text-green-500" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={async () => {
                               try {
-                                const data = await api.sendWhatsApp(b.billno);
+                                const data = await api.sendWhatsApp(b.billNo);
                                 if (data.url) window.open(data.url, '_blank');
                               } catch { toast.error('Failed'); }
                             }} title="WhatsApp">
@@ -345,8 +345,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <PDFPreviewModal billno={previewBill} onClose={() => setPreviewBill(null)} />
-      <EditBillModal billno={editBill} onClose={() => setEditBill(null)} onSaved={loadStats} />
+      <PDFPreviewModal billNo={previewBill} onClose={() => setPreviewBill(null)} />
+      <EditBillModal billNo={editBill} onClose={() => setEditBill(null)} onSaved={loadStats} />
     </div>
   );
 }

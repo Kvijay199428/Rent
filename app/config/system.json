@@ -9,7 +9,7 @@
         "backup_system": true
     },
     "security": {
-        "tenant_pin_length": 4,
+        "tenantPin_length": 4,
         "max_upload_size_mb": 10,
         "allowed_image_extensions": [
             ".png",

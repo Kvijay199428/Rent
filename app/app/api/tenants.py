@@ -21,37 +21,37 @@ from app.services.tenant_service import (
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
+    get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
 
 router = APIRouter()
 
 
-@router.get(Routes.ADMIN_API_TENANTS_LIST, name=Names.API_GET_TENANTS)
+@router.get(Routes.ADMINAPITENANTSLIST, name=Names.APIGETTENANTS)
 async def api_get_tenants():
     return load_tenants()
 
-@router.get(Routes.ADMIN_API_TENANTS_UPDATE, name=Names.API_GET_TENANT)
-async def api_get_tenant(tenant_id: int):
+@router.get(Routes.ADMINAPITENANTSUPDATE, name=Names.APIGETTENANT)
+async def api_get_tenant(tenantId: int):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if t.id == tenant_id), None)
+    tenant = next((t for t in tenants if t.id == tenantId), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
 
-@router.get(Routes.ADMIN_API_TENANTS_RECEIPTS + "_legacy", name=Names.API_GET_TENANT_RECEIPTS + "_legacy")
-@router.get(Routes.ADMIN_API_TENANTS_RECEIPTS, name=Names.API_GET_TENANT_RECEIPTS)
-async def api_get_tenant_receipts(tenant_name: str):  # CHANGED: tenant_name → tenant_name
+@router.get(Routes.ADMINAPITENANTSRECEIPTS + "_legacy", name=Names.APIGETTENANTRECEIPTS + "_legacy")
+@router.get(Routes.ADMINAPITENANTSRECEIPTS, name=Names.APIGETTENANTRECEIPTS)
+async def api_get_tenant_receipts(tenantName: str):  # CHANGED: tenantName → tenantName
     receipts = get_all_receipts()
-    target = tenant_name.strip().casefold()  # CHANGED: tenant_name → tenant_name
+    target = tenantName.strip().casefold()  # CHANGED: tenantName → tenantName
     tenant_receipts = [r for r in receipts if r.get("Tenant", "").strip().casefold() == target]
     tenant_receipts.reverse()
     return tenant_receipts
 
-@router.post(Routes.ADMIN_API_TENANTS_LIST, name=Names.API_ADD_TENANT)
+@router.post(Routes.ADMINAPITENANTSLIST, name=Names.APIADDTENANT)
 async def api_add_tenant(t: Tenant, request: Request, background_tasks: BackgroundTasks):
-    from app.authentication.common.utils import hash_pin, validate_tenant_pin
+    from app.authentication.common.utils import hash_pin, validate_tenantPin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
     from app.core.db import get_conn
     from datetime import datetime
@@ -59,47 +59,47 @@ async def api_add_tenant(t: Tenant, request: Request, background_tasks: Backgrou
     background_tasks.add_task(create_full_backup, tag="add_tenant")
     
     # Strictly validate 4-digit PIN on creation
-    validate_tenant_pin(t.tenant_pin)
+    validate_tenantPin(t.tenantPin)
     
-    plain_pin = str(t.tenant_pin)
+    plain_pin = str(t.tenantPin)
     hashed_pin = hash_pin(plain_pin)
     encrypted_pin = encrypt_admin_view_pin(plain_pin)
     
-    t.tenant_pin = hashed_pin
+    t.tenantPin = hashed_pin
         
-    tenant_id = add_tenant(t)
-    t.id = tenant_id
+    tenantId = add_tenant(t)
+    t.id = tenantId
     
     # Add to PIN history
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("INSERT INTO tenant_pin_history (tenant_id, pin_hash, changed_at) VALUES (?, ?, ?)", (tenant_id, hashed_pin, now))
-        conn.execute("INSERT OR REPLACE INTO tenant_pin_admin_store (tenant_id, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenant_id, encrypted_pin, now))
+        conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, hashed_pin, now))
+        conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now))
         conn.commit()
     
     response_tenant = t.dict()
-    response_tenant.pop("tenant_pin", None)
+    response_tenant.pop("tenantPin", None)
     
     return {"status": "success", "tenant": response_tenant}
 
-@router.put(Routes.ADMIN_API_TENANTS_UPDATE, name=Names.API_UPDATE_TENANT)
-async def api_update_tenant(tenant_id: int, t: Tenant, background_tasks: BackgroundTasks):
-    t.id = tenant_id
+@router.put(Routes.ADMINAPITENANTSUPDATE, name=Names.APIUPDATETENANT)
+async def api_update_tenant(tenantId: int, t: Tenant, background_tasks: BackgroundTasks):
+    t.id = tenantId
     background_tasks.add_task(create_full_backup, tag="update_tenant")
     
     existing = load_tenants()
-    existing_t = next((x for x in existing if x.id == tenant_id), None)
+    existing_t = next((x for x in existing if x.id == tenantId), None)
     if not existing_t:
         raise HTTPException(status_code=404, detail="Tenant not found")
         
     # The general update endpoint does NOT change the PIN.
     # We forcefully retain the existing PIN hash.
-    t.tenant_pin = existing_t.tenant_pin
+    t.tenantPin = existing_t.tenantPin
             
     update_tenant(t)
     
     response_tenant = t.dict()
-    response_tenant.pop("tenant_pin", None)
+    response_tenant.pop("tenantPin", None)
     
     return {"status": "success", "tenant": response_tenant}
 
@@ -109,20 +109,20 @@ class ChangePinRequest(BaseModel):
     pin: str
     logout_all: bool = True
 
-@router.post(Routes.ADMIN_API_TENANTS_CHANGE_PIN, name=Names.CHANGE_TENANT_PIN)
-async def api_change_tenant_pin(tenant_id: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
-    from app.authentication.common.utils import hash_pin, validate_tenant_pin, verify_pin
+@router.post(Routes.ADMINAPITENANTSCHANGEPIN, name=Names.CHANGETENANTPIN)
+async def api_change_tenantPin(tenantId: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
+    from app.authentication.common.utils import hash_pin, validate_tenantPin, verify_pin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
     from app.authentication.tenant.sessions import revoke_all_tenant_sessions
     from app.database.auth_repository import log_audit
     from app.core.db import get_conn
     from datetime import datetime
     
-    validate_tenant_pin(payload.pin)
+    validate_tenantPin(payload.pin)
     
     # Prevent immediate reuse (last 5 PINs)
     with get_conn() as conn:
-        history = conn.execute("SELECT pin_hash FROM tenant_pin_history WHERE tenant_id = ? ORDER BY id DESC LIMIT 5", (tenant_id,)).fetchall()
+        history = conn.execute("SELECT pin_hash FROM tenantPin_history WHERE tenantId = ? ORDER BY id DESC LIMIT 5", (tenantId,)).fetchall()
         for row in history:
             if verify_pin(payload.pin, row["pin_hash"]):
                 raise HTTPException(status_code=400, detail="Cannot reuse a recently used PIN.")
@@ -131,40 +131,40 @@ async def api_change_tenant_pin(tenant_id: int, payload: ChangePinRequest, reque
     encrypted_pin = encrypt_admin_view_pin(payload.pin)
     
     existing = load_tenants()
-    existing_t = next((x for x in existing if x.id == tenant_id), None)
+    existing_t = next((x for x in existing if x.id == tenantId), None)
     if not existing_t:
         raise HTTPException(status_code=404, detail="Tenant not found")
         
-    existing_t.tenant_pin = new_hash
+    existing_t.tenantPin = new_hash
     update_tenant(existing_t)
     
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("INSERT INTO tenant_pin_history (tenant_id, pin_hash, changed_at) VALUES (?, ?, ?)", (tenant_id, new_hash, now))
-        conn.execute("INSERT OR REPLACE INTO tenant_pin_admin_store (tenant_id, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenant_id, encrypted_pin, now))
+        conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, new_hash, now))
+        conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now))
         conn.commit()
     
     if payload.logout_all:
-        revoke_all_tenant_sessions(tenant_id)
+        revoke_all_tenant_sessions(tenantId)
         
     ip = request.client.host if request.client else "Unknown IP"
-    log_audit(tenant_id, "Tenant PIN Changed", ip)
+    log_audit(tenantId, "Tenant PIN Changed", ip)
     
     background_tasks.add_task(create_full_backup, tag="change_pin")
     
     return {"status": "success", "message": "PIN changed successfully."}
 
-@router.get(Routes.ADMIN_API_TENANTS_REVEAL_PIN, name=Names.ADMIN_REVEAL_PIN)
-async def admin_reveal_tenant_pin(
-    tenant_id: int,  # CHANGED: tenant_id → tenant_id
+@router.get(Routes.ADMINAPITENANTSREVEALPIN, name=Names.ADMINREVEALPIN)
+async def admin_reveal_tenantPin(
+    tenantId: int,  # CHANGED: tenantId → tenantId
 ):
     from app.authentication.common.pin_vault import decrypt_admin_view_pin
     from app.core.db import get_conn
     
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT encrypted_pin, updated_at FROM tenant_pin_admin_store WHERE tenant_id = ?",
-            (tenant_id,)  # CHANGED: tenant_id → tenant_id
+            "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = ?",
+            (tenantId,)  # CHANGED: tenantId → tenantId
         ).fetchone()
 
     if not row:
@@ -179,9 +179,9 @@ async def admin_reveal_tenant_pin(
         "updated_at": row["updated_at"]
     }
 
-@router.delete(Routes.ADMIN_API_TENANTS_UPDATE, name=Names.API_DELETE_TENANT)
+@router.delete(Routes.ADMINAPITENANTSUPDATE, name=Names.APIDELETETENANT)
 async def api_delete_tenant(
-    tenant_id: int,
+    tenantId: int,
     background_tasks: BackgroundTasks,
     action: str = "archive",
 ):
@@ -191,13 +191,13 @@ async def api_delete_tenant(
         raise HTTPException(status_code=400, detail="Invalid tenant action.")
 
     tenants = load_tenants()
-    tenant = next((t for t in tenants if t.id == tenant_id), None)
+    tenant = next((t for t in tenants if t.id == tenantId), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found.")
 
     try:
         background_tasks.add_task(create_full_backup, tag=f"{action}_tenant")
-        result = delete_tenant(tenant_id, action)
+        result = delete_tenant(tenantId, action)
         return {"status": "success", "action": action, "data": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -209,18 +209,18 @@ async def api_delete_tenant(
 from app.core.paths import KYC_DIR
 import mimetypes
 
-@router.get(Routes.ADMIN_API_OCCUPANTS_LIST, name=Names.API_GET_OCCUPANTS)
-async def admin_get_occupants(tenant_id: int):
-    occupants = get_occupants(tenant_id)
-    # Map occupant_uuid to "Occupant UUID" for frontend compatibility
+@router.get(Routes.ADMINAPIOCCUPANTSLIST, name=Names.APIGETOCCUPANTS)
+async def admin_get_occupants(tenantId: int):
+    occupants = get_occupants(tenantId)
+    # Map occupantUuid to "Occupant UUID" for frontend compatibility
     for o in occupants:
-        if "occupant_uuid" in o and "Occupant UUID" not in o:
-            o["Occupant UUID"] = o["occupant_uuid"]
+        if "occupantUuid" in o and "Occupant UUID" not in o:
+            o["Occupant UUID"] = o["occupantUuid"]
     return {"occupants": occupants}
 
-@router.post(Routes.ADMIN_API_OCCUPANTS_LIST, name=Names.API_CREATE_OCCUPANT)
+@router.post(Routes.ADMINAPIOCCUPANTSLIST, name=Names.APICREATEOCCUPANT)
 async def admin_post_occupants(
-    tenant_id: int = Query(...),
+    tenantId: int = Query(...),
     name: str = Form(...),
     mobile: str = Form(""),
     files: List[UploadFile] = File(None)
@@ -247,27 +247,27 @@ async def admin_post_occupants(
                     doc_urls["aadhaar_combined"] = safe_name
                 
     occ_data = {
-        "occupant_uuid": occ_uuid,
+        "occupantUuid": occ_uuid,
         "name": name,
         "mobile": mobile,
         "status": "Active",
         "aadhaar_combined": doc_urls.get("aadhaar_combined", "")
     }
-    save_occupant(tenant_id, occ_data)
-    return {"status": "success", "occupant_uuid": occ_uuid}
+    save_occupant(tenantId, occ_data)
+    return {"status": "success", "occupantUuid": occ_uuid}
 
-@router.put(Routes.ADMIN_API_OCCUPANTS_MARK_INACTIVE, name=Names.API_MARK_OCCUPANT_INACTIVE)
-async def admin_tenant_kyc_mark_inactive(tenant_id: int, occupant_uuid: str):
+@router.put(Routes.ADMINAPIOCCUPANTSMARKINACTIVE, name=Names.APIMARKOCCUPANTINACTIVE)
+async def admin_tenant_kyc_mark_inactive(tenantId: int, occupantUuid: str):
     from app.services.tenant_service import update_occupant_status
-    update_occupant_status(occupant_uuid, "Inactive")
+    update_occupant_status(occupantUuid, "Inactive")
     return {"status": "success"}
 
-@router.delete(Routes.ADMIN_API_OCCUPANTS_DELETE, name=Names.API_DELETE_OCCUPANT)
-async def admin_tenant_kyc_delete(tenant_id: int, occupant_uuid: str):
-    tenant_id = tenant_id
-    occupant_uuid = occupant_uuid
-    occupants = get_occupants(tenant_id)
-    target = next((o for o in occupants if o.get("Occupant UUID") == occupant_uuid), None)
+@router.delete(Routes.ADMINAPIOCCUPANTSDELETE, name=Names.APIDELETEOCCUPANT)
+async def admin_tenant_kyc_delete(tenantId: int, occupantUuid: str):
+    tenantId = tenantId
+    occupantUuid = occupantUuid
+    occupants = get_occupants(tenantId)
+    target = next((o for o in occupants if o.get("Occupant UUID") == occupantUuid), None)
     
     if target:
         doc_keys = ["Aadhaar Front", "Aadhaar Back", "Aadhaar Combined", "Emp Front", "Emp Back"]
@@ -281,10 +281,10 @@ async def admin_tenant_kyc_delete(tenant_id: int, occupant_uuid: str):
                     except Exception:
                         pass
             
-    delete_occupant(occupant_uuid)
+    delete_occupant(occupantUuid)
     return {"status": "success"}
 
-@router.get(Routes.ADMIN_API_OCCUPANTS_GET_FILE, name=Names.GET_KYC_FILE)
+@router.get(Routes.ADMINAPIOCCUPANTSGETFILE, name=Names.GETKYCFILE)
 async def admin_get_kyc_file(filename: str):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:

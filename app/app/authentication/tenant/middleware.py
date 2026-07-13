@@ -19,9 +19,9 @@ def _is_browser_navigation(request: Request) -> bool:
 
 
 def _tenant_redirect_url(request: Request) -> str:
-    view_token = request.path_params.get("view_token")
-    if view_token:
-        return str(request.url_for("public_tenant_profile_get", view_token=view_token))
+    viewToken = request.path_params.get("viewToken")
+    if viewToken:
+        return str(request.url_for("public_tenant_profile_get", viewToken=viewToken))
 
     referer = request.headers.get("referer")
     if referer:
@@ -59,13 +59,13 @@ async def get_current_tenant(request: Request) -> AuthPrincipal:
         if not session:
             _raise_tenant_session_expired(request, "Session revoked")
 
-        tenant_id = int(payload.get("tenant_id") or payload.get("sub"))
+        tenantId = int(payload.get("tenantId") or payload.get("sub"))
         return AuthPrincipal(
             authentication_type="tenant_api",
             role="tenant",
-            id=tenant_id,
+            id=tenantId,
             session_id=session_id,
-            tenant_id=tenant_id
+            tenantId=tenantId
         )
     except HTTPException:
         raise

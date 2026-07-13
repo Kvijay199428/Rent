@@ -1,4 +1,4 @@
-// Extract view_token from URL path: /t/{view_token}/...
+// Extract viewToken from URL path: /t/{viewToken}/...
 const getViewToken = (): string => {
     const pathParts = window.location.pathname.split('/');
     // Handle paths like /t/abc123 or /t/abc123/receipts
@@ -7,16 +7,16 @@ const getViewToken = (): string => {
         return pathParts[tIndex + 1];
     }
     // Fallback: try from localStorage if stored
-    return localStorage.getItem('view_token') || '';
+    return localStorage.getItem('viewToken') || '';
 };
 
-// Base API client that injects view_token into auth endpoints
+// Base API client that injects viewToken into auth endpoints
 const apiClient = {
     async post(url: string, body?: unknown, options?: RequestInit) {
         const viewToken = getViewToken();
 
-        // Replace {view_token} placeholder in URL if present
-        const resolvedUrl = url.replace(/{view_token}/g, viewToken);
+        // Replace {viewToken} placeholder in URL if present
+        const resolvedUrl = url.replace(/{viewToken}/g, viewToken);
 
         const res = await fetch(resolvedUrl, {
             method: 'POST',
@@ -39,7 +39,7 @@ const apiClient = {
 
     async get(url: string, options?: RequestInit) {
         const viewToken = getViewToken();
-        const resolvedUrl = url.replace(/{view_token}/g, viewToken);
+        const resolvedUrl = url.replace(/{viewToken}/g, viewToken);
 
         const res = await fetch(resolvedUrl, {
             method: 'GET',
@@ -62,9 +62,9 @@ export const tenantApi = {
         publicKey: () => apiClient.get('/api/auth/public-key'),
 
         login: (viewToken: string, pin: string, rememberMe: boolean = false) =>
-            apiClient.post(`/api/auth/login/${viewToken}`, { view_token: viewToken, pin, remember_me: rememberMe }),
+            apiClient.post(`/api/auth/login/${viewToken}`, { viewToken: viewToken, pin, remember_me: rememberMe }),
 
-        // These now include view_token in the path
+        // These now include viewToken in the path
         refresh: () => {
             const viewToken = getViewToken();
             return apiClient.post(`/api/auth/refresh/${viewToken}`);

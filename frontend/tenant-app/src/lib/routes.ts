@@ -46,42 +46,42 @@ function tenantPage(key: string, params?: Record<string, string | number>): stri
     return fullPath(template, params);
 }
 
-export const TENANT_ROUTES = {
+export const TENANTROUTES = {
     get basePath() { return manifest.basePath; },
-    get HEALTH_CHECK() { return fullPath(manifest.health.check); },
+    get HEALTHCHECK() { return fullPath(manifest.health.check); },
 
     // Tenant Pages
-    get TENANT_PAGE_ROOT() { return tenantPage("root"); },
-    tenantPageProfile(view_token: string) { return tenantPage("profile", { view_token }); },
+    get TENANTPAGEROOT() { return tenantPage("root"); },
+    tenantPageProfile(viewToken: string) { return tenantPage("profile", { viewToken }); },
 
     // Tenant API: Auth
-    get TENANT_API_AUTH_PUBLIC_KEY() { return tenantApi("auth", "publicKey"); },
-    tenantApiAuthLogin(view_token: string) { return tenantApi("auth", "login", { view_token }); },
-    tenantApiAuthRefresh(view_token: string) { return tenantApi("auth", "refresh", { view_token }); },
-    tenantApiAuthLogout(view_token: string) { return tenantApi("auth", "logout", { view_token }); },
-    tenantApiAuthLogoutAll(view_token: string) { return tenantApi("auth", "logoutAll", { view_token }); },
+    get TENANTAPIAUTHPUBLICKEY() { return tenantApi("auth", "publicKey"); },
+    TENANTAPIAUTHLOGIN(viewToken: string) { return tenantApi("auth", "login", { viewToken }); },
+    TENANTAPIAUTHREFRESH(viewToken: string) { return tenantApi("auth", "refresh", { viewToken }); },
+    TENANTAPIAUTHLOGOUT(viewToken: string) { return tenantApi("auth", "logout", { viewToken }); },
+    TENANTAPIAUTHLOGOUTALL(viewToken: string) { return tenantApi("auth", "logoutAll", { viewToken }); },
 
     // Tenant API: Profile
-    tenantApiProfileGet(view_token: string) { return tenantApi("profile", "get", { view_token }); },
+    TENANTAPIPROFILEGET(viewToken: string) { return tenantApi("profile", "get", { viewToken }); },
 
     // Tenant API: PDF — FIXED: proper view/download methods
-    tenantApiPdfView(view_token: string, billno: string) {
-        return tenantApi("pdf", "view", { view_token, billno });
+    TENANTAPIPDFVIEW(viewToken: string, billNo: string) {
+        return tenantApi("pdf", "view", { viewToken, billNo });
     },
-    tenantApiPdfDownload(view_token: string, billno: string) {
-        return tenantApi("pdf", "download", { view_token, billno });
+    TENANTAPIPDFDOWNLOAD(viewToken: string, billNo: string) {
+        return tenantApi("pdf", "download", { viewToken, billNo });
     },
 
     // Tenant API: KYC
-    tenantApiKycUpload(view_token: string) { return tenantApi("kyc", "upload", { view_token }); },
-    tenantApiKycMarkInactive(view_token: string, occupantUuid: string) {
-        return tenantApi("kyc", "markInactive", { view_token, occupantUuid });
+    TENANTAPIKYCUPLOAD(viewToken: string) { return tenantApi("kyc", "upload", { viewToken }); },
+    TENANTAPIKYCMARKINACTIVE(viewToken: string, occupantUuid: string) {
+        return tenantApi("kyc", "markInactive", { viewToken, occupantUuid });
     },
-    tenantApiKycDelete(view_token: string, occupantUuid: string) {
-        return tenantApi("kyc", "delete", { view_token, occupantUuid });
+    TENANTAPIKYCDELETE(viewToken: string, occupantUuid: string) {
+        return tenantApi("kyc", "delete", { viewToken, occupantUuid });
     },
-    tenantApiKycGetFile(filename: string) { return tenantApi("kyc", "getFile", { filename }); },
+    TENANTAPIKYCGETFILE(filename: string) { return tenantApi("kyc", "getFile", { filename }); },
 } as const;
 
-export type RoutesType = typeof TENANT_ROUTES;
-export default TENANT_ROUTES;
+export type RoutesType = typeof TENANTROUTES;
+export default TENANTROUTES;

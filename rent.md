@@ -26,7 +26,7 @@ from app.services.tenant_service import (
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
+    get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import (
     create_full_backup, get_all_backups, create_backup,
@@ -36,11 +36,11 @@ from app.core.paths import BACKUPS_DIR
 router = APIRouter()
 
 
-@router.get(Routes.ADMIN_API_BACKUPS_LIST, name=Names.API_GET_BACKUPS)
+@router.get(Routes.ADMINAPIBACKUPSLIST, name=Names.APIGETBACKUPS)
 async def api_get_backups():
     return get_all_backups()
 
-@router.post(Routes.ADMIN_API_BACKUPS_CREATE_MANUAL, name=Names.API_CREATE_MANUAL_BACKUP)
+@router.post(Routes.ADMINAPIBACKUPSCREATEMANUAL, name=Names.APICREATEMANUALBACKUP)
 async def api_create_manual_backup(background_tasks: BackgroundTasks):
     try:
         metadata = create_backup(type_="Manual", subtype="manual")
@@ -48,32 +48,32 @@ async def api_create_manual_backup(background_tasks: BackgroundTasks):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete(Routes.ADMIN_API_BACKUPS_DELETE, name=Names.API_DELETE_BACKUP)
-async def api_delete_backup(backup_id: str):
-    if delete_backup(backup_id):
+@router.delete(Routes.ADMINAPIBACKUPSDELETE, name=Names.APIDELETEBACKUP)
+async def api_delete_backup(backupId: str):
+    if delete_backup(backupId):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Backup not found")
 
-@router.get(Routes.ADMIN_API_BACKUPS_VERIFY, name=Names.API_VERIFY_BACKUP)
-async def api_verify_backup(backup_id: str):
+@router.get(Routes.ADMINAPIBACKUPSVERIFY, name=Names.APIVERIFYBACKUP)
+async def api_verify_backup(backupId: str):
     try:
-        verify_backup_integrity(backup_id)
+        verify_backup_integrity(backupId)
         return {"status": "success", "message": "Backup is fully intact and verified."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@router.post(Routes.ADMIN_API_BACKUPS_RESTORE, name=Names.API_RESTORE_BACKUP)
-async def api_restore_backup(backup_id: str):
+@router.post(Routes.ADMINAPIBACKUPSRESTORE, name=Names.APIRESTOREBACKUP)
+async def api_restore_backup(backupId: str):
     try:
-        restore_backup(backup_id)
+        restore_backup(backupId)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get(Routes.ADMIN_API_BACKUPS_DOWNLOAD, name=Names.API_DOWNLOAD_BACKUP)
-async def api_download_backup(backup_id: str):
+@router.get(Routes.ADMINAPIBACKUPSDOWNLOAD, name=Names.APIDOWNLOADBACKUP)
+async def api_download_backup(backupId: str):
     registry = get_all_backups()
-    backup_meta = next((b for b in registry["backups"] if b["id"] == backup_id), None)
+    backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
     if not backup_meta:
         raise HTTPException(status_code=404, detail="Backup not found")
         
@@ -83,10 +83,10 @@ async def api_download_backup(backup_id: str):
         
     return FileResponse(abs_path, media_type='application/zip', filename=backup_meta["filename"])
 
-@router.get(Routes.ADMIN_API_BACKUPS_METADATA, name=Names.API_DOWNLOAD_METADATA)
-async def api_download_metadata(backup_id: str):
+@router.get(Routes.ADMINAPIBACKUPSMETADATA, name=Names.APIDOWNLOADMETADATA)
+async def api_download_metadata(backupId: str):
     registry = get_all_backups()
-    backup_meta = next((b for b in registry["backups"] if b["id"] == backup_id), None)
+    backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
     if not backup_meta:
         raise HTTPException(status_code=404, detail="Backup not found")
         
@@ -115,26 +115,26 @@ from app.services.tenant_service import (
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
+    get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
 
 router = APIRouter()
 
 
-@router.get(Routes.ADMIN_API_BILLING_FILTER, name=Names.API_FILTER_BILLS)
+@router.get(Routes.ADMINAPIBILLINGFILTER, name=Names.APIFILTERBILLS)
 async def api_filter_bills(status: str = "active"):
     receipts = get_all_receipts()
     if status == "pending":
         filtered = [
             r for r in receipts
-            if r.get("Payment_Status", "PENDING") in ["PENDING", "PARTIAL"]
+            if r.get("paymentStatus", "PENDING") in ["PENDING", "PARTIAL"]
             and r.get("Status") != "ARCHIVED"
         ]
     elif status == "paid":
         filtered = [
             r for r in receipts
-            if r.get("Payment_Status", "PENDING") in ["PAID", "ADVANCE"]
+            if r.get("paymentStatus", "PENDING") in ["PAID", "ADVANCE"]
             and r.get("Status") != "ARCHIVED"
         ]
     elif status == "active":
@@ -145,18 +145,18 @@ async def api_filter_bills(status: str = "active"):
     filtered.reverse()
     return filtered
 
-@router.get(Routes.ADMIN_API_BILLING_MONTHS, name=Names.API_BILLING_MONTHS)
+@router.get(Routes.ADMINAPIBILLINGMONTHS, name=Names.APIBILLINGMONTHS)
 async def api_billing_months():
     return get_billing_months()
 
-@router.get(Routes.ADMIN_API_BILLING_PREVIEW, name=Names.API_BILLING_PREVIEW)
+@router.get(Routes.ADMINAPIBILLINGPREVIEW, name=Names.APIBILLINGPREVIEW)
 async def api_billing_preview(
     currentreading: float,
     additionalpersons: int,
     prevreading: float = 0.0,
     rent: float | None = None,
     water: float | None = None,
-    tankwater: float = 0.0,
+    tankWater: float = 0.0,
     maintenancecharge: float = 0.0,
     rate: float | None = None,
     addpersoncharge: float | None = None,
@@ -164,10 +164,10 @@ async def api_billing_preview(
     billing_conf = config.get("billing", {})
     rent = float(rent if rent is not None else billing_conf.get("rent", 0.0))
     water = float(water if water is not None else billing_conf.get("water", 0.0))
-    rate = float(rate if rate is not None else billing_conf.get("electricity_rate", 0.0))
+    rate = float(rate if rate is not None else billing_conf.get("electricityRate", 0.0))
     addpersoncharge = float(
         addpersoncharge if addpersoncharge is not None
-        else billing_conf.get("additional_person_charge", 0.0)
+        else billing_conf.get("additionalPersonCharge", 0.0)
     )
 
     return calculate_charges(
@@ -176,20 +176,20 @@ async def api_billing_preview(
         prevreading,
         rent,
         water,
-        tankwater,
+        tankWater,
         maintenancecharge,
         rate,
         addpersoncharge,
     )
 
-@router.get(Routes.ADMIN_API_BILLING_GET, name=Names.API_GET_SINGLE_BILL)
-async def api_get_single_bill(billno: str):
-    receipt = get_receipt(billno)
+@router.get(Routes.ADMINAPIBILLINGGET, name=Names.APIGETSINGLEBILL)
+async def api_get_single_bill(billNo: str):
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
     return receipt
 
-@router.post(Routes.ADMIN_API_BILLING_CREATE, name=Names.API_CREATE_BILL)
+@router.post(Routes.ADMINAPIBILLINGCREATE, name=Names.APICREATEBILL)
 async def api_create_bill(request: BillRequest, background_tasks: BackgroundTasks):
     try:
         data = create_bill(
@@ -197,7 +197,7 @@ async def api_create_bill(request: BillRequest, background_tasks: BackgroundTask
             request.month,
             request.currentreading,
             request.additionalpersons,
-            request.tankwater,
+            request.tankWater,
             request.maintenancecharge,
             request.maintenancedesc,
             request.previousarrears,
@@ -214,16 +214,16 @@ async def api_create_bill(request: BillRequest, background_tasks: BackgroundTask
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# @router.post(Routes.ADMIN_API_BILLING_UPDATE, name=Names.API_UPDATE_BILL)
-# async def api_update_bill(billno: str, request: BillRequest, background_tasks: BackgroundTasks):
+# @router.post(Routes.ADMINAPIBILLINGUPDATE, name=Names.APIUPDATEBILL)
+# async def api_update_bill(billNo: str, request: BillRequest, background_tasks: BackgroundTasks):
 #     try:
 #         data = update_bill(
-#             billno,
+#             billNo,
 #             request.tenant,
 #             request.month,
 #             request.currentreading,
 #             request.additionalpersons or 0,
-#             request.tankwater or 0.0,
+#             request.tankWater or 0.0,
 #             request.maintenancecharge or 0.0,
 #             request.maintenancedesc or "",
 #             request.previousarrears or 0.0,
@@ -240,8 +240,8 @@ async def api_create_bill(request: BillRequest, background_tasks: BackgroundTask
 #     except Exception as e:
 #         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post(Routes.ADMIN_API_BILLING_UPDATE_PAYMENT, name=Names.API_UPDATE_PAYMENT)
-async def api_update_payment(billno: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
+@router.post(Routes.ADMINAPIBILLINGUPDATEPAYMENT, name=Names.APIUPDATEPAYMENT)
+async def api_update_payment(billNo: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
     try:
         status = (data.paymentstatus or "").strip().upper()
         if status not in {"PAID", "PENDING", "PARTIAL", "ADVANCE"}:
@@ -251,36 +251,36 @@ async def api_update_payment(billno: str, data: PaymentStatusUpdate, background_
         if amount is not None and amount < 0:
             raise HTTPException(status_code=400, detail="Amount received cannot be negative.")
 
-        update_payment_status(billno, status, amount)
-        background_tasks.add_task(create_full_backup, tag="payment_status")
+        update_paymentStatus(billNo, status, amount)
+        background_tasks.add_task(create_full_backup, tag="paymentStatus")
         return {"status": "success"}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post(Routes.ADMIN_API_BILLING_ARCHIVE, name=Names.API_ARCHIVE_BILL)
-async def api_archive_bill(billno: str, background_tasks: BackgroundTasks):
+@router.post(Routes.ADMINAPIBILLINGARCHIVE, name=Names.APIARCHIVEBILL)
+async def api_archive_bill(billNo: str, background_tasks: BackgroundTasks):
     try:
-        archive_bill(billno)
+        archive_bill(billNo)
         background_tasks.add_task(create_full_backup, tag="archive_bill")
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post(Routes.ADMIN_API_BILLING_RESTORE, name=Names.API_RESTORE_BILL)
-async def api_restore_bill(billno: str, background_tasks: BackgroundTasks):
+@router.post(Routes.ADMINAPIBILLINGRESTORE, name=Names.APIRESTOREBILL)
+async def api_restore_bill(billNo: str, background_tasks: BackgroundTasks):
     try:
-        restore_bill(billno)
+        restore_bill(billNo)
         background_tasks.add_task(create_full_backup, tag="restore_bill")
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete(Routes.ADMIN_API_BILLING_DELETE, name=Names.API_DELETE_BILL)
-async def api_delete_bill(billno: str, background_tasks: BackgroundTasks):
+@router.delete(Routes.ADMINAPIBILLINGDELETE, name=Names.APIDELETEBILL)
+async def api_delete_bill(billNo: str, background_tasks: BackgroundTasks):
     try:
-        delete_bill(billno)
+        delete_bill(billNo)
         background_tasks.add_task(create_full_backup, tag="delete_bill")
         return {"status": "success"}
     except Exception as e:
@@ -297,7 +297,7 @@ from app.core.routes_manifest import Routes, Names
 
 router = APIRouter(tags=["Dashboard API"])
 
-@router.get(Routes.ADMIN_API_DASHBOARD_STATS, name=Names.HEALTH_CHECK)
+@router.get(Routes.ADMINAPIDASHBOARDSTATS, name=Names.HEALTHCHECK)
 async def dashboard_api():
     """Returns dashboard statistics as JSON."""
     stats = get_dashboard_stats()
@@ -318,7 +318,7 @@ from app.core.config_service import ConfigService
 
 router = APIRouter(tags=["Health"])
 
-@router.get(Routes.HEALTH_CHECK, name=Names.HEALTH_CHECK)
+@router.get(Routes.HEALTHCHECK, name=Names.HEALTHCHECK)
 async def health_check():
     return {
         "status": "ok",
@@ -356,7 +356,7 @@ from app.services.tenant_service import (
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
+    get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
 
@@ -366,19 +366,19 @@ router = APIRouter()
 from app.authentication.admin.middleware import get_current_admin_api
 from datetime import datetime
 
-@router.get(Routes.ADMIN_API_PDF_DOWNLOAD, name=Names.PDF_DOWNLOAD)
-async def download_pdf(billno: str, admin = Depends(get_current_admin_api)):
-    billno = billno
-    receipt = get_receipt(billno)
+@router.get(Routes.ADMINAPIPDFDOWNLOAD, name=Names.PDFDOWNLOAD)
+async def download_pdf(billNo: str, admin = Depends(get_current_admin_api)):
+    billNo = billNo
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
         
-    tenant_name = receipt.get("Tenant", "Unknown").replace(" ", "_")
+    tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
         formatted_date = datetime.strptime(receipt.get("Date", ""), "%d %B %Y").strftime("%Y%m%d")
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
-    custom_filename = f"{tenant_name}_{formatted_date}_{billno}.pdf"
+    custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
     from app.services.pdf_service import generate_professional_pdf
     landlord_conf = config.get("landlord", {})
@@ -389,19 +389,19 @@ async def download_pdf(billno: str, admin = Depends(get_current_admin_api)):
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
     return response
 
-@router.get(Routes.ADMIN_API_PDF_VIEW, name=Names.PDF_VIEW)
-async def view_pdf(billno: str, admin = Depends(get_current_admin_api)):
-    billno = billno
-    receipt = get_receipt(billno)
+@router.get(Routes.ADMINAPIPDFVIEW, name=Names.PDFVIEW)
+async def view_pdf(billNo: str, admin = Depends(get_current_admin_api)):
+    billNo = billNo
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
         
-    tenant_name = receipt.get("Tenant", "Unknown").replace(" ", "_")
+    tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
         formatted_date = datetime.strptime(receipt.get("Date", ""), "%d %B %Y").strftime("%Y%m%d")
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
-    custom_filename = f"{tenant_name}_{formatted_date}_{billno}.pdf"
+    custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
     from app.services.pdf_service import generate_professional_pdf
     landlord_conf = config.get("landlord", {})
@@ -444,7 +444,7 @@ from app.services.tenant_service import (
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
+    get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
 
@@ -453,11 +453,11 @@ router = APIRouter()
 
 from app.authentication.tenant.middleware import get_current_tenant
 
-# @router.get("/t/api/{view_token}/profile", name=Names.PUBLIC_TENANT_PROFILE_GET)
-@router.get(Routes.TENANT_API_PROFILE_GET, name=Names.PUBLIC_TENANT_PROFILE_GET)
-async def public_tenant_profile_json(view_token: str, request: Request):
+# @router.get("/t/api/{viewToken}/profile", name=Names.PUBLICTENANTPROFILEGET)
+@router.get(Routes.TENANTAPIPROFILEGET, name=Names.PUBLICTENANTPROFILEGET)
+async def public_tenant_profile_json(viewToken: str, request: Request):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
@@ -468,7 +468,7 @@ async def public_tenant_profile_json(view_token: str, request: Request):
         from app.authentication.tenant.sessions import get_tenant_session_db
         try:
             payload = decode_tenant_access_token(token)
-            if payload.get("role") == "tenant" and int(payload.get("tenant_id") or payload.get("sub")) == tenant.id:
+            if payload.get("role") == "tenant" and int(payload.get("tenantId") or payload.get("sub")) == tenant.id:
                 session_id = payload.get("sid")
                 if get_tenant_session_db(session_id):
                     unlocked = True
@@ -478,7 +478,7 @@ async def public_tenant_profile_json(view_token: str, request: Request):
     base_info = {
         "id": tenant.id,
         "name": getattr(tenant, "name", ""),
-        "view_token": view_token,
+        "viewToken": viewToken,
         "unlocked": unlocked
     }
     
@@ -499,7 +499,7 @@ async def public_tenant_profile_json(view_token: str, request: Request):
             "tenant": base_info
         }
 
-@router.get(Routes.TENANT_API_AUTH_PUBLIC_KEY, name=Names.TENANT_PUBLIC_KEY)
+@router.get(Routes.TENANTAPIAUTHPUBLICKEY, name=Names.TENANTPUBLICKEY)
 async def get_public_key():
     from app.encryption import get_public_key_pem
     return {"publicKey": get_public_key_pem()}
@@ -512,10 +512,10 @@ class EncryptedLoginRequest(BaseModel):
     encryptedData: str     # Base64-encoded AES-GCM encrypted payload
     nonce: str             # Base64-encoded nonce
 
-@router.post(Routes.TENANT_API_AUTH_LOGIN, name=Names.TENANT_LOGIN)
-async def public_tenant_login(view_token: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
+@router.post(Routes.TENANTAPIAUTHLOGIN, name=Names.TENANTLOGIN)
+async def public_tenant_login(viewToken: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
 
@@ -526,9 +526,9 @@ async def public_tenant_login(view_token: str, request: Request, response: Respo
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted payload")
 
-    if getattr(tenant, "tenant_pin", None) != pin:
+    if getattr(tenant, "tenantPin", None) != pin:
         from app.authentication.common.utils import verify_pin
-        if not verify_pin(pin, getattr(tenant, "tenant_pin", "")):
+        if not verify_pin(pin, getattr(tenant, "tenantPin", "")):
             raise HTTPException(status_code=401, detail="Invalid PIN")
 
     from app.authentication.tenant.sessions import create_tenant_session
@@ -554,9 +554,9 @@ async def public_tenant_login(view_token: str, request: Request, response: Respo
         }
     }
 
-@router.get(Routes.TENANT_API_PDF_VIEW, name=Names.TENANT_PDF_VIEW)
-async def tenant_view_pdf(billno: str, principal = Depends(get_current_tenant)):
-    receipt = get_receipt(billno)
+@router.get(Routes.TENANTAPIPDFVIEW, name=Names.TENANTPDFVIEW)
+async def tenant_view_pdf(billNo: str, principal = Depends(get_current_tenant)):
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
     
@@ -572,13 +572,13 @@ async def tenant_view_pdf(billno: str, principal = Depends(get_current_tenant)):
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
     
     response = StreamingResponse(iter([pdf_stream.getvalue()]), media_type='application/pdf')
-    response.headers["Content-Disposition"] = f"inline; filename=receipt_{billno}.pdf"
+    response.headers["Content-Disposition"] = f"inline; filename=receipt_{billNo}.pdf"
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
-@router.get(Routes.TENANT_API_PDF_DOWNLOAD, name=Names.TENANT_PDF_DOWNLOAD)
-async def tenant_download_pdf(billno: str, principal = Depends(get_current_tenant)):
-    receipt = get_receipt(billno)
+@router.get(Routes.TENANTAPIPDFDOWNLOAD, name=Names.TENANTPDFDOWNLOAD)
+async def tenant_download_pdf(billNo: str, principal = Depends(get_current_tenant)):
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
     
@@ -588,12 +588,12 @@ async def tenant_download_pdf(billno: str, principal = Depends(get_current_tenan
     if not tenant or receipt.get("Tenant") != tenant.name:
         raise HTTPException(status_code=403, detail="Access denied")
         
-    tenant_name = receipt.get("Tenant", "Unknown").replace(" ", "_")
+    tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
         formatted_date = datetime.strptime(receipt.get("Date", ""), "%d %B %Y").strftime("%Y%m%d")
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
-    custom_filename = f"{tenant_name}_{formatted_date}_{billno}.pdf"
+    custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
     from app.services.pdf_service import generate_professional_pdf
     landlord_conf = config.get("landlord", {})
@@ -604,9 +604,9 @@ async def tenant_download_pdf(billno: str, principal = Depends(get_current_tenan
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
     return response
 
-@router.post(Routes.TENANT_API_KYC_UPLOAD, name=Names.PUBLIC_TENANT_KYC_UPLOAD)
+@router.post(Routes.TENANTAPIKYCUPLOAD, name=Names.PUBLICTENANTKYCUPLOAD)
 async def public_tenant_kyc_upload(
-    view_token: str, 
+    viewToken: str, 
     name: str = Form(...), 
     mobile: str = Form(...),
     aadhaar_front: Optional[UploadFile] = File(None),
@@ -617,19 +617,19 @@ async def public_tenant_kyc_upload(
     principal = Depends(get_current_tenant)
 ):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     if not aadhaar_combined and not (aadhaar_front and aadhaar_back):
         raise HTTPException(status_code=400, detail="Please upload either a Combined Aadhaar file, or both Front and Back files.")
         
-    occupant_uuid = str(uuid.uuid4())
+    occupantUuid = str(uuid.uuid4())
     
     async def save_kyc_img(file_obj: UploadFile, side: str):
         if not file_obj or not file_obj.filename: return ""
         ext = file_obj.filename.split('.')[-1] if '.' in file_obj.filename else 'jpg'
-        filename = f"{tenant.id}_{occupant_uuid}_{side}.{ext}"
+        filename = f"{tenant.id}_{occupantUuid}_{side}.{ext}"
         os.makedirs(KYC_DIR, exist_ok=True)
         file_path = os.path.join(KYC_DIR, filename)
         with open(file_path, "wb") as f:
@@ -644,7 +644,7 @@ async def public_tenant_kyc_upload(
         
     now = datetime.now()
     save_occupant(tenant.id, {
-        "uuid": occupant_uuid,
+        "uuid": occupantUuid,
         "name": name,
         "mobile": mobile,
         "status": "Active",
@@ -659,26 +659,26 @@ async def public_tenant_kyc_upload(
     
     return {"status": "success", "message": "KYC uploaded successfully"}
 
-@router.put(Routes.TENANT_API_KYC_MARK_INACTIVE, name=Names.PUBLIC_TENANT_KYC_MARK_INACTIVE)
-async def public_tenant_kyc_mark_inactive(view_token: str, occupant_uuid: str, principal = Depends(get_current_tenant)):
+@router.put(Routes.TENANTAPIKYCMARKINACTIVE, name=Names.PUBLICTENANTKYCMARKINACTIVE)
+async def public_tenant_kyc_mark_inactive(viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid link.")
         
     from app.services.tenant_service import update_occupant_status
-    update_occupant_status(occupant_uuid, "Inactive")
+    update_occupant_status(occupantUuid, "Inactive")
     return {"status": "success"}
 
-@router.delete(Routes.TENANT_API_KYC_DELETE, name=Names.PUBLIC_TENANT_KYC_DELETE)
-async def public_tenant_kyc_delete(view_token: str, occupant_uuid: str, principal = Depends(get_current_tenant)):
+@router.delete(Routes.TENANTAPIKYCDELETE, name=Names.PUBLICTENANTKYCDELETE)
+async def public_tenant_kyc_delete(viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     occupants = get_occupants(tenant.id)
-    target = next((o for o in occupants if o.get("Occupant UUID") == occupant_uuid), None)
+    target = next((o for o in occupants if o.get("Occupant UUID") == occupantUuid), None)
     
     if target:
         doc_keys = ["Aadhaar Front", "Aadhaar Back", "Aadhaar Combined", "Emp Front", "Emp Back"]
@@ -692,10 +692,10 @@ async def public_tenant_kyc_delete(view_token: str, occupant_uuid: str, principa
                     except Exception:
                         pass
             
-    delete_occupant(occupant_uuid)
+    delete_occupant(occupantUuid)
     return {"status": "success"}
 
-@router.get(Routes.TENANT_API_KYC_GET_FILE, name=Names.GET_KYC_FILE)
+@router.get(Routes.TENANTAPIKYCGETFILE, name=Names.GETKYCFILE)
 async def tenant_public_get_kyc_file(filename: str, principal = Depends(get_current_tenant)):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
@@ -734,7 +734,7 @@ from app.services.backup_service import create_full_backup
 
 router = APIRouter(tags=["Settings"])
 
-@router.get(Routes.ADMIN_API_CONFIG_GET, name=Names.API_GET_CONFIG)
+@router.get(Routes.ADMINAPICONFIGGET, name=Names.APIGETCONFIG)
 async def api_get_config():
     return {
         "landlord": config.get("landlord", {}),
@@ -744,7 +744,7 @@ async def api_get_config():
         "whatsapp": config.get("whatsapp", {})
     }
 
-@router.post(Routes.ADMIN_API_SETTINGS_UPLOAD_SIGNATURE, name=Names.API_UPLOAD_SIGNATURE)
+@router.post(Routes.ADMINAPISETTINGSUPLOADSIGNATURE, name=Names.APIUPLOADSIGNATURE)
 async def api_upload_signature(file: UploadFile = File(...)):
     sys_conf = config.get("system", {})
     max_mb = config.get("system.limits.max_upload_size_mb", 2)
@@ -762,7 +762,7 @@ async def api_upload_signature(file: UploadFile = File(...)):
 
     return {"status": "success", "path": filename}
 
-@router.delete(Routes.ADMIN_API_SETTINGS_DELETE_SIGNATURE, name=Names.API_DELETE_SIGNATURE)
+@router.delete(Routes.ADMINAPISETTINGSDELETESIGNATURE, name=Names.APIDELETESIGNATURE)
 async def api_delete_signature():
     delete_signature()
     config.save("landlord", {"signature_image": ""})
@@ -774,7 +774,7 @@ class ConfigUpdateModel(BaseModel):
     whatsapp: dict = {}
     backup: dict = {}
 
-@router.post(Routes.ADMIN_API_CONFIG_UPDATE, name=Names.UPDATE_CONFIG)
+@router.post(Routes.ADMINAPICONFIGUPDATE, name=Names.UPDATECONFIG)
 async def update_config(data: ConfigUpdateModel, background_tasks: BackgroundTasks):
     background_tasks.add_task(create_full_backup, tag="settings_change")
 
@@ -789,7 +789,7 @@ async def update_config(data: ConfigUpdateModel, background_tasks: BackgroundTas
 
     return {"status": "success"}
 
-@router.post(Routes.ADMIN_API_CONFIG_THEME, name=Names.UPDATE_THEME)
+@router.post(Routes.ADMINAPICONFIGTHEME, name=Names.UPDATETHEME)
 async def update_theme(data: dict):
     theme = data.get("theme", "system")
     config.save("ui", {"theme": theme})
@@ -822,7 +822,7 @@ from app.services.billing_service import get_all_receipts
 from app.services.backup_service import create_full_backup
 from app.core.paths import BACKUPS_DIR
 
-from app.authentication.common.utils import validate_tenant_pin, hash_pin
+from app.authentication.common.utils import validate_tenantPin, hash_pin
 from app.authentication.common.pin_vault import encrypt_admin_view_pin
 from app.authentication.tenant.sessions import revoke_all_tenant_sessions
 from app.core.db import get_conn
@@ -837,15 +837,15 @@ router = APIRouter()
 # ==========================================
 
 PROFILE_HEADERS = [
-    "Tenant_ID", "Tenant_Name", "Phone", "Email", "Company", "Address", "Room",
-    "Meter_ID", "PIN", "Rent", "Water", "Electricity_Rate", "Additional_Person_Rate",
-    "Tank_Water", "Status"
+    "tenantId", "tenantName", "Phone", "Email", "Company", "Address", "Room",
+    "meterId", "PIN", "Rent", "Water", "electricityRate", "additionalPersonRate",
+    "tankWater", "Status"
 ]
 
 RECEIPT_HEADERS = [
-    "Bill_No", "Tenant_ID", "Month", "Date", "Previous", "Current", "Units", "Rent",
-    "Water", "Electricity", "Additional", "Tank_Water", "Maintenance", "Arrears",
-    "Amount_Received", "Total", "Payment_Status", "Receipt_Status"
+    "BillNo", "tenantId", "Month", "Date", "Previous", "Current", "Units", "Rent",
+    "Water", "Electricity", "Additional", "tankWater", "Maintenance", "Arrears",
+    "amountReceived", "Total", "paymentStatus", "receiptStatus"
 ]
 
 def _build_excel_workbook(tenants_list, receipts_list):
@@ -865,34 +865,34 @@ def _build_excel_workbook(tenants_list, receipts_list):
             cell.font = header_font
             cell.fill = header_fill
 
-    tenant_id_map = {}
+    tenantId_map = {}
     for t in tenants_list:
         t_id_str = f"T{str(t.id).zfill(3)}"
-        tenant_id_map[t.name] = t_id_str
+        tenantId_map[t.name] = t_id_str
         ws_profile.append([
             t_id_str, t.name, str(t.phone), getattr(t, 'email', ''), getattr(t, 'company', ''),
-            getattr(t, 'address', ''), getattr(t, 'room_number', ''), getattr(t, 'meter_id', ''),
-            getattr(t, 'tenant_pin', ''), float(t.rent), float(t.water), float(t.electricity_rate),
-            float(t.additional_person_charge), float(getattr(t, 'default_tank_water_charge', 0.0)), t.status
+            getattr(t, 'address', ''), getattr(t, 'roomNumber', ''), getattr(t, 'meterId', ''),
+            getattr(t, 'tenantPin', ''), float(t.rent), float(t.water), float(t.electricityRate),
+            float(t.additionalPersonCharge), float(getattr(t, 'defaulttankWaterCharge', 0.0)), t.status
         ])
 
     for r in receipts_list:
         t_name = r.get("Tenant", "")
-        t_id_str = tenant_id_map.get(t_name, "UNKNOWN")
+        t_id_str = tenantId_map.get(t_name, "UNKNOWN")
         ws_receipts.append([
             r.get("Bill", ""), t_id_str, r.get("Month", ""), r.get("Date", ""),
             float(r.get("Previous", 0)), float(r.get("Current", 0)), float(r.get("Units", 0)),
             float(r.get("Rent", 0)), float(r.get("Water", 0)), float(r.get("Electricity", 0)),
-            float(r.get("Additional", 0)), float(r.get("Tank_Water", 0)),
-            float(r.get("Maintenance_Charge", 0)), float(r.get("Previous_Arrears", 0)),
-            float(r.get("Amount_Received", 0)), float(r.get("Total", 0)),
-            r.get("Payment_Status", "PENDING"), r.get("Status", "ACTIVE")
+            float(r.get("Additional", 0)), float(r.get("tankWater", 0)),
+            float(r.get("MaintenanceCharge", 0)), float(r.get("previousArrears", 0)),
+            float(r.get("amountReceived", 0)), float(r.get("Total", 0)),
+            r.get("paymentStatus", "PENDING"), r.get("Status", "ACTIVE")
         ])
 
     return wb
 
 
-@router.get(Routes.ADMIN_API_SYNC_EXPORT_CSV, name=Names.EXPORT_RECEIPTS_CSV)
+@router.get(Routes.ADMINAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
 async def export_receipts_csv(tenants_list: str = "all"):
     tenants = load_tenants()
     receipts = get_all_receipts()
@@ -917,7 +917,7 @@ async def export_receipts_csv(tenants_list: str = "all"):
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
-@router.get(Routes.ADMIN_API_SYNC_EXPORT_ZIP, name=Names.EXPORT_FULL_ZIP)
+@router.get(Routes.ADMINAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
 async def export_full_zip(tenants_list: str = "all"):
     tenants = load_tenants()
     receipts = get_all_receipts()
@@ -945,7 +945,7 @@ async def export_full_zip(tenants_list: str = "all"):
         zipf.writestr("receipts_data.csv", stream.getvalue())
 
         for r in receipts:
-            tenant_name = r.get("Tenant", "Unknown").replace(" ", "_")
+            tenantName = r.get("Tenant", "Unknown").replace(" ", "_")
             try:
                 formatted_date = datetime.datetime.strptime(
                                 r.get("Date", ""), "%d %B %Y"
@@ -953,7 +953,7 @@ async def export_full_zip(tenants_list: str = "all"):
             except Exception:
                 formatted_date = r.get("Date", "").replace(" ", "")
 
-            custom_filename = f"{tenant_name}_{formatted_date}_{r['Bill']}.pdf"
+            custom_filename = f"{tenantName}_{formatted_date}_{r['Bill']}.pdf"
             status = r.get("Status", "ACTIVE")
             folder = "archive" if status == "ARCHIVED" else "active"
 
@@ -967,7 +967,7 @@ async def export_full_zip(tenants_list: str = "all"):
     response.headers["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
     return response
 
-@router.get(Routes.ADMIN_API_SYNC_TEMPLATE, name=Names.DOWNLOAD_EXCEL_TEMPLATE)
+@router.get(Routes.ADMINAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
 async def download_excel_template():
     wb = openpyxl.Workbook()
     ws_profile = wb.active
@@ -996,7 +996,7 @@ async def download_excel_template():
     response.headers["Content-Disposition"] = 'attachment; filename="Rent_Data_Template.xlsx"'
     return response
 
-# @router.get(Routes.ADMIN_API_SYNC_EXPORT_EXCEL, name=Names.EXPORT_EXCEL_DATA)
+# @router.get(Routes.ADMINAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
 # async def export_excel_data(format: str):
 #     tenants = load_tenants()
 #     receipts = get_all_receipts()
@@ -1032,7 +1032,7 @@ async def download_excel_template():
 #         return response
 
 #     raise HTTPException(status_code=400, detail="Unsupported format. Use 'xlsx' or 'zip'.")
-@router.get(Routes.ADMIN_API_SYNC_EXPORT_EXCEL, name=Names.EXPORT_EXCEL_DATA)
+@router.get(Routes.ADMINAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
 async def export_excel_data(format: str):
     tenants = load_tenants()
     receipts = get_all_receipts()
@@ -1103,7 +1103,7 @@ def parse_excel_bytes(file_bytes, filename):
         if not row[0]:
             continue
         row_dict = {p_headers[i]: (str(val).strip() if val is not None else "") for i, val in enumerate(row)}
-        t_id = row_dict.get("Tenant_ID", "")
+        t_id = row_dict.get("tenantId", "")
         if t_id:
             tenants_dict[t_id] = {"profile": row_dict, "receipts": []}
 
@@ -1111,13 +1111,13 @@ def parse_excel_bytes(file_bytes, filename):
         if not row[0]:
             continue
         row_dict = {r_headers[i]: (str(val).strip() if val is not None else "") for i, val in enumerate(row)}
-        t_id = row_dict.get("Tenant_ID", "")
+        t_id = row_dict.get("tenantId", "")
         if t_id in tenants_dict:
             tenants_dict[t_id]["receipts"].append(row_dict)
 
     return tenants_dict
 
-@router.post(Routes.ADMIN_API_SYNC_IMPORT_PREVIEW, name=Names.IMPORT_PREVIEW_DATA)
+@router.post(Routes.ADMINAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
 async def import_preview_data(files: List[UploadFile] = File(...)):
     preview_data = {}
     try:
@@ -1192,7 +1192,7 @@ def _parse_month_date(val: str) -> str:
 
     return val_str
 
-@router.post(Routes.ADMIN_API_SYNC_IMPORT_EXECUTE, name=Names.IMPORT_EXECUTE_DATA)
+@router.post(Routes.ADMINAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
 async def import_execute_data(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
@@ -1238,26 +1238,26 @@ async def import_execute_data(
             skipped_targets.discard(target_key)  # Mark as processed
 
             p = t_data["profile"]
-            t_name = p.get("Tenant_Name", "").strip()
+            t_name = p.get("tenantName", "").strip()
             if not t_name:
                 continue
 
             t = next((x for x in sys_tenants if x.name.lower() == t_name.lower()), None)
             is_new = False
             if not t:
-                t = Tenant(name=t_name, phone=p.get("Phone", ""), rent=0.0, water=0.0, electricity_rate=0.0)
+                t = Tenant(name=t_name, phone=p.get("Phone", ""), rent=0.0, water=0.0, electricityRate=0.0)
                 is_new = True
 
             t.phone = p.get("Phone", t.phone)
             t.email = p.get("Email", getattr(t, 'email', ''))
             t.company = p.get("Company", getattr(t, 'company', ''))
             t.address = p.get("Address", getattr(t, 'address', ''))
-            t.room_number = p.get("Room", getattr(t, 'room_number', ''))
-            t.meter_id = p.get("Meter_ID", getattr(t, "meter_id", ""))
+            t.roomNumber = p.get("Room", getattr(t, 'roomNumber', ''))
+            t.meterId = p.get("meterId", getattr(t, "meterId", ""))
 
-            if not getattr(t, "view_token", ""):
+            if not getattr(t, "viewToken", ""):
                 import uuid
-                t.view_token = str(uuid.uuid4())
+                t.viewToken = str(uuid.uuid4())
 
             plain_pin = str(p.get("PIN") or "").strip()
 
@@ -1266,22 +1266,22 @@ async def import_execute_data(
             encrypted_pin = None
 
             if plain_pin:
-                validate_tenant_pin(plain_pin)
+                validate_tenantPin(plain_pin)
                 hashed_pin = hash_pin(plain_pin)
                 encrypted_pin = encrypt_admin_view_pin(plain_pin)
-                t.tenant_pin = hashed_pin
+                t.tenantPin = hashed_pin
                 pin_changed = True
 
             t.rent = float(p.get("Rent", t.rent) or 0.0)
             t.water = float(p.get("Water", t.water) or 0.0)
-            t.electricity_rate = float(p.get("Electricity_Rate", t.electricity_rate) or 0.0)
-            t.additional_person_charge = float(p.get("Additional_Person_Rate", getattr(t, 'additional_person_charge', 0.0)) or 0.0)
-            t.default_tank_water_charge = float(p.get("Tank_Water", getattr(t, 'default_tank_water_charge', 0.0)) or 0.0)
+            t.electricityRate = float(p.get("electricityRate", t.electricityRate) or 0.0)
+            t.additionalPersonCharge = float(p.get("additionalPersonRate", getattr(t, 'additionalPersonCharge', 0.0)) or 0.0)
+            t.defaulttankWaterCharge = float(p.get("tankWater", getattr(t, 'defaulttankWaterCharge', 0.0)) or 0.0)
             t.status = p.get("Status", getattr(t, 'status', 'Active'))
 
             if is_new:
-                tenant_id = add_tenant(t)
-                t.id = tenant_id
+                tenantId = add_tenant(t)
+                t.id = tenantId
                 sys_tenants.append(t)
 
                 if pin_changed:
@@ -1289,19 +1289,19 @@ async def import_execute_data(
                     with get_conn() as conn:
                         conn.execute(
                             """
-                            INSERT INTO tenant_pin_history
-                            (tenant_id, pin_hash, changed_at)
+                            INSERT INTO tenantPin_history
+                            (tenantId, pin_hash, changed_at)
                             VALUES (?, ?, ?)
                             """,
-                            (tenant_id, hashed_pin, now)
+                            (tenantId, hashed_pin, now)
                         )
                         conn.execute(
                             """
-                            INSERT OR REPLACE INTO tenant_pin_admin_store
-                            (tenant_id, encrypted_pin, updated_at)
+                            INSERT OR REPLACE INTO tenantPin_admin_store
+                            (tenantId, encrypted_pin, updated_at)
                             VALUES (?, ?, ?)
                             """,
-                            (tenant_id, encrypted_pin, now)
+                            (tenantId, encrypted_pin, now)
                         )
                         conn.commit()
             else:
@@ -1312,16 +1312,16 @@ async def import_execute_data(
                     with get_conn() as conn:
                         conn.execute(
                             """
-                            INSERT INTO tenant_pin_history
-                            (tenant_id, pin_hash, changed_at)
+                            INSERT INTO tenantPin_history
+                            (tenantId, pin_hash, changed_at)
                             VALUES (?, ?, ?)
                             """,
                             (t.id, hashed_pin, now)
                         )
                         conn.execute(
                             """
-                            INSERT OR REPLACE INTO tenant_pin_admin_store
-                            (tenant_id, encrypted_pin, updated_at)
+                            INSERT OR REPLACE INTO tenantPin_admin_store
+                            (tenantId, encrypted_pin, updated_at)
                             VALUES (?, ?, ?)
                             """,
                             (t.id, encrypted_pin, now)
@@ -1332,7 +1332,7 @@ async def import_execute_data(
             imported_tenants.append(t_name)
 
             for r in t_data["receipts"]:
-                billNo = r.get("Bill_No", "").strip()
+                billNo = r.get("BillNo", "").strip()
                 if not billNo:
                     continue
                 sys_r = next((x for x in sys_receipts if x.get("Bill") == billNo), None)
@@ -1352,16 +1352,16 @@ async def import_execute_data(
                     "Rent": float(r.get("Rent", 0) or 0),
                     "Additional": float(r.get("Additional", 0) or 0),
                     "Water": float(r.get("Water", 0) or 0),
-                    "Tank_Water": float(r.get("Tank_Water", 0) or 0),
+                    "tankWater": float(r.get("tankWater", 0) or 0),
                     "Electricity": float(r.get("Electricity", 0) or 0),
-                    "Maintenance_Charge": float(r.get("Maintenance", 0) or 0),
-                    "Maintenance_Desc": r.get("Maintenance_Desc", ""),
-                    "Previous_Arrears": float(r.get("Arrears", 0) or 0),
-                    # FIX #7: Ensure Amount_Received is float
-                    "Amount_Received": float(r.get("Amount_Received", 0) or 0),
+                    "MaintenanceCharge": float(r.get("Maintenance", 0) or 0),
+                    "MaintenanceDesc": r.get("MaintenanceDesc", ""),
+                    "previousArrears": float(r.get("Arrears", 0) or 0),
+                    # FIX #7: Ensure amountReceived is float
+                    "amountReceived": float(r.get("amountReceived", 0) or 0),
                     "Total": float(r.get("Total", 0) or 0),
-                    "Payment_Status": r.get("Payment_Status", "PENDING"),
-                    "Status": r.get("Receipt_Status", "ACTIVE"),
+                    "paymentStatus": r.get("paymentStatus", "PENDING"),
+                    "Status": r.get("receiptStatus", "ACTIVE"),
                     "Receipt_Version": 8,
                     "Generated_By": "Import"
                 }
@@ -1479,22 +1479,22 @@ from datetime import datetime
 router = APIRouter()
 
 
-@router.get(Routes.TENANT_API_PDF_VIEW, name=Names.TENANT_PDF_VIEW)
+@router.get(Routes.TENANTAPIPDFVIEW, name=Names.TENANTPDFVIEW)
 async def tenant_view_pdf(
-    view_token: str,
-    billno: str,
+    viewToken: str,
+    billNo: str,
     request: Request,
     principal=Depends(get_current_tenant)
 ):
     """Tenant-facing PDF view endpoint — requires tenant authentication."""
-    receipt = get_receipt(billno)
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
 
     # Security: ensure tenant can only view their own receipts
     from app.services.tenant_service import load_tenants
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=403, detail="Forbidden")
     
@@ -1502,12 +1502,12 @@ async def tenant_view_pdf(
     if receipt.get("Tenant") != tenant.name:
         raise HTTPException(status_code=403, detail="Receipt does not belong to this tenant")
 
-    tenant_name = receipt.get("Tenant", "Unknown").replace(" ", "_")
+    tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
         formatted_date = datetime.strptime(receipt.get("Date", ""), "%d %B %Y").strftime("%Y%m%d")
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
-    custom_filename = f"{tenant_name}_{formatted_date}_{billno}.pdf"
+    custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
     from app.services.pdf_service import generate_professional_pdf
     landlord_conf = config.get("landlord", {})
@@ -1525,22 +1525,22 @@ async def tenant_view_pdf(
     return response
 
 
-@router.get(Routes.TENANT_API_PDF_DOWNLOAD, name=Names.TENANT_PDF_DOWNLOAD)
+@router.get(Routes.TENANTAPIPDFDOWNLOAD, name=Names.TENANTPDFDOWNLOAD)
 async def tenant_download_pdf(
-    view_token: str,
-    billno: str,
+    viewToken: str,
+    billNo: str,
     request: Request,
     principal=Depends(get_current_tenant)
 ):
     """Tenant-facing PDF download endpoint — requires tenant authentication."""
-    receipt = get_receipt(billno)
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
 
     # Security: ensure tenant can only download their own receipts
     from app.services.tenant_service import load_tenants
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=403, detail="Forbidden")
     
@@ -1548,12 +1548,12 @@ async def tenant_download_pdf(
     if receipt.get("Tenant") != tenant.name:
         raise HTTPException(status_code=403, detail="Receipt does not belong to this tenant")
 
-    tenant_name = receipt.get("Tenant", "Unknown").replace(" ", "_")
+    tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
         formatted_date = datetime.strptime(receipt.get("Date", ""), "%d %B %Y").strftime("%Y%m%d")
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
-    custom_filename = f"{tenant_name}_{formatted_date}_{billno}.pdf"
+    custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
     from app.services.pdf_service import generate_professional_pdf
     landlord_conf = config.get("landlord", {})
@@ -1593,37 +1593,37 @@ from app.services.tenant_service import (
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
+    get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
 
 router = APIRouter()
 
 
-@router.get(Routes.ADMIN_API_TENANTS_LIST, name=Names.API_GET_TENANTS)
+@router.get(Routes.ADMINAPITENANTSLIST, name=Names.APIGETTENANTS)
 async def api_get_tenants():
     return load_tenants()
 
-@router.get(Routes.ADMIN_API_TENANTS_UPDATE, name=Names.API_GET_TENANT)
-async def api_get_tenant(tenant_id: int):
+@router.get(Routes.ADMINAPITENANTSUPDATE, name=Names.APIGETTENANT)
+async def api_get_tenant(tenantId: int):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if t.id == tenant_id), None)
+    tenant = next((t for t in tenants if t.id == tenantId), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
 
-@router.get(Routes.ADMIN_API_TENANTS_RECEIPTS + "_legacy", name=Names.API_GET_TENANT_RECEIPTS + "_legacy")
-@router.get(Routes.ADMIN_API_TENANTS_RECEIPTS, name=Names.API_GET_TENANT_RECEIPTS)
-async def api_get_tenant_receipts(tenant_name: str):  # CHANGED: tenant_name → tenant_name
+@router.get(Routes.ADMINAPITENANTSRECEIPTS + "_legacy", name=Names.APIGETTENANTRECEIPTS + "_legacy")
+@router.get(Routes.ADMINAPITENANTSRECEIPTS, name=Names.APIGETTENANTRECEIPTS)
+async def api_get_tenant_receipts(tenantName: str):  # CHANGED: tenantName → tenantName
     receipts = get_all_receipts()
-    target = tenant_name.strip().casefold()  # CHANGED: tenant_name → tenant_name
+    target = tenantName.strip().casefold()  # CHANGED: tenantName → tenantName
     tenant_receipts = [r for r in receipts if r.get("Tenant", "").strip().casefold() == target]
     tenant_receipts.reverse()
     return tenant_receipts
 
-@router.post(Routes.ADMIN_API_TENANTS_LIST, name=Names.API_ADD_TENANT)
+@router.post(Routes.ADMINAPITENANTSLIST, name=Names.APIADDTENANT)
 async def api_add_tenant(t: Tenant, request: Request, background_tasks: BackgroundTasks):
-    from app.authentication.common.utils import hash_pin, validate_tenant_pin
+    from app.authentication.common.utils import hash_pin, validate_tenantPin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
     from app.core.db import get_conn
     from datetime import datetime
@@ -1631,47 +1631,47 @@ async def api_add_tenant(t: Tenant, request: Request, background_tasks: Backgrou
     background_tasks.add_task(create_full_backup, tag="add_tenant")
     
     # Strictly validate 4-digit PIN on creation
-    validate_tenant_pin(t.tenant_pin)
+    validate_tenantPin(t.tenantPin)
     
-    plain_pin = str(t.tenant_pin)
+    plain_pin = str(t.tenantPin)
     hashed_pin = hash_pin(plain_pin)
     encrypted_pin = encrypt_admin_view_pin(plain_pin)
     
-    t.tenant_pin = hashed_pin
+    t.tenantPin = hashed_pin
         
-    tenant_id = add_tenant(t)
-    t.id = tenant_id
+    tenantId = add_tenant(t)
+    t.id = tenantId
     
     # Add to PIN history
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("INSERT INTO tenant_pin_history (tenant_id, pin_hash, changed_at) VALUES (?, ?, ?)", (tenant_id, hashed_pin, now))
-        conn.execute("INSERT OR REPLACE INTO tenant_pin_admin_store (tenant_id, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenant_id, encrypted_pin, now))
+        conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, hashed_pin, now))
+        conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now))
         conn.commit()
     
     response_tenant = t.dict()
-    response_tenant.pop("tenant_pin", None)
+    response_tenant.pop("tenantPin", None)
     
     return {"status": "success", "tenant": response_tenant}
 
-@router.put(Routes.ADMIN_API_TENANTS_UPDATE, name=Names.API_UPDATE_TENANT)
-async def api_update_tenant(tenant_id: int, t: Tenant, background_tasks: BackgroundTasks):
-    t.id = tenant_id
+@router.put(Routes.ADMINAPITENANTSUPDATE, name=Names.APIUPDATETENANT)
+async def api_update_tenant(tenantId: int, t: Tenant, background_tasks: BackgroundTasks):
+    t.id = tenantId
     background_tasks.add_task(create_full_backup, tag="update_tenant")
     
     existing = load_tenants()
-    existing_t = next((x for x in existing if x.id == tenant_id), None)
+    existing_t = next((x for x in existing if x.id == tenantId), None)
     if not existing_t:
         raise HTTPException(status_code=404, detail="Tenant not found")
         
     # The general update endpoint does NOT change the PIN.
     # We forcefully retain the existing PIN hash.
-    t.tenant_pin = existing_t.tenant_pin
+    t.tenantPin = existing_t.tenantPin
             
     update_tenant(t)
     
     response_tenant = t.dict()
-    response_tenant.pop("tenant_pin", None)
+    response_tenant.pop("tenantPin", None)
     
     return {"status": "success", "tenant": response_tenant}
 
@@ -1681,20 +1681,20 @@ class ChangePinRequest(BaseModel):
     pin: str
     logout_all: bool = True
 
-@router.post(Routes.ADMIN_API_TENANTS_CHANGE_PIN, name=Names.CHANGE_TENANT_PIN)
-async def api_change_tenant_pin(tenant_id: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
-    from app.authentication.common.utils import hash_pin, validate_tenant_pin, verify_pin
+@router.post(Routes.ADMINAPITENANTSCHANGEPIN, name=Names.CHANGETENANTPIN)
+async def api_change_tenantPin(tenantId: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
+    from app.authentication.common.utils import hash_pin, validate_tenantPin, verify_pin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
     from app.authentication.tenant.sessions import revoke_all_tenant_sessions
     from app.database.auth_repository import log_audit
     from app.core.db import get_conn
     from datetime import datetime
     
-    validate_tenant_pin(payload.pin)
+    validate_tenantPin(payload.pin)
     
     # Prevent immediate reuse (last 5 PINs)
     with get_conn() as conn:
-        history = conn.execute("SELECT pin_hash FROM tenant_pin_history WHERE tenant_id = ? ORDER BY id DESC LIMIT 5", (tenant_id,)).fetchall()
+        history = conn.execute("SELECT pin_hash FROM tenantPin_history WHERE tenantId = ? ORDER BY id DESC LIMIT 5", (tenantId,)).fetchall()
         for row in history:
             if verify_pin(payload.pin, row["pin_hash"]):
                 raise HTTPException(status_code=400, detail="Cannot reuse a recently used PIN.")
@@ -1703,40 +1703,40 @@ async def api_change_tenant_pin(tenant_id: int, payload: ChangePinRequest, reque
     encrypted_pin = encrypt_admin_view_pin(payload.pin)
     
     existing = load_tenants()
-    existing_t = next((x for x in existing if x.id == tenant_id), None)
+    existing_t = next((x for x in existing if x.id == tenantId), None)
     if not existing_t:
         raise HTTPException(status_code=404, detail="Tenant not found")
         
-    existing_t.tenant_pin = new_hash
+    existing_t.tenantPin = new_hash
     update_tenant(existing_t)
     
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("INSERT INTO tenant_pin_history (tenant_id, pin_hash, changed_at) VALUES (?, ?, ?)", (tenant_id, new_hash, now))
-        conn.execute("INSERT OR REPLACE INTO tenant_pin_admin_store (tenant_id, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenant_id, encrypted_pin, now))
+        conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, new_hash, now))
+        conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now))
         conn.commit()
     
     if payload.logout_all:
-        revoke_all_tenant_sessions(tenant_id)
+        revoke_all_tenant_sessions(tenantId)
         
     ip = request.client.host if request.client else "Unknown IP"
-    log_audit(tenant_id, "Tenant PIN Changed", ip)
+    log_audit(tenantId, "Tenant PIN Changed", ip)
     
     background_tasks.add_task(create_full_backup, tag="change_pin")
     
     return {"status": "success", "message": "PIN changed successfully."}
 
-@router.get(Routes.ADMIN_API_TENANTS_REVEAL_PIN, name=Names.ADMIN_REVEAL_PIN)
-async def admin_reveal_tenant_pin(
-    tenant_id: int,  # CHANGED: tenant_id → tenant_id
+@router.get(Routes.ADMINAPITENANTSREVEALPIN, name=Names.ADMINREVEALPIN)
+async def admin_reveal_tenantPin(
+    tenantId: int,  # CHANGED: tenantId → tenantId
 ):
     from app.authentication.common.pin_vault import decrypt_admin_view_pin
     from app.core.db import get_conn
     
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT encrypted_pin, updated_at FROM tenant_pin_admin_store WHERE tenant_id = ?",
-            (tenant_id,)  # CHANGED: tenant_id → tenant_id
+            "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = ?",
+            (tenantId,)  # CHANGED: tenantId → tenantId
         ).fetchone()
 
     if not row:
@@ -1751,9 +1751,9 @@ async def admin_reveal_tenant_pin(
         "updated_at": row["updated_at"]
     }
 
-@router.delete(Routes.ADMIN_API_TENANTS_UPDATE, name=Names.API_DELETE_TENANT)
+@router.delete(Routes.ADMINAPITENANTSUPDATE, name=Names.APIDELETETENANT)
 async def api_delete_tenant(
-    tenant_id: int,
+    tenantId: int,
     background_tasks: BackgroundTasks,
     action: str = "archive",
 ):
@@ -1763,13 +1763,13 @@ async def api_delete_tenant(
         raise HTTPException(status_code=400, detail="Invalid tenant action.")
 
     tenants = load_tenants()
-    tenant = next((t for t in tenants if t.id == tenant_id), None)
+    tenant = next((t for t in tenants if t.id == tenantId), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found.")
 
     try:
         background_tasks.add_task(create_full_backup, tag=f"{action}_tenant")
-        result = delete_tenant(tenant_id, action)
+        result = delete_tenant(tenantId, action)
         return {"status": "success", "action": action, "data": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -1781,18 +1781,18 @@ async def api_delete_tenant(
 from app.core.paths import KYC_DIR
 import mimetypes
 
-@router.get(Routes.ADMIN_API_OCCUPANTS_LIST, name=Names.API_GET_OCCUPANTS)
-async def admin_get_occupants(tenant_id: int):
-    occupants = get_occupants(tenant_id)
-    # Map occupant_uuid to "Occupant UUID" for frontend compatibility
+@router.get(Routes.ADMINAPIOCCUPANTSLIST, name=Names.APIGETOCCUPANTS)
+async def admin_get_occupants(tenantId: int):
+    occupants = get_occupants(tenantId)
+    # Map occupantUuid to "Occupant UUID" for frontend compatibility
     for o in occupants:
-        if "occupant_uuid" in o and "Occupant UUID" not in o:
-            o["Occupant UUID"] = o["occupant_uuid"]
+        if "occupantUuid" in o and "Occupant UUID" not in o:
+            o["Occupant UUID"] = o["occupantUuid"]
     return {"occupants": occupants}
 
-@router.post(Routes.ADMIN_API_OCCUPANTS_LIST, name=Names.API_CREATE_OCCUPANT)
+@router.post(Routes.ADMINAPIOCCUPANTSLIST, name=Names.APICREATEOCCUPANT)
 async def admin_post_occupants(
-    tenant_id: int = Query(...),
+    tenantId: int = Query(...),
     name: str = Form(...),
     mobile: str = Form(""),
     files: List[UploadFile] = File(None)
@@ -1819,27 +1819,27 @@ async def admin_post_occupants(
                     doc_urls["aadhaar_combined"] = safe_name
                 
     occ_data = {
-        "occupant_uuid": occ_uuid,
+        "occupantUuid": occ_uuid,
         "name": name,
         "mobile": mobile,
         "status": "Active",
         "aadhaar_combined": doc_urls.get("aadhaar_combined", "")
     }
-    save_occupant(tenant_id, occ_data)
-    return {"status": "success", "occupant_uuid": occ_uuid}
+    save_occupant(tenantId, occ_data)
+    return {"status": "success", "occupantUuid": occ_uuid}
 
-@router.put(Routes.ADMIN_API_OCCUPANTS_MARK_INACTIVE, name=Names.API_MARK_OCCUPANT_INACTIVE)
-async def admin_tenant_kyc_mark_inactive(tenant_id: int, occupant_uuid: str):
+@router.put(Routes.ADMINAPIOCCUPANTSMARKINACTIVE, name=Names.APIMARKOCCUPANTINACTIVE)
+async def admin_tenant_kyc_mark_inactive(tenantId: int, occupantUuid: str):
     from app.services.tenant_service import update_occupant_status
-    update_occupant_status(occupant_uuid, "Inactive")
+    update_occupant_status(occupantUuid, "Inactive")
     return {"status": "success"}
 
-@router.delete(Routes.ADMIN_API_OCCUPANTS_DELETE, name=Names.API_DELETE_OCCUPANT)
-async def admin_tenant_kyc_delete(tenant_id: int, occupant_uuid: str):
-    tenant_id = tenant_id
-    occupant_uuid = occupant_uuid
-    occupants = get_occupants(tenant_id)
-    target = next((o for o in occupants if o.get("Occupant UUID") == occupant_uuid), None)
+@router.delete(Routes.ADMINAPIOCCUPANTSDELETE, name=Names.APIDELETEOCCUPANT)
+async def admin_tenant_kyc_delete(tenantId: int, occupantUuid: str):
+    tenantId = tenantId
+    occupantUuid = occupantUuid
+    occupants = get_occupants(tenantId)
+    target = next((o for o in occupants if o.get("Occupant UUID") == occupantUuid), None)
     
     if target:
         doc_keys = ["Aadhaar Front", "Aadhaar Back", "Aadhaar Combined", "Emp Front", "Emp Back"]
@@ -1853,10 +1853,10 @@ async def admin_tenant_kyc_delete(tenant_id: int, occupant_uuid: str):
                     except Exception:
                         pass
             
-    delete_occupant(occupant_uuid)
+    delete_occupant(occupantUuid)
     return {"status": "success"}
 
-@router.get(Routes.ADMIN_API_OCCUPANTS_GET_FILE, name=Names.GET_KYC_FILE)
+@router.get(Routes.ADMINAPIOCCUPANTSGETFILE, name=Names.GETKYCFILE)
 async def admin_get_kyc_file(filename: str):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
@@ -1891,10 +1891,10 @@ import re
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_API_WHATSAPP_SEND_SINGLE, name=Names.SEND_WHATSAPP_SINGLE)
-async def send_whatsapp_single(request: Request, billno: str):
-    billno = billno
-    receipt = get_receipt(billno)
+@router.get(Routes.ADMINAPIWHATSAPPSENDSINGLE, name=Names.SENDWHATSAPPSINGLE)
+async def send_whatsapp_single(request: Request, billNo: str):
+    billNo = billNo
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
 
@@ -1918,17 +1918,17 @@ async def send_whatsapp_single(request: Request, billno: str):
         country_code = str(whatsapp_conf.get("country_code") or "91")
         phone = country_code + phone
 
-    token = getattr(tenant, "view_token", "")
+    token = getattr(tenant, "viewToken", "")
     if not token:
         import uuid
         from app.services.tenant_service import update_tenant
         token = str(uuid.uuid4())
-        tenant.view_token = token
+        tenant.viewToken = token
         update_tenant(tenant)
 
     base_url = str(request.base_url).rstrip("/")
     link = f"{base_url}/t/{token}"
-    grand_total = float(receipt.get("Total", 0)) + float(receipt.get("Previous_Arrears", 0))
+    grandTotal = float(receipt.get("Total", 0)) + float(receipt.get("previousArrears", 0))
 
     tenant_portal_pin = "(Unavailable)"
     try:
@@ -1936,7 +1936,7 @@ async def send_whatsapp_single(request: Request, billno: str):
         from app.core.db import get_conn
         with get_conn() as conn:
             row = conn.execute(
-                "SELECT encrypted_pin FROM tenant_pin_admin_store WHERE tenant_id = ?",
+                "SELECT encrypted_pin FROM tenantPin_admin_store WHERE tenantId = ?",
                 (tenant.id,)
             ).fetchone()
         if row:
@@ -1945,13 +1945,13 @@ async def send_whatsapp_single(request: Request, billno: str):
         pass
 
     msg = template.format(
-        tenant_name=tenant.name,
+        tenantName=tenant.name,
         month=receipt.get("Month", ""),
-        billno=billno,
-        total="{:,.0f}".format(grand_total),
+        billNo=billNo,
+        total="{:,.0f}".format(grandTotal),
         currency="Rs.",
         link=link,
-        tenant_pin=tenant_portal_pin
+        tenantPin=tenant_portal_pin
     )
 
     url = f"https://api.whatsapp.com/send?phone={phone}&text={quote(msg)}"
@@ -2056,7 +2056,7 @@ def _is_browser_navigation(request: Request) -> bool:
 
 
 def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized"):
-    logout_url = str(request.url_for("adminlogout"))
+    logout_url = str(request.url_for("ADMINLOGOUT"))
     if _is_browser_navigation(request):
         raise HTTPException(status_code=303, headers={"Location": logout_url})
     raise HTTPException(
@@ -2072,19 +2072,19 @@ def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized")
 async def get_current_admin_page(request: Request) -> AuthPrincipal:
     token = request.cookies.get("admin_access_token")
     if not token:
-        logout_url = str(request.url_for("adminlogout"))
+        logout_url = str(request.url_for("ADMINLOGOUT"))
         raise HTTPException(status_code=303, headers={"Location": logout_url})
 
     try:
         payload = decode_admin_access_token(token)
         if payload.get("role") != "admin":
-            logout_url = str(request.url_for("adminlogout"))
+            logout_url = str(request.url_for("ADMINLOGOUT"))
             raise HTTPException(status_code=303, headers={"Location": logout_url})
 
         session_id = payload.get("sid")
         session = get_admin_session_db(session_id)
         if not session:
-            logout_url = str(request.url_for("adminlogout"))
+            logout_url = str(request.url_for("ADMINLOGOUT"))
             raise HTTPException(status_code=303, headers={"Location": logout_url})
 
         admin_id = int(payload.get("admin_id") or payload.get("sub"))
@@ -2098,7 +2098,7 @@ async def get_current_admin_page(request: Request) -> AuthPrincipal:
     except HTTPException:
         raise
     except Exception:
-        logout_url = str(request.url_for("adminlogout"))
+        logout_url = str(request.url_for("ADMINLOGOUT"))
         raise HTTPException(status_code=303, headers={"Location": logout_url})
 
 
@@ -2211,7 +2211,7 @@ from cryptography.fernet import Fernet
 
 # Use environment variable or fallback to a generated default for dev
 # In production, this should be set via environment variable!
-PIN_VAULT_KEY_STR = os.environ.get("TENANT_PIN_VAULT_KEY", "UzZ9Uu5iAC5M1VBUBwiOHInTdRrlwmuCY01OQq7ZHCg=")
+PIN_VAULT_KEY_STR = os.environ.get("tenantPin_VAULT_KEY", "UzZ9Uu5iAC5M1VBUBwiOHInTdRrlwmuCY01OQq7ZHCg=")
 PIN_VAULT_KEY = PIN_VAULT_KEY_STR.encode("utf-8")
 
 fernet = Fernet(PIN_VAULT_KEY)
@@ -2234,7 +2234,7 @@ class AuthPrincipal:
     role: str
     id: int
     session_id: str
-    tenant_id: Optional[int] = None
+    tenantId: Optional[int] = None
     admin_id: Optional[int] = None
 ```
 
@@ -2258,7 +2258,7 @@ def verify_pin(plain_pin: str, hashed_pin: str) -> bool:
     except Exception:
         return False
 
-def validate_tenant_pin(pin: str) -> str:
+def validate_tenantPin(pin: str) -> str:
     """Validates that a PIN is exactly 4 digits."""
     if not pin or not re.fullmatch(r"\d{4}", str(pin)):
         raise HTTPException(
@@ -2331,11 +2331,11 @@ TENANT_JWT_SECRET = os.environ.get("TENANT_JWT_SECRET", "REPLACE_WITH_TENANT_SEC
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 
-def create_tenant_access_token(tenant_id: int, session_id: str) -> str:
+def create_tenant_access_token(tenantId: int, session_id: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {
-        "sub": str(tenant_id),
-        "tenant_id": tenant_id,
+        "sub": str(tenantId),
+        "tenantId": tenantId,
         "sid": session_id,
         "role": "tenant",
         "type": "access",
@@ -2372,9 +2372,9 @@ def _is_browser_navigation(request: Request) -> bool:
 
 
 def _tenant_redirect_url(request: Request) -> str:
-    view_token = request.path_params.get("view_token")
-    if view_token:
-        return str(request.url_for("public_tenant_profile_get", view_token=view_token))
+    viewToken = request.path_params.get("viewToken")
+    if viewToken:
+        return str(request.url_for("public_tenant_profile_get", viewToken=viewToken))
 
     referer = request.headers.get("referer")
     if referer:
@@ -2412,13 +2412,13 @@ async def get_current_tenant(request: Request) -> AuthPrincipal:
         if not session:
             _raise_tenant_session_expired(request, "Session revoked")
 
-        tenant_id = int(payload.get("tenant_id") or payload.get("sub"))
+        tenantId = int(payload.get("tenantId") or payload.get("sub"))
         return AuthPrincipal(
             authentication_type="tenant_api",
             role="tenant",
-            id=tenant_id,
+            id=tenantId,
             session_id=session_id,
-            tenant_id=tenant_id
+            tenantId=tenantId
         )
     except HTTPException:
         raise
@@ -2434,7 +2434,7 @@ from datetime import datetime, timedelta
 from app.core.db import get_conn
 from app.authentication.common.utils import hash_pin
 
-def create_tenant_session(tenant_id: int, request, remember_me: bool):
+def create_tenant_session(tenantId: int, request, remember_me: bool):
     refresh_token = secrets.token_urlsafe(64)
     refresh_hash = hash_pin(refresh_token)
     
@@ -2450,9 +2450,9 @@ def create_tenant_session(tenant_id: int, request, remember_me: bool):
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO tenant_sessions
-            (session_id, tenant_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
+            (session_id, tenantId, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (session_id, tenant_id, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
+        """, (session_id, tenantId, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
         conn.commit()
         
     return session_id, refresh_token
@@ -2467,10 +2467,10 @@ def revoke_tenant_session_db(session_id: str):
         conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE session_id = ?", (now, session_id))
         conn.commit()
 
-def revoke_all_tenant_sessions(tenant_id: int):
+def revoke_all_tenant_sessions(tenantId: int):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE tenant_id = ?", (now, tenant_id))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE tenantId = ?", (now, tenantId))
         conn.commit()
 ```
 
@@ -2490,9 +2490,9 @@ def revoke_all_tenant_sessions(tenant_id: int):
     "billing": {
         "rent": 8000.0,
         "water": 500.0,
-        "electricity_rate": 15.0,
-        "additional_person_charge": 1000.0,
-        "previous_meter_reading": 0.0,
+        "electricityRate": 15.0,
+        "additionalPersonCharge": 1000.0,
+        "previousMeter_reading": 0.0,
         "next_bill_number": 1
     },
     "landlord": {
@@ -2515,16 +2515,16 @@ def revoke_all_tenant_sessions(tenant_id: int):
             "label": "Single Receipt Message Template",
             "readonly_by_default": True,
             "allowed_variables": [
-                "{tenant_name}",
+                "{tenantName}",
                 "{month}",
-                "{billno}",
+                "{billNo}",
                 "{total}",
                 "{currency}",
                 "{link}",
-                "{tenant_pin}"
+                "{tenantPin}"
             ],
-            "default_message": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billno}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenant_pin}\n\nThank you!",
-            "message": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billno}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenant_pin}\n\nThank you!"
+            "default_message": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenantPin}\n\nThank you!",
+            "message": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenantPin}\n\nThank you!"
         },
         "country_code": "91"
     },
@@ -2591,7 +2591,7 @@ def revoke_all_tenant_sessions(tenant_id: int):
             "whatsapp_sync": True
         }
     },
-    "tenantProfile": {},
+    "TENANTPROFILE": {},
     "rentReceipt": {},
     "payment": {},
     "dashboard": {},
@@ -2865,7 +2865,7 @@ def init_db():
             FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
         );
 
-        -- 4. TENANTS (with view_token, tenantpin, failed_attempts, locked_until)
+        -- 4. TENANTS (with viewToken, tenantpin, failed_attempts, locked_until)
         CREATE TABLE IF NOT EXISTS tenants (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
@@ -2883,38 +2883,38 @@ def init_db():
             previousmeter REAL NOT NULL DEFAULT 0,
             additionalpersoncharge REAL NOT NULL DEFAULT 0,
             securitydeposit REAL NOT NULL DEFAULT 0,
-            defaulttankwatercharge REAL NOT NULL DEFAULT 0,
+            defaulttankWatercharge REAL NOT NULL DEFAULT 0,
             meterid TEXT,
-            view_token TEXT,
+            viewToken TEXT,
             tenantpin TEXT,
             failed_attempts INTEGER NOT NULL DEFAULT 0,
             locked_until TEXT
         );
 
         -- 5. TENANT PIN HISTORY
-        CREATE TABLE IF NOT EXISTS tenant_pin_history (
+        CREATE TABLE IF NOT EXISTS tenantPin_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenant_id INTEGER NOT NULL,
+            tenantId INTEGER NOT NULL,
             pin_hash TEXT NOT NULL,
             changed_at TEXT NOT NULL,
-            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
         );
 
-        CREATE INDEX IF NOT EXISTS idx_tenant_pin_history_tenant_id 
-            ON tenant_pin_history(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_tenantPin_history_tenantId 
+            ON tenantPin_history(tenantId);
 
         -- 6. TENANT PIN ADMIN STORE
-        CREATE TABLE IF NOT EXISTS tenant_pin_admin_store (
-            tenant_id INTEGER PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS tenantPin_admin_store (
+            tenantId INTEGER PRIMARY KEY,
             encrypted_pin TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
         );
 
         -- 7. TENANT SESSIONS (Auth V2)
         CREATE TABLE IF NOT EXISTS tenant_sessions (
             session_id TEXT PRIMARY KEY,
-            tenant_id INTEGER NOT NULL,
+            tenantId INTEGER NOT NULL,
             refresh_token_hash TEXT NOT NULL,
             device_name TEXT,
             browser TEXT,
@@ -2926,24 +2926,24 @@ def init_db():
             revoked_at TEXT,
             remember_me INTEGER DEFAULT 0,
             status TEXT DEFAULT 'Active',
-            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
         );
 
         -- 8. TENANT AUDIT LOGS
         CREATE TABLE IF NOT EXISTS tenant_audit_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenant_id INTEGER,
+            tenantId INTEGER,
             action TEXT,
             ip_address TEXT,
             created_at TEXT
         );
 
-        -- 9. RECEIPTS (with tenant_id, paymentstatus, maintenance, arrears, amountreceived)
+        -- 9. RECEIPTS (with tenantId, paymentstatus, maintenance, arrears, amountreceived)
         CREATE TABLE IF NOT EXISTS receipts (
-            billno TEXT PRIMARY KEY,
+            billNo TEXT PRIMARY KEY,
             date TEXT NOT NULL,
             month TEXT NOT NULL,
-            tenant_id INTEGER,
+            tenantId INTEGER,
             tenant TEXT NOT NULL,
             previous REAL NOT NULL DEFAULT 0,
             current REAL NOT NULL DEFAULT 0,
@@ -2951,7 +2951,7 @@ def init_db():
             rent REAL NOT NULL DEFAULT 0,
             additional REAL NOT NULL DEFAULT 0,
             water REAL NOT NULL DEFAULT 0,
-            tankwater REAL NOT NULL DEFAULT 0,
+            tankWater REAL NOT NULL DEFAULT 0,
             electricity REAL NOT NULL DEFAULT 0,
             total REAL NOT NULL DEFAULT 0,
             pdf TEXT,
@@ -2976,8 +2976,8 @@ def init_db():
 
         -- 10. OCCUPANTS
         CREATE TABLE IF NOT EXISTS occupants (
-            tenant_id INTEGER NOT NULL,
-            occupant_uuid TEXT PRIMARY KEY,
+            tenantId INTEGER NOT NULL,
+            occupantUuid TEXT PRIMARY KEY,
             name TEXT,
             mobile TEXT,
             status TEXT NOT NULL DEFAULT 'Active',
@@ -2988,15 +2988,15 @@ def init_db():
             emp_back TEXT,
             uploaddate TEXT,
             uploadmonth TEXT,
-            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
         );
 
         -- 11. PERFORMANCE INDEXES
         CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant);
         CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
         CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
-        CREATE INDEX IF NOT EXISTS idx_receipts_tenant_id ON receipts(tenant_id);
-        CREATE INDEX IF NOT EXISTS idx_occupants_tenant_id ON occupants(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
+        CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
         """)
         conn.commit()
 ```
@@ -3087,12 +3087,12 @@ class RouteBuilder:
         return request.url_for(name, **kwargs)
 
     @staticmethod
-    def pdf(request, billno: str):
-        return request.url_for(Names.PDF_VIEW, billno=billno)
+    def pdf(request, billNo: str):
+        return request.url_for(Names.PDFVIEW, billNo=billNo)
 
     @staticmethod
     def public_tenant(request, token: str):
-        return request.url_for(Names.PUBLIC_TENANT_PROFILE_GET, view_token=token)
+        return request.url_for(Names.PUBLICTENANTPROFILEGET, viewToken=token)
 
     @staticmethod
     def static(request, path: str):
@@ -3211,139 +3211,138 @@ class Paths:
     PUBLIC = "/t"
 
 class Routes:
-    BASE_PATH = "/rent"
+    BASEPATH = "/rent"
 
-    HEALTH_CHECK = "/health"
+    HEALTHCHECK = "/health"
 
     # Admin Pages
-    ADMIN_PAGE_ROOT = "/admin/"
-    ADMIN_PAGE_HOME = "/admin/home"
-    ADMIN_PAGE_LOGIN = "/admin/login"
-    ADMIN_PAGE_LOGOUT = "/admin/logout"
-    ADMIN_PAGE_DASHBOARD = "/admin/dashboard"
-    ADMIN_PAGE_BILLING = "/admin/billing"
-    ADMIN_PAGE_HISTORY = "/admin/history"
-    ADMIN_PAGE_TENANTS = "/admin/tenants"
-    ADMIN_PAGE_SETTINGS = "/admin/settings"
-    ADMIN_PAGE_ARCHIVE = "/admin/archive"
-    ADMIN_PAGE_BACKUPS = "/admin/backups"
-    ADMIN_PAGE_CATCH_ALL = "/admin/*"
-    ADMIN_PAGE_TENANT_PROFILE = "/admin/tenant/{tenant_id}"
+    ADMINPAGEROOT = "/admin/"
+    ADMINPAGEHOME = "/admin/home"
+    ADMINPAGELOGIN = "/admin/login"
+    ADMINPAGELOGOUT = "/admin/logout"
+    ADMINPAGEDASHBOARD = "/admin/dashboard"
+    ADMINPAGEBILLING = "/admin/billing"
+    ADMINPAGEHISTORY = "/admin/history"
+    ADMINPAGETENANTS = "/admin/tenants"
+    ADMINPAGESETTINGS = "/admin/settings"
+    ADMINPAGEARCHIVE = "/admin/archive"
+    ADMINPAGEBACKUPS = "/admin/backups"
+    ADMINPAGECATCHALL = "/admin/*"
+    ADMINPAGETENANTPROFILE = "/admin/tenant/{tenantId}"
 
     # Admin API: Setup
-    ADMIN_API_SETUP_REQUIRED = "/admin/api/setup/required"
-    ADMIN_API_SETUP_CREATE = "/admin/api/setup/create"
+    ADMINAPISETUPREQUIRED = "/admin/api/setup/required"
+    ADMINAPISETUPCREATE = "/admin/api/setup/create"
 
     # Admin API: Auth
-    ADMIN_API_AUTH_PUBLIC_KEY = "/admin/api/auth/public-key"
-    ADMIN_API_AUTH_LOGIN = "/admin/api/login"
-    ADMIN_API_AUTH_LOGIN_TOTP = "/admin/api/login/totp"
-    ADMIN_API_AUTH_REFRESH = "/admin/api/refresh"
-    ADMIN_API_AUTH_LOGOUT = "/admin/api/logout/json"
-    ADMIN_API_AUTH_ME = "/admin/api/me"
+    ADMINAPIAUTHPUBLICKEY = "/admin/api/auth/public-key"
+    ADMINAPIAUTHLOGIN = "/admin/api/login"
+    ADMINAPIAUTHLOGINTOTP = "/admin/api/login/totp"
+    ADMINAPIAUTHREFRESH = "/admin/api/refresh"
+    ADMINAPIAUTHLOGOUT = "/admin/api/logout/json"
+    ADMINAPIAUTHME = "/admin/api/me"
 
     # Admin API: Totp
-    ADMIN_API_TOTP_QR = "/admin/api/totp/qr"
-    ADMIN_API_TOTP_REGENERATE = "/admin/api/totp/regenerate"
+    ADMINAPITOTPQR = "/admin/api/totp/qr"
+    ADMINAPITOTPREGENERATE = "/admin/api/totp/regenerate"
 
     # Admin API: Password
-    ADMIN_API_PASSWORD_FORGOT_VERIFY = "/admin/api/forgot-password/verify"
-    ADMIN_API_PASSWORD_FORGOT_RESET = "/admin/api/forgot-password/reset"
+    ADMINAPIPASSWORDFORGOTVERIFY = "/admin/api/forgot-password/verify"
+    ADMINAPIPASSWORDFORGOTRESET = "/admin/api/forgot-password/reset"
 
     # Admin API: Dashboard
-    ADMIN_API_DASHBOARD_STATS = "/admin/api/dashboard"
+    ADMINAPIDASHBOARDSTATS = "/admin/api/dashboard"
 
     # Admin API: Config
-    ADMIN_API_CONFIG_GET = "/admin/api/config"
-    ADMIN_API_CONFIG_UPDATE = "/admin/api/config/update"
-    ADMIN_API_CONFIG_THEME = "/admin/api/ui/theme"
+    ADMINAPICONFIGGET = "/admin/api/config"
+    ADMINAPICONFIGUPDATE = "/admin/api/config/update"
+    ADMINAPICONFIGTHEME = "/admin/api/ui/theme"
 
     # Admin API: Billing
-    ADMIN_API_BILLING_FILTER = "/admin/api/receipts/filter"
-    ADMIN_API_BILLING_MONTHS = "/admin/api/receipts/months"
-    ADMIN_API_BILLING_PREVIEW = "/admin/api/receipts/preview"
-    ADMIN_API_BILLING_CREATE = "/admin/api/receipts/create"
-    ADMIN_API_BILLING_GET = "/admin/api/receipts/{billno}"
-    ADMIN_API_BILLING_UPDATE = "/admin/api/receipts/{billno}"
-    ADMIN_API_BILLING_UPDATE_PAYMENT = "/admin/api/receipts/{billno}/payment-status"
-    ADMIN_API_BILLING_ARCHIVE = "/admin/api/receipts/{billno}/archive"
-    ADMIN_API_BILLING_RESTORE = "/admin/api/receipts/{billno}/restore"
-    ADMIN_API_BILLING_DELETE = "/admin/api/receipts/{billno}"
+    ADMINAPIBILLINGFILTER = "/admin/api/receipts/filter"
+    ADMINAPIBILLINGMONTHS = "/admin/api/receipts/months"
+    ADMINAPIBILLINGPREVIEW = "/admin/api/receipts/preview"
+    ADMINAPIBILLINGCREATE = "/admin/api/receipts/create"
+    ADMINAPIBILLINGGET = "/admin/api/receipts/{billNo}"
+    ADMINAPIBILLINGUPDATE = "/admin/api/receipts/{billNo}"
+    ADMINAPIBILLINGUPDATEPAYMENT = "/admin/api/receipts/{billNo}/payment-status"
+    ADMINAPIBILLINGARCHIVE = "/admin/api/receipts/{billNo}/archive"
+    ADMINAPIBILLINGRESTORE = "/admin/api/receipts/{billNo}/restore"
+    ADMINAPIBILLINGDELETE = "/admin/api/receipts/{billNo}"
 
     # Admin API: Tenants
-    ADMIN_API_TENANTS_LIST = "/admin/api/tenants"
-    ADMIN_API_TENANTS_CREATE = "/admin/api/tenants"
-    ADMIN_API_TENANTS_GET = "/admin/api/tenants/{tenant_id}"
-    ADMIN_API_TENANTS_UPDATE = "/admin/api/tenants/{tenant_id}"
-    ADMIN_API_TENANTS_DELETE = "/admin/api/tenants/{tenant_id}"
-    ADMIN_API_TENANTS_CHANGE_PIN = "/admin/api/tenants/{tenant_id}/change-pin"
-    ADMIN_API_TENANTS_REVEAL_PIN = "/admin/api/tenants/{tenant_id}/reveal-pin"
-    ADMIN_API_TENANTS_RECEIPTS = "/admin/api/tenants/{tenant_name}/receipts"
+    ADMINAPITENANTSLIST = "/admin/api/tenants"
+    ADMINAPITENANTSCREATE = "/admin/api/tenants"
+    ADMINAPITENANTSGET = "/admin/api/tenants/{tenantId}"
+    ADMINAPITENANTSUPDATE = "/admin/api/tenants/{tenantId}"
+    ADMINAPITENANTSDELETE = "/admin/api/tenants/{tenantId}"
+    ADMINAPITENANTSCHANGEPIN = "/admin/api/tenants/{tenantId}/change-pin"
+    ADMINAPITENANTSREVEALPIN = "/admin/api/tenants/{tenantId}/reveal-pin"
+    ADMINAPITENANTSRECEIPTS = "/admin/api/tenants/{tenantName}/receipts"
 
     # Admin API: Occupants
-    ADMIN_API_OCCUPANTS_LIST = "/admin/api/occupants"
-    ADMIN_API_OCCUPANTS_CREATE = "/admin/api/occupants"
-    ADMIN_API_OCCUPANTS_MARK_INACTIVE = "/admin/api/occupants/{tenant_id}/{occupant_uuid}/inactive"
-    ADMIN_API_OCCUPANTS_DELETE = "/admin/api/occupants/{tenant_id}/{occupant_uuid}"
-    ADMIN_API_OCCUPANTS_GET_FILE = "/admin/api/occupants/file/{filename}"
+    ADMINAPIOCCUPANTSLIST = "/admin/api/occupants"
+    ADMINAPIOCCUPANTSCREATE = "/admin/api/occupants"
+    ADMINAPIOCCUPANTSMARKINACTIVE = "/admin/api/occupants/{tenantId}/{occupantUuid}/inactive"
+    ADMINAPIOCCUPANTSDELETE = "/admin/api/occupants/{tenantId}/{occupantUuid}"
+    ADMINAPIOCCUPANTSGETFILE = "/admin/api/occupants/file/{filename}"
 
     # Admin API: Pdf
-    ADMIN_API_PDF_DOWNLOAD = "/admin/api/pdf/receipt/{billno}"
-    ADMIN_API_PDF_VIEW = "/admin/api/pdf/receipt/{billno}/view"
+    ADMINAPIPDFDOWNLOAD = "/admin/api/pdf/receipt/{billNo}"
+    ADMINAPIPDFVIEW = "/admin/api/pdf/receipt/{billNo}/view"
 
     # Admin API: Whatsapp
-    ADMIN_API_WHATSAPP_SEND_SINGLE = "/admin/api/whatsapp/send-single/{billno}"
+    ADMINAPIWHATSAPPSENDSINGLE = "/admin/api/whatsapp/send-single/{billNo}"
 
     # Admin API: Sync
-    ADMIN_API_SYNC_EXPORT_CSV = "/admin/api/export-csv"
-    ADMIN_API_SYNC_EXPORT_ZIP = "/admin/api/export-zip"
-    ADMIN_API_SYNC_TEMPLATE = "/admin/api/import-template"
-    # ADMIN_API_SYNC_EXPORT_EXCEL = "/admin/api/export-excel?format={format}"
-    ADMIN_API_SYNC_EXPORT_EXCEL = "/admin/api/export-excel"
-    ADMIN_API_SYNC_IMPORT_PREVIEW = "/admin/api/import-preview"
-    ADMIN_API_SYNC_IMPORT_EXECUTE = "/admin/api/import-execute"
+    ADMINAPISYNCEXPORTCSV = "/admin/api/export-csv"
+    ADMINAPISYNCEXPORTZIP = "/admin/api/export-zip"
+    ADMINAPISYNCTEMPLATE = "/admin/api/import-template"
+    ADMINAPISYNCEXPORTEXCEL = "/admin/api/export-excel"
+    ADMINAPISYNCIMPORTPREVIEW = "/admin/api/import-preview"
+    ADMINAPISYNCIMPORTEXECUTE = "/admin/api/import-execute"
 
     # Admin API: Backups
-    ADMIN_API_BACKUPS_LIST = "/admin/api/backups"
-    ADMIN_API_BACKUPS_CREATE_MANUAL = "/admin/api/backups/manual"
-    ADMIN_API_BACKUPS_DELETE = "/admin/api/backups/{backup_id}"
-    ADMIN_API_BACKUPS_VERIFY = "/admin/api/backups/{backup_id}/verify"
-    ADMIN_API_BACKUPS_RESTORE = "/admin/api/backups/{backup_id}/restore"
-    ADMIN_API_BACKUPS_DOWNLOAD = "/admin/api/backups/{backup_id}/download"
-    ADMIN_API_BACKUPS_METADATA = "/admin/api/backups/{backup_id}/metadata"
+    ADMINAPIBACKUPSLIST = "/admin/api/backups"
+    ADMINAPIBACKUPSCREATEMANUAL = "/admin/api/backups/manual"
+    ADMINAPIBACKUPSDELETE = "/admin/api/backups/{backupId}"
+    ADMINAPIBACKUPSVERIFY = "/admin/api/backups/{backupId}/verify"
+    ADMINAPIBACKUPSRESTORE = "/admin/api/backups/{backupId}/restore"
+    ADMINAPIBACKUPSDOWNLOAD = "/admin/api/backups/{backupId}/download"
+    ADMINAPIBACKUPSMETADATA = "/admin/api/backups/{backupId}/metadata"
 
     # Admin API: Settings
-    ADMIN_API_SETTINGS_UPLOAD_SIGNATURE = "/admin/api/settings/upload-signature"
-    ADMIN_API_SETTINGS_DELETE_SIGNATURE = "/admin/api/settings/delete-signature"
+    ADMINAPISETTINGSUPLOADSIGNATURE = "/admin/api/settings/upload-signature"
+    ADMINAPISETTINGSDELETESIGNATURE = "/admin/api/settings/delete-signature"
 
     # Tenant Pages
-    TENANT_PAGE_ROOT = '/t/{view_token}'
+    TENANTPAGEROOT = '/t/{viewToken}'
 
     # Tenant API: Auth
-    TENANT_API_AUTH_PUBLIC_KEY = "/api/auth/public-key"
-    TENANT_API_AUTH_LOGIN = "/api/auth/login/{view_token}"
-    TENANT_API_AUTH_REFRESH = "/api/auth/refresh/{view_token}"
-    TENANT_API_AUTH_LOGOUT = "/api/auth/logout/{view_token}"
-    TENANT_API_AUTH_LOGOUT_ALL = "/api/auth/logout-all/{view_token}"
+    TENANTAPIAUTHPUBLICKEY = "/api/auth/public-key"
+    TENANTAPIAUTHLOGIN = "/api/auth/login/{viewToken}"
+    TENANTAPIAUTHREFRESH = "/api/auth/refresh/{viewToken}"
+    TENANTAPIAUTHLOGOUT = "/api/auth/logout/{viewToken}"
+    TENANTAPIAUTHLOGOUTALL = "/api/auth/logout-all/{viewToken}"
 
     # Tenant API: Profile
-    TENANT_API_PROFILE_GET = "/api/{view_token}"
+    TENANTAPIPROFILEGET = "/api/{viewToken}"
 
     # Tenant API: Kyc
-    TENANT_API_KYC_UPLOAD = "/api/{view_token}/kyc"
-    TENANT_API_KYC_MARK_INACTIVE = "/api/{view_token}/kyc/{occupant_uuid}/inactive"
-    TENANT_API_KYC_DELETE = "/api/{view_token}/kyc/{occupant_uuid}"
-    TENANT_API_KYC_GET_FILE = "/api/{view_token}/kyc/file/{filename}"
+    TENANTAPIKYCUPLOAD = "/api/{viewToken}/kyc"
+    TENANTAPIKYCMARKINACTIVE = "/api/{viewToken}/kyc/{occupantUuid}/inactive"
+    TENANTAPIKYCDELETE = "/api/{viewToken}/kyc/{occupantUuid}"
+    TENANTAPIKYCGETFILE = "/api/{viewToken}/kyc/file/{filename}"
 
-    TENANT_API_PDF_VIEW = "/t/api/{view_token}/pdf/{billno}/view"
-    TENANT_API_PDF_DOWNLOAD = "/t/api/{view_token}/pdf/{billno}/download"
+    TENANTAPIPDFVIEW = "/t/api/{viewToken}/pdf/{billNo}/view"
+    TENANTAPIPDFDOWNLOAD = "/t/api/{viewToken}/pdf/{billNo}/download"
 
     # Static & Health
-    STATIC_UPLOADS = "/static/uploads"
-    STATIC_STATIC = "/static"
-    STATIC_ADMIN_ASSETS = "/admin/assets"
-    STATIC_TENANT_ASSETS = "/tenant/assets"
-    STATIC_FAVICON = "/admin/favicon.svg"
+    STATICUPLOADS = "/static/uploads"
+    STATICSTATIC = "/static"
+    STATICADMINASSETS = "/admin/assets"
+    STATICTENANTASSETS = "/tenant/assets"
+    STATICFAVICON = "/admin/favicon.svg"
 
 
 class Names:
@@ -3351,110 +3350,110 @@ class Names:
 
     # Pages
     HOME = "home_page"
-    BILLING_PAGE = "billing_page"
-    HISTORY_PAGE = "history_page"
-    TENANTS_PAGE = "tenants_page"
-    SETTINGS_PAGE = "settings_page"
-    ARCHIVE_PAGE = "archive_page"
-    BACKUPS_PAGE = "backups_page"
-    TENANT_PROFILE_PAGE = "tenant_profile_page"
-    PUBLIC_TENANT_PROFILE_GET = "public_tenant_profile_get"
-    PUBLIC_TENANT_PROFILE_POST = "public_tenant_profile_post"
+    BILLINGPAGE = "billing_page"
+    HISTORYPAGE = "history_page"
+    TENANTSPAGE = "tenants_page"
+    SETTINGSPAGE = "settings_page"
+    ARCHIVEPAGE = "archive_page"
+    BACKUPSPAGE = "backups_page"
+    TENANTPROFILEPAGE = "tenant_profile_page"
+    PUBLICTENANTPROFILEGET = "public_tenant_profile_get"
+    PUBLICTENANTPROFILEPOST = "public_tenant_profile_post"
     FAVICON = "favicon"
 
     # API - Backups
-    API_GET_BACKUPS = "api_get_backups"
-    API_CREATE_MANUAL_BACKUP = "api_create_manual_backup"
-    API_DELETE_BACKUP = "api_delete_backup"
-    API_VERIFY_BACKUP = "api_verify_backup"
-    API_RESTORE_BACKUP = "api_restore_backup"
-    API_DOWNLOAD_BACKUP = "api_download_backup"
-    API_DOWNLOAD_METADATA = "api_download_metadata"
+    APIGETBACKUPS = "api_get_backups"
+    APICREATEMANUALBACKUP = "api_create_manual_backup"
+    APIDELETEBACKUP = "api_delete_backup"
+    APIVERIFYBACKUP = "api_verify_backup"
+    APIRESTOREBACKUP = "api_restore_backup"
+    APIDOWNLOADBACKUP = "api_download_backup"
+    APIDOWNLOADMETADATA = "api_download_metadata"
 
     # API - Billing
-    API_FILTER_BILLS = "api_filter_bills"
-    API_BILLING_MONTHS = "api_billing_months"
-    API_BILLING_PREVIEW = "api_billing_preview"
-    API_GET_SINGLE_BILL = "api_get_single_bill"
-    API_CREATE_BILL = "api_create_bill"
-    API_UPDATE_BILL = "api_update_bill"
-    API_UPDATE_PAYMENT = "api_update_payment"
-    API_ARCHIVE_BILL = "api_archive_bill"
-    API_RESTORE_BILL = "api_restore_bill"
-    API_DELETE_BILL = "api_delete_bill"
+    APIFILTERBILLS = "api_filter_bills"
+    APIBILLINGMONTHS = "api_billing_months"
+    APIBILLINGPREVIEW = "api_billing_preview"
+    APIGETSINGLEBILL = "api_get_single_bill"
+    APICREATEBILL = "api_create_bill"
+    APIUPDATEBILL = "api_update_bill"
+    APIUPDATEPAYMENT = "api_update_payment"
+    APIARCHIVEBILL = "api_archive_bill"
+    APIRESTOREBILL = "api_restore_bill"
+    APIDELETEBILL = "api_delete_bill"
 
     # API - PDF
-    PDF_DOWNLOAD = "download_pdf"
-    PDF_VIEW = "view_pdf"
+    PDFDOWNLOAD = "download_pdf"
+    PDFVIEW = "view_pdf"
 
     # API - Public / KYC
-    PUBLIC_TENANT_KYC_UPLOAD = "public_tenant_kyc_upload"
-    PUBLIC_TENANT_KYC_MARK_INACTIVE = "public_tenant_kyc_mark_inactive"
-    PUBLIC_TENANT_KYC_DELETE = "public_tenant_kyc_delete"
-    GET_KYC_FILE = "get_kyc_file"
+    PUBLICTENANTKYCUPLOAD = "public_tenant_kyc_upload"
+    PUBLICTENANTKYCMARKINACTIVE = "public_tenant_kyc_mark_inactive"
+    PUBLICTENANTKYCDELETE = "public_tenant_kyc_delete"
+    GETKYCFILE = "get_kyc_file"
 
     # API - Settings
-    API_GET_CONFIG = "api_get_config"
-    API_UPLOAD_SIGNATURE = "api_upload_signature"
-    API_DELETE_SIGNATURE = "api_delete_signature"
-    UPDATE_CONFIG = "update_config"
-    UPDATE_THEME = "update_theme"
+    APIGETCONFIG = "api_get_config"
+    APIUPLOADSIGNATURE = "api_upload_signature"
+    APIDELETESIGNATURE = "api_delete_signature"
+    UPDATECONFIG = "update_config"
+    UPDATETHEME = "update_theme"
 
     # API - Sync
-    EXPORT_RECEIPTS_CSV = "export_receipts_csv"
-    EXPORT_FULL_ZIP = "export_full_zip"
-    DOWNLOAD_EXCEL_TEMPLATE = "download_excel_template"
-    EXPORT_EXCEL_DATA = "export_excel_data"
-    IMPORT_PREVIEW_DATA = "import_preview_data"
-    IMPORT_EXECUTE_DATA = "import_execute_data"
+    EXPORTRECEIPTSCSV = "export_receipts_csv"
+    EXPORTFULLZIP = "export_full_zip"
+    DOWNLOADEXCELTEMPLATE = "download_excel_template"
+    EXPORTEXCELDATA = "export_excel_data"
+    IMPORTPREVIEWDATA = "import_preview_data"
+    IMPORTEXECUTEDATA = "import_execute_data"
 
     # API - Tenants
-    API_GET_TENANTS = "api_get_tenants"
-    API_GET_TENANT = "api_get_tenant"
-    API_GET_TENANT_RECEIPTS = "api_get_tenant_receipts"
-    API_ADD_TENANT = "api_add_tenant"
-    API_UPDATE_TENANT = "api_update_tenant"
-    API_DELETE_TENANT = "api_delete_tenant"
+    APIGETTENANTS = "api_get_tenants"
+    APIGETTENANT = "api_get_tenant"
+    APIGETTENANTRECEIPTS = "api_get_tenant_receipts"
+    APIADDTENANT = "api_add_tenant"
+    APIUPDATETENANT = "api_update_tenant"
+    APIDELETETENANT = "api_delete_tenant"
 
     # API - Whatsapp
-    SEND_WHATSAPP_SINGLE = "send_whatsapp_single"
-    SEND_WHATSAPP_BULK = "send_whatsapp_bulk"
+    SENDWHATSAPPSINGLE = "send_whatsapp_single"
+    SENDWHATSAPPBULK = "send_whatsapp_bulk"
 
     # API - Health
-    HEALTH_CHECK = "health_check"
+    HEALTHCHECK = "health_check"
 
     # Auth
-    ADMIN_LOGIN = "adminloginpost"
-    ADMIN_LOGIN_TOTP = "admin_login_totp"
-    ADMIN_LOGOUT = "adminlogout"
-    ADMIN_LOGOUT_JSON = "adminlogoutjson"
-    ADMIN_REFRESH = "admin_refresh"
-    ADMIN_ME = "adminme"
-    ADMIN_SETUP_REQUIRED = "admin_setup_required"
-    ADMIN_SETUP_CREATE = "admin_setup_create"
-    ADMIN_TOTP_QR = "admin_totp_qr"
-    ADMIN_TOTP_REGENERATE = "admin_totp_regenerate"
-    ADMIN_FORGOT_VERIFY = "admin_forgot_password_verify"
-    ADMIN_FORGOT_RESET = "admin_forgot_password_reset"
-    ADMIN_PUBLIC_KEY = "admin_public_key"
+    ADMINLOGIN = "adminloginpost"
+    ADMINLOGINTOTP = "admin_login_totp"
+    ADMINLOGOUT = "ADMINLOGOUT"
+    ADMINLOGOUTJSON = "ADMINLOGOUTJSON"
+    ADMINREFRESH = "admin_refresh"
+    ADMINME = "ADMINME"
+    ADMINSETUPREQUIRED = "admin_setup_required"
+    ADMINSETUPCREATE = "admin_setup_create"
+    ADMINTOTPQR = "admin_totp_qr"
+    ADMINTOTPREGENERATE = "admin_totp_regenerate"
+    ADMINFORGOTVERIFY = "admin_forgot_password_verify"
+    ADMINFORGOTRESET = "admin_forgot_password_reset"
+    ADMINPUBLICKEY = "admin_public_key"
 
-    CHANGE_TENANT_PIN = "change_tenant_pin"
-    ADMIN_REVEAL_PIN = "admin_reveal_tenant_pin"
+    CHANGETENANTPIN = "change_tenantPin"
+    ADMINREVEALPIN = "admin_reveal_tenantPin"
 
     # Tenant Auth
-    TENANT_PUBLIC_KEY = "public_key"
-    TENANT_LOGIN = "public_tenant_login"
-    TENANT_LOGOUT = "auth_logout"
-    TENANT_LOGOUT_ALL = "auth_logout_all"
-    TENANT_REFRESH = "auth_refresh"
-    TENANT_PDF_VIEW = "tenant_pdf_view"
-    TENANT_PDF_DOWNLOAD = "tenant_pdf_download"
+    TENANTPUBLICKEY = "public_key"
+    TENANTLOGIN = "public_tenant_login"
+    TENANTLOGOUT = "auth_logout"
+    TENANTLOGOUTALL = "auth_logout_all"
+    TENANTREFRESH = "auth_refresh"
+    TENANTPDFVIEW = "tenant_pdf_view"
+    TENANTPDFDOWNLOAD = "tenant_pdf_download"
 
     # API - Occupants
-    API_GET_OCCUPANTS = "api_get_occupants"
-    API_CREATE_OCCUPANT = "api_create_occupant"
-    API_MARK_OCCUPANT_INACTIVE = "api_mark_occupant_inactive"
-    API_DELETE_OCCUPANT = "api_delete_occupant"
+    APIGETOCCUPANTS = "api_get_occupants"
+    APICREATEOCCUPANT = "api_create_occupant"
+    APIMARKOCCUPANTINACTIVE = "api_mark_occupant_inactive"
+    APIDELETEOCCUPANT = "api_delete_occupant"
 
 
 class Templates:
@@ -3467,8 +3466,8 @@ class Templates:
     ARCHIVE = "archive.html"
     BACKUPS = "backups.html"
     ERROR = "error.html"
-    TENANT_PROFILE = "tenant_profile.html"
-    TENANT_PUBLIC_PROFILE = "tenant_public_profile.html"
+    TENANTPROFILE = "tenant_profile.html"
+    TENANTPUBLICPROFILE = "tenant_public_profile.html"
 
 
 class Prefixes:
@@ -3555,14 +3554,14 @@ import base64
 
 
 
-def create_session_db(session_id, tenant_id, refresh_hash, device, ip, expires_at):
+def create_session_db(session_id, tenantId, refresh_hash, device, ip, expires_at):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO tenant_sessions 
-            (session_id, tenant_id, refresh_token_hash, device_name, ip_address, created_at, last_activity, expires_at)
+            (session_id, tenantId, refresh_token_hash, device_name, ip_address, created_at, last_activity, expires_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (session_id, tenant_id, refresh_hash, device, ip, now, now, expires_at))
+        """, (session_id, tenantId, refresh_hash, device, ip, now, now, expires_at))
         conn.commit()
 
 def get_session_db(session_id):
@@ -3574,16 +3573,16 @@ def revoke_session_db(session_id):
         conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE session_id = ?", (session_id,))
         conn.commit()
 
-def revoke_all_tenant_sessions(tenant_id):
+def revoke_all_tenant_sessions(tenantId):
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE tenant_id = ?", (tenant_id,))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE tenantId = ?", (tenantId,))
         conn.commit()
 
-def log_audit(tenant_id: int, action: str, ip: str):
+def log_audit(tenantId: int, action: str, ip: str):
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO tenant_audit_logs (tenant_id, action, ip_address, created_at) VALUES (?, ?, ?, ?)",
-            (tenant_id, action, ip, datetime.utcnow().isoformat())
+            "INSERT INTO tenant_audit_logs (tenantId, action, ip_address, created_at) VALUES (?, ?, ?, ?)",
+            (tenantId, action, ip, datetime.utcnow().isoformat())
         )
         conn.commit()
 
@@ -3794,9 +3793,9 @@ def init_production_db():
         previousmeter REAL NOT NULL DEFAULT 0,
         additionalpersoncharge REAL NOT NULL DEFAULT 0,
         securitydeposit REAL NOT NULL DEFAULT 0,
-        defaulttankwatercharge REAL NOT NULL DEFAULT 0,
+        defaulttankWatercharge REAL NOT NULL DEFAULT 0,
         meterid TEXT,
-        view_token TEXT,
+        viewToken TEXT,
         tenantpin TEXT,
         failed_attempts INTEGER NOT NULL DEFAULT 0,
         locked_until TEXT
@@ -3807,27 +3806,27 @@ def init_production_db():
     # 5. TENANT PIN HISTORY (Security Audit)
     # ============================================================
     conn.executescript("""
-    CREATE TABLE IF NOT EXISTS tenant_pin_history (
+    CREATE TABLE IF NOT EXISTS tenantPin_history (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tenant_id INTEGER NOT NULL,
+        tenantId INTEGER NOT NULL,
         pin_hash TEXT NOT NULL,
         changed_at TEXT NOT NULL,
-        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
     );
 
-    CREATE INDEX IF NOT EXISTS idx_tenant_pin_history_tenant_id 
-        ON tenant_pin_history(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_tenantPin_history_tenantId 
+        ON tenantPin_history(tenantId);
     """)
 
     # ============================================================
     # 6. TENANT PIN ADMIN STORE (Encrypted PIN Vault)
     # ============================================================
     conn.executescript("""
-    CREATE TABLE IF NOT EXISTS tenant_pin_admin_store (
-        tenant_id INTEGER PRIMARY KEY,
+    CREATE TABLE IF NOT EXISTS tenantPin_admin_store (
+        tenantId INTEGER PRIMARY KEY,
         encrypted_pin TEXT NOT NULL,
         updated_at TEXT NOT NULL,
-        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
     );
     """)
 
@@ -3837,7 +3836,7 @@ def init_production_db():
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS tenant_sessions (
         session_id TEXT PRIMARY KEY,
-        tenant_id INTEGER NOT NULL,
+        tenantId INTEGER NOT NULL,
         refresh_token_hash TEXT NOT NULL,
         device_name TEXT,
         browser TEXT,
@@ -3849,7 +3848,7 @@ def init_production_db():
         revoked_at TEXT,
         remember_me INTEGER DEFAULT 0,
         status TEXT DEFAULT 'Active',
-        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
     );
     """)
 
@@ -3859,7 +3858,7 @@ def init_production_db():
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS tenant_audit_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tenant_id INTEGER,
+        tenantId INTEGER,
         action TEXT,
         ip_address TEXT,
         created_at TEXT
@@ -3871,10 +3870,10 @@ def init_production_db():
     # ============================================================
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS receipts (
-        billno TEXT PRIMARY KEY,
+        billNo TEXT PRIMARY KEY,
         date TEXT NOT NULL,
         month TEXT NOT NULL,
-        tenant_id INTEGER,
+        tenantId INTEGER,
         tenant TEXT NOT NULL,
         previous REAL NOT NULL DEFAULT 0,
         current REAL NOT NULL DEFAULT 0,
@@ -3882,7 +3881,7 @@ def init_production_db():
         rent REAL NOT NULL DEFAULT 0,
         additional REAL NOT NULL DEFAULT 0,
         water REAL NOT NULL DEFAULT 0,
-        tankwater REAL NOT NULL DEFAULT 0,
+        tankWater REAL NOT NULL DEFAULT 0,
         electricity REAL NOT NULL DEFAULT 0,
         total REAL NOT NULL DEFAULT 0,
         pdf TEXT,
@@ -3911,8 +3910,8 @@ def init_production_db():
     # ============================================================
     conn.executescript("""
     CREATE TABLE IF NOT EXISTS occupants (
-        tenant_id INTEGER NOT NULL,
-        occupant_uuid TEXT PRIMARY KEY,
+        tenantId INTEGER NOT NULL,
+        occupantUuid TEXT PRIMARY KEY,
         name TEXT,
         mobile TEXT,
         status TEXT NOT NULL DEFAULT 'Active',
@@ -3923,7 +3922,7 @@ def init_production_db():
         emp_back TEXT,
         uploaddate TEXT,
         uploadmonth TEXT,
-        FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
     );
     """)
 
@@ -3934,8 +3933,8 @@ def init_production_db():
     CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant);
     CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
     CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
-    CREATE INDEX IF NOT EXISTS idx_receipts_tenant_id ON receipts(tenant_id);
-    CREATE INDEX IF NOT EXISTS idx_occupants_tenant_id ON occupants(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
+    CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
     """)
 
     conn.commit()
@@ -4029,9 +4028,9 @@ CREATE TABLE IF NOT EXISTS tenants (
     previousmeter REAL NOT NULL DEFAULT 0,
     additionalpersoncharge REAL NOT NULL DEFAULT 0,
     securitydeposit REAL NOT NULL DEFAULT 0,
-    defaulttankwatercharge REAL NOT NULL DEFAULT 0,
+    defaulttankWatercharge REAL NOT NULL DEFAULT 0,
     meterid TEXT,
-    view_token TEXT,
+    viewToken TEXT,
     tenantpin TEXT,
     failed_attempts INTEGER NOT NULL DEFAULT 0,
     locked_until TEXT
@@ -4040,25 +4039,25 @@ CREATE TABLE IF NOT EXISTS tenants (
 -- ============================================================
 -- 5. TENANT PIN HISTORY (Security Audit)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS tenant_pin_history (
+CREATE TABLE IF NOT EXISTS tenantPin_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tenant_id INTEGER NOT NULL,
+    tenantId INTEGER NOT NULL,
     pin_hash TEXT NOT NULL,
     changed_at TEXT NOT NULL,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_tenant_pin_history_tenant_id 
-    ON tenant_pin_history(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tenantPin_history_tenantId 
+    ON tenantPin_history(tenantId);
 
 -- ============================================================
 -- 6. TENANT PIN ADMIN STORE (Encrypted PIN Vault)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS tenant_pin_admin_store (
-    tenant_id INTEGER PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS tenantPin_admin_store (
+    tenantId INTEGER PRIMARY KEY,
     encrypted_pin TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -4066,7 +4065,7 @@ CREATE TABLE IF NOT EXISTS tenant_pin_admin_store (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS tenant_sessions (
     session_id TEXT PRIMARY KEY,
-    tenant_id INTEGER NOT NULL,
+    tenantId INTEGER NOT NULL,
     refresh_token_hash TEXT NOT NULL,
     device_name TEXT,
     browser TEXT,
@@ -4078,7 +4077,7 @@ CREATE TABLE IF NOT EXISTS tenant_sessions (
     revoked_at TEXT,
     remember_me INTEGER DEFAULT 0,
     status TEXT DEFAULT 'Active',
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -4086,7 +4085,7 @@ CREATE TABLE IF NOT EXISTS tenant_sessions (
 -- ============================================================
 CREATE TABLE IF NOT EXISTS tenant_audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tenant_id INTEGER,
+    tenantId INTEGER,
     action TEXT,
     ip_address TEXT,
     created_at TEXT
@@ -4096,10 +4095,10 @@ CREATE TABLE IF NOT EXISTS tenant_audit_logs (
 -- 9. RECEIPTS (Core Billing Data)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS receipts (
-    billno TEXT PRIMARY KEY,
+    billNo TEXT PRIMARY KEY,
     date TEXT NOT NULL,
     month TEXT NOT NULL,
-    tenant_id INTEGER,
+    tenantId INTEGER,
     tenant TEXT NOT NULL,
     previous REAL NOT NULL DEFAULT 0,
     current REAL NOT NULL DEFAULT 0,
@@ -4107,7 +4106,7 @@ CREATE TABLE IF NOT EXISTS receipts (
     rent REAL NOT NULL DEFAULT 0,
     additional REAL NOT NULL DEFAULT 0,
     water REAL NOT NULL DEFAULT 0,
-    tankwater REAL NOT NULL DEFAULT 0,
+    tankWater REAL NOT NULL DEFAULT 0,
     electricity REAL NOT NULL DEFAULT 0,
     total REAL NOT NULL DEFAULT 0,
     pdf TEXT,
@@ -4134,8 +4133,8 @@ CREATE TABLE IF NOT EXISTS receipts (
 -- 10. OCCUPANTS (KYC Data)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS occupants (
-    tenant_id INTEGER NOT NULL,
-    occupant_uuid TEXT PRIMARY KEY,
+    tenantId INTEGER NOT NULL,
+    occupantUuid TEXT PRIMARY KEY,
     name TEXT,
     mobile TEXT,
     status TEXT NOT NULL DEFAULT 'Active',
@@ -4146,7 +4145,7 @@ CREATE TABLE IF NOT EXISTS occupants (
     emp_back TEXT,
     uploaddate TEXT,
     uploadmonth TEXT,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
 );
 
 -- ============================================================
@@ -4155,8 +4154,8 @@ CREATE TABLE IF NOT EXISTS occupants (
 CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant);
 CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
 CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
-CREATE INDEX IF NOT EXISTS idx_receipts_tenant_id ON receipts(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_occupants_tenant_id ON occupants(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
+CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
 ```
 
 ```
@@ -4364,7 +4363,7 @@ if __name__ == "__main__":
 from typing import Optional
 
 class LoginRequest(BaseModel):
-    view_token: str
+    viewToken: str
     pin: str
     remember_me: bool = False
 
@@ -4386,11 +4385,11 @@ class DeviceSession(BaseModel):
 from typing import Optional
 
 class Receipt(BaseModel):
-    billno: str
+    billNo: str
     date: str
     month: str
-    tenant_name: str
-    tenant_id: int
+    tenantName: str
+    tenantId: int
     previous_reading: float
     current_reading: float
     units_consumed: float
@@ -4408,12 +4407,12 @@ class BillRequest(BaseModel):
     month: str
     currentreading: float = Field(..., alias="current_reading")
     additionalpersons: int = Field(0, alias="additional_persons")
-    tankwater: float = Field(0.0, alias="tank_water")
-    maintenancecharge: float = Field(0.0, alias="maintenance_charge")
-    maintenancedesc: str = Field("", alias="maintenance_desc")
-    previousarrears: float = Field(0.0, alias="previous_arrears")
-    amountreceived: Optional[float] = Field(None, alias="amount_received")
-    paymentstatus: str = Field("PENDING", alias="payment_status")
+    tankWater: float = Field(0.0, alias="tankWater")
+    maintenancecharge: float = Field(0.0, alias="MaintenanceCharge")
+    maintenancedesc: str = Field("", alias="MaintenanceDesc")
+    previousarrears: float = Field(0.0, alias="previousArrears")
+    amountreceived: Optional[float] = Field(None, alias="amountReceived")
+    paymentstatus: str = Field("PENDING", alias="paymentStatus")
 
     @field_validator("tenant", "month", "maintenancedesc", mode="before")
     @classmethod
@@ -4427,7 +4426,7 @@ class BillRequest(BaseModel):
             return 0
         return int(v)
 
-    @field_validator("currentreading", "tankwater", "maintenancecharge", "previousarrears", mode="before")
+    @field_validator("currentreading", "tankWater", "maintenancecharge", "previousarrears", mode="before")
     @classmethod
     def normalize_required_floats(cls, v):
         if v in ("", None):
@@ -4449,8 +4448,8 @@ class BillRequest(BaseModel):
 class PaymentStatusUpdate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    paymentstatus: str = Field(..., alias="payment_status")
-    amountreceived: Optional[float] = Field(None, alias="amount_received")
+    paymentstatus: str = Field(..., alias="paymentStatus")
+    amountreceived: Optional[float] = Field(None, alias="amountReceived")
 
     @field_validator("paymentstatus", mode="before")
     @classmethod
@@ -4479,7 +4478,7 @@ class Tenant(BaseModel):
     phone: Optional[str] = ""
     email: Optional[str] = ""
     address: Optional[str] = ""
-    room_number: Optional[str] = ""
+    roomNumber: Optional[str] = ""
     occupation: Optional[str] = ""
     notes: Optional[str] = ""
     status: str = "Active" # Active or Inactive
@@ -4487,22 +4486,22 @@ class Tenant(BaseModel):
     # Billing Profile
     rent: float = 0.0
     water: float = 0.0
-    default_tank_water_charge: float = 0.0
-    electricity_rate: float = 0.0
-    previous_meter: float = 0.0
-    additional_person_charge: float = 0.0
+    defaulttankWaterCharge: float = 0.0
+    electricityRate: float = 0.0
+    previousMeter: float = 0.0
+    additionalPersonCharge: float = 0.0
     
     # Security Profile
-    security_deposit: float = 0.0
+    securityDeposit: float = 0.0
     
     # Utilities
-    meter_id: Optional[str] = ""
+    meterId: Optional[str] = ""
     
     # NEW: Secure access token for public QR profiles
-    view_token: Optional[str] = ""
+    viewToken: Optional[str] = ""
     
     # NEW: Security PIN for Tenant Portal
-    tenant_pin: Optional[str] = None
+    tenantPin: Optional[str] = None
     
     # NEW: Current arrears (balance due)
     arrears: float = 0.0
@@ -4525,7 +4524,7 @@ from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_ARCHIVE, name=Names.ARCHIVE_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGEARCHIVE, name=Names.ARCHIVEPAGE, response_class=HTMLResponse)
 async def archive_page(request: Request):
     receipts = get_all_receipts()
     archived_receipts = [r for r in receipts if r.get("Status") == "ARCHIVED"]
@@ -4550,7 +4549,7 @@ from app.core.routes_manifest import Routes, Names, Templates
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_BACKUPS, name=Names.BACKUPS_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGEBACKUPS, name=Names.BACKUPSPAGE, response_class=HTMLResponse)
 async def backups_page(request: Request):
     theme = getattr(request.state, "theme", "system")
     return templates.TemplateResponse(
@@ -4574,7 +4573,7 @@ from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_BILLING, name=Names.BILLING_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGEBILLING, name=Names.BILLINGPAGE, response_class=HTMLResponse)
 async def billing_page(request: Request):
     tenants = [t for t in load_tenants() if t.status == "Active"]
     theme = getattr(request.state, "theme", "system")
@@ -4605,7 +4604,7 @@ from app.services.billing_service import get_dashboard_stats
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_ROOT, name=Names.HOME, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGEROOT, name=Names.HOME, response_class=HTMLResponse)
 async def dashboard(request: Request):
     stats = get_dashboard_stats()
     theme = getattr(request.state, "theme", "system")
@@ -4675,7 +4674,7 @@ from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_HISTORY, name=Names.HISTORY_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGEHISTORY, name=Names.HISTORYPAGE, response_class=HTMLResponse)
 async def history_page(request: Request):
     receipts = get_all_receipts()
     active_receipts = [r for r in receipts if r.get("Status", "ACTIVE") == "ACTIVE"]
@@ -4735,7 +4734,7 @@ from app.core.routes_manifest import Routes, Names, Templates
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_SETTINGS, name=Names.SETTINGS_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGESETTINGS, name=Names.SETTINGSPAGE, response_class=HTMLResponse)
 async def settings_page(request: Request):
     billing_conf = config.get("billing", {})
     landlord_conf = config.get("landlord", {})
@@ -4791,7 +4790,7 @@ from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_TENANTS, name=Names.TENANTS_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGETENANTS, name=Names.TENANTSPAGE, response_class=HTMLResponse)
 async def tenants_page(request: Request):
     tenants = load_tenants()
     receipts = get_all_receipts()
@@ -4801,13 +4800,13 @@ async def tenants_page(request: Request):
         if active_receipts:
             latest = active_receipts[-1]
             try:
-                grand_total = float(latest.get("Total") or 0.0) + float(latest.get("Previous_Arrears") or 0.0)
-                amount_received_str = latest.get("Amount_Received", "")
-                if amount_received_str in (None, ""):
-                    amount_received = grand_total
+                grandTotal = float(latest.get("Total") or 0.0) + float(latest.get("previousArrears") or 0.0)
+                amountReceived_str = latest.get("amountReceived", "")
+                if amountReceived_str in (None, ""):
+                    amountReceived = grandTotal
                 else:
-                    amount_received = float(amount_received_str)
-                tenant.arrears = grand_total - amount_received
+                    amountReceived = float(amountReceived_str)
+                tenant.arrears = grandTotal - amountReceived
             except ValueError:
                 tenant.arrears = 0.0
         else:
@@ -4859,7 +4858,7 @@ class EncryptedPayload(BaseModel):
 
 # ─── Setup & User Creation ───────────────────────────────────────────
 
-@router.get(Routes.ADMIN_API_SETUP_REQUIRED, name=Names.ADMIN_SETUP_REQUIRED)
+@router.get(Routes.ADMINAPISETUPREQUIRED, name=Names.ADMINSETUPREQUIRED)
 async def check_setup_required():
     """Check if admin setup is required (no admin exists yet)."""
     return {
@@ -4867,7 +4866,7 @@ async def check_setup_required():
         "message": "No admin user found. Please create an admin account to continue." if not admin_exists() else "Admin account exists."
     }
 
-@router.post(Routes.ADMIN_API_SETUP_CREATE, name=Names.ADMIN_SETUP_CREATE)
+@router.post(Routes.ADMINAPISETUPCREATE, name=Names.ADMINSETUPCREATE)
 async def create_first_admin(req: EncryptedPayload):
     """Create the first admin user (only works when no admins exist)."""
     if admin_exists():
@@ -4914,7 +4913,7 @@ async def create_first_admin(req: EncryptedPayload):
 
 # ─── Login Flow ────────────────────────────────────────────────────
 
-@router.post(Routes.ADMIN_API_AUTH_LOGIN, name=Names.ADMIN_LOGIN)
+@router.post(Routes.ADMINAPIAUTHLOGIN, name=Names.ADMINLOGIN)
 async def admin_login(request: Request, login_req: EncryptedPayload):
     """Standard admin login (requires TOTP if configured)."""
     try:
@@ -4953,7 +4952,7 @@ async def admin_login(request: Request, login_req: EncryptedPayload):
     
     return response
 
-@router.post(Routes.ADMIN_API_AUTH_LOGIN_TOTP, name=Names.ADMIN_LOGIN_TOTP)
+@router.post(Routes.ADMINAPIAUTHLOGINTOTP, name=Names.ADMINLOGINTOTP)
 async def admin_login_with_totp(request: Request, login_req: EncryptedPayload):
     """Complete login with TOTP verification."""
     try:
@@ -4992,7 +4991,7 @@ async def admin_login_with_totp(request: Request, login_req: EncryptedPayload):
 
 # ─── Forgot Password ───────────────────────────────────────────────
 
-@router.post(Routes.ADMIN_API_PASSWORD_FORGOT_VERIFY, name=Names.ADMIN_FORGOT_VERIFY)
+@router.post(Routes.ADMINAPIPASSWORDFORGOTVERIFY, name=Names.ADMINFORGOTVERIFY)
 async def verify_forgot_password(req: EncryptedPayload):
     """Verify username and TOTP for password reset."""
     try:
@@ -5021,7 +5020,7 @@ async def verify_forgot_password(req: EncryptedPayload):
         "username": username
     }
 
-@router.post(Routes.ADMIN_API_PASSWORD_FORGOT_RESET, name=Names.ADMIN_FORGOT_RESET)
+@router.post(Routes.ADMINAPIPASSWORDFORGOTRESET, name=Names.ADMINFORGOTRESET)
 async def reset_password(req: EncryptedPayload):
     """Reset password after TOTP verification."""
     try:
@@ -5060,7 +5059,7 @@ async def reset_password(req: EncryptedPayload):
 
 # ─── Refresh Token ─────────────────────────────────────────────────
 
-@router.post(Routes.ADMIN_API_AUTH_REFRESH)
+@router.post(Routes.ADMINAPIAUTHREFRESH)
 async def admin_refresh(request: Request, response: Response):
     """Admin Refresh Token Rotation Flow"""
     refresh_token = request.cookies.get("admin_refresh_token")
@@ -5091,8 +5090,8 @@ async def admin_refresh(request: Request, response: Response):
 
 # ─── Logout ────────────────────────────────────────────────────────
 
-@router.get(Routes.ADMIN_PAGE_LOGOUT, name=Names.ADMIN_LOGOUT)
-async def adminlogout(request: Request):
+@router.get(Routes.ADMINPAGELOGOUT, name=Names.ADMINLOGOUT)
+async def ADMINLOGOUT(request: Request):
     """Logs the admin out and clears cookies"""
     token = request.cookies.get("admin_access_token")
     if token:
@@ -5109,8 +5108,8 @@ async def adminlogout(request: Request):
     clear_admin_auth_cookies(response, request)
     return response
 
-@router.post(Routes.ADMIN_API_AUTH_LOGOUT, name=Names.ADMIN_LOGOUT_JSON)
-async def adminlogoutjson(request: Request, response: Response):
+@router.post(Routes.ADMINAPIAUTHLOGOUT, name=Names.ADMINLOGOUTJSON)
+async def ADMINLOGOUTJSON(request: Request, response: Response):
     """Logs the admin out via JSON request"""
     token = request.cookies.get("admin_access_token")
     if token:
@@ -5129,8 +5128,8 @@ async def adminlogoutjson(request: Request, response: Response):
 from app.authentication.admin.middleware import get_current_admin_api
 from app.core.routes_manifest import Routes
 
-@router.get(Routes.ADMIN_API_AUTH_ME, name=Names.ADMIN_ME)
-async def adminme(admin: dict = Depends(get_current_admin_api)):
+@router.get(Routes.ADMINAPIAUTHME, name=Names.ADMINME)
+async def ADMINME(admin: dict = Depends(get_current_admin_api)):
     """Returns the current admin session info"""
     admin_data = get_admin_by_id(admin.id)
     if not admin_data:
@@ -5144,7 +5143,7 @@ async def adminme(admin: dict = Depends(get_current_admin_api)):
         }
     }
 
-@router.get(Routes.ADMIN_API_TOTP_QR, name=Names.ADMIN_TOTP_QR)
+@router.get(Routes.ADMINAPITOTPQR, name=Names.ADMINTOTPQR)
 async def get_totp_qr(admin: dict = Depends(get_current_admin_api)):
     """Get TOTP QR code and secret for current admin."""
     admin_data = get_admin_by_id(admin.id)
@@ -5162,7 +5161,7 @@ async def get_totp_qr(admin: dict = Depends(get_current_admin_api)):
         }
     }
 
-@router.post(Routes.ADMIN_API_TOTP_REGENERATE, name=Names.ADMIN_TOTP_REGENERATE)
+@router.post(Routes.ADMINAPITOTPREGENERATE, name=Names.ADMINTOTPREGENERATE)
 async def regenerate_totp(req: EncryptedPayload, admin: dict = Depends(get_current_admin_api)):
     """Regenerate TOTP secret (requires password confirmation)."""
     admin_data = get_admin_by_id(admin.id)
@@ -5193,7 +5192,7 @@ async def regenerate_totp(req: EncryptedPayload, admin: dict = Depends(get_curre
 
 # ─── Public Key for Encryption ─────────────────────────────────────
 
-@router.get(Routes.ADMIN_API_AUTH_PUBLIC_KEY, name=Names.ADMIN_PUBLIC_KEY)
+@router.get(Routes.ADMINAPIAUTHPUBLICKEY, name=Names.ADMINPUBLICKEY)
 async def admin_public_key():
     from app.encryption import get_public_key_pem
     return {"publicKey": get_public_key_pem()}
@@ -5217,9 +5216,9 @@ from app.core.routes_manifest import Routes, Names  # ADD Names import
 router = APIRouter(tags=["Authentication"])
 
 
-def _verify_tenant_view_token(request: Request, view_token: str) -> None:
+def _verify_tenant_viewToken(request: Request, viewToken: str) -> None:
     """
-    Validates that the view_token in the URL path matches the tenant 
+    Validates that the viewToken in the URL path matches the tenant 
     identity from the JWT cookie. Prevents cross-tenant session attacks.
     """
     token = request.cookies.get("tenant_access_token")
@@ -5229,15 +5228,15 @@ def _verify_tenant_view_token(request: Request, view_token: str) -> None:
     from app.authentication.tenant.jwt import decode_tenant_access_token
     try:
         payload = decode_tenant_access_token(token)
-        tenant_id = int(payload.get("tenant_id") or payload.get("sub"))
+        tenantId = int(payload.get("tenantId") or payload.get("sub"))
         
-        # Look up tenant's view_token from database
+        # Look up tenant's viewToken from database
         tenants = load_tenants()
-        tenant = next((t for t in tenants if t.id == tenant_id), None)
+        tenant = next((t for t in tenants if t.id == tenantId), None)
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
         
-        if getattr(tenant, "view_token", "") != view_token:
+        if getattr(tenant, "viewToken", "") != viewToken:
             raise HTTPException(status_code=403, detail="View token mismatch")
             
     except HTTPException:
@@ -5246,15 +5245,15 @@ def _verify_tenant_view_token(request: Request, view_token: str) -> None:
         raise HTTPException(status_code=401, detail="Invalid access token")
 
 
-@router.post(Routes.TENANT_API_AUTH_LOGIN)
-async def auth_login(view_token: str, request: Request, response: Response, payload: LoginRequest):
-    """Unchanged - login already receives view_token via path"""
+@router.post(Routes.TENANTAPIAUTHLOGIN)
+async def auth_login(viewToken: str, request: Request, response: Response, payload: LoginRequest):
+    """Unchanged - login already receives viewToken via path"""
     ip = request.client.host if request.client else "Unknown IP"
     
     with get_conn() as conn:
         tenant = conn.execute(
-            "SELECT id, tenantpin, failed_attempts, locked_until FROM tenants WHERE view_token = ?", 
-            (payload.view_token,)
+            "SELECT id, tenantpin, failed_attempts, locked_until FROM tenants WHERE viewToken = ?", 
+            (payload.viewToken,)
         ).fetchone()
         
     if not tenant:
@@ -5304,15 +5303,15 @@ async def auth_login(view_token: str, request: Request, response: Response, payl
     return {"status": "success", "message": "Logged in successfully"}
 
 
-@router.post(Routes.TENANT_API_AUTH_REFRESH)
+@router.post(Routes.TENANTAPIAUTHREFRESH)
 async def auth_refresh(
-    view_token: str = Path(..., description="Tenant view token from URL"),
+    viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None, 
     response: Response = None
 ):
-    """Tenant Refresh Token Rotation Flow — now requires view_token in path"""
-    # Security: Validate URL view_token matches cookie JWT identity
-    _verify_tenant_view_token(request, view_token)
+    """Tenant Refresh Token Rotation Flow — now requires viewToken in path"""
+    # Security: Validate URL viewToken matches cookie JWT identity
+    _verify_tenant_viewToken(request, viewToken)
     
     refresh_token = request.cookies.get("tenant_refresh_token")
     if not refresh_token:
@@ -5334,8 +5333,8 @@ async def auth_refresh(
     revoke_tenant_session_db(session_id) 
     
     # Generate new session & tokens
-    new_session_id, new_refresh_token = create_tenant_session(session["tenant_id"], request, remember_me=True)
-    new_access_token = create_tenant_access_token(session["tenant_id"], new_session_id)
+    new_session_id, new_refresh_token = create_tenant_session(session["tenantId"], request, remember_me=True)
+    new_access_token = create_tenant_access_token(session["tenantId"], new_session_id)
     
     # Format cookie value correctly
     new_cookie_val = f"{new_session_id}:{new_refresh_token}"
@@ -5344,15 +5343,15 @@ async def auth_refresh(
     return {"status": "success", "message": "Tokens refreshed silently"}
 
 
-@router.post(Routes.TENANT_API_AUTH_LOGOUT)
+@router.post(Routes.TENANTAPIAUTHLOGOUT)
 async def auth_logout(
-    view_token: str = Path(..., description="Tenant view token from URL"),
+    viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None, 
     response: Response = None
 ):
-    """Tenant logout — now requires view_token in path"""
-    # Security: Validate URL view_token matches cookie JWT identity
-    _verify_tenant_view_token(request, view_token)
+    """Tenant logout — now requires viewToken in path"""
+    # Security: Validate URL viewToken matches cookie JWT identity
+    _verify_tenant_viewToken(request, viewToken)
     
     token = request.cookies.get("tenant_access_token")
     if token:
@@ -5360,7 +5359,7 @@ async def auth_logout(
             from app.authentication.tenant.jwt import decode_tenant_access_token
             payload = decode_tenant_access_token(token)
             revoke_tenant_session_db(payload.get("sid"))
-            log_audit(int(payload.get("tenant_id") or payload.get("sub")), "Logout Success", request.client.host)
+            log_audit(int(payload.get("tenantId") or payload.get("sub")), "Logout Success", request.client.host)
         except Exception:
             pass
             
@@ -5368,15 +5367,15 @@ async def auth_logout(
     return {"status": "success"}
 
 
-@router.post(Routes.TENANT_API_AUTH_LOGOUT_ALL)
+@router.post(Routes.TENANTAPIAUTHLOGOUTALL)
 async def auth_logout_all(
-    view_token: str = Path(..., description="Tenant view token from URL"),
+    viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None,
     principal = Depends(get_current_tenant)
 ):
-    """Logout all devices — now requires view_token in path"""
-    # Security: Validate URL view_token matches cookie JWT identity
-    _verify_tenant_view_token(request, view_token)
+    """Logout all devices — now requires viewToken in path"""
+    # Security: Validate URL viewToken matches cookie JWT identity
+    _verify_tenant_viewToken(request, viewToken)
     
     revoke_all_tenant_sessions(principal.id)
     return {"status": "success", "message": "All devices logged out"}
@@ -5395,12 +5394,12 @@ async def auth_logout_all(
 
 # router = APIRouter(tags=["Authentication"])
 
-# @router.post(Routes.TENANT_API_AUTH_LOGIN)
-# async def auth_login(view_token: str, request: Request, response: Response, payload: LoginRequest):
+# @router.post(Routes.TENANTAPIAUTHLOGIN)
+# async def auth_login(viewToken: str, request: Request, response: Response, payload: LoginRequest):
 #     ip = request.client.host if request.client else "Unknown IP"
     
 #     with get_conn() as conn:
-#         tenant = conn.execute("SELECT id, tenantpin, failed_attempts, locked_until FROM tenants WHERE view_token = ?", (payload.view_token,)).fetchone()
+#         tenant = conn.execute("SELECT id, tenantpin, failed_attempts, locked_until FROM tenants WHERE viewToken = ?", (payload.viewToken,)).fetchone()
         
 #     if not tenant:
 #         raise HTTPException(status_code=404, detail="Invalid profile link.")
@@ -5442,7 +5441,7 @@ async def auth_logout_all(
     
 #     return {"status": "success", "message": "Logged in successfully"}
 
-# @router.post(Routes.TENANT_API_AUTH_REFRESH)
+# @router.post(Routes.TENANTAPIAUTHREFRESH)
 # async def auth_refresh(request: Request, response: Response):
 #     """Tenant Refresh Token Rotation Flow"""
 #     refresh_token = request.cookies.get("tenant_refresh_token")
@@ -5465,8 +5464,8 @@ async def auth_logout_all(
 #     revoke_tenant_session_db(session_id) 
     
 #     # Generate new session & tokens
-#     new_session_id, new_refresh_token = create_tenant_session(session["tenant_id"], request, remember_me=True)
-#     new_access_token = create_tenant_access_token(session["tenant_id"], new_session_id)
+#     new_session_id, new_refresh_token = create_tenant_session(session["tenantId"], request, remember_me=True)
+#     new_access_token = create_tenant_access_token(session["tenantId"], new_session_id)
     
 #     # Format cookie value correctly
 #     new_cookie_val = f"{new_session_id}:{new_refresh_token}"
@@ -5474,7 +5473,7 @@ async def auth_logout_all(
     
 #     return {"status": "success", "message": "Tokens refreshed silently"}
 
-# @router.post(Routes.TENANT_API_AUTH_LOGOUT)
+# @router.post(Routes.TENANTAPIAUTHLOGOUT)
 # async def auth_logout(request: Request, response: Response):
 #     token = request.cookies.get("tenant_access_token")
 #     if token:
@@ -5482,14 +5481,14 @@ async def auth_logout_all(
 #             from app.authentication.tenant.jwt import decode_tenant_access_token
 #             payload = decode_tenant_access_token(token)
 #             revoke_tenant_session_db(payload.get("sid"))
-#             log_audit(int(payload.get("tenant_id") or payload.get("sub")), "Logout Success", request.client.host)
+#             log_audit(int(payload.get("tenantId") or payload.get("sub")), "Logout Success", request.client.host)
 #         except Exception:
 #             pass
             
 #     clear_tenant_auth_cookies(response, request)
 #     return {"status": "success"}
 
-# @router.post(Routes.TENANT_API_AUTH_LOGOUT_ALL)
+# @router.post(Routes.TENANTAPIAUTHLOGOUTALL)
 # async def auth_logout_all(principal = Depends(get_current_tenant)):
 #     revoke_all_tenant_sessions(principal.id)
 #     return {"status": "success", "message": "All devices logged out"}
@@ -5581,7 +5580,7 @@ def hash_directory(dirpath):
                 pass
     return h.hexdigest()
 
-def create_manifest(backup_id, backup_type, timestamp_str):
+def create_manifest(backupId, backup_type, timestamp_str):
     schema_conf = config.get("schema", {})
     return {
         "application": "Rent Receipt System",
@@ -5590,7 +5589,7 @@ def create_manifest(backup_id, backup_type, timestamp_str):
         "created": timestamp_str,
         "platform": platform.system(),
         "backup_type": backup_type,
-        "backup_id": backup_id
+        "backupId": backupId
     }
 
 def get_db_stats():
@@ -5619,13 +5618,13 @@ def get_db_stats():
                 
     return receipt_count, archived_count, tenant_count, inactive_tenant_count, pdf_count
 
-def create_metadata(backup_id, backup_type, timestamp_str):
+def create_metadata(backupId, backup_type, timestamp_str):
     schema_conf = config.get("schema", {})
     ui_conf = config.get("ui", {})
     r_count, arc_count, t_count, it_count, p_count = get_db_stats()
     
     metadata = {
-        "id": backup_id,
+        "id": backupId,
         "type": backup_type,
         "date": timestamp_str,
         "application_version": "3.0.0",
@@ -5658,7 +5657,7 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
     start_time = datetime.now()
     timestamp = start_time.strftime("%Y%m%d_%H%M%S")
     timestamp_iso = start_time.isoformat()
-    backup_id = f"BKP-{start_time.strftime('%Y%m%d-%H%M%S')}"
+    backupId = f"BKP-{start_time.strftime('%Y%m%d-%H%M%S')}"
     
     if type_ == "Restore Point":
         dest_folder = "restore_points"
@@ -5688,11 +5687,11 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
                 shutil.copytree(real_path, os.path.join(temp_dir, legacy_name))
                 
         # Generate manifest & metadata
-        manifest = create_manifest(backup_id, type_, timestamp_iso)
+        manifest = create_manifest(backupId, type_, timestamp_iso)
         with open(os.path.join(temp_dir, "manifest.json"), "w") as f:
             json.dump(manifest, f, indent=4)
             
-        metadata = create_metadata(backup_id, type_, timestamp_iso)
+        metadata = create_metadata(backupId, type_, timestamp_iso)
         if tag:
             metadata["notes"] = tag
             
@@ -5717,7 +5716,7 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
         save_registry(registry)
         
         duration = int((datetime.now() - start_time).total_seconds() * 1000)
-        _log("Backup", type_, "Success", duration, {"backup_id": backup_id, "path": rel_path})
+        _log("Backup", type_, "Success", duration, {"backupId": backupId, "path": rel_path})
         
         # Cleanup old backups depending on type (implement later in 14B)
         
@@ -5745,9 +5744,9 @@ def create_full_backup(tag="auto"):
 def get_all_backups():
     return load_registry()
 
-def verify_backup_integrity(backup_id):
+def verify_backup_integrity(backupId):
     registry = load_registry()
-    backup_meta = next((b for b in registry["backups"] if b["id"] == backup_id), None)
+    backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
     if not backup_meta:
         raise Exception("Backup not found in registry")
         
@@ -5761,17 +5760,17 @@ def verify_backup_integrity(backup_id):
         
     return True
 
-def restore_backup(backup_id):
+def restore_backup(backupId):
     start_time = datetime.now()
     try:
-        verify_backup_integrity(backup_id)
+        verify_backup_integrity(backupId)
         
         registry = load_registry()
-        backup_meta = next((b for b in registry["backups"] if b["id"] == backup_id))
+        backup_meta = next((b for b in registry["backups"] if b["id"] == backupId))
         abs_path = os.path.join(BACKUP_DIR, backup_meta["path"])
         
         # 1. Create Temporary Backup (Rollback Point)
-        temp_backup = create_backup(type_="Emergency", subtype="before_restore", tag=f"Before restoring {backup_id}")
+        temp_backup = create_backup(type_="Emergency", subtype="before_restore", tag=f"Before restoring {backupId}")
         temp_abs_path = os.path.join(BACKUP_DIR, temp_backup["path"])
         
         # 2. Extract Backup to staging
@@ -5799,18 +5798,18 @@ def restore_backup(backup_id):
         shutil.rmtree(staging_dir, ignore_errors=True)
         
         duration = int((datetime.now() - start_time).total_seconds() * 1000)
-        _log("Restore", "Full", "Success", duration, {"backup_id": backup_id})
+        _log("Restore", "Full", "Success", duration, {"backupId": backupId})
         return True
         
     except Exception as e:
         duration = int((datetime.now() - start_time).total_seconds() * 1000)
-        _log("Restore", "Full", "Failed", duration, {"error": str(e), "backup_id": backup_id})
+        _log("Restore", "Full", "Failed", duration, {"error": str(e), "backupId": backupId})
         raise e
 
-def delete_backup(backup_id):
+def delete_backup(backupId):
     registry = load_registry()
     for i, b in enumerate(registry["backups"]):
-        if b["id"] == backup_id:
+        if b["id"] == backupId:
             abs_path = os.path.join(BACKUP_DIR, b["path"])
             if os.path.exists(abs_path):
                 try:
@@ -5837,132 +5836,132 @@ from app.services.pdf_service import generate_professional_pdf
 
 from app.core.paths import DB_DIR, BACKUPS_DIR as BACKUP_DIR, RECEIPTS_DIR
 
-def get_bill_details(billno):
+def get_bill_details(billNo):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (billno,)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
     if row:
         return _row_to_dict(row)
     return None
 
-def resolve_payment_state(current_total, previous_arrears=0.0, amount_received=None):
-    current_total = float(current_total or 0)
-    previous_arrears = float(previous_arrears or 0)
-    grand_total = round(current_total + previous_arrears, 2)
-    received = round(float(amount_received or 0), 2)
+def resolve_payment_state(currentTotal, previousArrears=0.0, amountReceived=None):
+    currentTotal = float(currentTotal or 0)
+    previousArrears = float(previousArrears or 0)
+    grandTotal = round(currentTotal + previousArrears, 2)
+    received = round(float(amountReceived or 0), 2)
 
     if received <= 0:
         return {
-            "payment_status": "PENDING",
-            "grand_total": grand_total,
-            "amount_received": 0.0,
-            "balance_due": max(grand_total, 0.0),
-            "advance_amount": max(-grand_total, 0.0) if grand_total < 0 else 0.0
+            "paymentStatus": "PENDING",
+            "grandTotal": grandTotal,
+            "amountReceived": 0.0,
+            "balanceDue": max(grandTotal, 0.0),
+            "advanceAmount": max(-grandTotal, 0.0) if grandTotal < 0 else 0.0
         }
 
-    if received < grand_total:
+    if received < grandTotal:
         return {
-            "payment_status": "PARTIAL",
-            "grand_total": grand_total,
-            "amount_received": received,
-            "balance_due": round(grand_total - received, 2),
-            "advance_amount": 0.0
+            "paymentStatus": "PARTIAL",
+            "grandTotal": grandTotal,
+            "amountReceived": received,
+            "balanceDue": round(grandTotal - received, 2),
+            "advanceAmount": 0.0
         }
 
-    if received == grand_total:
+    if received == grandTotal:
         return {
-            "payment_status": "PAID",
-            "grand_total": grand_total,
-            "amount_received": received,
-            "balance_due": 0.0,
-            "advance_amount": 0.0
+            "paymentStatus": "PAID",
+            "grandTotal": grandTotal,
+            "amountReceived": received,
+            "balanceDue": 0.0,
+            "advanceAmount": 0.0
         }
 
     return {
-        "payment_status": "ADVANCE",
-        "grand_total": grand_total,
-        "amount_received": received,
-        "balance_due": 0.0,
-        "advance_amount": round(received - grand_total, 2)
+        "paymentStatus": "ADVANCE",
+        "grandTotal": grandTotal,
+        "amountReceived": received,
+        "balanceDue": 0.0,
+        "advanceAmount": round(received - grandTotal, 2)
     }
 
-# def update_payment_status(billno, requested_status, amount_received=None):
+# def update_paymentStatus(billNo, requestedStatus, amountReceived=None):
 #     from app.core.db import get_conn
 #     with get_conn() as conn:
-#         row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (billno,)).fetchone()
+#         row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
 #         if not row:
 #             raise ValueError("Receipt not found")
         
-#         current_total = float(row["total"])
-#         previous_arrears = float(row["previousarrears"])
+#         currentTotal = float(row["total"])
+#         previousArrears = float(row["previousarrears"])
         
 #         state = resolve_payment_state(
-#             current_total,
-#             previous_arrears=previous_arrears,
-#             amount_received=amount_received
+#             currentTotal,
+#             previousArrears=previousArrears,
+#             amountReceived=amountReceived
 #         )
-#         status = state["payment_status"]
-#         final_received = state["amount_received"]
+#         status = state["paymentStatus"]
+#         final_received = state["amountReceived"]
         
-#         if requested_status in ["PENDING", "PARTIAL"]:
-#             status = requested_status
+#         if requestedStatus in ["PENDING", "PARTIAL"]:
+#             status = requestedStatus
 
 #         conn.execute("""
 #             UPDATE receipts 
 #             SET paymentstatus = ?, amountreceived = ?
-#             WHERE billno = ?
-#         """, (status, final_received, billno))
+#             WHERE billNo = ?
+#         """, (status, final_received, billNo))
 #         conn.commit()
 #     return status
-def update_payment_status(billno, requested_status, amount_received=None):
+def update_paymentStatus(billNo, requestedStatus, amountReceived=None):
     from app.core.db import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (billno,)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         
-        current_total = float(row["total"])
-        previous_arrears = float(row["previousarrears"])
-        grand_total = round(current_total + previous_arrears, 2)
+        currentTotal = float(row["total"])
+        previousArrears = float(row["previousarrears"])
+        grandTotal = round(currentTotal + previousArrears, 2)
         
         # Determine final amount
-        if amount_received is None:
-            amount_received = grand_total if requested_status == "PAID" else 0.0
+        if amountReceived is None:
+            amountReceived = grandTotal if requestedStatus == "PAID" else 0.0
         
-        amount_received = round(float(amount_received), 2)
+        amountReceived = round(float(amountReceived), 2)
         
-        # VALIDATE: requested_status must match amount logic, OR auto-calculate
-        calculated_status = "PENDING"
-        if amount_received <= 0:
-            calculated_status = "PENDING"
-        elif amount_received < grand_total:
-            calculated_status = "PARTIAL"
-        elif amount_received == grand_total:
-            calculated_status = "PAID"
+        # VALIDATE: requestedStatus must match amount logic, OR auto-calculate
+        calculatedStatus = "PENDING"
+        if amountReceived <= 0:
+            calculatedStatus = "PENDING"
+        elif amountReceived < grandTotal:
+            calculatedStatus = "PARTIAL"
+        elif amountReceived == grandTotal:
+            calculatedStatus = "PAID"
         else:
-            calculated_status = "ADVANCE"
+            calculatedStatus = "ADVANCE"
         
         # Use requested status if it matches the amount logic, otherwise use calculated
         # This allows explicit control while preventing invalid combinations
-        final_status = requested_status
+        finalStatus = requestedStatus
         
         # Validate consistency (optional strict mode)
-        if requested_status == "PAID" and amount_received != grand_total:
-            raise ValueError(f"PAID status requires amount = {grand_total}, got {amount_received}")
-        if requested_status == "PARTIAL" and (amount_received <= 0 or amount_received >= grand_total):
-            raise ValueError(f"PARTIAL status requires 0 < amount < {grand_total}")
-        if requested_status == "ADVANCE" and amount_received <= grand_total:
-            raise ValueError(f"ADVANCE status requires amount > {grand_total}")
-        if requested_status == "PENDING" and amount_received != 0:
+        if requestedStatus == "PAID" and amountReceived != grandTotal:
+            raise ValueError(f"PAID status requires amount = {grandTotal}, got {amountReceived}")
+        if requestedStatus == "PARTIAL" and (amountReceived <= 0 or amountReceived >= grandTotal):
+            raise ValueError(f"PARTIAL status requires 0 < amount < {grandTotal}")
+        if requestedStatus == "ADVANCE" and amountReceived <= grandTotal:
+            raise ValueError(f"ADVANCE status requires amount > {grandTotal}")
+        if requestedStatus == "PENDING" and amountReceived != 0:
             raise ValueError("PENDING status requires amount = 0")
         
         conn.execute("""
             UPDATE receipts 
             SET paymentstatus = ?, amountreceived = ?
-            WHERE billno = ?
-        """, (final_status, amount_received, billno))
+            WHERE billNo = ?
+        """, (finalStatus, amountReceived, billNo))
         conn.commit()
     
-    return final_status
+    return finalStatus
     
 def _safe_float(val, default=0.0) -> float:
     try:
@@ -5983,18 +5982,18 @@ def _row_to_dict(row):
         row = dict(row)
         
     return {
-        "Bill": row.get("billno", ""),
+        "Bill": row.get("billNo", ""),
         "Date": row.get("date", ""),
         "Month": row.get("month", ""),
         "Tenant": row.get("tenant", ""),
-        "TenantId": row.get("tenant_id", 0) or 0,
+        "TenantId": row.get("tenantId", 0) or 0,
         "Previous": _safe_float(row.get("previous")),
         "Current": _safe_float(row.get("current")),
         "Units": _safe_float(row.get("units")),
         "Rent": _safe_float(row.get("rent")),
         "Additional": _safe_float(row.get("additional")),
         "Water": _safe_float(row.get("water")),
-        "Tank_Water": _safe_float(row.get("tankwater")),
+        "tankWater": _safe_float(row.get("tankWater")),
         "Electricity": _safe_float(row.get("electricity")),
         "Total": _safe_float(row.get("total")),
         "PDF": row.get("pdf", "") or "",
@@ -6007,14 +6006,14 @@ def _row_to_dict(row):
         "Archived_By": row.get("archivedby", "") or "",
         "Deleted_Date": row.get("deleteddate", "") or "",
         "Additional_Persons": _safe_int(row.get("additionalpersons")),
-        "Additional_Person_Rate": _safe_float(row.get("additionalpersonrate")),
+        "additionalPersonRate": _safe_float(row.get("additionalpersonrate")),
         "Receipt_Version": _safe_int(row.get("receiptversion")),
         "Generated_By": row.get("generatedby", "Admin") or "Admin",
-        "Payment_Status": row.get("paymentstatus", "PENDING") or "PENDING",
-        "Maintenance_Charge": _safe_float(row.get("maintenancecharge")),
-        "Maintenance_Desc": row.get("maintenancedesc", "") or "",
-        "Previous_Arrears": _safe_float(row.get("previousarrears")),
-        "Amount_Received": _safe_float(row.get("amountreceived")),
+        "paymentStatus": row.get("paymentstatus", "PENDING") or "PENDING",
+        "MaintenanceCharge": _safe_float(row.get("maintenancecharge")),
+        "MaintenanceDesc": row.get("maintenancedesc", "") or "",
+        "previousArrears": _safe_float(row.get("previousarrears")),
+        "amountReceived": _safe_float(row.get("amountreceived")),
     }
 
 def get_all_receipts():
@@ -6022,34 +6021,34 @@ def get_all_receipts():
         rows = conn.execute("SELECT * FROM receipts ORDER BY rowid DESC").fetchall()
     return [_row_to_dict(r) for r in rows]
 
-def get_receipt(billno):
+def get_receipt(billNo):
     receipts = get_all_receipts()
     for r in receipts:
-        if r["Bill"] == billno:
+        if r["Bill"] == billNo:
             return r
     return None
 
-def get_latest_receipt(tenant_name: str, exclude_bill_no: str = None):
+def get_latest_receipt(tenantName: str, exclude_BillNo: str = None):
     with get_conn() as conn:
         query = "SELECT * FROM receipts WHERE tenant COLLATE NOCASE = ? AND status != 'ARCHIVED'"
-        params = [tenant_name]
-        if exclude_bill_no:
-            query += " AND billno != ?"
-            params.append(exclude_bill_no)
+        params = [tenantName]
+        if exclude_BillNo:
+            query += " AND billNo != ?"
+            params.append(exclude_BillNo)
         query += " ORDER BY rowid DESC LIMIT 1"
         row = conn.execute(query, tuple(params)).fetchone()
     if row:
         return _row_to_dict(row)
     return None
 
-def resolve_previous_reading(tenant_name: str, exclude_bill_no: str = None) -> float:
+def resolve_previous_reading(tenantName: str, exclude_BillNo: str = None) -> float:
     from app.services.tenant_service import get_tenant_by_name
-    latest = get_latest_receipt(tenant_name, exclude_bill_no)
+    latest = get_latest_receipt(tenantName, exclude_BillNo)
     if latest:
         return float(latest.get("Current", 0) or 0)
-    tenant = get_tenant_by_name(tenant_name)
+    tenant = get_tenant_by_name(tenantName)
     if tenant:
-        return float(getattr(tenant, "previous_meter", 0) or 0)
+        return float(getattr(tenant, "previousMeter", 0) or 0)
     return 0.0
 
 def get_billing_months():
@@ -6068,17 +6067,17 @@ def get_billing_months():
         "months": months_list
     }
 
-def calculate_charges(current_reading, additional_persons, prev_reading, rent, water, tank_water, maintenance_charge, rate, add_person_charge):
+def calculate_charges(current_reading, additional_persons, prev_reading, rent, water, tankWater, MaintenanceCharge, rate, add_person_charge):
     units = max(0.0, current_reading - prev_reading)
     electricity = units * rate
     additional = additional_persons * add_person_charge
-    total = rent + additional + water + tank_water + maintenance_charge + electricity
+    total = rent + additional + water + tankWater + MaintenanceCharge + electricity
     
     return {
         "rent": rent,
         "water": water,
-        "tank_water": tank_water,
-        "maintenance_charge": maintenance_charge,
+        "tankWater": tankWater,
+        "MaintenanceCharge": MaintenanceCharge,
         "rate": rate,
         "additional": additional,
         "units": units,
@@ -6087,8 +6086,8 @@ def calculate_charges(current_reading, additional_persons, prev_reading, rent, w
         "previous": prev_reading
     }
 
-def create_bill(tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, 
-                maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
+def create_bill(tenantName, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
+                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING"):
     from app.core.db import get_conn
     from datetime import datetime
     from app.services.tenant_service import load_tenants
@@ -6097,7 +6096,7 @@ def create_bill(tenant_name, month, current_reading, additional_persons, tank_wa
     from app.services.pdf_service import generate_professional_pdf
     
     tenants = load_tenants()
-    tenant = next((t for t in tenants if t.name == tenant_name), None)
+    tenant = next((t for t in tenants if t.name == tenantName), None)
     if not tenant:
         raise ValueError("Tenant not found")
 
@@ -6105,66 +6104,66 @@ def create_bill(tenant_name, month, current_reading, additional_persons, tank_wa
     # Count existing receipts for THIS specific tenant
     with get_conn() as conn:
         tenant_receipt_count = conn.execute(
-            "SELECT COUNT(*) FROM receipts WHERE tenant_id = ?", 
+            "SELECT COUNT(*) FROM receipts WHERE tenantId = ?", 
             (tenant.id,)
         ).fetchone()[0]
     
-    # Format: T{tenant_id}-{sequence:03d}  e.g., T1-001, T1-002, T2-001
+    # Format: T{tenantId}-{sequence:03d}  e.g., T1-001, T1-002, T2-001
     receipt_seq = tenant_receipt_count + 1
-    billno = f"T{tenant.id}-{receipt_seq:03d}"
+    billNo = f"T{tenant.id}-{receipt_seq:03d}"
     
     current_date = datetime.now().strftime("%Y-%m-%d")
     
-    prev = resolve_previous_reading(tenant_name)
+    prev = resolve_previous_reading(tenantName)
     if prev > 0 and current_reading < prev:
         raise ValueError("Current meter reading cannot be less than previous reading.")
     
     charges = calculate_charges(
         current_reading, additional_persons, prev,
-        tenant.rent, tenant.water, tank_water, maintenance_charge,
-        tenant.electricity_rate, tenant.additional_person_charge
+        tenant.rent, tenant.water, tankWater, MaintenanceCharge,
+        tenant.electricityRate, tenant.additionalPersonCharge
     )
     
-    if payment_status == "PAID" and amount_received is None:
-        amount_received = charges["total"] + previous_arrears
-    elif amount_received is None:
-        amount_received = 0.0
+    if paymentStatus == "PAID" and amountReceived is None:
+        amountReceived = charges["total"] + previousArrears
+    elif amountReceived is None:
+        amountReceived = 0.0
     
-    pdf_filename = f"{billno}_{tenant_name.replace(' ', '_')}_{month.replace(' ', '_')}.pdf"
+    pdf_filename = f"{billNo}_{tenantName.replace(' ', '_')}_{month.replace(' ', '_')}.pdf"
     pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
     receipt_dict = {
-        "Bill": billno,
+        "Bill": billNo,
         "Date": current_date,
         "Month": month,
-        "Tenant": tenant_name,
+        "Tenant": tenantName,
         "Previous": prev,
         "Current": current_reading,
         "Units": charges["units"],
         "Rent": tenant.rent,
         "Additional": charges["additional"],
         "Water": tenant.water,
-        "Tank_Water": tank_water,
+        "tankWater": tankWater,
         "Electricity": charges["electricity"],
         "Total": charges["total"],
         "PDF": pdf_filename,
         "Tenant_Phone": tenant.phone,
         "Tenant_Company": tenant.company,
         "Tenant_Address": tenant.address,
-        "Rate": tenant.electricity_rate,
+        "Rate": tenant.electricityRate,
         "Status": "ACTIVE",
         "Archived_Date": "",
         "Archived_By": "",
         "Deleted_Date": "",
         "Additional_Persons": additional_persons,
-        "Additional_Person_Rate": tenant.additional_person_charge,
+        "additionalPersonRate": tenant.additionalPersonCharge,
         "Receipt_Version": 8,
         "Generated_By": "Admin",
-        "Payment_Status": payment_status,
-        "Maintenance_Charge": maintenance_charge,
-        "Maintenance_Desc": maintenance_desc,
-        "Previous_Arrears": previous_arrears,
-        "Amount_Received": amount_received
+        "paymentStatus": paymentStatus,
+        "MaintenanceCharge": MaintenanceCharge,
+        "MaintenanceDesc": MaintenanceDesc,
+        "previousArrears": previousArrears,
+        "amountReceived": amountReceived
     }
     
     try:
@@ -6176,26 +6175,26 @@ def create_bill(tenant_name, month, current_reading, additional_persons, tank_wa
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO receipts (
-                billno, date, month, tenant_id, tenant, previous, current, units, rent,
-                additional, water, tankwater, electricity, total, pdf,
+                billNo, date, month, tenantId, tenant, previous, current, units, rent,
+                additional, water, tankWater, electricity, total, pdf,
                 tenantphone, tenantcompany, tenantaddress, rate, status,
                 archiveddate, archivedby, deleteddate, additionalpersons,
                 additionalpersonrate, receiptversion, generatedby, paymentstatus,
                 maintenancecharge, maintenancedesc, previousarrears, amountreceived
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            billno, current_date, month, tenant.id, tenant_name, prev, current_reading,
-            charges["units"], tenant.rent, charges["additional"], tenant.water, tank_water,
+            billNo, current_date, month, tenant.id, tenantName, prev, current_reading,
+            charges["units"], tenant.rent, charges["additional"], tenant.water, tankWater,
             charges["electricity"], charges["total"], pdf_filename, tenant.phone, tenant.company,
-            tenant.address, tenant.electricity_rate, "ACTIVE", "", "", "",
-            additional_persons, tenant.additional_person_charge, 8, "Admin",
-            payment_status, maintenance_charge, maintenance_desc, previous_arrears, amount_received
+            tenant.address, tenant.electricityRate, "ACTIVE", "", "", "",
+            additional_persons, tenant.additionalPersonCharge, 8, "Admin",
+            paymentStatus, MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived
         ))
         conn.commit()
 
     return receipt_dict
-def update_bill(billno, tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, 
-                maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
+def update_bill(billNo, tenantName, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
+                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING"):
     from app.core.db import get_conn
     from app.services.tenant_service import load_tenants
     from app.services.pdf_service import generate_professional_pdf
@@ -6203,13 +6202,13 @@ def update_bill(billno, tenant_name, month, current_reading, additional_persons,
     from app.core.paths import RECEIPTS_DIR
     
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (billno,)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         old_receipt = dict(row)
 
     tenants = load_tenants()
-    tenant = next((t for t in tenants if t.name == tenant_name), None)
+    tenant = next((t for t in tenants if t.name == tenantName), None)
     if not tenant:
         raise ValueError("Tenant not found")
         
@@ -6219,50 +6218,50 @@ def update_bill(billno, tenant_name, month, current_reading, additional_persons,
         
     charges = calculate_charges(
         current_reading, additional_persons, prev,
-        tenant.rent, tenant.water, tank_water, maintenance_charge,
-        tenant.electricity_rate, tenant.additional_person_charge
+        tenant.rent, tenant.water, tankWater, MaintenanceCharge,
+        tenant.electricityRate, tenant.additionalPersonCharge
     )
     
-    if payment_status == "PAID" and amount_received is None:
-        amount_received = charges["total"] + previous_arrears
-    elif amount_received is None:
-        amount_received = 0.0
+    if paymentStatus == "PAID" and amountReceived is None:
+        amountReceived = charges["total"] + previousArrears
+    elif amountReceived is None:
+        amountReceived = 0.0
         
-    pdf_filename = old_receipt.get("pdf", f"{billno}_{tenant_name.replace(' ', '_')}_{month.replace(' ', '_')}.pdf")
+    pdf_filename = old_receipt.get("pdf", f"{billNo}_{tenantName.replace(' ', '_')}_{month.replace(' ', '_')}.pdf")
     pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
     updated_dict = {
-        "Bill": billno,
+        "Bill": billNo,
         "Date": old_receipt["date"],
         "Month": month,
-        "Tenant": tenant_name,
+        "Tenant": tenantName,
         "Previous": old_receipt["previous"],
         "Current": current_reading,
         "Units": charges["units"],
         "Rent": tenant.rent,
         "Additional": charges["additional"],
         "Water": tenant.water,
-        "Tank_Water": tank_water,
+        "tankWater": tankWater,
         "Electricity": charges["electricity"],
         "Total": charges["total"],
         "PDF": pdf_filename,
         "Tenant_Phone": tenant.phone,
         "Tenant_Company": tenant.company,
         "Tenant_Address": tenant.address,
-        "Rate": tenant.electricity_rate,
+        "Rate": tenant.electricityRate,
         "Status": old_receipt["status"],
         "Archived_Date": old_receipt["archiveddate"],
         "Archived_By": old_receipt["archivedby"],
         "Deleted_Date": old_receipt["deleteddate"],
         "Additional_Persons": additional_persons,
-        "Additional_Person_Rate": tenant.additional_person_charge,
+        "additionalPersonRate": tenant.additionalPersonCharge,
         "Receipt_Version": old_receipt.get("receiptversion", 8),
         "Generated_By": old_receipt.get("generatedby", "Admin"),
-        "Payment_Status": payment_status,
-        "Maintenance_Charge": maintenance_charge,
-        "Maintenance_Desc": maintenance_desc,
-        "Previous_Arrears": previous_arrears,
-        "Amount_Received": amount_received
+        "paymentStatus": paymentStatus,
+        "MaintenanceCharge": MaintenanceCharge,
+        "MaintenanceDesc": MaintenanceDesc,
+        "previousArrears": previousArrears,
+        "amountReceived": amountReceived
     }
     
     try:
@@ -6274,53 +6273,53 @@ def update_bill(billno, tenant_name, month, current_reading, additional_persons,
     with get_conn() as conn:
         conn.execute("""
             UPDATE receipts SET
-                month = ?, tenant_id = ?, tenant = ?, current = ?, units = ?, rent = ?,
-                additional = ?, water = ?, tankwater = ?, electricity = ?, total = ?,
+                month = ?, tenantId = ?, tenant = ?, current = ?, units = ?, rent = ?,
+                additional = ?, water = ?, tankWater = ?, electricity = ?, total = ?,
                 pdf = ?, tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?,
                 additionalpersons = ?, additionalpersonrate = ?, paymentstatus = ?,
                 maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
-            WHERE billno = ?
+            WHERE billNo = ?
         """, (
-            month, tenant.id, tenant_name, current_reading, charges["units"], tenant.rent,
-            charges["additional"], tenant.water, tank_water, charges["electricity"], charges["total"],
-            pdf_filename, tenant.phone, tenant.company, tenant.address, tenant.electricity_rate,
-            additional_persons, tenant.additional_person_charge, payment_status,
-            maintenance_charge, maintenance_desc, previous_arrears, amount_received,
-            billno
+            month, tenant.id, tenantName, current_reading, charges["units"], tenant.rent,
+            charges["additional"], tenant.water, tankWater, charges["electricity"], charges["total"],
+            pdf_filename, tenant.phone, tenant.company, tenant.address, tenant.electricityRate,
+            additional_persons, tenant.additionalPersonCharge, paymentStatus,
+            MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived,
+            billNo
         ))
         conn.commit()
 
     return updated_dict
-def archive_bill(billno):
+def archive_bill(billNo):
     from app.core.db import get_conn
     from datetime import datetime
     with get_conn() as conn:
         conn.execute("""
             UPDATE receipts SET status = 'ARCHIVED', archiveddate = ?, archivedby = 'Admin'
-            WHERE billno = ? AND status != 'ARCHIVED'
-        """, (datetime.now().strftime("%Y-%m-%d"), billno))
+            WHERE billNo = ? AND status != 'ARCHIVED'
+        """, (datetime.now().strftime("%Y-%m-%d"), billNo))
         conn.commit()
-    return get_receipt(billno)
+    return get_receipt(billNo)
 
-def restore_bill(billno):
+def restore_bill(billNo):
     from app.core.db import get_conn
     with get_conn() as conn:
         conn.execute("""
             UPDATE receipts SET status = 'ACTIVE', archiveddate = '', archivedby = ''
-            WHERE billno = ? AND status != 'ACTIVE'
-        """, (billno,))
+            WHERE billNo = ? AND status != 'ACTIVE'
+        """, (billNo,))
         conn.commit()
-    return get_receipt(billno)
+    return get_receipt(billNo)
 
-def delete_bill(billno):
+def delete_bill(billNo):
     from app.core.db import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT status FROM receipts WHERE billno = ?", (billno,)).fetchone()
+        row = conn.execute("SELECT status FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         if row["status"] != "ARCHIVED":
             raise ValueError("Only archived receipts can be permanently deleted.")
-        conn.execute("DELETE FROM receipts WHERE billno = ?", (billno,))
+        conn.execute("DELETE FROM receipts WHERE billNo = ?", (billNo,))
         conn.commit()
 def get_dashboard_stats():
     billing_conf = config.get("billing", {})
@@ -6371,10 +6370,10 @@ def get_dashboard_stats():
         except ValueError:
             pass
             
-        status = r.get("Payment_Status", "PENDING")
-        gross_amount = float(r.get("Total", 0) or 0) + float(r.get("Previous_Arrears", 0) or 0)
+        status = r.get("paymentStatus", "PENDING")
+        gross_amount = float(r.get("Total", 0) or 0) + float(r.get("previousArrears", 0) or 0)
 
-        raw_recv = r.get("Amount_Received")
+        raw_recv = r.get("amountReceived")
         received = float(raw_recv) if raw_recv not in (None, "") else (gross_amount if status == "PAID" else 0.0)
         outstanding = max(gross_amount - received, 0.0)
 
@@ -6422,13 +6421,13 @@ def get_dashboard_stats():
     recent_bills = []
     for r in reversed(active_receipts[-5:]):
         recent_bills.append({
-            "billno": r["Bill"],
-            "tenant_name": r["Tenant"],
-            "total": float(r.get("Total", 0)) + float(r.get("Previous_Arrears", 0)),
-            "amount_received": float(r.get("Amount_Received", 0) or 0),
+            "billNo": r["Bill"],
+            "tenantName": r["Tenant"],
+            "total": float(r.get("Total", 0)) + float(r.get("previousArrears", 0)),
+            "amountReceived": float(r.get("amountReceived", 0) or 0),
             "month": r["Month"],
-            "payment_status": r.get("Payment_Status", "PENDING"),
-            "Previous_Arrears": float(r.get("Previous_Arrears", 0))
+            "paymentStatus": r.get("paymentStatus", "PENDING"),
+            "previousArrears": float(r.get("previousArrears", 0))
         })
         
     revenue_chart_data = {m: 0.0 for m in months_names}
@@ -6438,7 +6437,7 @@ def get_dashboard_stats():
         try:
             r_month, r_year = r["Month"].split()
             if r_year == str(current_year) and r_month in revenue_chart_data:
-                revenue_chart_data[r_month] += float(r.get("Amount_Received", r.get("Total", 0)))
+                revenue_chart_data[r_month] += float(r.get("amountReceived", r.get("Total", 0)))
                 electricity_chart_data[r_month] += float(r.get("Units", 0.0))
         except Exception:
             pass
@@ -6486,55 +6485,55 @@ def save_all_receipts(receipts_list):
     
     with get_conn() as conn:
         for r in receipts_list:
-            tenant_name = r.get("Tenant", "")
-            tenant = tenant_map.get(tenant_name.lower())
-            tenant_id = tenant.id if tenant else None
+            tenantName = r.get("Tenant", "")
+            tenant = tenant_map.get(tenantName.lower())
+            tenantId = tenant.id if tenant else None
             
-            billno = r.get("Bill")
-            if not billno:
+            billNo = r.get("Bill")
+            if not billNo:
                 continue
                 
-            exists = conn.execute("SELECT 1 FROM receipts WHERE billno = ?", (billno,)).fetchone()
+            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
             
             if exists:
                 conn.execute("""
                     UPDATE receipts SET
-                        date = ?, month = ?, tenant_id = ?, tenant = ?, previous = ?, current = ?, units = ?, rent = ?,
-                        additional = ?, water = ?, tankwater = ?, electricity = ?, total = ?, pdf = ?,
+                        date = ?, month = ?, tenantId = ?, tenant = ?, previous = ?, current = ?, units = ?, rent = ?,
+                        additional = ?, water = ?, tankWater = ?, electricity = ?, total = ?, pdf = ?,
                         tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?, status = ?,
                         archiveddate = ?, archivedby = ?, deleteddate = ?, additionalpersons = ?,
                         additionalpersonrate = ?, receiptversion = ?, generatedby = ?, paymentstatus = ?,
                         maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
-                    WHERE billno = ?
+                    WHERE billNo = ?
                 """, (
-                    r.get("Date", ""), r.get("Month", ""), tenant_id, tenant_name, r.get("Previous", 0), r.get("Current", 0),
-                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("Tank_Water", 0),
+                    r.get("Date", ""), r.get("Month", ""), tenantId, tenantName, r.get("Previous", 0), r.get("Current", 0),
+                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("tankWater", 0),
                     r.get("Electricity", 0), r.get("Total", 0), r.get("PDF", ""), r.get("Tenant_Phone", ""),
                     r.get("Tenant_Company", ""), r.get("Tenant_Address", ""), r.get("Rate", 0), r.get("Status", "ACTIVE"),
                     r.get("Archived_Date", ""), r.get("Archived_By", ""), r.get("Deleted_Date", ""), r.get("Additional_Persons", 0),
-                    r.get("Additional_Person_Rate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
-                    r.get("Payment_Status", "PENDING"), r.get("Maintenance_Charge", 0), r.get("Maintenance_Desc", ""),
-                    r.get("Previous_Arrears", 0), r.get("Amount_Received", 0), billno
+                    r.get("additionalPersonRate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
+                    r.get("paymentStatus", "PENDING"), r.get("MaintenanceCharge", 0), r.get("MaintenanceDesc", ""),
+                    r.get("previousArrears", 0), r.get("amountReceived", 0), billNo
                 ))
             else:
                 conn.execute("""
                     INSERT INTO receipts (
-                        billno, date, month, tenant_id, tenant, previous, current, units, rent,
-                        additional, water, tankwater, electricity, total, pdf,
+                        billNo, date, month, tenantId, tenant, previous, current, units, rent,
+                        additional, water, tankWater, electricity, total, pdf,
                         tenantphone, tenantcompany, tenantaddress, rate, status,
                         archiveddate, archivedby, deleteddate, additionalpersons,
                         additionalpersonrate, receiptversion, generatedby, paymentstatus,
                         maintenancecharge, maintenancedesc, previousarrears, amountreceived
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    billno, r.get("Date", ""), r.get("Month", ""), tenant_id, tenant_name, r.get("Previous", 0), r.get("Current", 0),
-                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("Tank_Water", 0),
+                    billNo, r.get("Date", ""), r.get("Month", ""), tenantId, tenantName, r.get("Previous", 0), r.get("Current", 0),
+                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("tankWater", 0),
                     r.get("Electricity", 0), r.get("Total", 0), r.get("PDF", ""), r.get("Tenant_Phone", ""),
                     r.get("Tenant_Company", ""), r.get("Tenant_Address", ""), r.get("Rate", 0), r.get("Status", "ACTIVE"),
                     r.get("Archived_Date", ""), r.get("Archived_By", ""), r.get("Deleted_Date", ""), r.get("Additional_Persons", 0),
-                    r.get("Additional_Person_Rate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
-                    r.get("Payment_Status", "PENDING"), r.get("Maintenance_Charge", 0), r.get("Maintenance_Desc", ""),
-                    r.get("Previous_Arrears", 0), r.get("Amount_Received", 0)
+                    r.get("additionalPersonRate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
+                    r.get("paymentStatus", "PENDING"), r.get("MaintenanceCharge", 0), r.get("MaintenanceDesc", ""),
+                    r.get("previousArrears", 0), r.get("amountReceived", 0)
                 ))
         conn.commit()
 ```
@@ -6588,8 +6587,8 @@ def _safe_float(val, default=0.0):
 def generate_professional_pdf(data, landlord_config, output_path=None):
     # Live Tenant Sync Engine: Override PDF with the most current tenant attributes
     tenants = load_tenants()
-    tenant_name = data.get('Tenant', 'Unknown')
-    current_tenant = next((t for t in tenants if t.name == tenant_name), None)
+    tenantName = data.get('Tenant', 'Unknown')
+    current_tenant = next((t for t in tenants if t.name == tenantName), None)
     if current_tenant:
         data['Tenant_Phone'] = current_tenant.phone
         data['Tenant_Company'] = current_tenant.company
@@ -6605,8 +6604,8 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     c = canvas.Canvas(output_path, pagesize=A4)
     width, height = A4
     
-    tenant_name = data.get('Tenant', 'Unknown')
-    billno = data.get('Bill', '000')
+    tenantName = data.get('Tenant', 'Unknown')
+    billNo = data.get('Bill', '000')
     date_str = data.get('Date') or ''
     try:
         date_obj = datetime.strptime(str(date_str), "%d %B %Y")
@@ -6614,8 +6613,8 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     except Exception:
         formatted_date = str(date_str).replace(" ", "")
 
-    safe_tenant_name = tenant_name.replace(" ", "_")
-    pdf_title = f"{safe_tenant_name}_{formatted_date}_{billno}"
+    safe_tenantName = tenantName.replace(" ", "_")
+    pdf_title = f"{safe_tenantName}_{formatted_date}_{billNo}"
     c.setTitle(pdf_title)
     
     c.setLineWidth(1)
@@ -6704,18 +6703,18 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
         
     add_charge = _safe_float(data.get('Additional'))
     add_count = _safe_int(data.get("Additional_Persons"))
-    add_rate = _safe_float(data.get("Additional_Person_Rate"))
+    add_rate = _safe_float(data.get("additionalPersonRate"))
     items.append(("Additional Person Charges", f"{add_count} Persons x ₹{add_rate:,.2f}", add_charge))
             
     water = _safe_float(data.get('Water'))
     items.append(("Water Charges", "", water))
         
-    tank_water = _safe_float(data.get('Tank_Water'))
-    items.append(("Tank Water Charges", "", tank_water))
+    tankWater = _safe_float(data.get('tankWater'))
+    items.append(("Tank Water Charges", "", tankWater))
         
-    maintenance = _safe_float(data.get('Maintenance_Charge'))
+    maintenance = _safe_float(data.get('MaintenanceCharge'))
     if maintenance > 0:
-        desc = data.get('Maintenance_Desc', '')
+        desc = data.get('MaintenanceDesc', '')
         items.append(("Maintenance Charges", desc, maintenance))
         
     electricity = _safe_float(data.get('Electricity'))
@@ -6745,10 +6744,10 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     c.line(50, y, width - 50, y)
     
     curr_total = _safe_float(data.get('Total'))
-    prev_arr = _safe_float(data.get('Previous_Arrears'))
-    grand_total = curr_total + prev_arr
-    amt_recv = _safe_float(data.get('Amount_Received'), grand_total)
-    balance = grand_total - amt_recv
+    prev_arr = _safe_float(data.get('previousArrears'))
+    grandTotal = curr_total + prev_arr
+    amt_recv = _safe_float(data.get('amountReceived'), grandTotal)
+    balance = grandTotal - amt_recv
 
     y -= 20
     c.setFont(FONT_REGULAR, 11)
@@ -6767,9 +6766,9 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     y -= 20
     c.setFont(FONT_BOLD, 12)
     c.drawString(60, y, "GRAND TOTAL")
-    c.drawRightString(width - 60, y, f"     {grand_total:,.2f}")
+    c.drawRightString(width - 60, y, f"     {grandTotal:,.2f}")
 
-    if amt_recv != grand_total:
+    if amt_recv != grandTotal:
         # y -= 15
         # c.setFont(FONT_REGULAR, 11)
         # c.drawString(60, y, "AMOUNT RECEIVED")
@@ -6794,7 +6793,7 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     c.drawString(50, y, "Amount in Words:")
     c.setFont(FONT_ITALIC, 11)
     try:
-        total_float = grand_total
+        total_float = grandTotal
         words = num2words(total_float, lang='en_IN').replace(',', '').title()
         
         amount_style = ParagraphStyle('Amount', parent=style_normal, fontName=FONT_ITALIC, fontSize=11)
@@ -7025,20 +7024,20 @@ def load_tenants() -> List[Tenant]:
             phone=row["phone"],
             email=row["email"],
             address=row["address"],
-            room_number=row["roomnumber"],
+            roomNumber=row["roomnumber"],
             occupation=row["occupation"],
             notes=row["notes"],
             status=row["status"],
             rent=float(row["rent"]),
             water=float(row["water"]),
-            default_tank_water_charge=float(row["defaulttankwatercharge"]),
-            electricity_rate=float(row["electricityrate"]),
-            previous_meter=float(row["previousmeter"]),
-            additional_person_charge=float(row["additionalpersoncharge"]),
-            security_deposit=float(row["securitydeposit"]),
-            meter_id=row["meterid"],
-            view_token=row["view_token"],
-            tenant_pin=row["tenantpin"]
+            defaulttankWaterCharge=float(row["defaulttankWatercharge"]),
+            electricityRate=float(row["electricityrate"]),
+            previousMeter=float(row["previousmeter"]),
+            additionalPersonCharge=float(row["additionalpersoncharge"]),
+            securityDeposit=float(row["securitydeposit"]),
+            meterId=row["meterid"],
+            viewToken=row["viewToken"],
+            tenantPin=row["tenantpin"]
         )
         tenants.append(t)
     return tenants
@@ -7057,20 +7056,20 @@ def get_tenant_by_name(name: str) -> Optional[Tenant]:
         phone=row["phone"],
         email=row["email"],
         address=row["address"],
-        room_number=row["roomnumber"],
+        roomNumber=row["roomnumber"],
         occupation=row["occupation"],
         notes=row["notes"],
         status=row["status"],
         rent=float(row["rent"]),
         water=float(row["water"]),
-        default_tank_water_charge=float(row["defaulttankwatercharge"]),
-        electricity_rate=float(row["electricityrate"]),
-        previous_meter=float(row["previousmeter"]),
-        additional_person_charge=float(row["additionalpersoncharge"]),
-        security_deposit=float(row["securitydeposit"]),
-        meter_id=row["meterid"],
-        view_token=row["view_token"],
-        tenant_pin=row["tenantpin"]
+        defaulttankWaterCharge=float(row["defaulttankWatercharge"]),
+        electricityRate=float(row["electricityrate"]),
+        previousMeter=float(row["previousmeter"]),
+        additionalPersonCharge=float(row["additionalpersoncharge"]),
+        securityDeposit=float(row["securitydeposit"]),
+        meterId=row["meterid"],
+        viewToken=row["viewToken"],
+        tenantPin=row["tenantpin"]
     )
 
 def save_all_tenants(tenants_list: List[Tenant]):
@@ -7078,28 +7077,28 @@ def save_all_tenants(tenants_list: List[Tenant]):
         update_tenant(t)
 
 def add_tenant(t: Tenant):
-    # Retrieve tenantpin and view_token from dict logic if present, else defaults
+    # Retrieve tenantpin and viewToken from dict logic if present, else defaults
     # Since Pydantic model might not have them natively in current snapshot, we default if missing
     t_dict = t.dict()
-    view_token = t_dict.get("view_token")
-    if not view_token:
+    viewToken = t_dict.get("viewToken")
+    if not viewToken:
         import uuid
-        view_token = str(uuid.uuid4())
-    tenantpin = t_dict.get("tenant_pin") or ""
+        viewToken = str(uuid.uuid4())
+    tenantpin = t_dict.get("tenantPin") or ""
     
     with get_conn() as conn:
         conn.execute('''
             INSERT INTO tenants (
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
-                additionalpersoncharge, securitydeposit, defaulttankwatercharge,
-                meterid, view_token, tenantpin
+                additionalpersoncharge, securitydeposit, defaulttankWatercharge,
+                meterid, viewToken, tenantpin
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            t.id, t.name, t.company, t.phone, t.email, t.address, t.room_number,
-            t.occupation, t.notes, t.status, t.rent, t.water, t.electricity_rate,
-            t.previous_meter, t.additional_person_charge, t.security_deposit,
-            t.default_tank_water_charge, t.meter_id, view_token, tenantpin
+            t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
+            t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
+            t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
+            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin
         ))
         if t.id is None:
             t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -7108,72 +7107,72 @@ def add_tenant(t: Tenant):
 
 def update_tenant(t: Tenant):
     t_dict = t.dict()
-    view_token = t_dict.get("view_token") or ""
-    tenantpin = t_dict.get("tenant_pin") or ""
+    viewToken = t_dict.get("viewToken") or ""
+    tenantpin = t_dict.get("tenantPin") or ""
     
     with get_conn() as conn:
         conn.execute('''
             UPDATE tenants SET
                 name=?, company=?, phone=?, email=?, address=?, roomnumber=?, occupation=?,
                 notes=?, status=?, rent=?, water=?, electricityrate=?, previousmeter=?,
-                additionalpersoncharge=?, securitydeposit=?, defaulttankwatercharge=?,
-                meterid=?, view_token=?, tenantpin=?
+                additionalpersoncharge=?, securitydeposit=?, defaulttankWatercharge=?,
+                meterid=?, viewToken=?, tenantpin=?
             WHERE id=?
         ''', (
-            t.name, t.company, t.phone, t.email, t.address, t.room_number,
-            t.occupation, t.notes, t.status, t.rent, t.water, t.electricity_rate,
-            t.previous_meter, t.additional_person_charge, t.security_deposit,
-            t.default_tank_water_charge, t.meter_id, view_token, tenantpin,
+            t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
+            t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
+            t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
+            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin,
             t.id
         ))
         conn.commit()
 
-def delete_tenant(tenant_id: int, action: str = "archive"):
+def delete_tenant(tenantId: int, action: str = "archive"):
     action = (action or "archive").strip().lower()
 
     with get_conn() as conn:
         tenant_row = conn.execute(
             "SELECT id, name FROM tenants WHERE id = ?",
-            (tenant_id,)
+            (tenantId,)
         ).fetchone()
 
         if not tenant_row:
             raise ValueError("Tenant not found.")
 
-        tenant_name = tenant_row["name"]
+        tenantName = tenant_row["name"]
 
         if action in {"hard", "delete"}:
-            conn.execute("DELETE FROM occupants WHERE tenant_id = ?", (tenant_id,))
+            conn.execute("DELETE FROM occupants WHERE tenantId = ?", (tenantId,))
             conn.execute(
                 """
                 DELETE FROM receipts
-                WHERE tenant_id = ?
+                WHERE tenantId = ?
                    OR lower(trim(tenant)) = lower(trim(?))
                 """,
-                (tenant_id, tenant_name)
+                (tenantId, tenantName)
             )
-            conn.execute("DELETE FROM tenants WHERE id = ?", (tenant_id,))
+            conn.execute("DELETE FROM tenants WHERE id = ?", (tenantId,))
             conn.commit()
-            return {"tenant_id": tenant_id, "deleted": True}
+            return {"tenantId": tenantId, "deleted": True}
 
         if action == "archive":
             conn.execute(
                 "UPDATE tenants SET status = ? WHERE id = ?",
-                ("Archived", tenant_id)
+                ("Archived", tenantId)
             )
             receipt_result = conn.execute(
                 """
                 UPDATE receipts
                 SET status = ?,
-                    tenant_id = COALESCE(tenant_id, ?)
-                WHERE (tenant_id = ? OR lower(trim(tenant)) = lower(trim(?)))
+                    tenantId = COALESCE(tenantId, ?)
+                WHERE (tenantId = ? OR lower(trim(tenant)) = lower(trim(?)))
                   AND status != ?
                 """,
-                ("ARCHIVED", tenant_id, tenant_id, tenant_name, "ARCHIVED")
+                ("ARCHIVED", tenantId, tenantId, tenantName, "ARCHIVED")
             )
             conn.commit()
             return {
-                "tenant_id": tenant_id,
+                "tenantId": tenantId,
                 "archived": True,
                 "receipts_updated": receipt_result.rowcount,
             }
@@ -7181,20 +7180,20 @@ def delete_tenant(tenant_id: int, action: str = "archive"):
         if action == "inactive":
             conn.execute(
                 "UPDATE tenants SET status = ? WHERE id = ?",
-                ("Inactive", tenant_id)
+                ("Inactive", tenantId)
             )
             conn.commit()
-            return {"tenant_id": tenant_id, "inactive": True}
+            return {"tenantId": tenantId, "inactive": True}
 
         raise ValueError(f"Unsupported action: {action}")
 
-def get_occupants(tenant_id: int) -> List[dict]:
+def get_occupants(tenantId: int) -> List[dict]:
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM occupants WHERE tenant_id = ?", (tenant_id,)).fetchall()
+        rows = conn.execute("SELECT * FROM occupants WHERE tenantId = ?", (tenantId,)).fetchall()
     return [dict(r) for r in rows]
 
-def save_occupant(tenant_id: int, occ_data: dict):
-    uuid_val = occ_data.get("occupant_uuid") or occ_data.get("uuid")
+def save_occupant(tenantId: int, occ_data: dict):
+    uuid_val = occ_data.get("occupantUuid") or occ_data.get("uuid")
     if not uuid_val:
         uuid_val = str(uuid.uuid4())
         
@@ -7205,7 +7204,7 @@ def save_occupant(tenant_id: int, occ_data: dict):
             UPDATE occupants SET
                 name = ?, mobile = ?, status = ?, aadhaar_front = ?, aadhaar_back = ?,
                 aadhaar_combined = ?, emp_front = ?, emp_back = ?, uploaddate = ?, uploadmonth = ?
-            WHERE occupant_uuid = ?
+            WHERE occupantUuid = ?
         ''', (
             occ_data.get("name", ""),
             occ_data.get("mobile", ""),
@@ -7222,23 +7221,23 @@ def save_occupant(tenant_id: int, occ_data: dict):
         
         if cursor.rowcount == 0:
             cursor.execute('''
-                INSERT INTO occupants (tenant_id, occupant_uuid, name, mobile, status, aadhaar_front, aadhaar_back, aadhaar_combined, emp_front, emp_back, uploaddate, uploadmonth)
+                INSERT INTO occupants (tenantId, occupantUuid, name, mobile, status, aadhaar_front, aadhaar_back, aadhaar_combined, emp_front, emp_back, uploaddate, uploadmonth)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
-                tenant_id, uuid_val, occ_data.get("name", ""), occ_data.get("mobile", ""), occ_data.get("status", "Active"),
+                tenantId, uuid_val, occ_data.get("name", ""), occ_data.get("mobile", ""), occ_data.get("status", "Active"),
                 occ_data.get("aadhaar_front", ""), occ_data.get("aadhaar_back", ""), occ_data.get("aadhaar_combined", ""),
                 occ_data.get("emp_front", ""), occ_data.get("emp_back", ""), occ_data.get("uploaddate", ""), occ_data.get("uploadmonth", "")
             ))
         conn.commit()
 
-def update_occupant_status(occupant_uuid: str, status: str):
+def update_occupant_status(occupantUuid: str, status: str):
     with get_conn() as conn:
-        conn.execute("UPDATE occupants SET status = ? WHERE occupant_uuid = ?", (status, occupant_uuid))
+        conn.execute("UPDATE occupants SET status = ? WHERE occupantUuid = ?", (status, occupantUuid))
         conn.commit()
 
-def delete_occupant(occupant_uuid: str):
+def delete_occupant(occupantUuid: str):
     with get_conn() as conn:
-        conn.execute("DELETE FROM occupants WHERE occupant_uuid = ?", (occupant_uuid,))
+        conn.execute("DELETE FROM occupants WHERE occupantUuid = ?", (occupantUuid,))
         conn.commit()
 ```
 
@@ -7259,13 +7258,13 @@ def delete_occupant(occupant_uuid: str):
     },
     "tenant_profile": {
         "max_occupants": 20,
-        "require_security_deposit": true,
+        "require_securityDeposit": true,
         "enable_meter_reading": true,
         "history_months_visible": 12
     },
     "billing": {
-        "enable_maintenance_charge": true,
-        "enable_tank_water": true,
+        "enable_MaintenanceCharge": true,
+        "enable_tankWater": true,
         "default_currency": "₹"
     }
 }
@@ -7311,7 +7310,7 @@ def delete_occupant(occupant_uuid: str):
         "backup_system": true
     },
     "security": {
-        "tenant_pin_length": 4,
+        "tenantPin_length": 4,
         "max_upload_size_mb": 10,
         "allowed_image_extensions": [
             ".png",
@@ -16402,9 +16401,9 @@ export default function BillsModal({
 
         return bills.filter((bill) => {
             const month = formatMonthLabel(bill.Month).toLowerCase();
-            const billno = String(bill.Bill || '').toLowerCase();
+            const billNo = String(bill.Bill || '').toLowerCase();
             const status = String(bill.PaymentStatus || '').toLowerCase();
-            return month.includes(q) || billno.includes(q) || status.includes(q);
+            return month.includes(q) || billNo.includes(q) || status.includes(q);
         });
     }, [bills, query]);
 
@@ -16757,9 +16756,9 @@ export default function BillsModal({
 
 //         return bills.filter((bill) => {
 //             const month = formatMonthLabel(bill.Month).toLowerCase();
-//             const billno = String(bill.Bill || '').toLowerCase();
+//             const billNo = String(bill.Bill || '').toLowerCase();
 //             const status = String(bill.PaymentStatus || '').toLowerCase();
-//             return month.includes(q) || billno.includes(q) || status.includes(q);
+//             return month.includes(q) || billNo.includes(q) || status.includes(q);
 //         });
 //     }, [bills, query]);
 
@@ -16938,6 +16937,546 @@ export default function BillsModal({
 // }
 ```
 
+```tsx
+// File: frontend\admin-app\src\components\modals\ImportPreviewModal.tsx
+import { useEffect, useMemo, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import { Loader2, Search, FileSpreadsheet, AlertCircle, Upload, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { importExecute, type PreviewResponse } from './importService';
+import { toast } from 'sonner';
+
+// ─── Types ─────────────────────────────────────────────────────────
+
+export type ImportProfile = {
+    tenantId: string;
+    tenantName: string;
+    Phone: string;
+    Email: string;
+    Company: string;
+    Address: string;
+    Room: string;
+    meterId: string;
+    PIN: string;
+    Rent: string;
+    Water: string;
+    electricityRate: string;
+    additionalPersonRate: string;
+    tankWater: string;
+    Status: string;
+};
+
+export type ImportReceipt = {
+    BillNo: string;
+    tenantId: string;
+    Month: string;
+    Date: string;
+    Previous: string;
+    Current: string;
+    Units: string;
+    Rent: string;
+    Water: string;
+    Electricity: string;
+    Additional: string;
+    tankWater: string;
+    Maintenance: string;
+    Arrears: string;
+    amountReceived: string;
+    Total: string;
+    paymentStatus: string;
+    receiptStatus: string;
+};
+
+export type ImportTarget = {
+    file: string;
+    tenantId: string;
+    profile: ImportProfile;
+    receipts: ImportReceipt[];
+};
+
+type ImportPreviewModalProps = {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    previewData: PreviewResponse | null;
+    files: File[];
+    onImportSuccess: () => void;
+};
+
+// ─── Helpers ───────────────────────────────────────────────────────
+
+function formatCurrency(value?: string | number) {
+    const num = Number(value || 0);
+    if (Number.isNaN(num)) return '₹0.00';
+    return `₹${num.toFixed(2)}`;
+}
+
+function getStatusTone(status: string) {
+    switch ((status || '').toUpperCase()) {
+        case 'ACTIVE':
+            return 'bg-green-50 text-green-700 border-green-200';
+        case 'INACTIVE':
+            return 'bg-slate-50 text-slate-700 border-slate-200';
+        case 'ARCHIVED':
+            return 'bg-red-50 text-red-700 border-red-200';
+        default:
+            return 'bg-amber-50 text-amber-700 border-amber-200';
+    }
+}
+
+function getPaymentTone(status: string) {
+    switch ((status || '').toUpperCase()) {
+        case 'PAID':
+            return 'bg-green-50 text-green-700 border-green-200';
+        case 'ADVANCE':
+            return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        case 'PARTIAL':
+            return 'bg-amber-50 text-amber-700 border-amber-200';
+        default:
+            return 'bg-red-50 text-red-700 border-red-200';
+    }
+}
+
+function makeTargetKey(file: string, tenantId: string) {
+    return `${file}::${tenantId}`;
+}
+
+// ─── Component ─────────────────────────────────────────────────────
+
+export default function ImportPreviewModal({
+    open,
+    onOpenChange,
+    previewData,
+    files,
+    onImportSuccess,
+}: ImportPreviewModalProps) {
+    const [query, setQuery] = useState('');
+    const [selectedTenant, setSelectedTenant] = useState<ImportTarget | null>(null);
+    const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
+    const [isExecuting, setIsExecuting] = useState(false);
+
+    // Flatten preview data into a list of tenants
+    const allTenants = useMemo(() => {
+        const list: ImportTarget[] = [];
+        if (!previewData?.files) return list;
+        for (const [file, tenants] of Object.entries(previewData.files)) {
+            for (const [tenantId, entry] of Object.entries(tenants)) {
+                list.push({
+                    file,
+                    tenantId,
+                    profile: entry.profile,
+                    receipts: entry.receipts,
+                });
+            }
+        }
+        return list;
+    }, [previewData]);
+
+    // Filtered tenants based on search
+    const filteredTenants = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return allTenants;
+        return allTenants.filter((t) => {
+            const name = (t.profile.tenantName || '').toLowerCase();
+            const tid = (t.profile.tenantId || '').toLowerCase();
+            const phone = (t.profile.Phone || '').toLowerCase();
+            const company = (t.profile.Company || '').toLowerCase();
+            return name.includes(q) || tid.includes(q) || phone.includes(q) || company.includes(q);
+        });
+    }, [allTenants, query]);
+
+    // Stats
+    const stats = useMemo(() => {
+        const total = allTenants.length;
+        const selected = selectedTargets.size;
+        const totalReceipts = allTenants.reduce((sum, t) => sum + t.receipts.length, 0);
+        return { total, selected, totalReceipts };
+    }, [allTenants, selectedTargets]);
+
+    // Auto-select first tenant on open
+    useEffect(() => {
+        if (!selectedTenant && filteredTenants.length > 0 && open) {
+            setSelectedTenant(filteredTenants[0]);
+        }
+    }, [selectedTenant, filteredTenants, open]);
+
+    // Keep selected tenant in sync if filtered list changes
+    useEffect(() => {
+        if (selectedTenant) {
+            const stillExists = filteredTenants.find(
+                (t) => t.file === selectedTenant.file && t.tenantId === selectedTenant.tenantId
+            );
+            if (!stillExists && filteredTenants.length > 0) {
+                setSelectedTenant(filteredTenants[0]);
+            }
+        }
+    }, [filteredTenants, selectedTenant]);
+
+    const toggleTarget = (targetKey: string) => {
+        setSelectedTargets((prev) => {
+            const next = new Set(prev);
+            if (next.has(targetKey)) {
+                next.delete(targetKey);
+            } else {
+                next.add(targetKey);
+            }
+            return next;
+        });
+    };
+
+    const toggleAll = () => {
+        if (selectedTargets.size === filteredTenants.length) {
+            setSelectedTargets(new Set());
+        } else {
+            const all = new Set(filteredTenants.map((t) => makeTargetKey(t.file, t.tenantId)));
+            setSelectedTargets(all);
+        }
+    };
+
+    const handleConfirm = async () => {
+        if (selectedTargets.size === 0) {
+            toast.error("Please select at least one tenant to import");
+            return;
+        }
+
+        setIsExecuting(true);
+        try {
+            const targetsArray = Array.from(selectedTargets);
+            const result = await importExecute(files, targetsArray);
+            toast.success(result.message || "Import completed successfully");
+            onOpenChange(false);
+            onImportSuccess();
+        } catch (err: any) {
+            toast.error(err.message || "Import failed");
+            console.error("Import execute error:", err);
+        } finally {
+            setIsExecuting(false);
+        }
+    };
+
+    const active = selectedTenant
+        ? makeTargetKey(selectedTenant.file, selectedTenant.tenantId)
+        : '';
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            {/* Match PreviewDialog / BillsModal sizing pattern exactly */}
+            <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
+                {/* Header — Match BillsModal header styling */}
+                <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <FileSpreadsheet className="h-6 w-6 text-emerald-500 shrink-0" />
+                            <div>
+                                <DialogTitle className="text-xl">Import Preview</DialogTitle>
+                                <DialogDescription className="mt-1 text-sm">
+                                    Review tenant profiles and receipts before importing
+                                </DialogDescription>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                                {stats.total} Tenant{stats.total !== 1 ? 's' : ''}
+                            </Badge>
+                            <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+                                {stats.totalReceipts} Receipt{stats.totalReceipts !== 1 ? 's' : ''}
+                            </Badge>
+                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                                {stats.selected} Selected
+                            </Badge>
+                        </div>
+                    </div>
+                </DialogHeader>
+
+                {/* Split Pane Content — Match BillsModal layout */}
+                <div className="flex-1 min-h-0 flex">
+                    {/* LEFT PANE: Tenant List — Match BillsModal left pane */}
+                    <div className="w-[380px] lg:w-[420px] border-r bg-muted/30 flex flex-col shrink-0">
+                        <div className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0 border-b bg-muted/50 flex items-center justify-between">
+                            <span>Tenants ({filteredTenants.length})</span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs"
+                                onClick={toggleAll}
+                            >
+                                {selectedTargets.size === filteredTenants.length && filteredTenants.length > 0
+                                    ? 'Deselect All'
+                                    : 'Select All'}
+                            </Button>
+                        </div>
+
+                        <div className="shrink-0 border-b p-3 space-y-2">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder="Search name, ID, phone, company"
+                                    className="pl-9"
+                                />
+                            </div>
+                        </div>
+
+                        <ScrollArea className="flex-1">
+                            <div className="p-2 space-y-1.5">
+                                {filteredTenants.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground p-3">
+                                        No tenants found.
+                                    </div>
+                                ) : (
+                                    filteredTenants.map((tenant) => {
+                                        const targetKey = makeTargetKey(tenant.file, tenant.tenantId);
+                                        const isSelected = selectedTargets.has(targetKey);
+                                        const isActive = active === targetKey;
+                                        const profile = tenant.profile;
+                                        const receiptCount = tenant.receipts.length;
+
+                                        return (
+                                            <div
+                                                key={targetKey}
+                                                onClick={() => setSelectedTenant(tenant)}
+                                                className={cn(
+                                                    "group relative rounded-lg border p-3 cursor-pointer transition-all",
+                                                    "hover:bg-accent hover:border-accent-foreground/20",
+                                                    isActive && "bg-primary/10 border-primary/50 ring-1 ring-primary/30",
+                                                    !isActive && "bg-card border-border"
+                                                )}
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                    <div
+                                                        className="pt-0.5 shrink-0"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleTarget(targetKey);
+                                                        }}
+                                                    >
+                                                        <Checkbox
+                                                            checked={isSelected}
+                                                            className="h-4 w-4"
+                                                        />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="font-semibold text-sm truncate">
+                                                                    {profile.tenantName || 'Unnamed Tenant'}
+                                                                </div>
+                                                                <div className="text-xs text-muted-foreground mt-0.5">
+                                                                    {profile.tenantId}
+                                                                    {profile.Room && ` • Room ${profile.Room}`}
+                                                                </div>
+                                                            </div>
+                                                            <Badge
+                                                                className={cn(
+                                                                    getStatusTone(profile.Status || 'Active'),
+                                                                    "text-[10px] h-5 px-1.5 shrink-0"
+                                                                )}
+                                                            >
+                                                                {(profile.Status || 'Active').toUpperCase()}
+                                                            </Badge>
+                                                        </div>
+
+                                                        <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                                                            <span>{receiptCount} receipt{receiptCount !== 1 ? 's' : ''}</span>
+                                                            {profile.Phone && (
+                                                                <span>• {profile.Phone}</span>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="mt-1 text-xs text-muted-foreground">
+                                                            Rent {formatCurrency(profile.Rent)}
+                                                            {profile.Water && ` • Water ${formatCurrency(profile.Water)}`}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Active indicator — Match PreviewDialog */}
+                                                {isActive && (
+                                                    <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-primary rounded-r-full" />
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </ScrollArea>
+                    </div>
+
+                    {/* RIGHT PANE: Receipts Table — Match BillsModal right pane */}
+                    <div className="flex-1 flex flex-col min-w-0 bg-background">
+                        {selectedTenant ? (
+                            <>
+                                {/* Tenant Header — Compact, Match BillsModal bill header */}
+                                <div className="px-5 py-3 border-b bg-muted/20 shrink-0">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                                <Upload className="h-5 w-5 text-primary" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold text-base">
+                                                    {selectedTenant.profile.tenantName || 'Unnamed Tenant'}
+                                                </h3>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {selectedTenant.profile.tenantId}
+                                                    {selectedTenant.profile.Company && ` • ${selectedTenant.profile.Company}`}
+                                                    {selectedTenant.profile.Phone && ` • ${selectedTenant.profile.Phone}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Badge
+                                                className={cn(
+                                                    getStatusTone(selectedTenant.profile.Status || 'Active'),
+                                                    "text-[10px] h-5 px-1.5"
+                                                )}
+                                            >
+                                                {(selectedTenant.profile.Status || 'Active').toUpperCase()}
+                                            </Badge>
+                                            <Badge variant="outline" className="text-[10px] h-5 px-1.5">
+                                                {selectedTenant.receipts.length} Receipts
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Receipts Table */}
+                                <div className="flex-1 min-h-0 overflow-auto">
+                                    {selectedTenant.receipts.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                                            <AlertCircle className="h-10 w-10 mb-3 opacity-40" />
+                                            <p className="text-sm">No receipts found for this tenant</p>
+                                        </div>
+                                    ) : (
+                                        <div className="p-4">
+                                            <Table>
+                                                <TableHeader className="sticky top-0 bg-background z-10">
+                                                    <TableRow>
+                                                        <TableHead className="w-[100px]">Bill No</TableHead>
+                                                        <TableHead>Month</TableHead>
+                                                        <TableHead>Date</TableHead>
+                                                        <TableHead className="text-right">Rent</TableHead>
+                                                        <TableHead className="text-right">Electricity</TableHead>
+                                                        <TableHead className="text-right">Water</TableHead>
+                                                        <TableHead className="text-right">Total</TableHead>
+                                                        <TableHead>Status</TableHead>
+                                                        <TableHead>Payment</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {selectedTenant.receipts.map((receipt, idx) => (
+                                                        <TableRow key={`${receipt.BillNo}-${idx}`}>
+                                                            <TableCell className="font-medium">
+                                                                {receipt.BillNo}
+                                                            </TableCell>
+                                                            <TableCell>{receipt.Month}</TableCell>
+                                                            <TableCell className="text-muted-foreground text-sm">
+                                                                {receipt.Date}
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                {formatCurrency(receipt.Rent)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                {formatCurrency(receipt.Electricity)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                {formatCurrency(receipt.Water)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-medium">
+                                                                {formatCurrency(receipt.Total)}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Badge
+                                                                    className={cn(
+                                                                        getStatusTone(receipt.receiptStatus || 'ACTIVE'),
+                                                                        "text-[10px] h-5 px-1.5"
+                                                                    )}
+                                                                >
+                                                                    {(receipt.receiptStatus || 'ACTIVE').toUpperCase()}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Badge
+                                                                    className={cn(
+                                                                        getPaymentTone(receipt.paymentStatus || 'PENDING'),
+                                                                        "text-[10px] h-5 px-1.5"
+                                                                    )}
+                                                                >
+                                                                    {(receipt.paymentStatus || 'PENDING').toUpperCase()}
+                                                                </Badge>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                                <AlertCircle className="h-10 w-10 mb-3 opacity-40" />
+                                <p className="text-sm">Select a tenant from the left panel to preview receipts</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <Separator />
+
+                {/* Footer — Match BillsModal footer style */}
+                <div className="px-6 py-4 shrink-0 flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                        {stats.selected} of {stats.total} tenant{stats.total !== 1 ? 's' : ''} selected for import
+                    </p>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onOpenChange(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={handleConfirm}
+                            disabled={selectedTargets.size === 0 || isExecuting}
+                        >
+                            {isExecuting ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Check className="mr-2 h-4 w-4" />
+                            )}
+                            Import {selectedTargets.size > 0 && `(${selectedTargets.size})`}
+                        </Button>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+```
+
 ```typescript
 // File: frontend\admin-app\src\components\modals\importService.ts
 export interface PreviewResponse {
@@ -16946,25 +17485,25 @@ export interface PreviewResponse {
     [filename: string]: {
       [tenantId: string]: {
         profile: {
-          Tenant_ID: string;
-          Tenant_Name: string;
+          tenantId: string;
+          tenantName: string;
           Phone: string;
           Email: string;
           Company: string;
           Address: string;
           Room: string;
-          Meter_ID: string;
+          meterId: string;
           PIN: string;
           Rent: string;
           Water: string;
-          Electricity_Rate: string;
-          Additional_Person_Rate: string;
-          Tank_Water: string;
+          electricityRate: string;
+          additionalPersonRate: string;
+          tankWater: string;
           Status: string;
         };
         receipts: Array<{
-          Bill_No: string;
-          Tenant_ID: string;
+          BillNo: string;
+          tenantId: string;
           Month: string;
           Date: string;
           Previous: string;
@@ -16974,13 +17513,13 @@ export interface PreviewResponse {
           Water: string;
           Electricity: string;
           Additional: string;
-          Tank_Water: string;
+          tankWater: string;
           Maintenance: string;
           Arrears: string;
-          Amount_Received: string;
+          amountReceived: string;
           Total: string;
-          Payment_Status: string;
-          Receipt_Status: string;
+          paymentStatus: string;
+          receiptStatus: string;
         }>;
       };
     };
@@ -17042,78 +17581,6 @@ export async function importExecute(
 
   return response.json();
 }
-// import { toast } from "sonner";
-
-// import type { ImportPreviewResponse as PreviewResponse, ImportExecuteResponse as ImportResponse } from "../../types";
-// export type { PreviewResponse, ImportResponse };
-
-// const API_BASE = import.meta.env.VITE_API_BASE || "";
-
-// function getBasePath(): string {
-//   // Handle proxy paths like /rent
-//   const rootPath = document.querySelector('base')?.getAttribute('href') || "";
-//   if (rootPath) return rootPath.replace(/\/$/, "");
-//   return window.location.pathname.startsWith('/rent/') ? '/rent' : '';
-// }
-
-// /**
-//  * Preview import files - sends multipart/form-data with Excel/Zip files
-//  */
-// export async function importPreview(files: File[]): Promise<PreviewResponse> {
-//   const basePath = getBasePath();
-//   const formData = new FormData();
-
-//   files.forEach((file) => {
-//     formData.append("files", file);
-//   });
-
-//   const response = await fetch(`${basePath}/admin/api/import-preview`, {
-//     method: "POST",
-//     body: formData,
-//     // DO NOT set Content-Type header - browser sets it with boundary for multipart
-//   });
-
-//   if (!response.ok) {
-//     const errorText = await response.text();
-//     throw new Error(`Preview failed (${response.status}): ${errorText}`);
-//   }
-
-//   return response.json();
-// }
-
-// /**
-//  * Execute import - sends files + selectedtargets as FormData
-//  * CRITICAL: selectedtargets must be a JSON string array in a Form field
-//  */
-// export async function importExecute(
-//   files: File[],
-//   selectedTargets: string[]
-// ): Promise<ImportResponse> {
-//   const basePath = getBasePath();
-//   const formData = new FormData();
-
-//   // Re-attach the original files (backend needs them again)
-//   files.forEach((file) => {
-//     formData.append("files", file);
-//   });
-
-//   // selectedtargets MUST be sent as a Form field with JSON string value
-//   // Backend does: json.loads(selectedtargets) expecting a list
-//   formData.append("selectedtargets", JSON.stringify(selectedTargets));
-
-//   const response = await fetch(`${basePath}/admin/api/import-execute`, {
-//     method: "POST",
-//     body: formData,
-//     // DO NOT set Content-Type - let browser set multipart boundary automatically
-//   });
-
-//   if (!response.ok) {
-//     const errorText = await response.text();
-//     throw new Error(`Import failed (${response.status}): ${errorText}`);
-//   }
-
-//   return response.json();
-// }
 ```
 
 ```tsx
@@ -17293,27 +17760,27 @@ import { cn } from "@/lib/utils";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
-interface TenantProfile {
-  Tenant_ID: string;
-  Tenant_Name: string;
+interface TENANTPROFILE {
+  tenantId: string;
+  tenantName: string;
   Phone: string;
   Email: string;
   Company: string;
   Address: string;
   Room: string;
-  Meter_ID: string;
+  meterId: string;
   PIN: string;
   Rent: string;
   Water: string;
-  Electricity_Rate: string;
-  Additional_Person_Rate: string;
-  Tank_Water: string;
+  electricityRate: string;
+  additionalPersonRate: string;
+  tankWater: string;
   Status: string;
 }
 
 interface ReceiptData {
-  Bill_No: string;
-  Tenant_ID: string;
+  BillNo: string;
+  tenantId: string;
   Month: string;
   Date: string;
   Previous: string;
@@ -17323,17 +17790,17 @@ interface ReceiptData {
   Water: string;
   Electricity: string;
   Additional: string;
-  Tank_Water: string;
+  tankWater: string;
   Maintenance: string;
   Arrears: string;
-  Amount_Received: string;
+  amountReceived: string;
   Total: string;
-  Payment_Status: string;
-  Receipt_Status: string;
+  paymentStatus: string;
+  receiptStatus: string;
 }
 
 interface TenantPreview {
-  profile: TenantProfile;
+  profile: TENANTPROFILE;
   receipts: ReceiptData[];
 }
 
@@ -17376,7 +17843,7 @@ export function PreviewDialog({
       key: string;
       filename: string;
       tenantId: string;
-      profile: TenantProfile;
+      profile: TENANTPROFILE;
       receipts: ReceiptData[];
     }[] = [];
 
@@ -17558,10 +18025,10 @@ export function PreviewDialog({
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-sm truncate leading-tight">
-                              {profile.Tenant_Name}
+                              {profile.tenantName}
                             </p>
                             <p className="text-xs text-muted-foreground font-medium">
-                              {profile.Tenant_ID}
+                              {profile.tenantId}
                             </p>
                           </div>
                         </div>
@@ -17574,8 +18041,8 @@ export function PreviewDialog({
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
                             <span className="truncate">Room {profile.Room || "—"}</span>
-                            {profile.Meter_ID && (
-                              <span className="text-muted-foreground/50">• {profile.Meter_ID}</span>
+                            {profile.meterId && (
+                              <span className="text-muted-foreground/50">• {profile.meterId}</span>
                             )}
                           </div>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -17628,7 +18095,7 @@ export function PreviewDialog({
                       </div>
                       <div>
                         <h3 className="font-semibold text-base">
-                          {selectedTenant.profile.Tenant_Name}
+                          {selectedTenant.profile.tenantName}
                         </h3>
                         <p className="text-xs text-muted-foreground">
                           {selectedTenant.receipts.length} receipt
@@ -17668,7 +18135,7 @@ export function PreviewDialog({
                           {selectedTenant.receipts.map((receipt, idx) => (
                             <TableRow key={idx}>
                               <TableCell className="font-medium text-xs py-2">
-                                {receipt.Bill_No}
+                                {receipt.BillNo}
                               </TableCell>
                               <TableCell className="text-xs py-2">{receipt.Month}</TableCell>
                               <TableCell className="text-xs py-2 whitespace-nowrap">{receipt.Date}</TableCell>
@@ -17688,27 +18155,27 @@ export function PreviewDialog({
                               <TableCell className="py-2">
                                 <Badge
                                   variant={
-                                    receipt.Receipt_Status === "ACTIVE"
+                                    receipt.receiptStatus === "ACTIVE"
                                       ? "default"
                                       : "secondary"
                                   }
                                   className="text-[10px] h-5"
                                 >
-                                  {receipt.Receipt_Status}
+                                  {receipt.receiptStatus}
                                 </Badge>
                               </TableCell>
                               <TableCell className="py-2">
                                 <Badge
                                   variant={
-                                    receipt.Payment_Status === "PAID"
+                                    receipt.paymentStatus === "PAID"
                                       ? "default"
-                                      : receipt.Payment_Status === "PENDING"
-                                      ? "destructive"
-                                      : "outline"
+                                      : receipt.paymentStatus === "PENDING"
+                                        ? "destructive"
+                                        : "outline"
                                   }
                                   className="text-[10px] h-5"
                                 >
-                                  {receipt.Payment_Status}
+                                  {receipt.paymentStatus}
                                 </Badge>
                               </TableCell>
                             </TableRow>
@@ -17801,12 +18268,12 @@ import type { Tenant, Receipt } from '@/types';
 import { useToast } from '@/hooks/useToast';
 
 interface EditBillModalProps {
-  billno: string | null;
+  billNo: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function EditBillModal({ billno, onClose, onSaved }: EditBillModalProps) {
+export default function EditBillModal({ billNo, onClose, onSaved }: EditBillModalProps) {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [months, setMonths] = useState<string[]>([]);
@@ -17815,10 +18282,10 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
   const toast = useToast();
 
   useEffect(() => {
-    if (billno) {
+    if (billNo) {
       setLoading(true);
       Promise.all([
-        api.getReceipt(billno),
+        api.getReceipt(billNo),
         api.getTenants(),
         api.getBillingMonths(),
       ])
@@ -17830,7 +18297,7 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
         .catch(() => toast.error('Failed to load bill data'))
         .finally(() => setLoading(false));
     }
-  }, [billno]);
+  }, [billNo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -17843,12 +18310,12 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
         month: receipt.Month,
         current_reading: receipt.Current,
         additional_persons: receipt.Additional_Persons || 0,
-        tank_water: receipt.Tank_Water || 0,
-        maintenance_charge: receipt.Maintenance_Charge || 0,
-        maintenance_desc: receipt.Maintenance_Desc || '',
-        previous_arrears: receipt.Previous_Arrears || 0,
-        amount_received: receipt.Amount_Received || null,
-        payment_status: receipt.Payment_Status || 'PENDING',
+        tankWater: receipt.tankWater || 0,
+        MaintenanceCharge: receipt.MaintenanceCharge || 0,
+        MaintenanceDesc: receipt.MaintenanceDesc || '',
+        previousArrears: receipt.previousArrears || 0,
+        amountReceived: receipt.amountReceived || null,
+        paymentStatus: receipt.paymentStatus || 'PENDING',
       });
       toast.success('Receipt updated successfully');
       onSaved();
@@ -17862,7 +18329,7 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
   };
 
   return (
-    <Dialog open={!!billno} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={!!billNo} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -17892,7 +18359,7 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
                   <SelectContent>
                     {tenants.map((t) => (
                       <SelectItem key={t.id} value={t.name}>
-                        {t.name} {t.room_number ? `(Room ${t.room_number})` : ''}
+                        {t.name} {t.roomNumber ? `(Room ${t.roomNumber})` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -17940,8 +18407,8 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
                 <Input
                   type="number"
                   step="0.1"
-                  value={receipt.Tank_Water || 0}
-                  onChange={(e) => setReceipt({ ...receipt, Tank_Water: parseFloat(e.target.value) || 0 })}
+                  value={receipt.tankWater || 0}
+                  onChange={(e) => setReceipt({ ...receipt, tankWater: parseFloat(e.target.value) || 0 })}
                 />
               </div>
               <div className="space-y-2">
@@ -17949,8 +18416,8 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
                 <Input
                   type="number"
                   step="0.1"
-                  value={receipt.Maintenance_Charge || 0}
-                  onChange={(e) => setReceipt({ ...receipt, Maintenance_Charge: parseFloat(e.target.value) || 0 })}
+                  value={receipt.MaintenanceCharge || 0}
+                  onChange={(e) => setReceipt({ ...receipt, MaintenanceCharge: parseFloat(e.target.value) || 0 })}
                 />
               </div>
               <div className="space-y-2">
@@ -17958,8 +18425,8 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
                 <Input
                   type="number"
                   step="0.1"
-                  value={receipt.Previous_Arrears || 0}
-                  onChange={(e) => setReceipt({ ...receipt, Previous_Arrears: parseFloat(e.target.value) || 0 })}
+                  value={receipt.previousArrears || 0}
+                  onChange={(e) => setReceipt({ ...receipt, previousArrears: parseFloat(e.target.value) || 0 })}
                 />
               </div>
             </div>
@@ -17967,8 +18434,8 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
             <div className="space-y-2">
               <Label>Maintenance Description</Label>
               <Input
-                value={receipt.Maintenance_Desc || ''}
-                onChange={(e) => setReceipt({ ...receipt, Maintenance_Desc: e.target.value })}
+                value={receipt.MaintenanceDesc || ''}
+                onChange={(e) => setReceipt({ ...receipt, MaintenanceDesc: e.target.value })}
                 placeholder="e.g. Building Maintenance"
               />
             </div>
@@ -18002,12 +18469,12 @@ import { api } from '@/services/api';
 import { FileText } from 'lucide-react';
 
 interface PDFPreviewModalProps {
-  billno: string | null;
+  billNo: string | null;
   onClose: () => void;
 }
 
-export default function PDFPreviewModal({ billno, onClose }: PDFPreviewModalProps) {
-  const open = !!billno;
+export default function PDFPreviewModal({ billNo, onClose }: PDFPreviewModalProps) {
+  const open = !!billNo;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -18020,11 +18487,11 @@ export default function PDFPreviewModal({ billno, onClose }: PDFPreviewModalProp
             <div>
               <DialogTitle className="text-xl">Receipt Preview</DialogTitle>
               <DialogDescription className="mt-1 text-sm">
-                {billno && (
+                {billNo && (
                   <>
                     Bill Number:{" "}
                     <span className="font-medium text-foreground">
-                      #{billno}
+                      #{billNo}
                     </span>
                   </>
                 )}
@@ -18033,11 +18500,11 @@ export default function PDFPreviewModal({ billno, onClose }: PDFPreviewModalProp
           </div>
         </DialogHeader>
         <div className="flex-1 min-h-0 bg-muted">
-          {billno && (
+          {billNo && (
             <iframe
-              src={api.getPDFViewUrl(billno)}
+              src={api.getPDFViewUrl(billNo)}
               className="w-full h-full border-0"
-              title={`Receipt ${billno}`}
+              title={`Receipt ${billNo}`}
             />
           )}
         </div>
@@ -18070,8 +18537,8 @@ import {
 interface ReceiptRowProps {
   receipt: Receipt;
   onAction: () => void;
-  onPreview: (billno: string) => void;
-  onEdit: (billno: string) => void;
+  onPreview: (billNo: string) => void;
+  onEdit: (billNo: string) => void;
   variant?: 'history' | 'archive';
   onUpdatePayment?: (billNo: string, status: "PENDING" | "PARTIAL" | "PAID" | "ADVANCE", amount: number) => void;
 }
@@ -18081,9 +18548,9 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
 
   const currTotal = receipt.Total || 0;
-  const prevArr = receipt.Previous_Arrears || 0;
+  const prevArr = receipt.previousArrears || 0;
   const grandTotal = currTotal + prevArr;
-  const amtRecv = receipt.Amount_Received || 0;
+  const amtRecv = receipt.amountReceived || 0;
   const balance = grandTotal - amtRecv;
   const advanceAmount = balance < 0 ? Math.abs(balance) : 0;
 
@@ -18095,8 +18562,8 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
         onUpdatePayment(receipt.Bill, status, amount);
       } else {
         await api.updatePaymentStatus(receipt.Bill, {
-          payment_status: status,
-          amount_received: amount,
+          paymentStatus: status,
+          amountReceived: amount,
         });
         toast.success(`Payment updated to ${status}`);
         onAction();
@@ -18164,7 +18631,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
     PENDING: { bg: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300', label: 'Pending', icon: RotateCcw },
   };
 
-  const status = statusConfig[receipt.Payment_Status as keyof typeof statusConfig] || statusConfig.PENDING;
+  const status = statusConfig[receipt.paymentStatus as keyof typeof statusConfig] || statusConfig.PENDING;
   const StatusIcon = status.icon;
 
   return (
@@ -18208,7 +18675,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
             )}
           </div>
           <div>
-            <span 
+            <span
               className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer transition-opacity hover:opacity-80 ${status.bg}`}
               onClick={() => setPaymentModalOpen(true)}
               title="Update Payment"
@@ -18313,9 +18780,9 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
         bill={{
           Bill: receipt.Bill,
           Total: receipt.Total,
-          PreviousArrears: receipt.Previous_Arrears,
-          AmountReceived: receipt.Amount_Received,
-          PaymentStatus: receipt.Payment_Status,
+          PreviousArrears: receipt.previousArrears,
+          AmountReceived: receipt.amountReceived,
+          PaymentStatus: receipt.paymentStatus,
         }}
         onUpdate={handleUpdatePayment}
       />
@@ -25175,126 +25642,126 @@ function page(domain: "admin" | "tenant", key: string, params?: Record<string, s
 
 export const ROUTES = {
     get basePath() { return manifest.basePath; },
-    get HEALTH_CHECK() { return fullPath(manifest.health.check); },
+    get HEALTHCHECK() { return fullPath(manifest.health.check); },
 
     // Admin Pages
-    get ADMIN_PAGE_ROOT() { return page("admin", "root"); },
-    get ADMIN_PAGE_HOME() { return page("admin", "home"); },
-    get ADMIN_PAGE_LOGIN() { return page("admin", "login"); },
-    get ADMIN_PAGE_LOGOUT() { return page("admin", "logout"); },
-    get ADMIN_PAGE_DASHBOARD() { return page("admin", "dashboard"); },
-    get ADMIN_PAGE_BILLING() { return page("admin", "billing"); },
-    get ADMIN_PAGE_HISTORY() { return page("admin", "history"); },
-    get ADMIN_PAGE_TENANTS() { return page("admin", "tenants"); },
-    get ADMIN_PAGE_SETTINGS() { return page("admin", "settings"); },
-    get ADMIN_PAGE_ARCHIVE() { return page("admin", "archive"); },
-    get ADMIN_PAGE_BACKUPS() { return page("admin", "backups"); },
-    // adminPageTenantProfile(tenant_id: number) { return page("admin", "tenantProfile", { tenant_id }); },
-    adminPageTenantProfile(tenant_id: number) { return page("admin", "tenantProfile", { tenant_id }); },
+    get ADMINPAGEROOT() { return page("admin", "root"); },
+    get ADMINPAGEHOME() { return page("admin", "home"); },
+    get ADMINPAGELOGIN() { return page("admin", "login"); },
+    get ADMINPAGELOGOUT() { return page("admin", "logout"); },
+    get ADMINPAGEDASHBOARD() { return page("admin", "dashboard"); },
+    get ADMINPAGEBILLING() { return page("admin", "billing"); },
+    get ADMINPAGEHISTORY() { return page("admin", "history"); },
+    get ADMINPAGETENANTS() { return page("admin", "tenants"); },
+    get ADMINPAGESETTINGS() { return page("admin", "settings"); },
+    get ADMINPAGEARCHIVE() { return page("admin", "archive"); },
+    get ADMINPAGEBACKUPS() { return page("admin", "backups"); },
+    // ADMINPAGETENANTPROFILE(tenantId: number) { return page("admin", "TENANTPROFILE", { tenantId }); },
+    ADMINPAGETENANTPROFILE(tenantId: number) { return page("admin", "TENANTPROFILE", { tenantId }); },
 
     // Admin API: Setup
-    get ADMIN_API_SETUP_REQUIRED() { return api("admin", "setup", "required"); },
-    get ADMIN_API_SETUP_CREATE() { return api("admin", "setup", "create"); },
+    get ADMINAPISETUPREQUIRED() { return api("admin", "setup", "required"); },
+    get ADMINAPISETUPCREATE() { return api("admin", "setup", "create"); },
 
     // Admin API: Auth
-    get ADMIN_API_AUTH_PUBLIC_KEY() { return api("admin", "auth", "publicKey"); },
-    get ADMIN_API_AUTH_LOGIN() { return api("admin", "auth", "login"); },
-    get ADMIN_API_AUTH_LOGIN_TOTP() { return api("admin", "auth", "loginTotp"); },
-    get ADMIN_API_AUTH_REFRESH() { return api("admin", "auth", "refresh"); },
-    get ADMIN_API_AUTH_LOGOUT() { return api("admin", "auth", "logout"); },
-    get ADMIN_API_AUTH_ME() { return api("admin", "auth", "me"); },
+    get ADMINAPIAUTHPUBLICKEY() { return api("admin", "auth", "publicKey"); },
+    get ADMINAPIAUTHLOGIN() { return api("admin", "auth", "login"); },
+    get ADMINAPIAUTHLOGINTOTP() { return api("admin", "auth", "loginTotp"); },
+    get ADMINAPIAUTHREFRESH() { return api("admin", "auth", "refresh"); },
+    get ADMINAPIAUTHLOGOUT() { return api("admin", "auth", "logout"); },
+    get ADMINAPIAUTHME() { return api("admin", "auth", "me"); },
 
     // Admin API: TOTP
-    get ADMIN_API_TOTP_QR() { return api("admin", "totp", "qr"); },
-    get ADMIN_API_TOTP_REGENERATE() { return api("admin", "totp", "regenerate"); },
+    get ADMINAPITOTPQR() { return api("admin", "totp", "qr"); },
+    get ADMINAPITOTPREGENERATE() { return api("admin", "totp", "regenerate"); },
 
     // Admin API: Password
-    get ADMIN_API_PASSWORD_FORGOT_VERIFY() { return api("admin", "password", "forgotVerify"); },
-    get ADMIN_API_PASSWORD_FORGOT_RESET() { return api("admin", "password", "forgotReset"); },
+    get ADMINAPIPASSWORDFORGOTVERIFY() { return api("admin", "password", "forgotVerify"); },
+    get ADMINAPIPASSWORDFORGOTRESET() { return api("admin", "password", "forgotReset"); },
 
     // Admin API: Dashboard
-    get ADMIN_API_DASHBOARD_STATS() { return api("admin", "dashboard", "stats"); },
+    get ADMINAPIDASHBOARDSTATS() { return api("admin", "dashboard", "stats"); },
 
     // Admin API: Config
-    get ADMIN_API_CONFIG_GET() { return api("admin", "config", "get"); },
-    get ADMIN_API_CONFIG_UPDATE() { return api("admin", "config", "update"); },
-    get ADMIN_API_CONFIG_THEME() { return api("admin", "config", "theme"); },
+    get ADMINAPICONFIGGET() { return api("admin", "config", "get"); },
+    get ADMINAPICONFIGUPDATE() { return api("admin", "config", "update"); },
+    get ADMINAPICONFIGTHEME() { return api("admin", "config", "theme"); },
 
     // Admin API: Billing
-    get ADMIN_API_BILLING_FILTER() { return api("admin", "billing", "filter"); },
-    get ADMIN_API_BILLING_MONTHS() { return api("admin", "billing", "months"); },
-    get ADMIN_API_BILLING_PREVIEW() { return api("admin", "billing", "preview"); },
-    get ADMIN_API_BILLING_CREATE() { return api("admin", "billing", "create"); },
-    adminApiBillingGet(billno: string) { return api("admin", "billing", "get", { billno }); },
-    adminApiBillingUpdate(billno: string) { return api("admin", "billing", "update", { billno }); },
-    adminApiBillingUpdatePayment(billno: string) { return api("admin", "billing", "updatePayment", { billno }); },
-    adminApiBillingArchive(billno: string) { return api("admin", "billing", "archive", { billno }); },
-    adminApiBillingRestore(billno: string) { return api("admin", "billing", "restore", { billno }); },
-    adminApiBillingDelete(billno: string) { return api("admin", "billing", "delete", { billno }); },
+    get ADMINAPIBILLINGFILTER() { return api("admin", "billing", "filter"); },
+    get ADMINAPIBILLINGMONTHS() { return api("admin", "billing", "months"); },
+    get ADMINAPIBILLINGPREVIEW() { return api("admin", "billing", "preview"); },
+    get ADMINAPIBILLINGCREATE() { return api("admin", "billing", "create"); },
+    ADMINAPIBILLINGGET(billNo: string) { return api("admin", "billing", "get", { billNo }); },
+    ADMINAPIBILLINGUPDATE(billNo: string) { return api("admin", "billing", "update", { billNo }); },
+    ADMINAPIBILLINGUPDATEPAYMENT(billNo: string) { return api("admin", "billing", "updatePayment", { billNo }); },
+    ADMINAPIBILLINGARCHIVE(billNo: string) { return api("admin", "billing", "archive", { billNo }); },
+    ADMINAPIBILLINGRESTORE(billNo: string) { return api("admin", "billing", "restore", { billNo }); },
+    ADMINAPIBILLINGDELETE(billNo: string) { return api("admin", "billing", "delete", { billNo }); },
 
     // Admin API: Tenants
-    get ADMIN_API_TENANTS_LIST() { return api("admin", "tenants", "list"); },
-    get ADMIN_API_TENANTS_CREATE() { return api("admin", "tenants", "create"); },
-    adminApiTenantsGet(tenant_id: number) { return api("admin", "tenants", "get", { tenant_id }); },
-    adminApiTenantsUpdate(tenant_id: number) { return api("admin", "tenants", "update", { tenant_id }); },
-    adminApiTenantsDelete(tenant_id: number) { return api("admin", "tenants", "delete", { tenant_id }); },
-    adminApiTenantsChangePin(tenant_id: number) { return api("admin", "tenants", "changePin", { tenant_id }); },
-    adminApiTenantsRevealPin(tenant_id: number) { return api("admin", "tenants", "revealPin", { tenant_id }); },
-    adminApiTenantsReceipts(tenant_name: string) { return api("admin", "tenants", "receipts", { tenant_name }); },
+    get ADMINAPITENANTSLIST() { return api("admin", "tenants", "list"); },
+    get ADMINAPITENANTSCREATE() { return api("admin", "tenants", "create"); },
+    ADMINAPITENANTSGET(tenantId: number) { return api("admin", "tenants", "get", { tenantId }); },
+    ADMINAPITENANTSUPDATE(tenantId: number) { return api("admin", "tenants", "update", { tenantId }); },
+    ADMINAPITENANTSDELETE(tenantId: number) { return api("admin", "tenants", "delete", { tenantId }); },
+    ADMINAPITENANTSCHANGEPIN(tenantId: number) { return api("admin", "tenants", "changePin", { tenantId }); },
+    ADMINAPITENANTSREVEALPIN(tenantId: number) { return api("admin", "tenants", "revealPin", { tenantId }); },
+    ADMINAPITENANTSRECEIPTS(tenantName: string) { return api("admin", "tenants", "receipts", { tenantName }); },
 
     // Admin API: Occupants
-    get ADMIN_API_OCCUPANTS_LIST() { return api("admin", "occupants", "list"); },
-    get ADMIN_API_OCCUPANTS_CREATE() { return api("admin", "occupants", "create"); },
-    adminApiOccupantsMarkInactive(tenant_id: number, occupant_uuid: string) { return api("admin", "occupants", "markInactive", { tenant_id, occupant_uuid }); },
-    adminApiOccupantsDelete(tenant_id: number, occupant_uuid: string) { return api("admin", "occupants", "delete", { tenant_id, occupant_uuid }); },
-    adminApiOccupantsGetFile(filename: string) { return api("admin", "occupants", "getFile", { filename }); },
+    get ADMINAPIOCCUPANTSLIST() { return api("admin", "occupants", "list"); },
+    get ADMINAPIOCCUPANTSCREATE() { return api("admin", "occupants", "create"); },
+    ADMINAPIOCCUPANTSMARKINACTIVE(tenantId: number, occupantUuid: string) { return api("admin", "occupants", "markInactive", { tenantId, occupantUuid }); },
+    ADMINAPIOCCUPANTSDELETE(tenantId: number, occupantUuid: string) { return api("admin", "occupants", "delete", { tenantId, occupantUuid }); },
+    ADMINAPIOCCUPANTSGETFILE(filename: string) { return api("admin", "occupants", "getFile", { filename }); },
 
     // Admin API: PDF
-    adminApiPdfDownload(billno: string) { return api("admin", "pdf", "download", { billno }); },
-    adminApiPdfView(billno: string) { return api("admin", "pdf", "view", { billno }); },
+    ADMINAPIPDFDOWNLOAD(billNo: string) { return api("admin", "pdf", "download", { billNo }); },
+    ADMINAPIPDFVIEW(billNo: string) { return api("admin", "pdf", "view", { billNo }); },
 
     // Admin API: WhatsApp
-    adminApiWhatsappSendSingle(billno: string) { return api("admin", "whatsapp", "sendSingle", { billno }); },
+    ADMINAPIWHATSAPPSENDSINGLE(billNo: string) { return api("admin", "whatsapp", "sendSingle", { billNo }); },
 
     // Admin API: Sync
-    get ADMIN_API_SYNC_EXPORT_CSV() { return api("admin", "sync", "exportCsv"); },
-    get ADMIN_API_SYNC_EXPORT_ZIP() { return api("admin", "sync", "exportZip"); },
-    get ADMIN_API_SYNC_TEMPLATE() { return api("admin", "sync", "template"); },
-    get ADMIN_API_SYNC_IMPORT_PREVIEW() { return api("admin", "sync", "importPreview"); },
-    get ADMIN_API_SYNC_IMPORT_EXECUTE() { return api("admin", "sync", "importExecute"); },
-    adminApiSyncExportExcel(format: string) { return api("admin", "sync", "exportExcel", { format }); },
+    get ADMINAPISYNCEXPORTCSV() { return api("admin", "sync", "exportCsv"); },
+    get ADMINAPISYNCEXPORTZIP() { return api("admin", "sync", "exportZip"); },
+    get ADMINAPISYNCTEMPLATE() { return api("admin", "sync", "template"); },
+    get ADMINAPISYNCIMPORTPREVIEW() { return api("admin", "sync", "importPreview"); },
+    get ADMINAPISYNCIMPORTEXECUTE() { return api("admin", "sync", "importExecute"); },
+    ADMINAPISYNCEXPORTEXCEL(format: string) { return api("admin", "sync", "exportExcel", { format }); },
 
     // Admin API: Backups
-    get ADMIN_API_BACKUPS_LIST() { return api("admin", "backups", "list"); },
-    get ADMIN_API_BACKUPS_CREATE_MANUAL() { return api("admin", "backups", "createManual"); },
-    adminApiBackupsDelete(backup_id: string) { return api("admin", "backups", "delete", { backup_id }); },
-    adminApiBackupsVerify(backup_id: string) { return api("admin", "backups", "verify", { backup_id }); },
-    adminApiBackupsRestore(backup_id: string) { return api("admin", "backups", "restore", { backup_id }); },
-    adminApiBackupsDownload(backup_id: string) { return api("admin", "backups", "download", { backup_id }); },
-    adminApiBackupsMetadata(backup_id: string) { return api("admin", "backups", "metadata", { backup_id }); },
+    get ADMINAPIBACKUPSLIST() { return api("admin", "backups", "list"); },
+    get ADMINAPIBACKUPSCREATEMANUAL() { return api("admin", "backups", "createManual"); },
+    ADMINAPIBACKUPSDELETE(backupId: string) { return api("admin", "backups", "delete", { backupId }); },
+    ADMINAPIBACKUPSVERIFY(backupId: string) { return api("admin", "backups", "verify", { backupId }); },
+    ADMINAPIBACKUPSRESTORE(backupId: string) { return api("admin", "backups", "restore", { backupId }); },
+    ADMINAPIBACKUPSDOWNLOAD(backupId: string) { return api("admin", "backups", "download", { backupId }); },
+    ADMINAPIBACKUPSMETADATA(backupId: string) { return api("admin", "backups", "metadata", { backupId }); },
 
     // Admin API: Settings
-    get ADMIN_API_SETTINGS_UPLOAD_SIGNATURE() { return api("admin", "settings", "uploadSignature"); },
-    get ADMIN_API_SETTINGS_DELETE_SIGNATURE() { return api("admin", "settings", "deleteSignature"); },
+    get ADMINAPISETTINGSUPLOADSIGNATURE() { return api("admin", "settings", "uploadSignature"); },
+    get ADMINAPISETTINGSDELETESIGNATURE() { return api("admin", "settings", "deleteSignature"); },
 
     // Tenant Pages
-    tenantPageRoot(view_token: string) { return page("tenant", "root", { view_token }); },
+    TENANTPAGEROOT(viewToken: string) { return page("tenant", "root", { viewToken }); },
 
     // Tenant API: Auth
-    get TENANT_API_AUTH_PUBLIC_KEY() { return api("tenant", "auth", "publicKey"); },
-    tenantApiAuthLogin(view_token: string) { return api("tenant", "auth", "login", { view_token }); },
-    get TENANT_API_AUTH_REFRESH() { return api("tenant", "auth", "refresh"); },
-    get TENANT_API_AUTH_LOGOUT() { return api("tenant", "auth", "logout"); },
-    get TENANT_API_AUTH_LOGOUT_ALL() { return api("tenant", "auth", "logoutAll"); },
+    get TENANTAPIAUTHPUBLICKEY() { return api("tenant", "auth", "publicKey"); },
+    TENANTAPIAUTHLOGIN(viewToken: string) { return api("tenant", "auth", "login", { viewToken }); },
+    get TENANTAPIAUTHREFRESH() { return api("tenant", "auth", "refresh"); },
+    get TENANTAPIAUTHLOGOUT() { return api("tenant", "auth", "logout"); },
+    get TENANTAPIAUTHLOGOUTALL() { return api("tenant", "auth", "logoutAll"); },
 
     // Tenant API: Profile
-    tenantApiProfileGet(view_token: string) { return api("tenant", "profile", "get", { view_token }); },
+    TENANTAPIPROFILEGET(viewToken: string) { return api("tenant", "profile", "get", { viewToken }); },
 
     // Tenant API: KYC
-    tenantApiKycUpload(view_token: string) { return api("tenant", "kyc", "upload", { view_token }); },
-    tenantApiKycMarkInactive(view_token: string, occupant_uuid: string) { return api("tenant", "kyc", "markInactive", { view_token, occupant_uuid }); },
-    tenantApiKycDelete(view_token: string, occupant_uuid: string) { return api("tenant", "kyc", "delete", { view_token, occupant_uuid }); },
-    tenantApiKycGetFile(filename: string) { return api("tenant", "kyc", "getFile", { filename }); },
+    TENANTAPIKYCUPLOAD(viewToken: string) { return api("tenant", "kyc", "upload", { viewToken }); },
+    TENANTAPIKYCMARKINACTIVE(viewToken: string, occupantUuid: string) { return api("tenant", "kyc", "markInactive", { viewToken, occupantUuid }); },
+    TENANTAPIKYCDELETE(viewToken: string, occupantUuid: string) { return api("tenant", "kyc", "delete", { viewToken, occupantUuid }); },
+    TENANTAPIKYCGETFILE(filename: string) { return api("tenant", "kyc", "getFile", { filename }); },
 } as const;
 
 export type RoutesType = typeof ROUTES;
@@ -25362,7 +25829,7 @@ export default function AdminLoginPage() {
   const [setupRequired, setSetupRequired] = useState(false);
 
   useEffect(() => {
-    apiGet(ROUTES.ADMIN_API_SETUP_REQUIRED)
+    apiGet(ROUTES.ADMINAPISETUPREQUIRED)
       .then((data: any) => {
         if (data.setup_required) {
           setSetupRequired(true);
@@ -25380,7 +25847,7 @@ export default function AdminLoginPage() {
     try {
       if (needsTOTP) {
         // Step 2: Login with TOTP
-        const result = await apiPost(ROUTES.ADMIN_API_AUTH_LOGIN_TOTP, {
+        const result = await apiPost(ROUTES.ADMINAPIAUTHLOGINTOTP, {
           username: loginData.username,
           password: loginData.password,
           totp_token: loginData.totpToken,
@@ -25392,7 +25859,7 @@ export default function AdminLoginPage() {
         }
       } else {
         // Step 1: Initial login attempt
-        const result: LoginResponse = await apiPost(ROUTES.ADMIN_API_AUTH_LOGIN, {
+        const result: LoginResponse = await apiPost(ROUTES.ADMINAPIAUTHLOGIN, {
           username: loginData.username,
           password: loginData.password,
           remember_me: loginData.rememberMe,
@@ -25418,7 +25885,7 @@ export default function AdminLoginPage() {
 
     try {
       if (forgotStep === 'verify') {
-        const result = await apiPost(ROUTES.ADMIN_API_PASSWORD_FORGOT_VERIFY, {
+        const result = await apiPost(ROUTES.ADMINAPIPASSWORDFORGOTVERIFY, {
           username: forgotData.username,
           totp_token: forgotData.totpToken,
         });
@@ -25440,7 +25907,7 @@ export default function AdminLoginPage() {
           return;
         }
 
-        const result = await apiPost(ROUTES.ADMIN_API_PASSWORD_FORGOT_RESET, {
+        const result = await apiPost(ROUTES.ADMINAPIPASSWORDFORGOTRESET, {
           username: forgotData.username,
           totp_token: forgotData.totpToken,
           new_password: forgotData.newPassword,
@@ -25758,10 +26225,10 @@ export default function AdminSetupPage() {
 
   useEffect(() => {
     // Check if setup is required
-    apiGet(ROUTES.ADMIN_API_SETUP_REQUIRED)
+    apiGet(ROUTES.ADMINAPISETUPREQUIRED)
       .then((data: any) => {
         if (!data.setup_required) {
-          navigate(ROUTES.ADMIN_PAGE_LOGIN);
+          navigate(ROUTES.ADMINPAGELOGIN);
         }
       })
       .catch(() => {
@@ -25791,7 +26258,7 @@ export default function AdminSetupPage() {
     setLoading(true);
 
     try {
-      const result = await apiPost(ROUTES.ADMIN_API_SETUP_CREATE, {
+      const result = await apiPost(ROUTES.ADMINAPISETUPCREATE, {
         username: formData.username,
         password: formData.password,
         confirm_password: formData.confirmPassword,
@@ -25997,7 +26464,7 @@ interface GroupedReceipts {
   };
 }
 
-export default function ArchivePage() {
+export default function ARCHIVEPAGE() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -26160,8 +26627,8 @@ export default function ArchivePage() {
         })
       )}
 
-      <PDFPreviewModal billno={previewBill} onClose={() => setPreviewBill(null)} />
-      <EditBillModal billno={editBill} onClose={() => setEditBill(null)} onSaved={loadReceipts} />
+      <PDFPreviewModal billNo={previewBill} onClose={() => setPreviewBill(null)} />
+      <EditBillModal billNo={editBill} onClose={() => setEditBill(null)} onSaved={loadReceipts} />
     </div>
   );
 }
@@ -26385,7 +26852,7 @@ export default function Backups() {
                     <div className="flex gap-1">
                       <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                         const a = document.createElement('a');
-                        a.href = ROUTES.adminApiBackupsDownload(b.id);
+                        a.href = ROUTES.ADMINAPIBACKUPSDOWNLOAD(b.id);
                         a.download = b.filename;
                         a.click();
                       }} title="Download">
@@ -26502,7 +26969,7 @@ export default function Billing() {
   const [selectedMonth, setSelectedMonth] = useState('');
   const [rent, setRent] = useState(0);
   const [water, setWater] = useState(0);
-  const [tankWater, setTankWater] = useState(0);
+  const [tankWater, settankWater] = useState(0);
   const [maintenance, setMaintenance] = useState(0);
   const [maintenanceDesc, setMaintenanceDesc] = useState('');
   const [prevReading, setPrevReading] = useState(0);
@@ -26511,7 +26978,7 @@ export default function Billing() {
   const [addPersons, setAddPersons] = useState(0);
   const [addPersonRate, setAddPersonRate] = useState(0);
   const [calculatedArrears, setCalculatedArrears] = useState(0);
-  const [nextBillNo, setNextBillNo] = useState('');
+  const [nextbillNo, setNextbillNo] = useState('');
   const [meterError, setMeterError] = useState('');
 
   // Result
@@ -26546,9 +27013,9 @@ export default function Billing() {
 
       setRent(tRes.rent || 0);
       setWater(tRes.water || 0);
-      setElecRate(tRes.electricity_rate || 0);
-      setAddPersonRate(tRes.additional_person_charge || 0);
-      setTankWater(tRes.default_tank_water_charge || 0);
+      setElecRate(tRes.electricityRate || 0);
+      setAddPersonRate(tRes.additionalPersonCharge || 0);
+      settankWater(tRes.defaulttankWaterCharge || 0);
 
       const receipts = recRes;
       let previousReading = 0;
@@ -26565,21 +27032,21 @@ export default function Billing() {
 
         const last = receipts[0];
         const lastTotal = parseFloat(String(last.Total)) || 0;
-        const lastPrevArr = parseFloat(String(last.Previous_Arrears)) || 0;
+        const lastPrevArr = parseFloat(String(last.previousArrears)) || 0;
         const grandTotal = lastTotal + lastPrevArr;
-        const lastRecv = last.Amount_Received !== null && last.Amount_Received !== undefined
-          ? parseFloat(String(last.Amount_Received))
+        const lastRecv = last.amountReceived !== null && last.amountReceived !== undefined
+          ? parseFloat(String(last.amountReceived))
           : grandTotal;
         if (!isNaN(lastRecv)) {
           arrears = grandTotal - lastRecv;
         }
       } else {
-        previousReading = Number(tRes.previous_meter || 0);
+        previousReading = Number(tRes.previousMeter || 0);
       }
 
       setPrevReading(previousReading);
       setCalculatedArrears(arrears);
-      setNextBillNo(`T${tenant.id}-${String(maxSeq + 1).padStart(3, '0')}`);
+      setNextbillNo(`T${tenant.id}-${String(maxSeq + 1).padStart(3, '0')}`);
       setCurrentReading('');
       setAddPersons(0);
       setMaintenance(0);
@@ -26621,12 +27088,12 @@ export default function Billing() {
         month: selectedMonth,
         current_reading: currentVal,
         additional_persons: addPersons,
-        tank_water: tankWater,
-        maintenance_charge: maintenance,
-        maintenance_desc: maintenanceDesc,
-        previous_arrears: calculatedArrears,
-        amount_received: null,
-        payment_status: 'PENDING',
+        tankWater: tankWater,
+        MaintenanceCharge: maintenance,
+        MaintenanceDesc: maintenanceDesc,
+        previousArrears: calculatedArrears,
+        amountReceived: null,
+        paymentStatus: 'PENDING',
       });
 
       setGeneratedBill(res.data.Bill);
@@ -26648,7 +27115,7 @@ export default function Billing() {
     setSelectedMonth(currentMonth);
     setRent(0);
     setWater(0);
-    setTankWater(0);
+    settankWater(0);
     setMaintenance(0);
     setMaintenanceDesc('');
     setPrevReading(0);
@@ -26657,7 +27124,7 @@ export default function Billing() {
     setAddPersons(0);
     setAddPersonRate(0);
     setCalculatedArrears(0);
-    setNextBillNo('');
+    setNextbillNo('');
     setMeterError('');
     setShowSuccess(false);
     setGeneratedBill(null);
@@ -26678,8 +27145,8 @@ export default function Billing() {
           <CardTitle className="flex items-center gap-2 text-lg">
             <FileText className="h-5 w-5" />
             Generate New Receipt
-            {nextBillNo && (
-              <span className="ml-2 px-2 py-0.5 rounded bg-white/20 text-sm font-mono">{nextBillNo}</span>
+            {nextbillNo && (
+              <span className="ml-2 px-2 py-0.5 rounded bg-white/20 text-sm font-mono">{nextbillNo}</span>
             )}
           </CardTitle>
         </CardHeader>
@@ -26695,7 +27162,7 @@ export default function Billing() {
                 <SelectContent>
                   {tenants.map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>
-                      {t.name} {t.room_number ? `(Room ${t.room_number})` : ''}
+                      {t.name} {t.roomNumber ? `(Room ${t.roomNumber})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -26733,7 +27200,7 @@ export default function Billing() {
                 </div>
                 <div className="space-y-2">
                   <Label>Tank Water Charge (₹)</Label>
-                  <Input type="number" step="0.1" value={tankWater || ''} onChange={(e) => setTankWater(parseFloat(e.target.value) || 0)} />
+                  <Input type="number" step="0.1" value={tankWater || ''} onChange={(e) => settankWater(parseFloat(e.target.value) || 0)} />
                 </div>
               </div>
             </div>
@@ -27152,8 +27619,8 @@ export default function Dashboard() {
                     </tr>
                   )}
                   {(stats.recent_bills ?? []).map((b, i) => {
-                    const grandTotal = b.total + (b.Previous_Arrears || 0);
-                    const amtRecv = b.amount_received || 0;
+                    const grandTotal = b.total + (b.previousArrears || 0);
+                    const amtRecv = b.amountReceived || 0;
                     const balanceDue = grandTotal - amtRecv;
 
                     const statusColors: Record<string, string> = {
@@ -27164,20 +27631,20 @@ export default function Dashboard() {
                     };
 
                     return (
-                      <tr key={b.billno} className="border-b last:border-0 hover:bg-accent/50 transition-colors">
+                      <tr key={b.billNo} className="border-b last:border-0 hover:bg-accent/50 transition-colors">
                         <td className="px-4 py-2 text-muted-foreground">{i + 1}</td>
                         <td className="px-4 py-2">
-                          <span className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">{b.billno}</span>
+                          <span className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">{b.billNo}</span>
                         </td>
-                        <td className="px-4 py-2 font-medium text-primary">{b.tenant_name}</td>
+                        <td className="px-4 py-2 font-medium text-primary">{b.tenantName}</td>
                         <td className="px-4 py-2 text-muted-foreground">{b.month}</td>
                         <td className="px-4 py-2 font-bold">
                           ₹{b.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-2">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[b.payment_status] || statusColors.PENDING}`}>
-                            {b.payment_status === 'PAID' ? <Check size={10} /> : <AlertCircle size={10} />}
-                            {b.payment_status}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[b.paymentStatus] || statusColors.PENDING}`}>
+                            {b.paymentStatus === 'PAID' ? <Check size={10} /> : <AlertCircle size={10} />}
+                            {b.paymentStatus}
                           </span>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             Recv: ₹{amtRecv.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -27190,24 +27657,24 @@ export default function Dashboard() {
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewBill(b.billno)} title="View">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewBill(b.billNo)} title="View">
                               <Eye size={14} />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditBill(b.billno)} title="Edit">
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditBill(b.billNo)} title="Edit">
                               <Pencil size={14} className="text-yellow-500" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
-                              const url = api.getPDFDownloadUrl(b.billno);
+                              const url = api.getPDFDownloadUrl(b.billNo);
                               const a = document.createElement('a');
                               a.href = url;
-                              a.download = `Receipt_${b.billno}.pdf`;
+                              a.download = `Receipt_${b.billNo}.pdf`;
                               a.click();
                             }} title="Download">
                               <Download size={14} className="text-green-500" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={async () => {
                               try {
-                                const data = await api.sendWhatsApp(b.billno);
+                                const data = await api.sendWhatsApp(b.billNo);
                                 if (data.url) window.open(data.url, '_blank');
                               } catch { toast.error('Failed'); }
                             }} title="WhatsApp">
@@ -27252,8 +27719,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <PDFPreviewModal billno={previewBill} onClose={() => setPreviewBill(null)} />
-      <EditBillModal billno={editBill} onClose={() => setEditBill(null)} onSaved={loadStats} />
+      <PDFPreviewModal billNo={previewBill} onClose={() => setPreviewBill(null)} />
+      <EditBillModal billNo={editBill} onClose={() => setEditBill(null)} onSaved={loadStats} />
     </div>
   );
 }
@@ -27414,8 +27881,8 @@ export default function History() {
         })
       )}
 
-      <PDFPreviewModal billno={previewBill} onClose={() => setPreviewBill(null)} />
-      <EditBillModal billno={editBill} onClose={() => setEditBill(null)} onSaved={loadReceipts} />
+      <PDFPreviewModal billNo={previewBill} onClose={() => setPreviewBill(null)} />
+      <EditBillModal billNo={editBill} onClose={() => setEditBill(null)} onSaved={loadReceipts} />
     </div>
   );
 }
@@ -27613,7 +28080,7 @@ export default function SecuritySettingsPage() {
 
   const loadTOTPData = async () => {
     try {
-      const result: TOTPResponse = await apiGet(ROUTES.ADMIN_API_TOTP_QR);
+      const result: TOTPResponse = await apiGet(ROUTES.ADMINAPITOTPQR);
       if (result.status === 'success') {
         setTotpData(result.totp);
       }
@@ -27636,7 +28103,7 @@ export default function SecuritySettingsPage() {
     setLoading(true);
 
     try {
-      const result: TOTPResponse = await apiPost(ROUTES.ADMIN_API_TOTP_REGENERATE, {
+      const result: TOTPResponse = await apiPost(ROUTES.ADMINAPITOTPREGENERATE, {
         password: password,
       });
 
@@ -27884,7 +28351,7 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { AppConfig } from '@/types';
-import { PreviewDialog } from '../components/modals/PreviewDialog';
+import ImportPreviewModal from '../components/modals/ImportPreviewModal';
 import {
   Receipt,
   UserCircle,
@@ -27911,7 +28378,7 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
   const [importFiles, setImportFiles] = useState<File[]>([]);
-  const [importPreviewData, setImportPreviewData] = useState<any>(null);
+  const [IMPORTPREVIEWDATA, setImportPreviewData] = useState<any>(null);
   const toast = useToast();
   const { theme, effectiveTheme, setTheme } = useTheme();
 
@@ -28138,15 +28605,15 @@ export default function Settings() {
                 </Button>
               </div>
 
-              <PreviewDialog
-                open={!!importPreviewData}
+              <ImportPreviewModal
+                open={!!IMPORTPREVIEWDATA}
                 onOpenChange={(open: boolean) => {
                   if (!open) {
                     setImportPreviewData(null);
                     setImportFiles([]);
                   }
                 }}
-                previewData={importPreviewData}
+                previewData={IMPORTPREVIEWDATA}
                 files={importFiles}
                 onImportSuccess={() => {
                   setImportPreviewData(null);
@@ -28169,7 +28636,7 @@ export default function Settings() {
                     <strong>.zip</strong> — Archive containing multiple .xlsx files
                   </li>
                   <li>
-                    Required columns: Tenant_ID, Tenant_Name, Phone, Rent, Water, Electricity_Rate
+                    Required columns: tenantId, tenantName, Phone, Rent, Water, electricityRate
                   </li>
                 </ul>
               </div>
@@ -28243,16 +28710,16 @@ export default function Settings() {
                 </div>
                 <div className="space-y-2">
                   <Label>Electricity Rate (₹/unit)</Label>
-                  <Input type="number" step="0.1" value={config.billing.electricity_rate} onChange={(e) => updateBilling('electricity_rate', parseFloat(e.target.value) || 0)} />
+                  <Input type="number" step="0.1" value={config.billing.electricityRate} onChange={(e) => updateBilling('electricityRate', parseFloat(e.target.value) || 0)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Default Meter Reading</Label>
-                  <Input type="number" step="0.1" value={config.billing.previous_meter_reading} onChange={(e) => updateBilling('previous_meter_reading', parseFloat(e.target.value) || 0)} />
+                  <Input type="number" step="0.1" value={config.billing.previousMeter_reading} onChange={(e) => updateBilling('previousMeter_reading', parseFloat(e.target.value) || 0)} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Additional Person Charge (₹)</Label>
-                <Input type="number" value={config.billing.additional_person_charge} onChange={(e) => updateBilling('additional_person_charge', parseFloat(e.target.value) || 0)} />
+                <Input type="number" value={config.billing.additionalPersonCharge} onChange={(e) => updateBilling('additionalPersonCharge', parseFloat(e.target.value) || 0)} />
               </div>
             </CardContent>
           </Card>
@@ -28463,14 +28930,14 @@ export default function Settings() {
                     key={option.value}
                     onClick={() => setTheme(option.value)}
                     className={`p-4 rounded-xl border-2 text-left transition-all ${theme === option.value
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
                       }`}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${option.value === 'light' ? 'bg-amber-100 text-amber-600' :
-                          option.value === 'dark' ? 'bg-indigo-100 text-indigo-600' :
-                            'bg-gray-100 text-gray-600'
+                        option.value === 'dark' ? 'bg-indigo-100 text-indigo-600' :
+                          'bg-gray-100 text-gray-600'
                         }`}>
                         <option.icon className="h-4 w-4" />
                       </div>
@@ -28917,7 +29384,7 @@ export default function Tenants() {
 
     try {
       setSavingQrPin(true);
-      await api.changeTenantPin(qrTenant.id, { pin: newQrPin, logout_all: true });
+      await api.CHANGETENANTPIN(qrTenant.id, { pin: newQrPin, logout_all: true });
       setQrPin(newQrPin);
       setNewQrPin('');
       setShowQrPinEditor(false);
@@ -28961,10 +29428,10 @@ export default function Tenants() {
           Bill: r.Bill,
           Month: r.Month,
           Status: r.Status,
-          PaymentStatus: r.Payment_Status,
+          PaymentStatus: r.paymentStatus,
           Total: r.Total,
-          PreviousArrears: r.Previous_Arrears,
-          AmountReceived: r.Amount_Received,
+          PreviousArrears: r.previousArrears,
+          AmountReceived: r.amountReceived,
         }));
       setTenantBills(active);
       setSelectedBill(null);
@@ -28989,8 +29456,8 @@ export default function Tenants() {
           const active = receipts.filter((r: any) => r.Status !== 'ARCHIVED');
           if (active.length > 0) {
             const latest = active[0];
-            const grandTotal = Number(latest.Total || 0) + Number(latest.Previous_Arrears || 0);
-            const amtRecv = latest.Amount_Received != null ? Number(latest.Amount_Received) : grandTotal;
+            const grandTotal = Number(latest.Total || 0) + Number(latest.previousArrears || 0);
+            const amtRecv = latest.amountReceived != null ? Number(latest.amountReceived) : grandTotal;
             t.arrears = grandTotal - amtRecv;
           } else {
             t.arrears = 0;
@@ -29138,7 +29605,7 @@ export default function Tenants() {
               }}
               onChangePin={async (pin) => {
                 try {
-                  await api.changeTenantPin(editingTenant.id, { pin, logout_all: true });
+                  await api.CHANGETENANTPIN(editingTenant.id, { pin, logout_all: true });
                   toast.success('Tenant PIN changed');
                   loadTenants();
                 } catch (e: any) {
@@ -29160,7 +29627,7 @@ export default function Tenants() {
             <DialogTitle className="text-base">{qrTenant?.name} QR</DialogTitle>
           </DialogHeader>
 
-          {qrTenant?.view_token && (
+          {qrTenant?.viewToken && (
             <div className="flex justify-center">
               <div className="w-full max-w-[340px] rounded-[22px] border-[3px] border-neutral-900 bg-white px-5 py-5 text-center shadow-sm">
                 <h3 className="text-[16px] font-bold tracking-tight text-gray-500">
@@ -29173,7 +29640,7 @@ export default function Tenants() {
 
                 <div className="mt-4 flex justify-center bg-white p-2">
                   <QRCode
-                    value={`${window.location.origin}/rent/t/${qrTenant.view_token}`}
+                    value={`${window.location.origin}/rent/t/${qrTenant.viewToken}`}
                     size={200}
                     level="H"
                   />
@@ -29182,7 +29649,7 @@ export default function Tenants() {
                 <div className="my-4 border-t border-dashed border-gray-200" />
 
                 <div className="text-lg font-bold text-gray-500">
-                  Room: {qrTenant.room_number || '-'}
+                  Room: {qrTenant.roomNumber || '-'}
                 </div>
 
                 {qrPinMissing && (
@@ -29432,14 +29899,14 @@ function TenantCard({
               <MapPin size={14} /> {tenant.address}
             </div>
           )}
-          {tenant.room_number && (
+          {tenant.roomNumber && (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Receipt size={14} /> Room {tenant.room_number}
+              <Receipt size={14} /> Room {tenant.roomNumber}
             </div>
           )}
-          {tenant.meter_id && (
+          {tenant.meterId && (
             <div className="flex items-center gap-2 text-muted-foreground">
-              <Gauge size={14} /> Meter: {tenant.meter_id}
+              <Gauge size={14} /> Meter: {tenant.meterId}
             </div>
           )}
         </div>
@@ -29455,7 +29922,7 @@ function TenantCard({
           </div>
           <div className="text-center">
             <div className="text-xs text-muted-foreground">Elec Rate</div>
-            <div className="font-semibold text-sm">₹{tenant.electricity_rate}</div>
+            <div className="font-semibold text-sm">₹{tenant.electricityRate}</div>
           </div>
         </div>
 
@@ -29464,9 +29931,9 @@ function TenantCard({
             variant="outline"
             size="sm"
             className="w-full"
-            disabled={!tenant.view_token}
-            onClick={() => tenant.view_token && window.open(`/rent/t/${tenant.view_token}`, '_blank')}
-            title={!tenant.view_token ? 'Portal token missing for this tenant' : 'Open public profile'}
+            disabled={!tenant.viewToken}
+            onClick={() => tenant.viewToken && window.open(`/rent/t/${tenant.viewToken}`, '_blank')}
+            title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Open public profile'}
           >
             Public Profile
           </Button>
@@ -29475,9 +29942,9 @@ function TenantCard({
             variant="outline"
             size="sm"
             className="w-full"
-            disabled={!tenant.view_token}
+            disabled={!tenant.viewToken}
             onClick={onShowQr}
-            title={!tenant.view_token ? 'Portal token missing for this tenant' : 'Show QR'}
+            title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Show QR'}
           >
             QR
           </Button>
@@ -29486,11 +29953,11 @@ function TenantCard({
             variant="outline"
             size="sm"
             className="w-full"
-            disabled={!tenant.view_token}
+            disabled={!tenant.viewToken}
             onClick={async () => {
-              if (!tenant.view_token) return;
+              if (!tenant.viewToken) return;
 
-              const url = `${window.location.origin}/rent/t/${tenant.view_token}`;
+              const url = `${window.location.origin}/rent/t/${tenant.viewToken}`;
 
               let pin = '----';
               try {
@@ -29502,7 +29969,7 @@ function TenantCard({
 
               const htmlContent = buildQrPrintHtml({
                 tenantName: tenant.name,
-                roomNumber: tenant.room_number || '-',
+                roomNumber: tenant.roomNumber || '-',
                 pin,
                 url,
               });
@@ -29514,7 +29981,7 @@ function TenantCard({
                 toast.error('Failed to open print dialog');
               }
             }}
-            title={!tenant.view_token ? 'Portal token missing for this tenant' : 'Print QR'}
+            title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Print QR'}
           >
             Print QR
           </Button>
@@ -29573,16 +30040,16 @@ function TenantForm({
     email: tenant?.email || '',
     company: tenant?.company || '',
     address: tenant?.address || '',
-    room_number: tenant?.room_number || '',
-    meter_id: tenant?.meter_id || '',
+    roomNumber: tenant?.roomNumber || '',
+    meterId: tenant?.meterId || '',
     rent: tenant?.rent || 8000,
     water: tenant?.water || 500,
-    electricity_rate: tenant?.electricity_rate || 15,
-    additional_person_charge: tenant?.additional_person_charge || 1000,
-    default_tank_water_charge: tenant?.default_tank_water_charge || 0,
-    previous_meter: tenant?.previous_meter || 0,
+    electricityRate: tenant?.electricityRate || 15,
+    additionalPersonCharge: tenant?.additionalPersonCharge || 1000,
+    defaulttankWaterCharge: tenant?.defaulttankWaterCharge || 0,
+    previousMeter: tenant?.previousMeter || 0,
     status: tenant?.status || 'Active',
-    tenant_pin: '',
+    tenantPin: '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -29622,11 +30089,11 @@ function TenantForm({
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
           <Label>Room #</Label>
-          <Input value={form.room_number} onChange={(e) => setForm({ ...form, room_number: e.target.value })} />
+          <Input value={form.roomNumber} onChange={(e) => setForm({ ...form, roomNumber: e.target.value })} />
         </div>
         <div className="space-y-2">
           <Label>Meter ID</Label>
-          <Input value={form.meter_id} onChange={(e) => setForm({ ...form, meter_id: e.target.value })} />
+          <Input value={form.meterId} onChange={(e) => setForm({ ...form, meterId: e.target.value })} />
         </div>
         <div className="space-y-2">
           <Label>Status</Label>
@@ -29652,8 +30119,8 @@ function TenantForm({
             <Input
               type="number"
               step="0.1"
-              value={form.electricity_rate}
-              onChange={(e) => setForm({ ...form, electricity_rate: parseFloat(e.target.value) || 0 })}
+              value={form.electricityRate}
+              onChange={(e) => setForm({ ...form, electricityRate: parseFloat(e.target.value) || 0 })}
             />
           </div>
         </div>
@@ -29663,8 +30130,8 @@ function TenantForm({
             <Label>Add Person (₹)</Label>
             <Input
               type="number"
-              value={form.additional_person_charge}
-              onChange={(e) => setForm({ ...form, additional_person_charge: parseFloat(e.target.value) || 0 })}
+              value={form.additionalPersonCharge}
+              onChange={(e) => setForm({ ...form, additionalPersonCharge: parseFloat(e.target.value) || 0 })}
             />
           </div>
           <div className="space-y-2">
@@ -29672,8 +30139,8 @@ function TenantForm({
             <Input
               type="number"
               step="0.1"
-              value={form.default_tank_water_charge}
-              onChange={(e) => setForm({ ...form, default_tank_water_charge: parseFloat(e.target.value) || 0 })}
+              value={form.defaulttankWaterCharge}
+              onChange={(e) => setForm({ ...form, defaulttankWaterCharge: parseFloat(e.target.value) || 0 })}
             />
           </div>
           <div className="space-y-2">
@@ -29681,8 +30148,8 @@ function TenantForm({
             <Input
               type="number"
               step="0.1"
-              value={form.previous_meter}
-              onChange={(e) => setForm({ ...form, previous_meter: parseFloat(e.target.value) || 0 })}
+              value={form.previousMeter}
+              onChange={(e) => setForm({ ...form, previousMeter: parseFloat(e.target.value) || 0 })}
             />
           </div>
         </div>
@@ -29695,8 +30162,8 @@ function TenantForm({
             type="password"
             maxLength={4}
             pattern="\d{4}"
-            value={form.tenant_pin}
-            onChange={(e) => setForm({ ...form, tenant_pin: e.target.value })}
+            value={form.tenantPin}
+            onChange={(e) => setForm({ ...form, tenantPin: e.target.value })}
             placeholder="Required for tenant portal access"
             required={!tenant}
           />
@@ -29766,7 +30233,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
     },
   });
   if (res.status === 401 || res.status === 303) {
-    window.location.href = ROUTES.ADMIN_PAGE_LOGIN;
+    window.location.href = ROUTES.ADMINPAGELOGIN;
     throw new Error("Unauthorized");
   }
   return res;
@@ -29775,7 +30242,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
 export const api = {
   // Dashboard
   getDashboardStats: async (): Promise<DashboardStats> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_DASHBOARD_STATS);
+    const res = await fetchWithAuth(ROUTES.ADMINAPIDASHBOARDSTATS);
     if (!res.ok) throw new Error("Failed to fetch dashboard stats");
     const data = await res.json();
     return data.stats || data;
@@ -29783,19 +30250,19 @@ export const api = {
 
   // Tenants
   getTenants: async (): Promise<Tenant[]> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_TENANTS_LIST);
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSLIST);
     if (!res.ok) throw new Error("Failed to fetch tenants");
     return res.json();
   },
 
   getTenant: async (id: number): Promise<Tenant> => {
-    const res = await fetchWithAuth(ROUTES.adminApiTenantsGet(id));
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSGET(id));
     if (!res.ok) throw new Error("Failed to fetch tenant");
     return res.json();
   },
 
   addTenant: async (tenant: Omit<Tenant, "id">): Promise<{ status: string; tenant: Tenant }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_TENANTS_CREATE, {
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSCREATE, {
       method: "POST",
       body: JSON.stringify(tenant),
     });
@@ -29804,7 +30271,7 @@ export const api = {
   },
 
   updateTenant: async (id: number, tenant: Tenant): Promise<{ status: string; tenant: Tenant }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiTenantsUpdate(id), {
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSUPDATE(id), {
       method: "PUT",
       body: JSON.stringify(tenant),
     });
@@ -29813,13 +30280,13 @@ export const api = {
   },
 
   revealTenantPin: async (id: number): Promise<{ status: string; pin: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiTenantsRevealPin(id));
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSREVEALPIN(id));
     if (!res.ok) throw new Error("Failed to reveal PIN");
     return res.json();
   },
 
-  changeTenantPin: async (tenantId: number, payload: { pin: string; logout_all?: boolean }) => {
-    const res = await fetch(ROUTES.adminApiTenantsChangePin(tenantId), {
+  CHANGETENANTPIN: async (tenantId: number, payload: { pin: string; logout_all?: boolean }) => {
+    const res = await fetch(ROUTES.ADMINAPITENANTSCHANGEPIN(tenantId), {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -29831,7 +30298,7 @@ export const api = {
   },
 
   deleteTenant: async (id: number, action: string = "archive"): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(`${ROUTES.adminApiTenantsDelete(id)}?action=${action}`, {
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPITENANTSDELETE(id)}?action=${action}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete tenant");
@@ -29839,39 +30306,39 @@ export const api = {
   },
 
   getTenantReceipts: async (tenantName: string): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(ROUTES.adminApiTenantsReceipts(tenantName));
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSRECEIPTS(tenantName));
     if (!res.ok) throw new Error("Failed to fetch tenant receipts");
     return res.json();
   },
 
   // Bills / Receipts
   getAllReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMIN_API_BILLING_FILTER}?status=all`);
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGFILTER}?status=all`);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     return res.json();
   },
 
   getActiveReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMIN_API_BILLING_FILTER}?status=active`);
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGFILTER}?status=active`);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     return res.json();
   },
 
   getArchivedReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMIN_API_BILLING_FILTER}?status=all`);
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGFILTER}?status=all`);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     const data = await res.json();
     return data.filter((r: Receipt) => r.Status === "ARCHIVED");
   },
 
   getReceipt: async (billNo: string): Promise<Receipt> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingGet(billNo));
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGGET(billNo));
     if (!res.ok) throw new Error("Failed to fetch receipt");
     return res.json();
   },
 
   createBill: async (data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_BILLING_CREATE, {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGCREATE, {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -29881,7 +30348,7 @@ export const api = {
   },
 
   updateBill: async (billNo: string, data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingUpdate(billNo), {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGUPDATE(billNo), {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -29891,7 +30358,7 @@ export const api = {
   },
 
   updatePaymentStatus: async (billNo: string, data: PaymentStatusUpdate): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingUpdatePayment(billNo), {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGUPDATEPAYMENT(billNo), {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -29900,46 +30367,46 @@ export const api = {
   },
 
   archiveBill: async (billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingArchive(billNo), { method: "POST" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVE(billNo), { method: "POST" });
     if (!res.ok) throw new Error("Failed to archive bill");
     return res.json();
   },
 
   restoreBill: async (billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingRestore(billNo), { method: "POST" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGRESTORE(billNo), { method: "POST" });
     if (!res.ok) throw new Error("Failed to restore bill");
     return res.json();
   },
 
   permanentlyDeleteBill: async (billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBillingDelete(billNo), { method: "DELETE" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGDELETE(billNo), { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete bill");
     return res.json();
   },
 
   // Billing
   getBillingMonths: async (): Promise<{ months: string[]; currentMonth: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_BILLING_MONTHS);
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGMONTHS);
     if (!res.ok) throw new Error("Failed to fetch billing months");
     return res.json();
   },
 
   previewBilling: async (params: Record<string, string | number>): Promise<Record<string, number>> => {
     const query = new URLSearchParams(params as Record<string, string>).toString();
-    const res = await fetchWithAuth(`${ROUTES.ADMIN_API_BILLING_PREVIEW}?${query}`);
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGPREVIEW}?${query}`);
     if (!res.ok) throw new Error("Failed to preview billing");
     return res.json();
   },
 
   // Settings
   getConfig: async (): Promise<AppConfig> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_CONFIG_GET);
+    const res = await fetchWithAuth(ROUTES.ADMINAPICONFIGGET);
     if (!res.ok) throw new Error('Failed to fetch config');
     return res.json();
   },
 
   saveConfig: async (config: Partial<AppConfig>): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_CONFIG_UPDATE, {
+    const res = await fetchWithAuth(ROUTES.ADMINAPICONFIGUPDATE, {
       method: 'POST',
       body: JSON.stringify(config),
     });
@@ -29947,8 +30414,8 @@ export const api = {
     return res.json();
   },
 
-  updateTheme: async (theme: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_CONFIG_THEME, {
+  UPDATETHEME: async (theme: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPICONFIGTHEME, {
       method: 'POST',
       body: JSON.stringify({ theme }),
     });
@@ -29956,12 +30423,12 @@ export const api = {
     return res.json();
   },
 
-  downloadTemplate: (): string => ROUTES.ADMIN_API_SYNC_TEMPLATE,
+  downloadTemplate: (): string => ROUTES.ADMINAPISYNCTEMPLATE,
 
-  exportExcel: (format: string): string => ROUTES.adminApiSyncExportExcel(format),
+  exportExcel: (format: string): string => ROUTES.ADMINAPISYNCEXPORTEXCEL(format),
 
   importPreview: async (data: FormData): Promise<any> => {
-    const res = await fetch(ROUTES.ADMIN_API_SYNC_IMPORT_PREVIEW, {
+    const res = await fetch(ROUTES.ADMINAPISYNCIMPORTPREVIEW, {
       method: 'POST',
       body: data,
       credentials: 'include',
@@ -29974,7 +30441,7 @@ export const api = {
   },
 
   importExecute: async (data: FormData): Promise<{ status: string }> => {
-    const res = await fetch(ROUTES.ADMIN_API_SYNC_IMPORT_EXECUTE, {
+    const res = await fetch(ROUTES.ADMINAPISYNCIMPORTEXECUTE, {
       method: 'POST',
       body: data,
       credentials: 'include',
@@ -29988,41 +30455,41 @@ export const api = {
 
   // Backups
   getBackups: async (): Promise<{ backups: Backup[] }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_BACKUPS_LIST);
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSLIST);
     if (!res.ok) throw new Error("Failed to fetch backups");
     return res.json();
   },
 
   createManualBackup: async (): Promise<{ status: string; data: Backup }> => {
-    const res = await fetchWithAuth(ROUTES.ADMIN_API_BACKUPS_CREATE_MANUAL, { method: "POST" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSCREATEMANUAL, { method: "POST" });
     if (!res.ok) throw new Error("Failed to create backup");
     return res.json();
   },
 
   deleteBackup: async (id: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBackupsDelete(id), { method: "DELETE" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSDELETE(id), { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete backup");
     return res.json();
   },
 
   verifyBackup: async (id: string): Promise<{ status: string; message: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBackupsVerify(id));
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSVERIFY(id));
     return res.json();
   },
 
   restoreBackup: async (id: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiBackupsRestore(id), { method: "POST" });
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSRESTORE(id), { method: "POST" });
     if (!res.ok) throw new Error("Failed to restore backup");
     return res.json();
   },
 
   // PDF
-  getPDFViewUrl: (billNo: string): string => ROUTES.adminApiPdfView(billNo),
-  getPDFDownloadUrl: (billNo: string): string => ROUTES.adminApiPdfDownload(billNo),
+  getPDFViewUrl: (billNo: string): string => ROUTES.ADMINAPIPDFVIEW(billNo),
+  getPDFDownloadUrl: (billNo: string): string => ROUTES.ADMINAPIPDFDOWNLOAD(billNo),
 
   // WhatsApp
   sendWhatsApp: async (billNo: string): Promise<{ status: string; url: string }> => {
-    const res = await fetchWithAuth(ROUTES.adminApiWhatsappSendSingle(billNo));
+    const res = await fetchWithAuth(ROUTES.ADMINAPIWHATSAPPSENDSINGLE(billNo));
     if (!res.ok) throw new Error("Failed to generate WhatsApp link");
     return res.json();
   },
@@ -30033,7 +30500,7 @@ export const api = {
     formData.append("username", username);
     formData.append("password", password);
     formData.append("remember_me", String(rememberMe));
-    return fetch(ROUTES.ADMIN_API_AUTH_LOGIN, {
+    return fetch(ROUTES.ADMINAPIAUTHLOGIN, {
       method: "POST",
       body: formData,
       credentials: "include",
@@ -30042,20 +30509,20 @@ export const api = {
   },
 
   logout: async (): Promise<void> => {
-    await fetch(ROUTES.ADMIN_API_AUTH_LOGOUT, { credentials: "include" });
-    window.location.href = ROUTES.ADMIN_PAGE_LOGIN;
+    await fetch(ROUTES.ADMINAPIAUTHLOGOUT, { credentials: "include" });
+    window.location.href = ROUTES.ADMINPAGELOGIN;
   },
 
   // Occupants
   getOccupants: async (tenantId: string | number): Promise<Occupant[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMIN_API_OCCUPANTS_LIST}?tenant_id=${tenantId}`);
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPIOCCUPANTSLIST}?tenantId=${tenantId}`);
     if (!res.ok) throw new Error("Failed to fetch occupants");
     const data = await res.json();
     return data.occupants || [];
   },
 
   saveOccupant: async (tenantId: string | number, data: FormData): Promise<{ status: string }> => {
-    const res = await fetch(`${ROUTES.ADMIN_API_OCCUPANTS_LIST}?tenant_id=${tenantId}`, {
+    const res = await fetch(`${ROUTES.ADMINAPIOCCUPANTSLIST}?tenantId=${tenantId}`, {
       method: "POST",
       body: data,
       credentials: "include",
@@ -30069,14 +30536,14 @@ export const api = {
 
   deleteOccupant: async (tenantId: string | number, occupantUuid: string): Promise<{ status: string }> => {
     const res = await fetchWithAuth(
-      ROUTES.adminApiOccupantsDelete(Number(tenantId), occupantUuid),
+      ROUTES.ADMINAPIOCCUPANTSDELETE(Number(tenantId), occupantUuid),
       { method: "DELETE" }
     );
     if (!res.ok) throw new Error("Failed to delete occupant");
     return res.json();
   },
 
-  // downloadTemplate: (): string => ROUTES.ADMIN_API_SYNC_TEMPLATE,
+  // downloadTemplate: (): string => ROUTES.ADMINAPISYNCTEMPLATE,
 };
 ```
 
@@ -30091,20 +30558,20 @@ export interface Tenant {
   phone?: string;
   email?: string;
   address?: string;
-  room_number?: string;
+  roomNumber?: string;
   occupation?: string;
   notes?: string;
   status: string;
   rent: number;
   water: number;
-  default_tank_water_charge: number;
-  electricity_rate: number;
-  previous_meter: number;
-  additional_person_charge: number;
-  security_deposit: number;
-  meter_id?: string;
-  view_token?: string;
-  tenant_pin?: string | null;
+  defaulttankWaterCharge: number;
+  electricityRate: number;
+  previousMeter: number;
+  additionalPersonCharge: number;
+  securityDeposit: number;
+  meterId?: string;
+  viewToken?: string;
+  tenantPin?: string | null;
   arrears: number;
 }
 
@@ -30120,7 +30587,7 @@ export interface Receipt {
   Rent: number;
   Additional: number;
   Water: number;
-  Tank_Water: number;
+  tankWater: number;
   Electricity: number;
   Total: number;
   PDF: string;
@@ -30133,14 +30600,14 @@ export interface Receipt {
   Archived_By: string;
   Deleted_Date: string;
   Additional_Persons: number;
-  Additional_Person_Rate: number;
+  additionalPersonRate: number;
   Receipt_Version: number;
   Generated_By: string;
-  Payment_Status: string;
-  Maintenance_Charge: number;
-  Maintenance_Desc: string;
-  Previous_Arrears: number;
-  Amount_Received: number;
+  paymentStatus: string;
+  MaintenanceCharge: number;
+  MaintenanceDesc: string;
+  previousArrears: number;
+  amountReceived: number;
 }
 
 export interface BillRequest {
@@ -30148,17 +30615,17 @@ export interface BillRequest {
   month: string;
   current_reading: number;
   additional_persons: number;
-  tank_water: number;
-  maintenance_charge: number;
-  maintenance_desc: string;
-  previous_arrears: number;
-  amount_received?: number;
-  payment_status: string;
+  tankWater: number;
+  MaintenanceCharge: number;
+  MaintenanceDesc: string;
+  previousArrears: number;
+  amountReceived?: number;
+  paymentStatus: string;
 }
 
 export interface PaymentStatusUpdate {
-  payment_status: string;
-  amount_received?: number;
+  paymentStatus: string;
+  amountReceived?: number;
 }
 
 export interface ConfigUpdate {
@@ -30221,13 +30688,13 @@ export interface DashboardStats {
 }
 
 export interface RecentBill {
-  billno: string;
-  tenant_name: string;
+  billNo: string;
+  tenantName: string;
   total: number;
-  amount_received: number;
+  amountReceived: number;
   month: string;
-  payment_status: string;
-  Previous_Arrears?: number;
+  paymentStatus: string;
+  previousArrears?: number;
 }
 
 export interface ImportPreviewResponse {
@@ -30244,7 +30711,7 @@ export interface ImportExecuteResponse {
 }
 
 export interface LoginRequest {
-  view_token: string;
+  viewToken: string;
   pin: string;
   remember_me: boolean;
 }
@@ -30283,20 +30750,20 @@ export interface ApiResponse<T = unknown> {
 //   phone?: string;
 //   email?: string;
 //   address?: string;
-//   room_number?: string;
+//   roomNumber?: string;
 //   occupation?: string;
 //   notes?: string;
 //   status: string;
 //   rent: number;
 //   water: number;
-//   default_tank_water_charge: number;
-//   electricity_rate: number;
-//   previous_meter: number;
-//   additional_person_charge: number;
-//   security_deposit: number;
-//   meter_id?: string;
-//   view_token?: string;
-//   tenant_pin?: string;
+//   defaulttankWaterCharge: number;
+//   electricityRate: number;
+//   previousMeter: number;
+//   additionalPersonCharge: number;
+//   securityDeposit: number;
+//   meterId?: string;
+//   viewToken?: string;
+//   tenantPin?: string;
 //   arrears: number;
 // }
 
@@ -30311,18 +30778,18 @@ export interface ApiResponse<T = unknown> {
 //   Rent: number;
 //   Additional: number;
 //   Water: number;
-//   Tank_Water: number;
+//   tankWater: number;
 //   Electricity: number;
 //   Total: number;
 //   Status: string;
-//   Payment_Status: string;
-//   Previous_Arrears: number;
-//   Amount_Received: number;
-//   Maintenance_Charge: number;
-//   Maintenance_Desc: string;
+//   paymentStatus: string;
+//   previousArrears: number;
+//   amountReceived: number;
+//   MaintenanceCharge: number;
+//   MaintenanceDesc: string;
 //   Additional_Persons: number;
 //   Archived_Date?: string;
-//   tenant_id?: number;
+//   tenantId?: number;
 // }
 
 // export interface DashboardStats {
@@ -30347,21 +30814,21 @@ export interface ApiResponse<T = unknown> {
 // }
 
 // export interface RecentBill {
-//   bill_no: string;
-//   tenant_name: string;
+//   BillNo: string;
+//   tenantName: string;
 //   month: string;
 //   total: number;
-//   previous_arrears: number;
-//   amount_received: number;
-//   payment_status: string;
+//   previousArrears: number;
+//   amountReceived: number;
+//   paymentStatus: string;
 // }
 
 export interface BillingConfig {
   rent: number;
   water: number;
-  electricity_rate: number;
-  previous_meter_reading: number;
-  additional_person_charge: number;
+  electricityRate: number;
+  previousMeter_reading: number;
+  additionalPersonCharge: number;
 }
 
 export interface LandlordConfig {
@@ -30636,6703 +31103,6 @@ export default defineConfig({
 });
 ```
 
-```
-// File: frontend\tenant-app\.gitignore
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-```
-
-```json
-// File: frontend\tenant-app\.oxlintrc.json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-```html
-// File: frontend\tenant-app\index.html
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Rent Profile</title>
-  <link rel="icon" type="image/svg+xml" href="/rent/t/favicon.svg" />
-</head>
-<body>
-  <div id="root"></div>
-  <script type="module" src="./src/main.tsx"></script>
-</body>
-</html>
-```
-
-```json
-// File: frontend\tenant-app\package-lock.json
-{
-  "name": "tenant-app",
-  "version": "0.0.0",
-  "lockfileVersion": 3,
-  "requires": true,
-  "packages": {
-    "": {
-      "name": "tenant-app",
-      "version": "0.0.0",
-      "dependencies": {
-        "@radix-ui/react-collapsible": "^1.1.16",
-        "@radix-ui/react-dialog": "^1.1.19",
-        "@radix-ui/react-dropdown-menu": "^2.1.20",
-        "@radix-ui/react-label": "^2.1.11",
-        "@radix-ui/react-scroll-area": "^1.2.14",
-        "@radix-ui/react-separator": "^1.1.11",
-        "@radix-ui/react-slot": "^1.3.0",
-        "@radix-ui/react-tabs": "^1.1.17",
-        "@tailwindcss/vite": "^4.3.2",
-        "@tanstack/react-query": "^5.101.2",
-        "class-variance-authority": "^0.7.1",
-        "clsx": "^2.1.1",
-        "lucide-react": "^1.23.0",
-        "react": "^19.2.7",
-        "react-dom": "^19.2.7",
-        "react-router-dom": "^7.18.1",
-        "sonner": "^2.0.7",
-        "tailwind-merge": "^3.6.0",
-        "tailwindcss": "^4.3.2"
-      },
-      "devDependencies": {
-        "@types/node": "^24.13.2",
-        "@types/react": "^19.2.17",
-        "@types/react-dom": "^19.2.3",
-        "@vitejs/plugin-react": "^6.0.3",
-        "oxlint": "^1.71.0",
-        "typescript": "~6.0.2",
-        "vite": "^8.1.1"
-      }
-    },
-    "node_modules/@emnapi/wasi-threads": {
-      "version": "1.2.2",
-      "resolved": "https://registry.npmjs.org/@emnapi/wasi-threads/-/wasi-threads-1.2.2.tgz",
-      "integrity": "sha512-c95qOXkHdydNKhscBTebqEC1CVAZpyqOfVfBzQ1qgzyl3gfeldUjIggDbIZgDKsHLgnsM+igH7TJ/eAasaVuMA==",
-      "license": "MIT",
-      "optional": true,
-      "dependencies": {
-        "tslib": "^2.4.0"
-      }
-    },
-    "node_modules/@floating-ui/core": {
-      "version": "1.8.0",
-      "resolved": "https://registry.npmjs.org/@floating-ui/core/-/core-1.8.0.tgz",
-      "integrity": "sha512-0CIZ5itps/8x7BG8dEIhs53BvCUH2PCoogtakwRTut+Arm58sJooJ0AuZhLw2HJYIR5cMLNPBSS728sPho2khQ==",
-      "license": "MIT",
-      "dependencies": {
-        "@floating-ui/utils": "^0.2.12"
-      }
-    },
-    "node_modules/@floating-ui/dom": {
-      "version": "1.8.0",
-      "resolved": "https://registry.npmjs.org/@floating-ui/dom/-/dom-1.8.0.tgz",
-      "integrity": "sha512-yXSrzeHZBTZadLOlfyhCkJHNeLJnHRnRInwdZ40L7ZiaAtrBwoYlsDrX3v5zB1Utk7CLfzcOVnVVWoXEky7Ceg==",
-      "license": "MIT",
-      "dependencies": {
-        "@floating-ui/core": "^1.8.0",
-        "@floating-ui/utils": "^0.2.12"
-      }
-    },
-    "node_modules/@floating-ui/react-dom": {
-      "version": "2.1.9",
-      "resolved": "https://registry.npmjs.org/@floating-ui/react-dom/-/react-dom-2.1.9.tgz",
-      "integrity": "sha512-JDjEFGCpImxDCA7JJKviA0M9+RtmJdj0m/NVU5IMgBK+AmZouAQQ7/+2GLH0GXXY0YMw9oXPB8hKdbPYg5QLYg==",
-      "license": "MIT",
-      "dependencies": {
-        "@floating-ui/dom": "^1.8.0"
-      },
-      "peerDependencies": {
-        "react": ">=16.8.0",
-        "react-dom": ">=16.8.0"
-      }
-    },
-    "node_modules/@floating-ui/utils": {
-      "version": "0.2.12",
-      "resolved": "https://registry.npmjs.org/@floating-ui/utils/-/utils-0.2.12.tgz",
-      "integrity": "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww==",
-      "license": "MIT"
-    },
-    "node_modules/@jridgewell/gen-mapping": {
-      "version": "0.3.13",
-      "resolved": "https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz",
-      "integrity": "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==",
-      "license": "MIT",
-      "dependencies": {
-        "@jridgewell/sourcemap-codec": "^1.5.0",
-        "@jridgewell/trace-mapping": "^0.3.24"
-      }
-    },
-    "node_modules/@jridgewell/remapping": {
-      "version": "2.3.5",
-      "resolved": "https://registry.npmjs.org/@jridgewell/remapping/-/remapping-2.3.5.tgz",
-      "integrity": "sha512-LI9u/+laYG4Ds1TDKSJW2YPrIlcVYOwi2fUC6xB43lueCjgxV4lffOCZCtYFiH6TNOX+tQKXx97T4IKHbhyHEQ==",
-      "license": "MIT",
-      "dependencies": {
-        "@jridgewell/gen-mapping": "^0.3.5",
-        "@jridgewell/trace-mapping": "^0.3.24"
-      }
-    },
-    "node_modules/@jridgewell/resolve-uri": {
-      "version": "3.1.2",
-      "resolved": "https://registry.npmjs.org/@jridgewell/resolve-uri/-/resolve-uri-3.1.2.tgz",
-      "integrity": "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==",
-      "license": "MIT",
-      "engines": {
-        "node": ">=6.0.0"
-      }
-    },
-    "node_modules/@jridgewell/sourcemap-codec": {
-      "version": "1.5.5",
-      "resolved": "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz",
-      "integrity": "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==",
-      "license": "MIT"
-    },
-    "node_modules/@jridgewell/trace-mapping": {
-      "version": "0.3.31",
-      "resolved": "https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz",
-      "integrity": "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==",
-      "license": "MIT",
-      "dependencies": {
-        "@jridgewell/resolve-uri": "^3.1.0",
-        "@jridgewell/sourcemap-codec": "^1.4.14"
-      }
-    },
-    "node_modules/@napi-rs/wasm-runtime": {
-      "version": "1.1.6",
-      "resolved": "https://registry.npmjs.org/@napi-rs/wasm-runtime/-/wasm-runtime-1.1.6.tgz",
-      "integrity": "sha512-ZLv/JdUfkvOy9eCnnBaGfiO+XimbjebAeO+MRQqD/B+FR1tnRN0tpKSJHRbE8sFfS6aqsXZ67TQjfwfsxULVbg==",
-      "license": "MIT",
-      "optional": true,
-      "dependencies": {
-        "@tybys/wasm-util": "^0.10.3"
-      },
-      "funding": {
-        "type": "github",
-        "url": "https://github.com/sponsors/Brooooooklyn"
-      },
-      "peerDependencies": {
-        "@emnapi/core": "^1.7.1",
-        "@emnapi/runtime": "^1.7.1"
-      }
-    },
-    "node_modules/@oxc-project/types": {
-      "version": "0.138.0",
-      "resolved": "https://registry.npmjs.org/@oxc-project/types/-/types-0.138.0.tgz",
-      "integrity": "sha512-1a7ZKmrRTCoN1XMZ4L0PyyqrMnrNlLyPuOkdSX2MZg7IiIGRUyurNhAm73ptDOraoBcIordsIGKNPKUzy3ZmfA==",
-      "license": "MIT",
-      "funding": {
-        "url": "https://github.com/sponsors/Boshen"
-      }
-    },
-    "node_modules/@oxlint/binding-android-arm-eabi": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-android-arm-eabi/-/binding-android-arm-eabi-1.73.0.tgz",
-      "integrity": "sha512-HZQRN/UMBu+Ut+/9MiAChkbP4qZqrNOWBcNI45vOT40GVhbGR0JgHB87L48D4iAqFQIdVmeQYtV9RF89AjTKkg==",
-      "cpu": [
-        "arm"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "android"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-android-arm64": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-android-arm64/-/binding-android-arm64-1.73.0.tgz",
-      "integrity": "sha512-Gp+KJRylv2aW7thRpG5p1KTxZq4ZJFbWowrKzufNq9d3ssl3r3JviYV45/+p+7CN1Nv0zDd1e8Ex0b/HUDq4TQ==",
-      "cpu": [
-        "arm64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "android"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-darwin-arm64": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-darwin-arm64/-/binding-darwin-arm64-1.73.0.tgz",
-      "integrity": "sha512-3de96NdtXhxERMjIz7wsp2HYMY6pMQycGxFWac2mFecAx6VeARF/IqFb1QIaqiCRIdfzBwzTed+pCTCoiS+CYA==",
-      "cpu": [
-        "arm64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "darwin"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-darwin-x64": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-darwin-x64/-/binding-darwin-x64-1.73.0.tgz",
-      "integrity": "sha512-5zx/uPW32TiaOeVY1dQ/H5iOf0K1HOdFKOJhLqGl4o63+i1fpzoqqu/mKtd7OFgFjNCdhlyTGgjVkQTZm1ELcg==",
-      "cpu": [
-        "x64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "darwin"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-freebsd-x64": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-freebsd-x64/-/binding-freebsd-x64-1.73.0.tgz",
-      "integrity": "sha512-qNe4gKHaGnLuZJ8toUg90JAa0S2vTVvDw+0bRi3q1avXZXDT4u5mMeECf3nD4HYrbdn1O7dXqWut4onY/yx/Xg==",
-      "cpu": [
-        "x64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "freebsd"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-linux-arm-gnueabihf": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-linux-arm-gnueabihf/-/binding-linux-arm-gnueabihf-1.73.0.tgz",
-      "integrity": "sha512-cCehYh5hTbfShm/fxTD6wwrGUWIpvX+N5OxmAMhFhDeTGXvw+BeNj889tpxsFQ9ZLatQ6wImuY8tsKLZ+FMz7w==",
-      "cpu": [
-        "arm"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-linux-arm-musleabihf": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-linux-arm-musleabihf/-/binding-linux-arm-musleabihf-1.73.0.tgz",
-      "integrity": "sha512-d5j5GDU/2dMgjVhw7TQT9ITrsIr1Y02KEXKyVGIXUkD+KiaxE9TP65FS2ZdgTBemQvoRL+gSBdbrIm3cQIeacg==",
-      "cpu": [
-        "arm"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-linux-arm64-gnu": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-linux-arm64-gnu/-/binding-linux-arm64-gnu-1.73.0.tgz",
-      "integrity": "sha512-Eyf1SrP3+yR1DI3OJgOY2Pvrr9dWP9TK37xPaDYycwTtlGlI45erJAVIfH5/m/xosDt6BupJYEFi47bvbTuuyw==",
-      "cpu": [
-        "arm64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-linux-arm64-musl": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-linux-arm64-musl/-/binding-linux-arm64-musl-1.73.0.tgz",
-      "integrity": "sha512-IlT/OJApEDKaMmCooHuncgJZbbCe7T5QIWmTZBEtYscWvzPQuuEinVcid6kwQRVQOUdb7PUCz4jQHnaYXdfJXw==",
-      "cpu": [
-        "arm64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-linux-ppc64-gnu": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-linux-ppc64-gnu/-/binding-linux-ppc64-gnu-1.73.0.tgz",
-      "integrity": "sha512-L+JYcb/vdg5fmcH08V6o0YYLU28cTH1SPNulwJdvK9NK49aXSkYy6oNpKBmddArVOXYqNepriDGiZ04G54kh1Q==",
-      "cpu": [
-        "ppc64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-linux-riscv64-gnu": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-linux-riscv64-gnu/-/binding-linux-riscv64-gnu-1.73.0.tgz",
-      "integrity": "sha512-Qtk0g3bKV6OwWjIm7R8kQN1uOZRKQt/MODK2a8QfkwhTpXBD53ozx5XLVWLGDQAVyp2otLW4D2wB98XfAfMPGA==",
-      "cpu": [
-        "riscv64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-linux-riscv64-musl": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-linux-riscv64-musl/-/binding-linux-riscv64-musl-1.73.0.tgz",
-      "integrity": "sha512-wX0NQKZVxltkAOVmzFcpOaMpdaUvsq1Eqpx9tkAfl71UdkTlSo1R4AdAnGccR1Fm2+TzFgZ22CyyGuZ41RDr/A==",
-      "cpu": [
-        "riscv64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-linux-s390x-gnu": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-linux-s390x-gnu/-/binding-linux-s390x-gnu-1.73.0.tgz",
-      "integrity": "sha512-vPe7UGBMWyiLTtnqS4xxgMQFSFGmtQwhwCxuiw6lXygaO6bVt0D8dFVg8Xv05eaiN3ybC0HXXHUAohFMFvqoCQ==",
-      "cpu": [
-        "s390x"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-linux-x64-gnu": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-linux-x64-gnu/-/binding-linux-x64-gnu-1.73.0.tgz",
-      "integrity": "sha512-2CwIWr9cemFC/CbRBWZvuk5mffz6ObmfFkfcC/9rTQ7f+icNhYr2kOjf9Rt8lLvugvkdGDOmkoVoFFHh6ClCTw==",
-      "cpu": [
-        "x64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-linux-x64-musl": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-linux-x64-musl/-/binding-linux-x64-musl-1.73.0.tgz",
-      "integrity": "sha512-nDadfJgg7NBBxG0N560wOe7LLX5QiYp6qBaI7viuk5EUORFBktU/NfV0MbTqU3gTqQDCh4VyxKdo5VADxk9w8Q==",
-      "cpu": [
-        "x64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-openharmony-arm64": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-openharmony-arm64/-/binding-openharmony-arm64-1.73.0.tgz",
-      "integrity": "sha512-wGjJC+NLH9xP+IKGn9RDW94ojJR/wPbg5WCnQjj/oReaOtCQthr8ws1zICe77JFmo4ouUdeTHHZL/ESGiF6Pmw==",
-      "cpu": [
-        "arm64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "openharmony"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-win32-arm64-msvc": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-win32-arm64-msvc/-/binding-win32-arm64-msvc-1.73.0.tgz",
-      "integrity": "sha512-I7X47GPGljw225YUQ5SbC/rb1Kkdrd0yQf0x+hYxeKS6DpfjMbo9ccQPQ6LNY6BoJQ1sHhgDUGuMn5Vg5gHT6w==",
-      "cpu": [
-        "arm64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "win32"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-win32-ia32-msvc": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-win32-ia32-msvc/-/binding-win32-ia32-msvc-1.73.0.tgz",
-      "integrity": "sha512-5lWj+3h+74Fm1jYOO9qkJA4xkAlZA099DkXppuXsk7UpnpZLttsefrZU469vChGaG6hcSqrkKXQOvMTZtbjeNg==",
-      "cpu": [
-        "ia32"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "win32"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@oxlint/binding-win32-x64-msvc": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/@oxlint/binding-win32-x64-msvc/-/binding-win32-x64-msvc-1.73.0.tgz",
-      "integrity": "sha512-WaNRvh4f6zY9CvUQk2YoA1O90ieWrIklI84+HXFr9Isjz9CSESrdqo/RtIYt4Dll/cAchqGDMehfaZd0vqEFZw==",
-      "cpu": [
-        "x64"
-      ],
-      "dev": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "win32"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@radix-ui/number": {
-      "version": "1.1.2",
-      "resolved": "https://registry.npmjs.org/@radix-ui/number/-/number-1.1.2.tgz",
-      "integrity": "sha512-ceTwaxc4I5IOi97DgCotl3pqiyRGvffcc0oOsE2dQYaJOFIDsDt4VWG6xEbg1QePv9QWausCEIppud/tJ1wNig==",
-      "license": "MIT"
-    },
-    "node_modules/@radix-ui/primitive": {
-      "version": "1.1.5",
-      "resolved": "https://registry.npmjs.org/@radix-ui/primitive/-/primitive-1.1.5.tgz",
-      "integrity": "sha512-d86WIWFYNtGA0H/d8exstrTRTp7eWJYlYJbtNofxr/3ljupZYn6EFDG/Qgu/0Kc8v7yMUxySagqJsL1+PdYjWg==",
-      "license": "MIT"
-    },
-    "node_modules/@radix-ui/react-arrow": {
-      "version": "1.1.11",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-arrow/-/react-arrow-1.1.11.tgz",
-      "integrity": "sha512-Kdil9BB1rIFC/khmf4hC35bn8701AJcizTU7G7cUbEbk5XqqbjDuHW60uUfKqO5WojjZcbAW51Q7P0hRmMLw8A==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-primitive": "2.1.7"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-collapsible": {
-      "version": "1.1.16",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-collapsible/-/react-collapsible-1.1.16.tgz",
-      "integrity": "sha512-opfXRe6nnzyGmCDPx+l1Aqo/RbqWtQal2FnsBqF9hhePp6j0LsRoBaRxcMOlTv+uYTJVtWYZKg9t9wTe+BA/ZA==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/primitive": "1.1.5",
-        "@radix-ui/react-compose-refs": "1.1.3",
-        "@radix-ui/react-context": "1.2.0",
-        "@radix-ui/react-id": "1.1.2",
-        "@radix-ui/react-presence": "1.1.7",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-use-controllable-state": "1.2.3",
-        "@radix-ui/react-use-layout-effect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-collection": {
-      "version": "1.1.12",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-collection/-/react-collection-1.1.12.tgz",
-      "integrity": "sha512-nb67INpE0IahJKN7EYPp9m9YGwYeKlnzxT3MwXVkgCskaSJia97kG4T0ywpjNUSSnoJk/uvk12V8vbrEHEj+/Q==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-compose-refs": "1.1.3",
-        "@radix-ui/react-context": "1.2.0",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-slot": "1.3.0"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-compose-refs": {
-      "version": "1.1.3",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-compose-refs/-/react-compose-refs-1.1.3.tgz",
-      "integrity": "sha512-rYOP8OMnuuPMQF1uhPVlGNcCDlkokKqGFE3JcxFViIkAXP7EvFWUliJAstrapypaBLJNHbZL6jGhbVDGTwmVhA==",
-      "license": "MIT",
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-context": {
-      "version": "1.2.0",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-context/-/react-context-1.2.0.tgz",
-      "integrity": "sha512-fOE+JtN9rygNZkCnHRBEP0TAvLldlhyOxMsbwFvTP4nAs+nBmfnna+o/Zski2wkmY1YMrFC0aSzsHoLY47iLrg==",
-      "license": "MIT",
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-dialog": {
-      "version": "1.1.19",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-dialog/-/react-dialog-1.1.19.tgz",
-      "integrity": "sha512-+HhbN2+YtkRgVirjZ2afMeutQRuGOrdkWR5+EFC58SJojGmtyNQwYzgi6tHBpOxvFHefMtPeHdgtjz0BOGxFQg==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/primitive": "1.1.5",
-        "@radix-ui/react-compose-refs": "1.1.3",
-        "@radix-ui/react-context": "1.2.0",
-        "@radix-ui/react-dismissable-layer": "1.1.15",
-        "@radix-ui/react-focus-guards": "1.1.4",
-        "@radix-ui/react-focus-scope": "1.1.12",
-        "@radix-ui/react-id": "1.1.2",
-        "@radix-ui/react-portal": "1.1.13",
-        "@radix-ui/react-presence": "1.1.7",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-slot": "1.3.0",
-        "@radix-ui/react-use-controllable-state": "1.2.3",
-        "aria-hidden": "^1.2.4",
-        "react-remove-scroll": "^2.7.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-direction": {
-      "version": "1.1.2",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-direction/-/react-direction-1.1.2.tgz",
-      "integrity": "sha512-C3vFhbyi4SW3PmbAi6Awpu4OzJtd0MxGurvSsYtr7p7nM8RNB3VAF3CUmnp2j50knpkrRcB7+ycVXzgLgF6yNA==",
-      "license": "MIT",
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-dismissable-layer": {
-      "version": "1.1.15",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-dismissable-layer/-/react-dismissable-layer-1.1.15.tgz",
-      "integrity": "sha512-b0XaRlzn2QKuo10XyNgi2DAJDf5XC9d1nD3FJcuvCjbR7+4Ad28zmZsLsqx+hvDEzMnRuZaZxZm9gYObV6RmRA==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/primitive": "1.1.5",
-        "@radix-ui/react-compose-refs": "1.1.3",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-use-callback-ref": "1.1.2",
-        "@radix-ui/react-use-effect-event": "0.0.3"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-dropdown-menu": {
-      "version": "2.1.20",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-dropdown-menu/-/react-dropdown-menu-2.1.20.tgz",
-      "integrity": "sha512-slfm+rRaZRuQBvHq60lXvSVUPhid0IPtjSZzIuUlWZMUs01iYZNlGS3mJgRD3ChLQVBAYlKiL/tFyWGX+dz8Xw==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/primitive": "1.1.5",
-        "@radix-ui/react-compose-refs": "1.1.3",
-        "@radix-ui/react-context": "1.2.0",
-        "@radix-ui/react-id": "1.1.2",
-        "@radix-ui/react-menu": "2.1.20",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-use-controllable-state": "1.2.3"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-focus-guards": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-focus-guards/-/react-focus-guards-1.1.4.tgz",
-      "integrity": "sha512-cot/aB/mOm0IYVYTTmQcEEK1M48lZWi8FlYe5nDPQQ8NYZUlXEFgncJ9p2Kzer3RKSrY7cTTpEMLZKNo9QoP5Q==",
-      "license": "MIT",
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-focus-scope": {
-      "version": "1.1.12",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-focus-scope/-/react-focus-scope-1.1.12.tgz",
-      "integrity": "sha512-jjk/lqTeNL0azUx5ZYzVrl4NgaDIrdzTNE4mABV9yBFI7FQqN7pIgzV1bTleUezP2QiTGA1BFTqY8MegDgWX9A==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-compose-refs": "1.1.3",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-use-callback-ref": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-id": {
-      "version": "1.1.2",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-id/-/react-id-1.1.2.tgz",
-      "integrity": "sha512-orBC88futVpqCmhX1p4cvquNHsELQ+w+vBJnuj3ftETI5bJb0bZn3Tqu3SWN2IOcPycTnMGnhwoermvISt72sA==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-use-layout-effect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-label": {
-      "version": "2.1.11",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-label/-/react-label-2.1.11.tgz",
-      "integrity": "sha512-3PKvDDxOn62k0oV1n4QtNtD2vpu+zYjXR7ojLBPaO6SPvhy53yg0vAmgNeBQeJW5rV3dffoRG+HYfLBZuzw0CQ==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-primitive": "2.1.7"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-menu": {
-      "version": "2.1.20",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-menu/-/react-menu-2.1.20.tgz",
-      "integrity": "sha512-VsUrXxFe9d2ScbZF0fR/oPR1+qjyeLs5p0jzG8h90puMoA9bq4SirYlXbE+USRg9Q2qTeJSFNqjw2nts8jJe4w==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/primitive": "1.1.5",
-        "@radix-ui/react-collection": "1.1.12",
-        "@radix-ui/react-compose-refs": "1.1.3",
-        "@radix-ui/react-context": "1.2.0",
-        "@radix-ui/react-direction": "1.1.2",
-        "@radix-ui/react-dismissable-layer": "1.1.15",
-        "@radix-ui/react-focus-guards": "1.1.4",
-        "@radix-ui/react-focus-scope": "1.1.12",
-        "@radix-ui/react-id": "1.1.2",
-        "@radix-ui/react-popper": "1.3.3",
-        "@radix-ui/react-portal": "1.1.13",
-        "@radix-ui/react-presence": "1.1.7",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-roving-focus": "1.1.15",
-        "@radix-ui/react-slot": "1.3.0",
-        "@radix-ui/react-use-callback-ref": "1.1.2",
-        "aria-hidden": "^1.2.4",
-        "react-remove-scroll": "^2.7.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-popper": {
-      "version": "1.3.3",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-popper/-/react-popper-1.3.3.tgz",
-      "integrity": "sha512-mS7dGpyjv6b+gsDjLF7e0ia1W4Im1B1hSCy2yuXlHuvnZxHKagfDaobt/KAKt27EpZMit2pss8eJBVyVjEWM+g==",
-      "license": "MIT",
-      "dependencies": {
-        "@floating-ui/react-dom": "^2.0.0",
-        "@radix-ui/react-arrow": "1.1.11",
-        "@radix-ui/react-compose-refs": "1.1.3",
-        "@radix-ui/react-context": "1.2.0",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-use-callback-ref": "1.1.2",
-        "@radix-ui/react-use-layout-effect": "1.1.2",
-        "@radix-ui/react-use-rect": "1.1.2",
-        "@radix-ui/react-use-size": "1.1.2",
-        "@radix-ui/rect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-portal": {
-      "version": "1.1.13",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-portal/-/react-portal-1.1.13.tgz",
-      "integrity": "sha512-z3oXfmaHLJTF1wktbjgD6cn9jiEbq3WSondB10LIuIt2m2Ym4iJlrW04/euMwENDdWDdE7z+OuY7Qyp1YpRSwA==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-use-layout-effect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-presence": {
-      "version": "1.1.7",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-presence/-/react-presence-1.1.7.tgz",
-      "integrity": "sha512-zBZ4QM5XG3JRanDmqXYf3MD6th4AFXFmgU6KNMFzUaV6F3uw9I5/zjMUvFriSEn5ewo1nxuibvyxJdmLlDcslA==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-use-layout-effect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-primitive": {
-      "version": "2.1.7",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-primitive/-/react-primitive-2.1.7.tgz",
-      "integrity": "sha512-bC3NiwsprbxKjuon9l7X6BUTw7FPVzEYaL92MPEY5SCd/9hUTPXVFtVwRix7778wtRsVao+zE062gL79FZleeQ==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-slot": "1.3.0"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-roving-focus": {
-      "version": "1.1.15",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-roving-focus/-/react-roving-focus-1.1.15.tgz",
-      "integrity": "sha512-40svmmugfM3mUN7VUDGVE1tQGOhyi8enlGD0CNJEcMM36C1f71PKM21DFgNHUfem0XnA+d8H8oN3Z9ZpJjSslg==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/primitive": "1.1.5",
-        "@radix-ui/react-collection": "1.1.12",
-        "@radix-ui/react-compose-refs": "1.1.3",
-        "@radix-ui/react-context": "1.2.0",
-        "@radix-ui/react-direction": "1.1.2",
-        "@radix-ui/react-id": "1.1.2",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-use-callback-ref": "1.1.2",
-        "@radix-ui/react-use-controllable-state": "1.2.3",
-        "@radix-ui/react-use-is-hydrated": "0.1.1",
-        "@radix-ui/react-use-layout-effect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-scroll-area": {
-      "version": "1.2.14",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-scroll-area/-/react-scroll-area-1.2.14.tgz",
-      "integrity": "sha512-bBODCWZK7JTbQLHs0uIP4f73wIWatakK4OS33UzkR1x897wu0PuO658a3f+6P2GEGyDzGYMuHRatMVoAk9WZTw==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/number": "1.1.2",
-        "@radix-ui/primitive": "1.1.5",
-        "@radix-ui/react-compose-refs": "1.1.3",
-        "@radix-ui/react-context": "1.2.0",
-        "@radix-ui/react-direction": "1.1.2",
-        "@radix-ui/react-presence": "1.1.7",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-use-callback-ref": "1.1.2",
-        "@radix-ui/react-use-layout-effect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-separator": {
-      "version": "1.1.11",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-separator/-/react-separator-1.1.11.tgz",
-      "integrity": "sha512-jRhe86+8PF7VZ1u14eOWVOuh2BuAhALg/FT1VcMC4OHedMTRUazDnDlKTt+yxo5cRNKHMfmvZ4sSQtWDeMV4CQ==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-primitive": "2.1.7"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-slot": {
-      "version": "1.3.0",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-slot/-/react-slot-1.3.0.tgz",
-      "integrity": "sha512-MojKku4U/miO8Av4Dkb+ctMAQx7JmY96LmtDQlAarCRtd7rN52QCSzBF+XAvr5S6coSVj9HEPBgHAHKEJVk/WA==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-compose-refs": "1.1.3"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-tabs": {
-      "version": "1.1.17",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-tabs/-/react-tabs-1.1.17.tgz",
-      "integrity": "sha512-nRyXnrAVCwjeXcHbvEbLS6ndbTeKHG1RqCP4A8Gw5L4cemDzPXdD8rAmr6wet0v57R69wGvuIIsFjHSVkZiMzQ==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/primitive": "1.1.5",
-        "@radix-ui/react-context": "1.2.0",
-        "@radix-ui/react-direction": "1.1.2",
-        "@radix-ui/react-id": "1.1.2",
-        "@radix-ui/react-presence": "1.1.7",
-        "@radix-ui/react-primitive": "2.1.7",
-        "@radix-ui/react-roving-focus": "1.1.15",
-        "@radix-ui/react-use-controllable-state": "1.2.3"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "@types/react-dom": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc",
-        "react-dom": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        },
-        "@types/react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-use-callback-ref": {
-      "version": "1.1.2",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-use-callback-ref/-/react-use-callback-ref-1.1.2.tgz",
-      "integrity": "sha512-xCso9j1/u8sEgP1RNHjFrXJLApL8LiqOkI1R4ywuN00rxWdYg4oQXuwKLS3i0j5NWLromUD27/4nlxj2UFVvIw==",
-      "license": "MIT",
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-use-controllable-state": {
-      "version": "1.2.3",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-use-controllable-state/-/react-use-controllable-state-1.2.3.tgz",
-      "integrity": "sha512-PLzC90MS+ReootmjC597dvopoelpZ8Q61HJkDXZSExitIq7PL55vHNnesAHwguHK0aPfBnpdNzQtv1uliaqQrA==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-use-effect-event": "0.0.3",
-        "@radix-ui/react-use-layout-effect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-use-effect-event": {
-      "version": "0.0.3",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-use-effect-event/-/react-use-effect-event-0.0.3.tgz",
-      "integrity": "sha512-6c8ZqvPTWILEKnyVkP53EGRCcpnJiKTC21sS/6R1GF5xKyHJJWQEPfkqlcgUkdRQivd6tb23abUwe4ngWmY0JA==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-use-layout-effect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-use-is-hydrated": {
-      "version": "0.1.1",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-use-is-hydrated/-/react-use-is-hydrated-0.1.1.tgz",
-      "integrity": "sha512-qwOiz4Tjo8CNnrOLAYUMXeZwDzXgXpvK4TKQPmWLECM9XoWvA6+0Z2/7Ag3A4ivjS4ovbLJPbskkxioFyBhr8A==",
-      "license": "MIT",
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-use-layout-effect": {
-      "version": "1.1.2",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-use-layout-effect/-/react-use-layout-effect-1.1.2.tgz",
-      "integrity": "sha512-jrBWOxZITuGcnjRCM2t2U5ZPkCLxD+Ym6DjfssS5haTj2iiak/DOb64JeN6OdLfLgptb6/e2kKR+ZuTrGoZTPA==",
-      "license": "MIT",
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-use-rect": {
-      "version": "1.1.2",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-use-rect/-/react-use-rect-1.1.2.tgz",
-      "integrity": "sha512-d8a+bBY/FxikNPlgJJoaBHZX+zKVbWHYJGTLnLvveQgFSTntkGdEKv3JDtHrMS0DNYpllz2nRsTLGLKYttbpmw==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/rect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/react-use-size": {
-      "version": "1.1.2",
-      "resolved": "https://registry.npmjs.org/@radix-ui/react-use-size/-/react-use-size-1.1.2.tgz",
-      "integrity": "sha512-giWQp+4mxjBPt4KZ0MmyuykFNWfbDxKt4x+fPkRYmgRFJSbCZFzUglvMb/Kjn38tm10YP4ufiQZDx3zna4LU6w==",
-      "license": "MIT",
-      "dependencies": {
-        "@radix-ui/react-use-layout-effect": "1.1.2"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8 || ^17.0 || ^18.0 || ^19.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/@radix-ui/rect": {
-      "version": "1.1.2",
-      "resolved": "https://registry.npmjs.org/@radix-ui/rect/-/rect-1.1.2.tgz",
-      "integrity": "sha512-xnXE7wG13PI+cxieVssYXlQJuYVRhH9NBoxt3KNwzghDIA69GMm7d4wXRouHIYjE+KvS6U/MsMO73NdS2MH9ZA==",
-      "license": "MIT"
-    },
-    "node_modules/@rolldown/binding-android-arm64": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-android-arm64/-/binding-android-arm64-1.1.4.tgz",
-      "integrity": "sha512-EZLpf/8y7GXkkra90ML47kzik/GMP3EMcE9bPyHmRfxLC6z9+aW5A8poCsoxjrT5GfEcNAAvWwUHjvP1pUQkfw==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "android"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-darwin-arm64": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-darwin-arm64/-/binding-darwin-arm64-1.1.4.tgz",
-      "integrity": "sha512-aUi+HBvmYb7j8krl1+qJgkG8C17fO79gk3c+jPw4S8glRFc1DTija9S3EyaTSQUm5GJXYKDAsugBEhFHH2vYiQ==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "darwin"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-darwin-x64": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-darwin-x64/-/binding-darwin-x64-1.1.4.tgz",
-      "integrity": "sha512-F7hHC3gwY11+vByKPRWqwGbeXWVgKmL+pTGCinaEhdihzBV2aQ0fvZOch9cXYUOKuKKq429HeYXOqQLc7wFCEg==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "darwin"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-freebsd-x64": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-freebsd-x64/-/binding-freebsd-x64-1.1.4.tgz",
-      "integrity": "sha512-sI5yw+7s92SK6odiEhD5lKCBlWcpjHS5qyqpVQbZAJ0fIzEUXrmbl3DH2ybR3PZogulNJF+COLtmA8hUfvkCCQ==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "freebsd"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-linux-arm-gnueabihf": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-linux-arm-gnueabihf/-/binding-linux-arm-gnueabihf-1.1.4.tgz",
-      "integrity": "sha512-mCi0OKgEieFircrtVYmQAFGszRtMnZ6fpZAXrxanXAu7lqZcsK1E1RAaZNG0uKAnxox3B1f4EyQNnoyMfN1vAA==",
-      "cpu": [
-        "arm"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-linux-arm64-gnu": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-linux-arm64-gnu/-/binding-linux-arm64-gnu-1.1.4.tgz",
-      "integrity": "sha512-B9Ial3Kv5sh0SHnB1g/QWcUQCEvCF6QKGAl4zXypYj65mVI+B4AhFBwPtSN7pDrJeIx8Z7zdy4ntx+wQABom7w==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-linux-arm64-musl": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-linux-arm64-musl/-/binding-linux-arm64-musl-1.1.4.tgz",
-      "integrity": "sha512-lZVym0PuHE1KZ22gmFTC15lAkrg9iTszR617oYRB/iPY1A56ywoJzVKOJBKaot5RiikCObmur6pogpse3gRcng==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-linux-ppc64-gnu": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-linux-ppc64-gnu/-/binding-linux-ppc64-gnu-1.1.4.tgz",
-      "integrity": "sha512-t2DNiLJWNTbnEHyUzTumldML6ET4/g16467LZoDDJ3tSxGvguL5/NyC2lCsNKuyRycg9XeDQF5SSv+TNOhQEXg==",
-      "cpu": [
-        "ppc64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-linux-s390x-gnu": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-linux-s390x-gnu/-/binding-linux-s390x-gnu-1.1.4.tgz",
-      "integrity": "sha512-0WIRnL1Uw4BvTZRLQt+PVgo6ZKTJadlC2btP+/EOXv2f/DWbY0rEgl+y834mIVwP1FkTlWVTrGGJXf12lru7EQ==",
-      "cpu": [
-        "s390x"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-linux-x64-gnu": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-linux-x64-gnu/-/binding-linux-x64-gnu-1.1.4.tgz",
-      "integrity": "sha512-JWtGshGfX+oENAKonoNkqEJX+7hC8yfhi9GUyPX1VX4mdh1y5r+ZiJLR5XzAB0aoP6s/PcILsGjKq8O0mm24bw==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-linux-x64-musl": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-linux-x64-musl/-/binding-linux-x64-musl-1.1.4.tgz",
-      "integrity": "sha512-rT6yQcxUuXs4CnbofqwHRRV0iem349rLMYpTjkgQGLjrY4ado/eDzwPZPTCgTOlF6Nkp8NEv70yLMTn6qkWxsQ==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-openharmony-arm64": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-openharmony-arm64/-/binding-openharmony-arm64-1.1.4.tgz",
-      "integrity": "sha512-KXMGoboq5cyaCQjDA4GLuRiOwBQ0EyFnJoVViLeZ45/3rFItRODEr+NdsBcVpll40hhNArlm/speWGRvj08LzA==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "openharmony"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-wasm32-wasi": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-wasm32-wasi/-/binding-wasm32-wasi-1.1.4.tgz",
-      "integrity": "sha512-5K83rb36oJiY7BCyE9zLZtGcPV4g5wvq+xwdO0XPIwDVZI8cyB/AUjkNXGb92/rnmezEkjMOpgY61rtwjQtFwg==",
-      "cpu": [
-        "wasm32"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "dependencies": {
-        "@emnapi/core": "1.11.1",
-        "@emnapi/runtime": "1.11.1",
-        "@napi-rs/wasm-runtime": "^1.1.6"
-      },
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-wasm32-wasi/node_modules/@emnapi/core": {
-      "version": "1.11.1",
-      "resolved": "https://registry.npmjs.org/@emnapi/core/-/core-1.11.1.tgz",
-      "integrity": "sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ==",
-      "license": "MIT",
-      "optional": true,
-      "dependencies": {
-        "@emnapi/wasi-threads": "1.2.2",
-        "tslib": "^2.4.0"
-      }
-    },
-    "node_modules/@rolldown/binding-wasm32-wasi/node_modules/@emnapi/runtime": {
-      "version": "1.11.1",
-      "resolved": "https://registry.npmjs.org/@emnapi/runtime/-/runtime-1.11.1.tgz",
-      "integrity": "sha512-vgj7R3y3Wgx24IQaGPA/R6YFXLHVMOZ0uVEyIQPaWs+rd1AzfEMXlAC22FYwO1XkKR6NPsq7mUandH8oIRdZFw==",
-      "license": "MIT",
-      "optional": true,
-      "dependencies": {
-        "tslib": "^2.4.0"
-      }
-    },
-    "node_modules/@rolldown/binding-win32-arm64-msvc": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-win32-arm64-msvc/-/binding-win32-arm64-msvc-1.1.4.tgz",
-      "integrity": "sha512-PnWBtw3TV5KOg69HQQDR0mnQuyCmSGR2pAB4DC1rPF808fgKeTUMj2EOEyKATpgiuxuR5APQmiDO7PDgEjTFSA==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "win32"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/binding-win32-x64-msvc": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/@rolldown/binding-win32-x64-msvc/-/binding-win32-x64-msvc-1.1.4.tgz",
-      "integrity": "sha512-M1lpniBePobTfsa7Ks9a199e1akxsXn+GYBUKsEzv3YFzOm1HJAMNwKI3qr0Zq+mxwx9gOZoTdP1yXRYsZUocQ==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "win32"
-      ],
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      }
-    },
-    "node_modules/@rolldown/pluginutils": {
-      "version": "1.0.1",
-      "resolved": "https://registry.npmjs.org/@rolldown/pluginutils/-/pluginutils-1.0.1.tgz",
-      "integrity": "sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==",
-      "license": "MIT"
-    },
-    "node_modules/@tailwindcss/node": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/node/-/node-4.3.2.tgz",
-      "integrity": "sha512-yWP/sqEcBLaD8JuA6zNwxoYKr75qxTioYwlRwekj5Jr/I5GXnoJfjetH/psLUIv74cYTH2lBUEzBkinthoYcBg==",
-      "license": "MIT",
-      "dependencies": {
-        "@jridgewell/remapping": "^2.3.5",
-        "enhanced-resolve": "5.21.6",
-        "jiti": "^2.7.0",
-        "lightningcss": "1.32.0",
-        "magic-string": "^0.30.21",
-        "source-map-js": "^1.2.1",
-        "tailwindcss": "4.3.2"
-      }
-    },
-    "node_modules/@tailwindcss/oxide": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide/-/oxide-4.3.2.tgz",
-      "integrity": "sha512-z8ZgnzX8gdNoWLBLqBPoh/sjnxkwvf9ZuWjnO0l0yIzbLa5/9S+eC5QxGZKRobVHIC3/1BoMWjHblqWjcgFgag==",
-      "license": "MIT",
-      "engines": {
-        "node": ">= 20"
-      },
-      "optionalDependencies": {
-        "@tailwindcss/oxide-android-arm64": "4.3.2",
-        "@tailwindcss/oxide-darwin-arm64": "4.3.2",
-        "@tailwindcss/oxide-darwin-x64": "4.3.2",
-        "@tailwindcss/oxide-freebsd-x64": "4.3.2",
-        "@tailwindcss/oxide-linux-arm-gnueabihf": "4.3.2",
-        "@tailwindcss/oxide-linux-arm64-gnu": "4.3.2",
-        "@tailwindcss/oxide-linux-arm64-musl": "4.3.2",
-        "@tailwindcss/oxide-linux-x64-gnu": "4.3.2",
-        "@tailwindcss/oxide-linux-x64-musl": "4.3.2",
-        "@tailwindcss/oxide-wasm32-wasi": "4.3.2",
-        "@tailwindcss/oxide-win32-arm64-msvc": "4.3.2",
-        "@tailwindcss/oxide-win32-x64-msvc": "4.3.2"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-android-arm64": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-android-arm64/-/oxide-android-arm64-4.3.2.tgz",
-      "integrity": "sha512-WHxqIuHpvZ5VtdX6GTl1Ik/Vp2YuN42Et+0CdeaVd/frQ9jAvGmvR8vLT+jk3e8/Q3x8kECB9+R17pgpp2BulA==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "android"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-darwin-arm64": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-darwin-arm64/-/oxide-darwin-arm64-4.3.2.tgz",
-      "integrity": "sha512-GZypeUY/IDJW3877KeM+O67vbXr3MBnbtEL4aYhNErv/JWZhye2vGSWWG9tB6iiqR2MqRNkY8IOUy4NdSZV26w==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "darwin"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-darwin-x64": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-darwin-x64/-/oxide-darwin-x64-4.3.2.tgz",
-      "integrity": "sha512-UIIzmefR6KO1sDU7MzRqAxC8iBpft/VhkGjTjnhoS6k7Z3rQ9wEgA1ODSiyH/tcSYssulNm4Ci3hOeK1jH7ccQ==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "darwin"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-freebsd-x64": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-freebsd-x64/-/oxide-freebsd-x64-4.3.2.tgz",
-      "integrity": "sha512-GN+uAmcI6DNspnCDwtOAZrTz6oukJnp337qZvxqCGLd3BHBzJpO0ZbTLRvJNdztOeAmTzewewGIMPb0tk2R4WA==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "freebsd"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-linux-arm-gnueabihf": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-linux-arm-gnueabihf/-/oxide-linux-arm-gnueabihf-4.3.2.tgz",
-      "integrity": "sha512-4ABn7qSbdHRwTiDiuWNegCyb5+2FJ4vKIKc3DmKrvAFw7MU1Lm11dIkTPwUaFdTzc7IsOpDbqBrlh0x6y36U/w==",
-      "cpu": [
-        "arm"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-linux-arm64-gnu": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-linux-arm64-gnu/-/oxide-linux-arm64-gnu-4.3.2.tgz",
-      "integrity": "sha512-wDgEIGwoM8w8pufh9LVt1PahDgNdKXrLC2qfAnV3vAmococ9RWbxeAw4pxPttd/TsJfwjyLf90Dg1y9y8I6Emw==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-linux-arm64-musl": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-linux-arm64-musl/-/oxide-linux-arm64-musl-4.3.2.tgz",
-      "integrity": "sha512-J5Nuk0uZQIiMTJj3LEx4sAA9tMFUoXQZFv1J6An+QGYe53HKRJuFDi0rpq/tuouCZeAbOBY3kQ6g8qeD4TUjtA==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-linux-x64-gnu": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-linux-x64-gnu/-/oxide-linux-x64-gnu-4.3.2.tgz",
-      "integrity": "sha512-kqCZpSKOBEJO4mz7OqWoofBZeXTAwaVGPj0ErAj7CojmhKpWVWVOnrt9dE8odoIraZq4oj3ausM37kXi+Tow8w==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-linux-x64-musl": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-linux-x64-musl/-/oxide-linux-x64-musl-4.3.2.tgz",
-      "integrity": "sha512-cixpqbh2toJDmkuCRI68nXA8ZxNmdK9Y+9v5h3MC3ZQKy/0BO8AWzlkWyRM7JAFSGBlfig4YVTPsK6MVgqz1uw==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-wasm32-wasi": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-wasm32-wasi/-/oxide-wasm32-wasi-4.3.2.tgz",
-      "integrity": "sha512-4ec2Z/LOmRsAgU23CS4xeJfcJlmRg94A/XrbGRCF1gyU/zdDfRLYDVsS+ynSZCmGNxQ1jQriQOKMQeQxBA3Isw==",
-      "bundleDependencies": [
-        "@napi-rs/wasm-runtime",
-        "@emnapi/core",
-        "@emnapi/runtime",
-        "@tybys/wasm-util",
-        "@emnapi/wasi-threads",
-        "tslib"
-      ],
-      "cpu": [
-        "wasm32"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "dependencies": {
-        "@emnapi/core": "^1.11.1",
-        "@emnapi/runtime": "^1.11.1",
-        "@emnapi/wasi-threads": "^1.2.2",
-        "@napi-rs/wasm-runtime": "^1.1.4",
-        "@tybys/wasm-util": "^0.10.2",
-        "tslib": "^2.8.1"
-      },
-      "engines": {
-        "node": ">=14.0.0"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-win32-arm64-msvc": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-win32-arm64-msvc/-/oxide-win32-arm64-msvc-4.3.2.tgz",
-      "integrity": "sha512-Zyr/M0+XcYZu3bZrUytc7TXvrk0ftWfl8gN2MwekNDzhqhKRUucMPSeOzM0o0wH5AWOU49BsKRrfKxI2atCPMQ==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "win32"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/oxide-win32-x64-msvc": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-win32-x64-msvc/-/oxide-win32-x64-msvc-4.3.2.tgz",
-      "integrity": "sha512-QI9BO7KlNZsp2GuO0jwAAj5jCDABOKXRkCk2XuKTSaNEFSdfzqswYVTtCHBNKHLsqyjFyFkqlDiwkNbTYSssMQ==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "win32"
-      ],
-      "engines": {
-        "node": ">= 20"
-      }
-    },
-    "node_modules/@tailwindcss/vite": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/@tailwindcss/vite/-/vite-4.3.2.tgz",
-      "integrity": "sha512-eHpMeX4JXfVNJDEcsouTeCBubJBTcTLigeaw/NTUW6PB5ATKKXdyonnXgTBX2VuRbjz1hjfz6C5XAhr52ImQXA==",
-      "license": "MIT",
-      "dependencies": {
-        "@tailwindcss/node": "4.3.2",
-        "@tailwindcss/oxide": "4.3.2",
-        "tailwindcss": "4.3.2"
-      },
-      "peerDependencies": {
-        "vite": "^5.2.0 || ^6 || ^7 || ^8"
-      }
-    },
-    "node_modules/@tanstack/query-core": {
-      "version": "5.101.2",
-      "resolved": "https://registry.npmjs.org/@tanstack/query-core/-/query-core-5.101.2.tgz",
-      "integrity": "sha512-hH5MLoJhF7KaIGd7q3xTXGXvslI+GYlM1Z/35aSHHWaCJWB7XvTSHYuV3eM7tw+aE0mT/xMro4M4Q9rCGHT0lw==",
-      "license": "MIT",
-      "funding": {
-        "type": "github",
-        "url": "https://github.com/sponsors/tannerlinsley"
-      }
-    },
-    "node_modules/@tanstack/react-query": {
-      "version": "5.101.2",
-      "resolved": "https://registry.npmjs.org/@tanstack/react-query/-/react-query-5.101.2.tgz",
-      "integrity": "sha512-seDkr6kzGzX1okaaTtZPtgA688CDPlXUz1C6xSg0ESqn04Vuc8tlrYms1s3de+znBqhPVxFRfpAfUf+6XvfPWg==",
-      "license": "MIT",
-      "dependencies": {
-        "@tanstack/query-core": "5.101.2"
-      },
-      "funding": {
-        "type": "github",
-        "url": "https://github.com/sponsors/tannerlinsley"
-      },
-      "peerDependencies": {
-        "react": "^18 || ^19"
-      }
-    },
-    "node_modules/@tybys/wasm-util": {
-      "version": "0.10.3",
-      "resolved": "https://registry.npmjs.org/@tybys/wasm-util/-/wasm-util-0.10.3.tgz",
-      "integrity": "sha512-F3fo1MYrRJYL3zER0OUOmkutjr1Vp23m7OsSgp7nq4SP6OqX6C/56XFIPAl5bt3zaBRjmW7SGz3u/6LwFpYcOg==",
-      "license": "MIT",
-      "optional": true,
-      "dependencies": {
-        "tslib": "^2.4.0"
-      }
-    },
-    "node_modules/@types/node": {
-      "version": "24.13.2",
-      "resolved": "https://registry.npmjs.org/@types/node/-/node-24.13.2.tgz",
-      "integrity": "sha512-fRa09kZTgu8o71KFcDjUFuc7F+dEbZYZmkI0mg5YBTRs0yMKjYHsq/c0urDKeDb+D5qVgXOdFcuu+DZPKOITwA==",
-      "devOptional": true,
-      "license": "MIT",
-      "peer": true,
-      "dependencies": {
-        "undici-types": "~7.18.0"
-      }
-    },
-    "node_modules/@types/react": {
-      "version": "19.2.17",
-      "resolved": "https://registry.npmjs.org/@types/react/-/react-19.2.17.tgz",
-      "integrity": "sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==",
-      "devOptional": true,
-      "license": "MIT",
-      "peer": true,
-      "dependencies": {
-        "csstype": "^3.2.2"
-      }
-    },
-    "node_modules/@types/react-dom": {
-      "version": "19.2.3",
-      "resolved": "https://registry.npmjs.org/@types/react-dom/-/react-dom-19.2.3.tgz",
-      "integrity": "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ==",
-      "devOptional": true,
-      "license": "MIT",
-      "peer": true,
-      "peerDependencies": {
-        "@types/react": "^19.2.0"
-      }
-    },
-    "node_modules/@vitejs/plugin-react": {
-      "version": "6.0.3",
-      "resolved": "https://registry.npmjs.org/@vitejs/plugin-react/-/plugin-react-6.0.3.tgz",
-      "integrity": "sha512-vmFvco5/QuC2f9Oj+wTk0+9XeDFkHxSamwZKYc7MxYwKICfvUvlMhqKI0VuICPltGqh1neqBKDvO4kes1ya8vg==",
-      "dev": true,
-      "license": "MIT",
-      "dependencies": {
-        "@rolldown/pluginutils": "^1.0.1"
-      },
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      },
-      "peerDependencies": {
-        "@rolldown/plugin-babel": "^0.1.7 || ^0.2.0",
-        "babel-plugin-react-compiler": "^1.0.0",
-        "vite": "^8.0.0"
-      },
-      "peerDependenciesMeta": {
-        "@rolldown/plugin-babel": {
-          "optional": true
-        },
-        "babel-plugin-react-compiler": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/aria-hidden": {
-      "version": "1.2.6",
-      "resolved": "https://registry.npmjs.org/aria-hidden/-/aria-hidden-1.2.6.tgz",
-      "integrity": "sha512-ik3ZgC9dY/lYVVM++OISsaYDeg1tb0VtP5uL3ouh1koGOaUMDPpbFIei4JkFimWUFPn90sbMNMXQAIVOlnYKJA==",
-      "license": "MIT",
-      "dependencies": {
-        "tslib": "^2.0.0"
-      },
-      "engines": {
-        "node": ">=10"
-      }
-    },
-    "node_modules/class-variance-authority": {
-      "version": "0.7.1",
-      "resolved": "https://registry.npmjs.org/class-variance-authority/-/class-variance-authority-0.7.1.tgz",
-      "integrity": "sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==",
-      "license": "Apache-2.0",
-      "dependencies": {
-        "clsx": "^2.1.1"
-      },
-      "funding": {
-        "url": "https://polar.sh/cva"
-      }
-    },
-    "node_modules/clsx": {
-      "version": "2.1.1",
-      "resolved": "https://registry.npmjs.org/clsx/-/clsx-2.1.1.tgz",
-      "integrity": "sha512-eYm0QWBtUrBWZWG0d386OGAw16Z995PiOVo2B7bjWSbHedGl5e0ZWaq65kOGgUSNesEIDkB9ISbTg/JK9dhCZA==",
-      "license": "MIT",
-      "engines": {
-        "node": ">=6"
-      }
-    },
-    "node_modules/cookie": {
-      "version": "1.1.1",
-      "resolved": "https://registry.npmjs.org/cookie/-/cookie-1.1.1.tgz",
-      "integrity": "sha512-ei8Aos7ja0weRpFzJnEA9UHJ/7XQmqglbRwnf2ATjcB9Wq874VKH9kfjjirM6UhU2/E5fFYadylyhFldcqSidQ==",
-      "license": "MIT",
-      "engines": {
-        "node": ">=18"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/express"
-      }
-    },
-    "node_modules/csstype": {
-      "version": "3.2.3",
-      "resolved": "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz",
-      "integrity": "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==",
-      "devOptional": true,
-      "license": "MIT"
-    },
-    "node_modules/detect-libc": {
-      "version": "2.1.2",
-      "resolved": "https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz",
-      "integrity": "sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==",
-      "license": "Apache-2.0",
-      "engines": {
-        "node": ">=8"
-      }
-    },
-    "node_modules/detect-node-es": {
-      "version": "1.1.0",
-      "resolved": "https://registry.npmjs.org/detect-node-es/-/detect-node-es-1.1.0.tgz",
-      "integrity": "sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ==",
-      "license": "MIT"
-    },
-    "node_modules/enhanced-resolve": {
-      "version": "5.21.6",
-      "resolved": "https://registry.npmjs.org/enhanced-resolve/-/enhanced-resolve-5.21.6.tgz",
-      "integrity": "sha512-aNnGCvbJ/RIyWo1IuhNdVjnNF+EjH9wpzpNHt+ci/m9He9LJvUN8wrCcXjp9cWsGNAuvSpVFTx/vraAFQ8qGjQ==",
-      "license": "MIT",
-      "dependencies": {
-        "graceful-fs": "^4.2.4",
-        "tapable": "^2.3.3"
-      },
-      "engines": {
-        "node": ">=10.13.0"
-      }
-    },
-    "node_modules/fdir": {
-      "version": "6.5.0",
-      "resolved": "https://registry.npmjs.org/fdir/-/fdir-6.5.0.tgz",
-      "integrity": "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg==",
-      "license": "MIT",
-      "engines": {
-        "node": ">=12.0.0"
-      },
-      "peerDependencies": {
-        "picomatch": "^3 || ^4"
-      },
-      "peerDependenciesMeta": {
-        "picomatch": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/fsevents": {
-      "version": "2.3.3",
-      "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz",
-      "integrity": "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
-      "hasInstallScript": true,
-      "license": "MIT",
-      "optional": true,
-      "os": [
-        "darwin"
-      ],
-      "engines": {
-        "node": "^8.16.0 || ^10.6.0 || >=11.0.0"
-      }
-    },
-    "node_modules/get-nonce": {
-      "version": "1.0.1",
-      "resolved": "https://registry.npmjs.org/get-nonce/-/get-nonce-1.0.1.tgz",
-      "integrity": "sha512-FJhYRoDaiatfEkUK8HKlicmu/3SGFD51q3itKDGoSTysQJBnfOcxU5GxnhE1E6soB76MbT0MBtnKJuXyAx+96Q==",
-      "license": "MIT",
-      "engines": {
-        "node": ">=6"
-      }
-    },
-    "node_modules/graceful-fs": {
-      "version": "4.2.11",
-      "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.11.tgz",
-      "integrity": "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==",
-      "license": "ISC"
-    },
-    "node_modules/jiti": {
-      "version": "2.7.0",
-      "resolved": "https://registry.npmjs.org/jiti/-/jiti-2.7.0.tgz",
-      "integrity": "sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==",
-      "license": "MIT",
-      "bin": {
-        "jiti": "lib/jiti-cli.mjs"
-      }
-    },
-    "node_modules/lightningcss": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss/-/lightningcss-1.32.0.tgz",
-      "integrity": "sha512-NXYBzinNrblfraPGyrbPoD19C1h9lfI/1mzgWYvXUTe414Gz/X1FD2XBZSZM7rRTrMA8JL3OtAaGifrIKhQ5yQ==",
-      "license": "MPL-2.0",
-      "dependencies": {
-        "detect-libc": "^2.0.3"
-      },
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      },
-      "optionalDependencies": {
-        "lightningcss-android-arm64": "1.32.0",
-        "lightningcss-darwin-arm64": "1.32.0",
-        "lightningcss-darwin-x64": "1.32.0",
-        "lightningcss-freebsd-x64": "1.32.0",
-        "lightningcss-linux-arm-gnueabihf": "1.32.0",
-        "lightningcss-linux-arm64-gnu": "1.32.0",
-        "lightningcss-linux-arm64-musl": "1.32.0",
-        "lightningcss-linux-x64-gnu": "1.32.0",
-        "lightningcss-linux-x64-musl": "1.32.0",
-        "lightningcss-win32-arm64-msvc": "1.32.0",
-        "lightningcss-win32-x64-msvc": "1.32.0"
-      }
-    },
-    "node_modules/lightningcss-android-arm64": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-android-arm64/-/lightningcss-android-arm64-1.32.0.tgz",
-      "integrity": "sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "android"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lightningcss-darwin-arm64": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-darwin-arm64/-/lightningcss-darwin-arm64-1.32.0.tgz",
-      "integrity": "sha512-RzeG9Ju5bag2Bv1/lwlVJvBE3q6TtXskdZLLCyfg5pt+HLz9BqlICO7LZM7VHNTTn/5PRhHFBSjk5lc4cmscPQ==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "darwin"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lightningcss-darwin-x64": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-darwin-x64/-/lightningcss-darwin-x64-1.32.0.tgz",
-      "integrity": "sha512-U+QsBp2m/s2wqpUYT/6wnlagdZbtZdndSmut/NJqlCcMLTWp5muCrID+K5UJ6jqD2BFshejCYXniPDbNh73V8w==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "darwin"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lightningcss-freebsd-x64": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-freebsd-x64/-/lightningcss-freebsd-x64-1.32.0.tgz",
-      "integrity": "sha512-JCTigedEksZk3tHTTthnMdVfGf61Fky8Ji2E4YjUTEQX14xiy/lTzXnu1vwiZe3bYe0q+SpsSH/CTeDXK6WHig==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "freebsd"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lightningcss-linux-arm-gnueabihf": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-linux-arm-gnueabihf/-/lightningcss-linux-arm-gnueabihf-1.32.0.tgz",
-      "integrity": "sha512-x6rnnpRa2GL0zQOkt6rts3YDPzduLpWvwAF6EMhXFVZXD4tPrBkEFqzGowzCsIWsPjqSK+tyNEODUBXeeVHSkw==",
-      "cpu": [
-        "arm"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lightningcss-linux-arm64-gnu": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-linux-arm64-gnu/-/lightningcss-linux-arm64-gnu-1.32.0.tgz",
-      "integrity": "sha512-0nnMyoyOLRJXfbMOilaSRcLH3Jw5z9HDNGfT/gwCPgaDjnx0i8w7vBzFLFR1f6CMLKF8gVbebmkUN3fa/kQJpQ==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lightningcss-linux-arm64-musl": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-linux-arm64-musl/-/lightningcss-linux-arm64-musl-1.32.0.tgz",
-      "integrity": "sha512-UpQkoenr4UJEzgVIYpI80lDFvRmPVg6oqboNHfoH4CQIfNA+HOrZ7Mo7KZP02dC6LjghPQJeBsvXhJod/wnIBg==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lightningcss-linux-x64-gnu": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-linux-x64-gnu/-/lightningcss-linux-x64-gnu-1.32.0.tgz",
-      "integrity": "sha512-V7Qr52IhZmdKPVr+Vtw8o+WLsQJYCTd8loIfpDaMRWGUZfBOYEJeyJIkqGIDMZPwPx24pUMfwSxxI8phr/MbOA==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lightningcss-linux-x64-musl": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-linux-x64-musl/-/lightningcss-linux-x64-musl-1.32.0.tgz",
-      "integrity": "sha512-bYcLp+Vb0awsiXg/80uCRezCYHNg1/l3mt0gzHnWV9XP1W5sKa5/TCdGWaR/zBM2PeF/HbsQv/j2URNOiVuxWg==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "linux"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lightningcss-win32-arm64-msvc": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-win32-arm64-msvc/-/lightningcss-win32-arm64-msvc-1.32.0.tgz",
-      "integrity": "sha512-8SbC8BR40pS6baCM8sbtYDSwEVQd4JlFTOlaD3gWGHfThTcABnNDBda6eTZeqbofalIJhFx0qKzgHJmcPTnGdw==",
-      "cpu": [
-        "arm64"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "win32"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lightningcss-win32-x64-msvc": {
-      "version": "1.32.0",
-      "resolved": "https://registry.npmjs.org/lightningcss-win32-x64-msvc/-/lightningcss-win32-x64-msvc-1.32.0.tgz",
-      "integrity": "sha512-Amq9B/SoZYdDi1kFrojnoqPLxYhQ4Wo5XiL8EVJrVsB8ARoC1PWW6VGtT0WKCemjy8aC+louJnjS7U18x3b06Q==",
-      "cpu": [
-        "x64"
-      ],
-      "license": "MPL-2.0",
-      "optional": true,
-      "os": [
-        "win32"
-      ],
-      "engines": {
-        "node": ">= 12.0.0"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/parcel"
-      }
-    },
-    "node_modules/lucide-react": {
-      "version": "1.23.0",
-      "resolved": "https://registry.npmjs.org/lucide-react/-/lucide-react-1.23.0.tgz",
-      "integrity": "sha512-38BpJcD0JhFosxHApP/BYsBetLpQFRoTRzEzstM/XCc3jsAG7wqaY1lgVwxiUe3xqYE+lNxo2PkCmYwXWrwwIw==",
-      "license": "ISC",
-      "peerDependencies": {
-        "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0"
-      }
-    },
-    "node_modules/magic-string": {
-      "version": "0.30.21",
-      "resolved": "https://registry.npmjs.org/magic-string/-/magic-string-0.30.21.tgz",
-      "integrity": "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==",
-      "license": "MIT",
-      "dependencies": {
-        "@jridgewell/sourcemap-codec": "^1.5.5"
-      }
-    },
-    "node_modules/nanoid": {
-      "version": "3.3.15",
-      "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.15.tgz",
-      "integrity": "sha512-y7Wygv/7mEOvxTuEQDB8StXdMRBWf1kR/tlhAzBRUFkB2jfcLOAxO/SHmOO2zgz1pVgK29/kyupn059/bCHdjA==",
-      "funding": [
-        {
-          "type": "github",
-          "url": "https://github.com/sponsors/ai"
-        }
-      ],
-      "license": "MIT",
-      "bin": {
-        "nanoid": "bin/nanoid.cjs"
-      },
-      "engines": {
-        "node": "^10 || ^12 || ^13.7 || ^14 || >=15.0.1"
-      }
-    },
-    "node_modules/oxlint": {
-      "version": "1.73.0",
-      "resolved": "https://registry.npmjs.org/oxlint/-/oxlint-1.73.0.tgz",
-      "integrity": "sha512-u91G9TJzU6yqKWNZUYprQB07W7YvntZXaRxQ6CkoytepYhLWUXWsr1M8zUJ34VatNPuUAr3Z8GH+O2A331CluQ==",
-      "dev": true,
-      "license": "MIT",
-      "bin": {
-        "oxlint": "bin/oxlint"
-      },
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      },
-      "funding": {
-        "url": "https://github.com/sponsors/Boshen"
-      },
-      "optionalDependencies": {
-        "@oxlint/binding-android-arm-eabi": "1.73.0",
-        "@oxlint/binding-android-arm64": "1.73.0",
-        "@oxlint/binding-darwin-arm64": "1.73.0",
-        "@oxlint/binding-darwin-x64": "1.73.0",
-        "@oxlint/binding-freebsd-x64": "1.73.0",
-        "@oxlint/binding-linux-arm-gnueabihf": "1.73.0",
-        "@oxlint/binding-linux-arm-musleabihf": "1.73.0",
-        "@oxlint/binding-linux-arm64-gnu": "1.73.0",
-        "@oxlint/binding-linux-arm64-musl": "1.73.0",
-        "@oxlint/binding-linux-ppc64-gnu": "1.73.0",
-        "@oxlint/binding-linux-riscv64-gnu": "1.73.0",
-        "@oxlint/binding-linux-riscv64-musl": "1.73.0",
-        "@oxlint/binding-linux-s390x-gnu": "1.73.0",
-        "@oxlint/binding-linux-x64-gnu": "1.73.0",
-        "@oxlint/binding-linux-x64-musl": "1.73.0",
-        "@oxlint/binding-openharmony-arm64": "1.73.0",
-        "@oxlint/binding-win32-arm64-msvc": "1.73.0",
-        "@oxlint/binding-win32-ia32-msvc": "1.73.0",
-        "@oxlint/binding-win32-x64-msvc": "1.73.0"
-      },
-      "peerDependencies": {
-        "oxlint-tsgolint": ">=0.24.0",
-        "vite-plus": "*"
-      },
-      "peerDependenciesMeta": {
-        "oxlint-tsgolint": {
-          "optional": true
-        },
-        "vite-plus": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/picocolors": {
-      "version": "1.1.1",
-      "resolved": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz",
-      "integrity": "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==",
-      "license": "ISC"
-    },
-    "node_modules/picomatch": {
-      "version": "4.0.5",
-      "resolved": "https://registry.npmjs.org/picomatch/-/picomatch-4.0.5.tgz",
-      "integrity": "sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==",
-      "license": "MIT",
-      "peer": true,
-      "engines": {
-        "node": ">=12"
-      },
-      "funding": {
-        "url": "https://github.com/sponsors/jonschlinkert"
-      }
-    },
-    "node_modules/postcss": {
-      "version": "8.5.16",
-      "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.5.16.tgz",
-      "integrity": "sha512-vuwillviilfKZsg0VGj5R/YwwcHx4SLsIOI/7K6mQkWx+l5cUHTjj5g0AasTBcyXsbfTgrwsUNmVUb5xVwyPwg==",
-      "funding": [
-        {
-          "type": "opencollective",
-          "url": "https://opencollective.com/postcss/"
-        },
-        {
-          "type": "tidelift",
-          "url": "https://tidelift.com/funding/github/npm/postcss"
-        },
-        {
-          "type": "github",
-          "url": "https://github.com/sponsors/ai"
-        }
-      ],
-      "license": "MIT",
-      "dependencies": {
-        "nanoid": "^3.3.12",
-        "picocolors": "^1.1.1",
-        "source-map-js": "^1.2.1"
-      },
-      "engines": {
-        "node": "^10 || ^12 || >=14"
-      }
-    },
-    "node_modules/react": {
-      "version": "19.2.7",
-      "resolved": "https://registry.npmjs.org/react/-/react-19.2.7.tgz",
-      "integrity": "sha512-HNe9WslTbXmFK8o8cmwgAeJFSBvt1bPdHCVKtaaV+WlAN36mpT4hcRpwbf3fY56ar2oIXzsBpOAiIRHAdY0OlQ==",
-      "license": "MIT",
-      "peer": true,
-      "engines": {
-        "node": ">=0.10.0"
-      }
-    },
-    "node_modules/react-dom": {
-      "version": "19.2.7",
-      "resolved": "https://registry.npmjs.org/react-dom/-/react-dom-19.2.7.tgz",
-      "integrity": "sha512-t0BRVXvbiE/o20Hfw669rLbMCDWtYZLvmJigy2f0MxsXF+71pxhR3xOkspmsO8h3ZlNzyibAmtCa3l4lYKk6gQ==",
-      "license": "MIT",
-      "peer": true,
-      "dependencies": {
-        "scheduler": "^0.27.0"
-      },
-      "peerDependencies": {
-        "react": "^19.2.7"
-      }
-    },
-    "node_modules/react-remove-scroll": {
-      "version": "2.7.2",
-      "resolved": "https://registry.npmjs.org/react-remove-scroll/-/react-remove-scroll-2.7.2.tgz",
-      "integrity": "sha512-Iqb9NjCCTt6Hf+vOdNIZGdTiH1QSqr27H/Ek9sv/a97gfueI/5h1s3yRi1nngzMUaOOToin5dI1dXKdXiF+u0Q==",
-      "license": "MIT",
-      "dependencies": {
-        "react-remove-scroll-bar": "^2.3.7",
-        "react-style-singleton": "^2.2.3",
-        "tslib": "^2.1.0",
-        "use-callback-ref": "^1.3.3",
-        "use-sidecar": "^1.1.3"
-      },
-      "engines": {
-        "node": ">=10"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/react-remove-scroll-bar": {
-      "version": "2.3.8",
-      "resolved": "https://registry.npmjs.org/react-remove-scroll-bar/-/react-remove-scroll-bar-2.3.8.tgz",
-      "integrity": "sha512-9r+yi9+mgU33AKcj6IbT9oRCO78WriSj6t/cF8DWBZJ9aOGPOTEDvdUDz1FwKim7QXWwmHqtdHnRJfhAxEG46Q==",
-      "license": "MIT",
-      "dependencies": {
-        "react-style-singleton": "^2.2.2",
-        "tslib": "^2.0.0"
-      },
-      "engines": {
-        "node": ">=10"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/react-router": {
-      "version": "7.18.1",
-      "resolved": "https://registry.npmjs.org/react-router/-/react-router-7.18.1.tgz",
-      "integrity": "sha512-GDLgg3i3uM0aeJO3Fm+TCS+sDQ7gu12T6x0qdTEzcwqEfleci7JwugVNIF3U//0FWKnJT7ptG+20B2jfDqnZAg==",
-      "license": "MIT",
-      "dependencies": {
-        "cookie": "^1.0.1",
-        "set-cookie-parser": "^2.6.0"
-      },
-      "engines": {
-        "node": ">=20.0.0"
-      },
-      "peerDependencies": {
-        "react": ">=18",
-        "react-dom": ">=18"
-      },
-      "peerDependenciesMeta": {
-        "react-dom": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/react-router-dom": {
-      "version": "7.18.1",
-      "resolved": "https://registry.npmjs.org/react-router-dom/-/react-router-dom-7.18.1.tgz",
-      "integrity": "sha512-KaZh+X/6UtEp28x51AUYZDMg9NGoz2ja3dNHa+ta/tk40vCzKhQ/RypCWBMLbmDr6//E24Vv5uPsrqXFozdkAg==",
-      "license": "MIT",
-      "dependencies": {
-        "react-router": "7.18.1"
-      },
-      "engines": {
-        "node": ">=20.0.0"
-      },
-      "peerDependencies": {
-        "react": ">=18",
-        "react-dom": ">=18"
-      }
-    },
-    "node_modules/react-style-singleton": {
-      "version": "2.2.3",
-      "resolved": "https://registry.npmjs.org/react-style-singleton/-/react-style-singleton-2.2.3.tgz",
-      "integrity": "sha512-b6jSvxvVnyptAiLjbkWLE/lOnR4lfTtDAl+eUC7RZy+QQWc6wRzIV2CE6xBuMmDxc2qIihtDCZD5NPOFl7fRBQ==",
-      "license": "MIT",
-      "dependencies": {
-        "get-nonce": "^1.0.0",
-        "tslib": "^2.0.0"
-      },
-      "engines": {
-        "node": ">=10"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/rolldown": {
-      "version": "1.1.4",
-      "resolved": "https://registry.npmjs.org/rolldown/-/rolldown-1.1.4.tgz",
-      "integrity": "sha512-IjZYiLxZwpnhwhdBH2ugdTGVSdhCQUmLxLoqyjiL0JxYjyRst+5a0P3xfrTxJ5F638j4Mvvw5FAX5XE6eHpXbA==",
-      "license": "MIT",
-      "dependencies": {
-        "@oxc-project/types": "=0.138.0",
-        "@rolldown/pluginutils": "^1.0.0"
-      },
-      "bin": {
-        "rolldown": "bin/cli.mjs"
-      },
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      },
-      "optionalDependencies": {
-        "@rolldown/binding-android-arm64": "1.1.4",
-        "@rolldown/binding-darwin-arm64": "1.1.4",
-        "@rolldown/binding-darwin-x64": "1.1.4",
-        "@rolldown/binding-freebsd-x64": "1.1.4",
-        "@rolldown/binding-linux-arm-gnueabihf": "1.1.4",
-        "@rolldown/binding-linux-arm64-gnu": "1.1.4",
-        "@rolldown/binding-linux-arm64-musl": "1.1.4",
-        "@rolldown/binding-linux-ppc64-gnu": "1.1.4",
-        "@rolldown/binding-linux-s390x-gnu": "1.1.4",
-        "@rolldown/binding-linux-x64-gnu": "1.1.4",
-        "@rolldown/binding-linux-x64-musl": "1.1.4",
-        "@rolldown/binding-openharmony-arm64": "1.1.4",
-        "@rolldown/binding-wasm32-wasi": "1.1.4",
-        "@rolldown/binding-win32-arm64-msvc": "1.1.4",
-        "@rolldown/binding-win32-x64-msvc": "1.1.4"
-      }
-    },
-    "node_modules/scheduler": {
-      "version": "0.27.0",
-      "resolved": "https://registry.npmjs.org/scheduler/-/scheduler-0.27.0.tgz",
-      "integrity": "sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==",
-      "license": "MIT"
-    },
-    "node_modules/set-cookie-parser": {
-      "version": "2.7.2",
-      "resolved": "https://registry.npmjs.org/set-cookie-parser/-/set-cookie-parser-2.7.2.tgz",
-      "integrity": "sha512-oeM1lpU/UvhTxw+g3cIfxXHyJRc/uidd3yK1P242gzHds0udQBYzs3y8j4gCCW+ZJ7ad0yctld8RYO+bdurlvw==",
-      "license": "MIT"
-    },
-    "node_modules/sonner": {
-      "version": "2.0.7",
-      "resolved": "https://registry.npmjs.org/sonner/-/sonner-2.0.7.tgz",
-      "integrity": "sha512-W6ZN4p58k8aDKA4XPcx2hpIQXBRAgyiWVkYhT7CvK6D3iAu7xjvVyhQHg2/iaKJZ1XVJ4r7XuwGL+WGEK37i9w==",
-      "license": "MIT",
-      "peerDependencies": {
-        "react": "^18.0.0 || ^19.0.0 || ^19.0.0-rc",
-        "react-dom": "^18.0.0 || ^19.0.0 || ^19.0.0-rc"
-      }
-    },
-    "node_modules/source-map-js": {
-      "version": "1.2.1",
-      "resolved": "https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz",
-      "integrity": "sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==",
-      "license": "BSD-3-Clause",
-      "engines": {
-        "node": ">=0.10.0"
-      }
-    },
-    "node_modules/tailwind-merge": {
-      "version": "3.6.0",
-      "resolved": "https://registry.npmjs.org/tailwind-merge/-/tailwind-merge-3.6.0.tgz",
-      "integrity": "sha512-uxL7qAVQriqRQPAyK3pj66VqskWqoZ37PW94jwOTwNfq/z9oyu1V+eqrZqtR2+fCiXdYOZe/Modt8GtvqNzu+w==",
-      "license": "MIT",
-      "funding": {
-        "type": "github",
-        "url": "https://github.com/sponsors/dcastil"
-      }
-    },
-    "node_modules/tailwindcss": {
-      "version": "4.3.2",
-      "resolved": "https://registry.npmjs.org/tailwindcss/-/tailwindcss-4.3.2.tgz",
-      "integrity": "sha512-WtctNNSH8A9jlMIqxzuYumOHU5uGZyRv0Q5svQl+oEPy5w84YpBxdb7MdqyiSPQge5jTJ6zFQLq0PFygdccSBA==",
-      "license": "MIT"
-    },
-    "node_modules/tapable": {
-      "version": "2.3.3",
-      "resolved": "https://registry.npmjs.org/tapable/-/tapable-2.3.3.tgz",
-      "integrity": "sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==",
-      "license": "MIT",
-      "engines": {
-        "node": ">=6"
-      },
-      "funding": {
-        "type": "opencollective",
-        "url": "https://opencollective.com/webpack"
-      }
-    },
-    "node_modules/tinyglobby": {
-      "version": "0.2.17",
-      "resolved": "https://registry.npmjs.org/tinyglobby/-/tinyglobby-0.2.17.tgz",
-      "integrity": "sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==",
-      "license": "MIT",
-      "dependencies": {
-        "fdir": "^6.5.0",
-        "picomatch": "^4.0.4"
-      },
-      "engines": {
-        "node": ">=12.0.0"
-      },
-      "funding": {
-        "url": "https://github.com/sponsors/SuperchupuDev"
-      }
-    },
-    "node_modules/tslib": {
-      "version": "2.8.1",
-      "resolved": "https://registry.npmjs.org/tslib/-/tslib-2.8.1.tgz",
-      "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==",
-      "license": "0BSD"
-    },
-    "node_modules/typescript": {
-      "version": "6.0.3",
-      "resolved": "https://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz",
-      "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
-      "dev": true,
-      "license": "Apache-2.0",
-      "bin": {
-        "tsc": "bin/tsc",
-        "tsserver": "bin/tsserver"
-      },
-      "engines": {
-        "node": ">=14.17"
-      }
-    },
-    "node_modules/undici-types": {
-      "version": "7.18.2",
-      "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-7.18.2.tgz",
-      "integrity": "sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==",
-      "devOptional": true,
-      "license": "MIT"
-    },
-    "node_modules/use-callback-ref": {
-      "version": "1.3.3",
-      "resolved": "https://registry.npmjs.org/use-callback-ref/-/use-callback-ref-1.3.3.tgz",
-      "integrity": "sha512-jQL3lRnocaFtu3V00JToYz/4QkNWswxijDaCVNZRiRTO3HQDLsdu1ZtmIUvV4yPp+rvWm5j0y0TG/S61cuijTg==",
-      "license": "MIT",
-      "dependencies": {
-        "tslib": "^2.0.0"
-      },
-      "engines": {
-        "node": ">=10"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/use-sidecar": {
-      "version": "1.1.3",
-      "resolved": "https://registry.npmjs.org/use-sidecar/-/use-sidecar-1.1.3.tgz",
-      "integrity": "sha512-Fedw0aZvkhynoPYlA5WXrMCAMm+nSWdZt6lzJQ7Ok8S6Q+VsHmHpRWndVRJ8Be0ZbkfPc5LRYH+5XrzXcEeLRQ==",
-      "license": "MIT",
-      "dependencies": {
-        "detect-node-es": "^1.1.0",
-        "tslib": "^2.0.0"
-      },
-      "engines": {
-        "node": ">=10"
-      },
-      "peerDependencies": {
-        "@types/react": "*",
-        "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^19.0.0-rc"
-      },
-      "peerDependenciesMeta": {
-        "@types/react": {
-          "optional": true
-        }
-      }
-    },
-    "node_modules/vite": {
-      "version": "8.1.3",
-      "resolved": "https://registry.npmjs.org/vite/-/vite-8.1.3.tgz",
-      "integrity": "sha512-Ds+gBRbj0lwRO2Y5hwnUBdxSwlAve9LeRyU4sNnAr0ewW0gWF0n5bgXgUzbgZ49MV9BVUAQUFYVcDUcilUExMA==",
-      "license": "MIT",
-      "peer": true,
-      "dependencies": {
-        "lightningcss": "^1.32.0",
-        "picomatch": "^4.0.4",
-        "postcss": "^8.5.16",
-        "rolldown": "~1.1.3",
-        "tinyglobby": "^0.2.17"
-      },
-      "bin": {
-        "vite": "bin/vite.js"
-      },
-      "engines": {
-        "node": "^20.19.0 || >=22.12.0"
-      },
-      "funding": {
-        "url": "https://github.com/vitejs/vite?sponsor=1"
-      },
-      "optionalDependencies": {
-        "fsevents": "~2.3.3"
-      },
-      "peerDependencies": {
-        "@types/node": "^20.19.0 || >=22.12.0",
-        "@vitejs/devtools": "^0.3.0",
-        "esbuild": "^0.27.0 || ^0.28.0",
-        "jiti": ">=1.21.0",
-        "less": "^4.0.0",
-        "sass": "^1.70.0",
-        "sass-embedded": "^1.70.0",
-        "stylus": ">=0.54.8",
-        "sugarss": "^5.0.0",
-        "terser": "^5.16.0",
-        "tsx": "^4.8.1",
-        "yaml": "^2.4.2"
-      },
-      "peerDependenciesMeta": {
-        "@types/node": {
-          "optional": true
-        },
-        "@vitejs/devtools": {
-          "optional": true
-        },
-        "esbuild": {
-          "optional": true
-        },
-        "jiti": {
-          "optional": true
-        },
-        "less": {
-          "optional": true
-        },
-        "sass": {
-          "optional": true
-        },
-        "sass-embedded": {
-          "optional": true
-        },
-        "stylus": {
-          "optional": true
-        },
-        "sugarss": {
-          "optional": true
-        },
-        "terser": {
-          "optional": true
-        },
-        "tsx": {
-          "optional": true
-        },
-        "yaml": {
-          "optional": true
-        }
-      }
-    }
-  }
-}
-```
-
-```json
-// File: frontend\tenant-app\package.json
-{
-  "name": "tenant-app",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@radix-ui/react-collapsible": "^1.1.16",
-    "@radix-ui/react-dialog": "^1.1.19",
-    "@radix-ui/react-dropdown-menu": "^2.1.20",
-    "@radix-ui/react-label": "^2.1.11",
-    "@radix-ui/react-scroll-area": "^1.2.14",
-    "@radix-ui/react-separator": "^1.1.11",
-    "@radix-ui/react-slot": "^1.3.0",
-    "@radix-ui/react-tabs": "^1.1.17",
-    "@tailwindcss/vite": "^4.3.2",
-    "@tanstack/react-query": "^5.101.2",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^1.23.0",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.1",
-    "sonner": "^2.0.7",
-    "tailwind-merge": "^3.6.0",
-    "tailwindcss": "^4.3.2"
-  },
-  "devDependencies": {
-    "@types/node": "^24.13.2",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.3",
-    "oxlint": "^1.71.0",
-    "typescript": "~6.0.2",
-    "vite": "^8.1.1"
-  }
-}
-```
-
-```markdown
-// File: frontend\tenant-app\README.md
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\app\App.tsx
-import { Routes, Route } from 'react-router-dom'
-import TenantPortal from '../pages/TenantPortal'
-
-function App() {
-    return (
-        <Routes>
-            <Route path=":token" element={<TenantPortal />} />
-            <Route path="*" element={<div className="p-8 text-center">Invalid URL</div>} />
-        </Routes>
-    )
-}
-
-export default App
-```
-
-```typescript
-// File: frontend\tenant-app\src\app\queryClient.ts
-import { QueryClient } from '@tanstack/react-query';
-
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-```
-
-```tsx
-// File: frontend\tenant-app\src\app\router.tsx
-import { createBrowserRouter } from 'react-router-dom';
-import PublicTenantPage from '../pages/PublicTenantPage';
-
-export const router = createBrowserRouter([
-  {
-    path: '/t/:view_token',
-    element: <PublicTenantPage />
-  },
-], {
-  basename: "/rent/t",
-});
-```
-
-```css
-// File: frontend\tenant-app\src\App.css
-.counter {
-  font-size: 16px;
-  padding: 5px 10px;
-  border-radius: 5px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border: 2px solid transparent;
-  transition: border-color 0.3s;
-  margin-bottom: 24px;
-
-  &:hover {
-    border-color: var(--accent-border);
-  }
-  &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-}
-
-.hero {
-  position: relative;
-
-  .base,
-  .framework,
-  .vite {
-    inset-inline: 0;
-    margin: 0 auto;
-  }
-
-  .base {
-    width: 170px;
-    position: relative;
-    z-index: 0;
-  }
-
-  .framework,
-  .vite {
-    position: absolute;
-  }
-
-  .framework {
-    z-index: 1;
-    top: 34px;
-    height: 28px;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(44deg) rotateY(39deg)
-      scale(1.4);
-  }
-
-  .vite {
-    z-index: 0;
-    top: 107px;
-    height: 26px;
-    width: auto;
-    transform: perspective(2000px) rotateZ(300deg) rotateX(40deg) rotateY(39deg)
-      scale(0.8);
-  }
-}
-
-#center {
-  display: flex;
-  flex-direction: column;
-  gap: 25px;
-  place-content: center;
-  place-items: center;
-  flex-grow: 1;
-
-  @media (max-width: 1024px) {
-    padding: 32px 20px 24px;
-    gap: 18px;
-  }
-}
-
-#next-steps {
-  display: flex;
-  border-top: 1px solid var(--border);
-  text-align: left;
-
-  & > div {
-    flex: 1 1 0;
-    padding: 32px;
-    @media (max-width: 1024px) {
-      padding: 24px 20px;
-    }
-  }
-
-  .icon {
-    margin-bottom: 16px;
-    width: 22px;
-    height: 22px;
-  }
-
-  @media (max-width: 1024px) {
-    flex-direction: column;
-    text-align: center;
-  }
-}
-
-#docs {
-  border-right: 1px solid var(--border);
-
-  @media (max-width: 1024px) {
-    border-right: none;
-    border-bottom: 1px solid var(--border);
-  }
-}
-
-#next-steps ul {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  gap: 8px;
-  margin: 32px 0 0;
-
-  .logo {
-    height: 18px;
-  }
-
-  a {
-    color: var(--text-h);
-    font-size: 16px;
-    border-radius: 6px;
-    background: var(--social-bg);
-    display: flex;
-    padding: 6px 12px;
-    align-items: center;
-    gap: 8px;
-    text-decoration: none;
-    transition: box-shadow 0.3s;
-
-    &:hover {
-      box-shadow: var(--shadow);
-    }
-    .button-icon {
-      height: 18px;
-      width: 18px;
-    }
-  }
-
-  @media (max-width: 1024px) {
-    margin-top: 20px;
-    flex-wrap: wrap;
-    justify-content: center;
-
-    li {
-      flex: 1 1 calc(50% - 8px);
-    }
-
-    a {
-      width: 100%;
-      justify-content: center;
-      box-sizing: border-box;
-    }
-  }
-}
-
-#spacer {
-  height: 88px;
-  border-top: 1px solid var(--border);
-  @media (max-width: 1024px) {
-    height: 48px;
-  }
-}
-
-.ticks {
-  position: relative;
-  width: 100%;
-
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    top: -4.5px;
-    border: 5px solid transparent;
-  }
-
-  &::before {
-    left: 0;
-    border-left-color: var(--border);
-  }
-  &::after {
-    right: 0;
-    border-right-color: var(--border);
-  }
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\App.tsx
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from '@/context/AuthContext';
-import PublicTenantPage from '@/pages/PublicTenantPage';
-import TenantPortal from '@/pages/TenantPortal';
-
-function AppRoutes() {
-  const { isAuthenticated, isLoading } = useAuth();
-
-  if (isLoading) return <div>Loading...</div>;
-
-  return (
-    <Routes>
-      {/* Tenant portal entry point - captures view_token */}
-      <Route path="/t/:view_token" element={<PublicTenantPage />} />
-      <Route path="/t/:view_token/*" element={<TenantPortal />} />
-
-      {/* Legacy or direct access without token */}
-      <Route path="/login" element={<PublicTenantPage />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
-}
-
-function App() {
-  return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
-  );
-}
-
-export default App;
-// import { ThemeToggle } from "./components/theme-toggle"
-// import { useState } from 'react'
-// import reactLogo from './assets/react.svg'
-// import viteLogo from './assets/vite.svg'
-// import heroImg from './assets/hero.png'
-// import './App.css'
-
-// function App() {
-//   const [count, setCount] = useState(0)
-
-//   return (
-//     <>
-//       <section id="center">
-//         <div className="hero">
-//           <img src={heroImg} className="base" width="170" height="179" alt="" />
-//           <img src={reactLogo} className="framework" alt="React logo" />
-//           <img src={viteLogo} className="vite" alt="Vite logo" />
-//         </div>
-//         <div>
-//           <h1>Get started</h1>
-//           <p>
-//             Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-//           </p>
-//         </div>
-//         <button
-//           type="button"
-//           className="counter"
-//           onClick={() => setCount((count) => count + 1)}
-//         >
-//           Count is {count}
-//         </button>
-//       </section>
-
-//       <div className="ticks"></div>
-
-//       <section id="next-steps">
-//         <div id="docs">
-//           <svg className="icon" role="presentation" aria-hidden="true">
-//             <use href="/icons.svg#documentation-icon"></use>
-//           </svg>
-//           <h2>Documentation</h2>
-//           <p>Your questions, answered</p>
-//           <ul>
-//             <li>
-//               <a href="https://vite.dev/" target="_blank">
-//                 <img className="logo" src={viteLogo} alt="" />
-//                 Explore Vite
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://react.dev/" target="_blank">
-//                 <img className="button-icon" src={reactLogo} alt="" />
-//                 Learn more
-//               </a>
-//             </li>
-//           </ul>
-//         </div>
-//         <div id="social">
-//           <svg className="icon" role="presentation" aria-hidden="true">
-//             <use href="/icons.svg#social-icon"></use>
-//           </svg>
-//           <h2>Connect with us</h2>
-//           <p>Join the Vite community</p>
-//           <ul>
-//             <li>
-//               <a href="https://github.com/vitejs/vite" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#github-icon"></use>
-//                 </svg>
-//                 GitHub
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://chat.vite.dev/" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#discord-icon"></use>
-//                 </svg>
-//                 Discord
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://x.com/vite_js" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#x-icon"></use>
-//                 </svg>
-//                 X.com
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://bsky.app/profile/vite.dev" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#bluesky-icon"></use>
-//                 </svg>
-//                 Bluesky
-//               </a>
-//             </li>
-//           </ul>
-//         </div>
-//       </section>
-
-//       <div className="ticks"></div>
-//       <section id="spacer"></section>
-//     </>
-//   )
-// }
-
-// export default App
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\modals\PdfPreviewModal.tsx
-import { useState, useEffect } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { FileText, Download, Loader2, X } from "lucide-react";
-import { toast } from "sonner";
-import { TENANT_ROUTES } from "@/lib/routes";
-
-interface PdfPreviewModalProps {
-  billno: string;
-  view_token: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}
-
-export default function PdfPreviewModal({
-  billno,
-  view_token,
-  open,
-  onOpenChange,
-}: PdfPreviewModalProps) {
-  const [loading, setLoading] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState<string>("");
-  const [error, setError] = useState("");
-
-  const pdfViewUrl = TENANT_ROUTES.tenantApiPdfView(view_token, billno);
-  const pdfDownloadUrl = TENANT_ROUTES.tenantApiPdfDownload(view_token, billno);
-
-  useEffect(() => {
-    if (!open || !billno || !view_token) return;
-
-    setLoading(true);
-    setError("");
-
-    fetch(pdfViewUrl, {
-      method: "GET",
-      credentials: "include",
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load PDF");
-        return res.blob();
-      })
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        setPdfUrl(url);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message || "Could not load PDF preview");
-        setLoading(false);
-      });
-
-    return () => {
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-    };
-  }, [open, billno, view_token]);
-
-  const handleDownload = async () => {
-    try {
-      const res = await fetch(pdfDownloadUrl, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Download failed");
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-
-      const disposition = res.headers.get("content-disposition");
-      let filename = `receipt_${billno}.pdf`;
-      if (disposition) {
-        const match = disposition.match(/filename="?([^"]+)"?/);
-        if (match) filename = match[1];
-      }
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast.success("PDF downloaded successfully");
-    } catch {
-      toast.error("Failed to download PDF");
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
-        <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b flex flex-row items-center justify-between space-y-0">
-          <div className="flex items-center gap-3">
-            <FileText className="h-6 w-6 text-red-500 shrink-0" />
-            <div>
-              <DialogTitle className="text-xl">Receipt Preview</DialogTitle>
-              <DialogDescription className="mt-1 text-sm">
-                {billno && (
-                  <>
-                    Bill Number:{" "}
-                    <span className="font-medium text-foreground">
-                      #{billno}
-                    </span>
-                  </>
-                )}
-              </DialogDescription>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownload}
-              className="gap-1.5"
-            >
-              <Download className="h-4 w-4" />
-              Download
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => onOpenChange(false)}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        </DialogHeader>
-
-        <div className="flex-1 min-h-0 bg-muted relative">
-          {loading && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading PDF preview...</p>
-            </div>
-          )}
-
-          {error && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
-              <FileText className="h-12 w-12 text-muted-foreground/50" />
-              <div>
-                <p className="text-destructive font-medium">{error}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  The receipt PDF may not be available yet.
-                </p>
-              </div>
-              <Button variant="outline" onClick={handleDownload} className="gap-1.5 mt-2">
-                <Download className="h-4 w-4" />
-                Try Download
-              </Button>
-            </div>
-          )}
-
-          {pdfUrl && !loading && !error && (
-            <iframe
-              src={pdfUrl}
-              className="w-full h-full border-0"
-              title={`Receipt ${billno}`}
-            />
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-```
-
-```typescript
-// File: frontend\tenant-app\src\components\receipts\index.ts
-export { default as ReceiptCard } from "./ReceiptCard";
-export { default as ReceiptRoller } from "./ReceiptRoller";
-export type { ReceiptData } from "./ReceiptCard";
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\receipts\ReceiptCard.tsx
-import { useState, type ReactNode } from "react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  FileText,
-  Download,
-  CheckCircle2,
-  Clock,
-  AlertCircle,
-  TrendingUp,
-} from "lucide-react";
-import { toast } from "sonner";
-import { TENANT_ROUTES } from "@/lib/routes";
-import PdfPreviewModal from "@/components/modals/PdfPreviewModal";
-
-export interface ReceiptData {
-  Bill: string;
-  Date: string;
-  Month: string;
-  Tenant: string;
-  Previous: number;
-  Current: number;
-  Units: number;
-  Rent: number;
-  Additional: number;
-  Water: number;
-  Tank_Water: number;
-  Electricity: number;
-  Total: number;
-  PDF: string;
-  Payment_Status: string;
-  Maintenance_Charge: number;
-  Maintenance_Desc: string;
-  Previous_Arrears: number;
-  Amount_Received: number | string;
-  Status?: string;
-}
-
-interface ReceiptCardProps {
-  receipt: ReceiptData;
-  variant?: "compact" | "archive";
-  view_token: string;
-}
-
-const STATUS_CONFIG: Record<string, {
-  label: string;
-  bg: string;
-  text: string;
-  darkBg: string;
-  darkText: string;
-  icon: ReactNode;
-}> = {
-  PAID: {
-    label: "Paid",
-    bg: "bg-emerald-100",
-    text: "text-emerald-800",
-    darkBg: "dark:bg-emerald-900/30",
-    darkText: "dark:text-emerald-300",
-    icon: <CheckCircle2 className="h-3 w-3" />,
-  },
-  PENDING: {
-    label: "Pending",
-    bg: "bg-red-100",
-    text: "text-red-800",
-    darkBg: "dark:bg-red-900/30",
-    darkText: "dark:text-red-300",
-    icon: <AlertCircle className="h-3 w-3" />,
-  },
-  PARTIAL: {
-    label: "Partial",
-    bg: "bg-amber-100",
-    text: "text-amber-800",
-    darkBg: "dark:bg-amber-900/30",
-    darkText: "dark:text-amber-300",
-    icon: <Clock className="h-3 w-3" />,
-  },
-  ADVANCE: {
-    label: "Advance",
-    bg: "bg-blue-100",
-    text: "text-blue-800",
-    darkBg: "dark:bg-blue-900/30",
-    darkText: "dark:text-blue-300",
-    icon: <TrendingUp className="h-3 w-3" />,
-  },
-};
-
-export default function ReceiptCard({ receipt, variant = "compact", view_token }: ReceiptCardProps) {
-  const [previewOpen, setPreviewOpen] = useState(false);
-
-  const status = receipt.Payment_Status || "PENDING";
-  const statusConfig = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING;
-
-  const grandTotal = (receipt.Total || 0) + (receipt.Previous_Arrears || 0);
-
-  const handleDownload = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      const res = await fetch(TENANT_ROUTES.tenantApiPdfDownload(view_token, receipt.Bill), {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Download failed");
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-
-      const disposition = res.headers.get("content-disposition");
-      let filename = `receipt_${receipt.Bill}.pdf`;
-      if (disposition) {
-        const match = disposition.match(/filename="?([^"]+)"?/);
-        if (match) filename = match[1];
-      }
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast.success("PDF downloaded successfully");
-    } catch {
-      toast.error("Failed to download PDF");
-    }
-  };
-
-  // Compact variant for archive grid
-  if (variant === "compact") {
-    return (
-      <>
-        <Card className="p-3 hover:bg-accent/50 transition-colors cursor-pointer" onClick={() => setPreviewOpen(true)}>
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <FileText className="h-4 w-4 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-medium text-sm truncate">{receipt.Month}</p>
-                <p className="text-xs text-muted-foreground font-mono">{receipt.Bill}</p>
-              </div>
-            </div>
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.bg} ${statusConfig.text} ${statusConfig.darkBg} ${statusConfig.darkText}`}>
-              {statusConfig.icon}
-              {statusConfig.label}
-            </span>
-          </div>
-          <div className="mt-2 flex items-center justify-between">
-            <span className="text-sm font-semibold">{formatCurrency(grandTotal)}</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleDownload}>
-              <Download className="h-3 w-3" />
-            </Button>
-          </div>
-        </Card>
-        <PdfPreviewModal
-          billno={receipt.Bill}
-          view_token={view_token}
-          open={previewOpen}
-          onOpenChange={setPreviewOpen}
-        />
-      </>
-    );
-  }
-
-  // Archive list variant
-  return (
-    <>
-      <div
-        className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent/50 transition-colors cursor-pointer border-b last:border-b-0"
-        onClick={() => setPreviewOpen(true)}
-      >
-        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-          <FileText className="h-4 w-4 text-muted-foreground" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm">{receipt.Month}</p>
-          <p className="text-xs text-muted-foreground font-mono">{receipt.Bill} • {receipt.Date}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-sm font-semibold">{formatCurrency(grandTotal)}</p>
-          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${statusConfig.bg} ${statusConfig.text} ${statusConfig.darkBg} ${statusConfig.darkText}`}>
-            {statusConfig.icon}
-            {statusConfig.label}
-          </span>
-        </div>
-        <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={handleDownload}>
-          <Download className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-      <PdfPreviewModal billno={receipt.Bill} view_token={view_token} open={previewOpen} onOpenChange={setPreviewOpen} />
-    </>
-  );
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\receipts\ReceiptRoller.tsx
-import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  ChevronDown,
-  ChevronUp,
-  Archive,
-  Receipt,
-  Calendar,
-} from "lucide-react";
-import ReceiptCard, { type ReceiptData } from "./ReceiptCard";
-
-interface ReceiptRollerProps {
-  receipts: ReceiptData[];
-  maxVisible?: number;
-  view_token: string;
-}
-
-/**
- * ReceiptRoller implements the 12-month rollover logic:
- * - Shows up to 12 most recent receipts in the main view
- * - Newest bill always appears at the top
- * - When a 13th bill is added, the oldest rolls to archive
- * - Archive section shows all rolled-over receipts
- */
-export default function ReceiptRoller({ receipts, maxVisible = 12, view_token }: ReceiptRollerProps) {
-  const [archiveExpanded, setArchiveExpanded] = useState(false);
-
-  // Sort receipts by date (newest first) - new bills appear at top
-  const sortedReceipts = useMemo(() => {
-    return [...receipts].sort((a, b) => {
-      const dateA = parseReceiptDate(a.Date);
-      const dateB = parseReceiptDate(b.Date);
-      return dateB.getTime() - dateA.getTime(); // Newest first
-    });
-  }, [receipts]);
-
-  // Split into active (max 12) and archive (the rest)
-  const activeReceipts = useMemo(() => {
-    return sortedReceipts.slice(0, maxVisible);
-  }, [sortedReceipts, maxVisible]);
-
-  const archivedReceipts = useMemo(() => {
-    return sortedReceipts.slice(maxVisible);
-  }, [sortedReceipts, maxVisible]);
-
-  // Group active receipts by month for accordion-style display
-  // Newest month first
-  const groupedActive = useMemo(() => {
-    const groups: Record<string, ReceiptData[]> = {};
-    for (const receipt of activeReceipts) {
-      const monthKey = receipt.Month || "Unknown";
-      if (!groups[monthKey]) groups[monthKey] = [];
-      groups[monthKey].push(receipt);
-    }
-    return groups;
-  }, [activeReceipts]);
-
-  // Calculate summary stats
-  const totalDue = useMemo(() => {
-    return activeReceipts.reduce((sum, r) => {
-      const grandTotal = (r.Total || 0) + (r.Previous_Arrears || 0);
-      const received = Number(r.Amount_Received) || 0;
-      return sum + Math.max(grandTotal - received, 0);
-    }, 0);
-  }, [activeReceipts]);
-
-  const pendingCount = useMemo(() => {
-    return activeReceipts.filter(r => r.Payment_Status === "PENDING").length;
-  }, [activeReceipts]);
-
-  return (
-    <div className="space-y-4">
-      {/* Active Receipts - Month Grouped (Newest First) */}
-      <Card className="overflow-hidden">
-        {Object.entries(groupedActive).map(([month, monthReceipts], groupIndex) => (
-          <div key={month}>
-            {/* Month Header */}
-            <div className="px-4 py-2 bg-accent/30 border-b text-sm font-semibold text-muted-foreground flex items-center gap-2">
-              <Calendar className="h-3.5 w-3.5" />
-              {month}
-              {groupIndex === 0 && (
-                <Badge variant="outline" className="text-xs ml-auto font-normal">
-                  Latest
-                </Badge>
-              )}
-            </div>
-            {/* Receipts for this month */}
-            <div>
-              {monthReceipts.map((receipt) => (
-                <ReceiptCard
-                  key={receipt.Bill}
-                  receipt={receipt}
-                  variant="compact"
-                  view_token={view_token}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-
-        {activeReceipts.length === 0 && (
-          <div className="p-8 text-center text-muted-foreground">
-            <Receipt className="h-10 w-10 mx-auto mb-3 opacity-50" />
-            <p>No receipts available yet.</p>
-          </div>
-        )}
-      </Card>
-
-      {/* Archive Section - Rolled over receipts */}
-      {archivedReceipts.length > 0 && (
-        <Card className="overflow-hidden">
-          <button
-            onClick={() => setArchiveExpanded(!archiveExpanded)}
-            className="w-full px-4 py-3 flex items-center justify-between hover:bg-accent/50 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <Archive className="h-4 w-4 text-muted-foreground" />
-              <span className="font-semibold text-sm">Archive</span>
-              <Badge variant="secondary" className="font-mono text-xs">
-                {archivedReceipts.length}
-              </Badge>
-            </div>
-            {archiveExpanded ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
-
-          {archiveExpanded && (
-            <ScrollArea className="max-h-[400px]">
-              <div>
-                {archivedReceipts.map((receipt) => (
-                  <ReceiptCard
-                    key={receipt.Bill}
-                    receipt={receipt}
-                    variant="archive"
-                    view_token={view_token}
-                  />
-                ))}
-              </div>
-            </ScrollArea>
-          )}
-        </Card>
-      )}
-    </div>
-  );
-}
-
-// Helper to parse receipt dates
-function parseReceiptDate(dateStr: string): Date {
-  if (!dateStr) return new Date(0);
-  const match = dateStr.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
-  if (match) {
-    const [, day, month, year] = match;
-    const monthIndex = new Date(`${month} 1, 2000`).getMonth();
-    if (isNaN(monthIndex)) return new Date(0);  // ← ADDED
-    const parsed = new Date(parseInt(year), monthIndex, parseInt(day));
-    if (isNaN(parsed.getTime())) return new Date(0);  // ← ADDED
-    return parsed;
-  }
-  const iso = Date.parse(dateStr);
-  if (!isNaN(iso)) return new Date(iso);
-  return new Date(0);
-}
-
-//   // Try ISO format
-//   const iso = Date.parse(dateStr);
-//   if (!isNaN(iso)) return new Date(iso);
-
-//   return new Date(0);
-// }
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-IN", {
-    style: "currency",
-    currency: "INR",
-    minimumFractionDigits: 2,
-  }).format(amount);
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\receipts\ReceiptRow.tsx
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-    FileText,
-    Eye,
-    Download,
-    CheckCircle2,
-    Clock,
-    AlertCircle,
-    TrendingUp,
-} from "lucide-react";
-import { toast } from "sonner";
-import { TENANT_ROUTES } from "@/lib/routes";
-import PdfPreviewModal from "@/components/modals/PdfPreviewModal";
-
-export interface ReceiptData {
-    Bill: string;
-    Date: string;
-    Month: string;
-    Tenant: string;
-    Previous: number;
-    Current: number;
-    Units: number;
-    Rent: number;
-    Additional: number;
-    Water: number;
-    Tank_Water: number;
-    Electricity: number;
-    Total: number;
-    PDF: string;
-    Payment_Status: string;
-    Maintenance_Charge: number;
-    Maintenance_Desc: string;
-    Previous_Arrears: number;
-    Amount_Received: number | string;
-    Status?: string;
-}
-
-interface ReceiptRowProps {
-    receipt: ReceiptData;
-    view_token: string;
-}
-
-const STATUS_CONFIG: Record<string, {
-    label: string;
-    variant: "default" | "secondary" | "destructive" | "outline";
-    icon: React.ReactNode;
-}> = {
-    PAID: {
-        label: "Paid",
-        variant: "default",
-        icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-    },
-    PENDING: {
-        label: "Pending",
-        variant: "destructive",
-        icon: <AlertCircle className="h-3.5 w-3.5" />,
-    },
-    PARTIAL: {
-        label: "Partial",
-        variant: "secondary",
-        icon: <Clock className="h-3.5 w-3.5" />,
-    },
-    ADVANCE: {
-        label: "Advance",
-        variant: "outline",
-        icon: <TrendingUp className="h-3.5 w-3.5" />,
-    },
-};
-
-export default function ReceiptRow({ receipt, view_token }: ReceiptRowProps) {
-    const [previewOpen, setPreviewOpen] = useState(false);
-
-    const status = receipt.Payment_Status || "PENDING";
-    const statusConfig = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING;
-
-    const grandTotal = (receipt.Total || 0) + (receipt.Previous_Arrears || 0);
-    const amountReceived = Number(receipt.Amount_Received) || 0;
-    const balanceDue = Math.max(grandTotal - amountReceived, 0);
-
-    const handleDownload = async () => {
-        try {
-            const res = await fetch(TENANT_ROUTES.tenantApiPdfDownload(view_token, receipt.Bill), {
-                credentials: "include",
-            });
-            if (!res.ok) throw new Error("Download failed");
-
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-
-            const disposition = res.headers.get("content-disposition");
-            let filename = `receipt_${receipt.Bill}.pdf`;
-            if (disposition) {
-                const match = disposition.match(/filename="?([^"]+)"?/);
-                if (match) filename = match[1];
-            }
-
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-
-            toast.success("PDF downloaded successfully");
-        } catch {
-            toast.error("Failed to download PDF");
-        }
-    };
-
-    return (
-        <>
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 px-4 border-b transition-colors hover:bg-accent/50">
-                <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center">
-                        <FileText className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                        <h6 className="font-semibold text-sm truncate">{receipt.Tenant}</h6>
-                        <div className="text-xs text-muted-foreground">
-                            <span className="inline-flex items-center gap-1 mr-2">
-                                <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono text-xs">
-                                    #{receipt.Bill}
-                                </span>
-                            </span>
-                            <span>{receipt.Date}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-4 md:gap-6">
-                    <div className="text-right">
-                        <div className="text-xs text-muted-foreground">Total Payable</div>
-                        <div className="font-bold text-base">{formatCurrency(grandTotal)}</div>
-                        {amountReceived > 0 && (
-                            <div className="text-xs text-green-600 dark:text-green-400">
-                                Paid: {formatCurrency(amountReceived)}
-                            </div>
-                        )}
-                        {balanceDue > 0 && (
-                            <div className="text-xs text-red-500 font-medium">
-                                Due: {formatCurrency(balanceDue)}
-                            </div>
-                        )}
-                        {balanceDue <= 0 && amountReceived >= grandTotal && grandTotal > 0 && (
-                            <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                                Fully Paid
-                            </div>
-                        )}
-                    </div>
-
-                    <div>
-                        <Badge
-                            variant={statusConfig.variant}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium cursor-default"
-                            title={`Payment Status: ${statusConfig.label}`}
-                        >
-                            {statusConfig.icon}
-                            {statusConfig.label}
-                        </Badge>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-1">
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        title="View PDF"
-                        onClick={() => setPreviewOpen(true)}
-                    >
-                        <Eye className="h-4 w-4 text-primary" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        title="Download PDF"
-                        onClick={handleDownload}
-                    >
-                        <Download className="h-4 w-4" />
-                    </Button>
-                </div>
-            </div>
-            <PdfPreviewModal
-                billno={receipt.Bill}
-                view_token={view_token}
-                open={previewOpen}
-                onOpenChange={setPreviewOpen}
-            />
-        </>
-    );
-}
-
-function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-        minimumFractionDigits: 2,
-    }).format(amount);
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\theme-provider.tsx
-import { createContext, useContext, useEffect, useState } from "react"
-
-type Theme = "dark" | "light" | "system"
-
-type ThemeProviderProps = {
-    children: React.ReactNode
-    defaultTheme?: Theme
-    storageKey?: string
-}
-
-type ThemeProviderState = {
-    theme: Theme
-    setTheme: (theme: Theme) => void
-}
-
-const initialState: ThemeProviderState = {
-    theme: "system",
-    setTheme: () => null,
-}
-
-const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
-
-export function ThemeProvider({
-    children,
-    defaultTheme = "system",
-    storageKey = "vite-ui-theme",
-    ...props
-}: ThemeProviderProps) {
-    const [theme, setTheme] = useState<Theme>(
-        () => (localStorage.getItem(storageKey) as Theme) || defaultTheme
-    )
-
-    useEffect(() => {
-        const root = window.document.documentElement
-        root.classList.remove("light", "dark")
-
-        if (theme === "system") {
-            const systemTheme = window.matchMedia("(prefers-color-scheme: dark)")
-                .matches
-                ? "dark"
-                : "light"
-            root.classList.add(systemTheme)
-            return
-        }
-
-        root.classList.add(theme)
-    }, [theme])
-
-    const value = {
-        theme,
-        setTheme: (theme: Theme) => {
-            localStorage.setItem(storageKey, theme)
-            setTheme(theme)
-        },
-    }
-
-    return (
-        <ThemeProviderContext.Provider {...props} value={value}>
-            {children}
-        </ThemeProviderContext.Provider>
-    )
-}
-
-export const useTheme = () => {
-    const context = useContext(ThemeProviderContext)
-    if (context === undefined)
-        throw new Error("useTheme must be used within a ThemeProvider")
-    return context
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\theme-toggle.tsx
-import { Moon, Sun } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { useTheme } from "@/components/theme-provider"
-
-export function ThemeToggle() {
-    const { setTheme } = useTheme()
-
-    return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                    <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-                    <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-                    <span className="sr-only">Toggle theme</span>
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setTheme("light")}>
-                    Light
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("dark")}>
-                    Dark
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTheme("system")}>
-                    System
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
-    )
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\alert.tsx
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-
-import { cn } from "@/lib/utils"
-
-const alertVariants = cva(
-  "relative w-full rounded-lg border px-4 py-3 text-sm grid has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] grid-cols-[0_1fr] has-[>svg]:gap-x-3 gap-y-0.5 items-start [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current",
-  {
-    variants: {
-      variant: {
-        default: "bg-card text-card-foreground",
-        destructive:
-          "text-destructive bg-card [&>svg]:text-current *:data-[slot=alert-description]:text-destructive/90",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  }
-)
-
-function Alert({
-  className,
-  variant,
-  ...props
-}: React.ComponentProps<"div"> & VariantProps<typeof alertVariants>) {
-  return (
-    <div
-      data-slot="alert"
-      role="alert"
-      className={cn(alertVariants({ variant }), className)}
-      {...props}
-    />
-  )
-}
-
-function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="alert-title"
-      className={cn(
-        "col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function AlertDescription({
-  className,
-  ...props
-}: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="alert-description"
-      className={cn(
-        "text-muted-foreground col-start-2 grid justify-items-start gap-1 text-sm [&_p]:leading-relaxed",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-export { Alert, AlertTitle, AlertDescription }
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\badge.tsx
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { cva, type VariantProps } from "class-variance-authority"
-
-import { cn } from "@/lib/utils"
-
-const badgeVariants = cva(
-  "inline-flex items-center justify-center rounded-full border px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0 [&>svg]:size-3 gap-1 [&>svg]:pointer-events-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive transition-[color,box-shadow] overflow-hidden",
-  {
-    variants: {
-      variant: {
-        default:
-          "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
-        secondary:
-          "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
-        destructive:
-          "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
-        outline:
-          "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  }
-)
-
-function Badge({
-  className,
-  variant,
-  asChild = false,
-  ...props
-}: React.ComponentProps<"span"> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
-  const Comp = asChild ? Slot : "span"
-
-  return (
-    <Comp
-      data-slot="badge"
-      className={cn(badgeVariants({ variant }), className)}
-      {...props}
-    />
-  )
-}
-
-export { Badge, badgeVariants }
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\button.tsx
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { cva, type VariantProps } from "class-variance-authority"
-
-import { cn } from "@/lib/utils"
-
-const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
-        outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost:
-          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
-        link: "text-primary underline-offset-4 hover:underline",
-      },
-      size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
-)
-
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"button"> &
-  VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) {
-  const Comp = asChild ? Slot : "button"
-
-  return (
-    <Comp
-      data-slot="button"
-      data-variant={variant}
-      data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
-    />
-  )
-}
-
-export { Button, buttonVariants }
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\card.tsx
-import * as React from "react"
-
-import { cn } from "@/lib/utils"
-
-function Card({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card"
-      className={cn(
-        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-header"
-      className={cn(
-        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-title"
-      className={cn("leading-none font-semibold", className)}
-      {...props}
-    />
-  )
-}
-
-function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-description"
-      className={cn("text-muted-foreground text-sm", className)}
-      {...props}
-    />
-  )
-}
-
-function CardAction({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-action"
-      className={cn(
-        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function CardContent({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-content"
-      className={cn("px-6", className)}
-      {...props}
-    />
-  )
-}
-
-function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="card-footer"
-      className={cn("flex items-center px-6 [.border-t]:pt-6", className)}
-      {...props}
-    />
-  )
-}
-
-export {
-  Card,
-  CardHeader,
-  CardFooter,
-  CardTitle,
-  CardAction,
-  CardDescription,
-  CardContent,
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\collapsible.tsx
-import * as CollapsiblePrimitive from "@radix-ui/react-collapsible"
-
-function Collapsible({
-  ...props
-}: React.ComponentProps<typeof CollapsiblePrimitive.Root>) {
-  return <CollapsiblePrimitive.Root data-slot="collapsible" {...props} />
-}
-
-function CollapsibleTrigger({
-  ...props
-}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleTrigger>) {
-  return (
-    <CollapsiblePrimitive.CollapsibleTrigger
-      data-slot="collapsible-trigger"
-      {...props}
-    />
-  )
-}
-
-function CollapsibleContent({
-  ...props
-}: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent>) {
-  return (
-    <CollapsiblePrimitive.CollapsibleContent
-      data-slot="collapsible-content"
-      {...props}
-    />
-  )
-}
-
-export { Collapsible, CollapsibleTrigger, CollapsibleContent }
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\dialog.tsx
-import * as React from "react"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { XIcon } from "lucide-react"
-
-import { cn } from "@/lib/utils"
-
-function Dialog({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
-}
-
-function DialogTrigger({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
-}
-
-function DialogPortal({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
-}
-
-function DialogClose({
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Close>) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
-}
-
-function DialogOverlay({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
-  return (
-    <DialogPrimitive.Overlay
-      data-slot="dialog-overlay"
-      className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function DialogContent({
-  className,
-  children,
-  showCloseButton = true,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean
-}) {
-  return (
-    <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
-      <DialogPrimitive.Content
-        data-slot="dialog-content"
-        className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 outline-none sm:max-w-lg",
-          className
-        )}
-        {...props}
-      >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
-          >
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Content>
-    </DialogPortal>
-  )
-}
-
-function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="dialog-header"
-      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
-      {...props}
-    />
-  )
-}
-
-function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="dialog-footer"
-      className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function DialogTitle({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Title>) {
-  return (
-    <DialogPrimitive.Title
-      data-slot="dialog-title"
-      className={cn("text-lg leading-none font-semibold", className)}
-      {...props}
-    />
-  )
-}
-
-function DialogDescription({
-  className,
-  ...props
-}: React.ComponentProps<typeof DialogPrimitive.Description>) {
-  return (
-    <DialogPrimitive.Description
-      data-slot="dialog-description"
-      className={cn("text-muted-foreground text-sm", className)}
-      {...props}
-    />
-  )
-}
-
-export {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogOverlay,
-  DialogPortal,
-  DialogTitle,
-  DialogTrigger,
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\dropdown-menu.tsx
-import * as React from "react"
-import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
-import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
-
-import { cn } from "@/lib/utils"
-
-function DropdownMenu({
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
-  return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
-}
-
-function DropdownMenuPortal({
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
-  return (
-    <DropdownMenuPrimitive.Portal data-slot="dropdown-menu-portal" {...props} />
-  )
-}
-
-function DropdownMenuTrigger({
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
-  return (
-    <DropdownMenuPrimitive.Trigger
-      data-slot="dropdown-menu-trigger"
-      {...props}
-    />
-  )
-}
-
-function DropdownMenuContent({
-  className,
-  sideOffset = 4,
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Content>) {
-  return (
-    <DropdownMenuPrimitive.Portal>
-      <DropdownMenuPrimitive.Content
-        data-slot="dropdown-menu-content"
-        sideOffset={sideOffset}
-        className={cn(
-          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 max-h-(--radix-dropdown-menu-content-available-height) min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border p-1 shadow-md",
-          className
-        )}
-        {...props}
-      />
-    </DropdownMenuPrimitive.Portal>
-  )
-}
-
-function DropdownMenuGroup({
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Group>) {
-  return (
-    <DropdownMenuPrimitive.Group data-slot="dropdown-menu-group" {...props} />
-  )
-}
-
-function DropdownMenuItem({
-  className,
-  inset,
-  variant = "default",
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & {
-  inset?: boolean
-  variant?: "default" | "destructive"
-}) {
-  return (
-    <DropdownMenuPrimitive.Item
-      data-slot="dropdown-menu-item"
-      data-inset={inset}
-      data-variant={variant}
-      className={cn(
-        "focus:bg-accent focus:text-accent-foreground data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 dark:data-[variant=destructive]:focus:bg-destructive/20 data-[variant=destructive]:focus:text-destructive data-[variant=destructive]:*:[svg]:!text-destructive [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function DropdownMenuCheckboxItem({
-  className,
-  children,
-  checked,
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
-  return (
-    <DropdownMenuPrimitive.CheckboxItem
-      data-slot="dropdown-menu-checkbox-item"
-      className={cn(
-        "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      checked={checked}
-      {...props}
-    >
-      <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
-        <DropdownMenuPrimitive.ItemIndicator>
-          <CheckIcon className="size-4" />
-        </DropdownMenuPrimitive.ItemIndicator>
-      </span>
-      {children}
-    </DropdownMenuPrimitive.CheckboxItem>
-  )
-}
-
-function DropdownMenuRadioGroup({
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
-  return (
-    <DropdownMenuPrimitive.RadioGroup
-      data-slot="dropdown-menu-radio-group"
-      {...props}
-    />
-  )
-}
-
-function DropdownMenuRadioItem({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
-  return (
-    <DropdownMenuPrimitive.RadioItem
-      data-slot="dropdown-menu-radio-item"
-      className={cn(
-        "focus:bg-accent focus:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      {...props}
-    >
-      <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
-        <DropdownMenuPrimitive.ItemIndicator>
-          <CircleIcon className="size-2 fill-current" />
-        </DropdownMenuPrimitive.ItemIndicator>
-      </span>
-      {children}
-    </DropdownMenuPrimitive.RadioItem>
-  )
-}
-
-function DropdownMenuLabel({
-  className,
-  inset,
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Label> & {
-  inset?: boolean
-}) {
-  return (
-    <DropdownMenuPrimitive.Label
-      data-slot="dropdown-menu-label"
-      data-inset={inset}
-      className={cn(
-        "px-2 py-1.5 text-sm font-medium data-[inset]:pl-8",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function DropdownMenuSeparator({
-  className,
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
-  return (
-    <DropdownMenuPrimitive.Separator
-      data-slot="dropdown-menu-separator"
-      className={cn("bg-border -mx-1 my-1 h-px", className)}
-      {...props}
-    />
-  )
-}
-
-function DropdownMenuShortcut({
-  className,
-  ...props
-}: React.ComponentProps<"span">) {
-  return (
-    <span
-      data-slot="dropdown-menu-shortcut"
-      className={cn(
-        "text-muted-foreground ml-auto text-xs tracking-widest",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function DropdownMenuSub({
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
-  return <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" {...props} />
-}
-
-function DropdownMenuSubTrigger({
-  className,
-  inset,
-  children,
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger> & {
-  inset?: boolean
-}) {
-  return (
-    <DropdownMenuPrimitive.SubTrigger
-      data-slot="dropdown-menu-sub-trigger"
-      data-inset={inset}
-      className={cn(
-        "focus:bg-accent focus:text-accent-foreground data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[inset]:pl-8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      {...props}
-    >
-      {children}
-      <ChevronRightIcon className="ml-auto size-4" />
-    </DropdownMenuPrimitive.SubTrigger>
-  )
-}
-
-function DropdownMenuSubContent({
-  className,
-  ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
-  return (
-    <DropdownMenuPrimitive.SubContent
-      data-slot="dropdown-menu-sub-content"
-      className={cn(
-        "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md border p-1 shadow-lg",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-export {
-  DropdownMenu,
-  DropdownMenuPortal,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuItem,
-  DropdownMenuCheckboxItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\input.tsx
-import * as React from "react"
-
-import { cn } from "@/lib/utils"
-
-function Input({ className, type, ...props }: React.ComponentProps<"input">) {
-  return (
-    <input
-      type={type}
-      data-slot="input"
-      className={cn(
-        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
-        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
-        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-export { Input }
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\scroll-area.tsx
-"use client"
-
-import * as React from "react"
-import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area"
-
-import { cn } from "@/lib/utils"
-
-function ScrollArea({
-  className,
-  children,
-  ...props
-}: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
-  return (
-    <ScrollAreaPrimitive.Root
-      data-slot="scroll-area"
-      className={cn("relative", className)}
-      {...props}
-    >
-      <ScrollAreaPrimitive.Viewport
-        data-slot="scroll-area-viewport"
-        className="focus-visible:ring-ring/50 size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:outline-1"
-      >
-        {children}
-      </ScrollAreaPrimitive.Viewport>
-      <ScrollBar />
-      <ScrollAreaPrimitive.Corner />
-    </ScrollAreaPrimitive.Root>
-  )
-}
-
-function ScrollBar({
-  className,
-  orientation = "vertical",
-  ...props
-}: React.ComponentProps<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>) {
-  return (
-    <ScrollAreaPrimitive.ScrollAreaScrollbar
-      data-slot="scroll-area-scrollbar"
-      orientation={orientation}
-      className={cn(
-        "flex touch-none p-px transition-colors select-none",
-        orientation === "vertical" &&
-          "h-full w-2.5 border-l border-l-transparent",
-        orientation === "horizontal" &&
-          "h-2.5 flex-col border-t border-t-transparent",
-        className
-      )}
-      {...props}
-    >
-      <ScrollAreaPrimitive.ScrollAreaThumb
-        data-slot="scroll-area-thumb"
-        className="bg-border relative flex-1 rounded-full"
-      />
-    </ScrollAreaPrimitive.ScrollAreaScrollbar>
-  )
-}
-
-export { ScrollArea, ScrollBar }
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\separator.tsx
-"use client"
-
-import * as React from "react"
-import * as SeparatorPrimitive from "@radix-ui/react-separator"
-
-import { cn } from "@/lib/utils"
-
-function Separator({
-  className,
-  orientation = "horizontal",
-  decorative = true,
-  ...props
-}: React.ComponentProps<typeof SeparatorPrimitive.Root>) {
-  return (
-    <SeparatorPrimitive.Root
-      data-slot="separator"
-      decorative={decorative}
-      orientation={orientation}
-      className={cn(
-        "bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-export { Separator }
-```
-
-```tsx
-// File: frontend\tenant-app\src\components\ui\tabs.tsx
-"use client"
-
-import * as React from "react"
-import * as TabsPrimitive from "@radix-ui/react-tabs"
-
-import { cn } from "@/lib/utils"
-
-function Tabs({
-  className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.Root>) {
-  return (
-    <TabsPrimitive.Root
-      data-slot="tabs"
-      className={cn("flex flex-col gap-2", className)}
-      {...props}
-    />
-  )
-}
-
-function TabsList({
-  className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.List>) {
-  return (
-    <TabsPrimitive.List
-      data-slot="tabs-list"
-      className={cn(
-        "bg-muted text-muted-foreground inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function TabsTrigger({
-  className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
-  return (
-    <TabsPrimitive.Trigger
-      data-slot="tabs-trigger"
-      className={cn(
-        "data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
-        className
-      )}
-      {...props}
-    />
-  )
-}
-
-function TabsContent({
-  className,
-  ...props
-}: React.ComponentProps<typeof TabsPrimitive.Content>) {
-  return (
-    <TabsPrimitive.Content
-      data-slot="tabs-content"
-      className={cn("flex-1 outline-none", className)}
-      {...props}
-    />
-  )
-}
-
-export { Tabs, TabsList, TabsTrigger, TabsContent }
-```
-
-```tsx
-// File: frontend\tenant-app\src\context\AuthContext.tsx
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { tenantApi } from '@/lib/api';
-
-interface AuthContextType {
-    isAuthenticated: boolean;
-    isLoading: boolean;
-    viewToken: string | null;
-    login: (viewToken: string, pin: string, rememberMe?: boolean) => Promise<void>;
-    logout: () => Promise<void>;
-    refreshToken: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
-    const [viewToken, setViewToken] = useState<string | null>(null);
-
-    // On mount: extract view_token from URL and check existing session
-    useEffect(() => {
-        const pathParts = window.location.pathname.split('/');
-        const tIndex = pathParts.indexOf('t');
-        const tokenFromUrl = tIndex !== -1 ? pathParts[tIndex + 1] : null;
-
-        if (tokenFromUrl) {
-            setViewToken(tokenFromUrl);
-            localStorage.setItem('view_token', tokenFromUrl);
-
-            // Optionally verify session is still valid
-            tenantApi.profile.get(tokenFromUrl)
-                .then((data) => {
-                    setIsAuthenticated(data.tenant?.unlocked ?? false);
-                })
-                .catch(() => {
-                    setIsAuthenticated(false);
-                })
-                .finally(() => setIsLoading(false));
-        } else {
-            setIsLoading(false);
-        }
-    }, []);
-
-    const login = useCallback(async (token: string, pin: string, rememberMe = false) => {
-        await tenantApi.auth.login(token, pin, rememberMe);
-        setViewToken(token);
-        setIsAuthenticated(true);
-        localStorage.setItem('view_token', token);
-    }, []);
-
-    const logout = useCallback(async () => {
-        try {
-            if (viewToken) {
-                await tenantApi.auth.logout();
-            }
-        } finally {
-            setIsAuthenticated(false);
-            setViewToken(null);
-            localStorage.removeItem('view_token');
-        }
-    }, [viewToken]);
-
-    const refreshToken = useCallback(async () => {
-        // The view_token is automatically extracted from URL in apiClient
-        await tenantApi.auth.refresh();
-    }, []);
-
-    return (
-        <AuthContext.Provider value={{
-            isAuthenticated,
-            isLoading,
-            viewToken,
-            login,
-            logout,
-            refreshToken
-        }}>
-            {children}
-        </AuthContext.Provider>
-    );
-}
-
-export const useAuth = () => {
-    const ctx = useContext(AuthContext);
-    if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-    return ctx;
-};
-```
-
-```css
-// File: frontend\tenant-app\src\index.css
-@import 'tailwindcss';
-
-@theme {
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-}
-
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-  }
-}
-
-@layer base {
-    * {
-        border-color: hsl(var(--border));
-    }
-
-    body {
-        background-color: hsl(var(--background));
-        color: hsl(var(--foreground));
-    }
-}
-
-/* Hide scrollbar for filter buttons */
-.hide-scrollbar::-webkit-scrollbar {
-    display: none;
-}
-
-.hide-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-```
-
-```typescript
-// File: frontend\tenant-app\src\lib\api.ts
-// Extract view_token from URL path: /t/{view_token}/...
-const getViewToken = (): string => {
-    const pathParts = window.location.pathname.split('/');
-    // Handle paths like /t/abc123 or /t/abc123/receipts
-    const tIndex = pathParts.indexOf('t');
-    if (tIndex !== -1 && pathParts[tIndex + 1]) {
-        return pathParts[tIndex + 1];
-    }
-    // Fallback: try from localStorage if stored
-    return localStorage.getItem('view_token') || '';
-};
-
-// Base API client that injects view_token into auth endpoints
-const apiClient = {
-    async post(url: string, body?: unknown, options?: RequestInit) {
-        const viewToken = getViewToken();
-
-        // Replace {view_token} placeholder in URL if present
-        const resolvedUrl = url.replace(/{view_token}/g, viewToken);
-
-        const res = await fetch(resolvedUrl, {
-            method: 'POST',
-            credentials: 'include', // Important: send cookies
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-            },
-            body: body ? JSON.stringify(body) : undefined,
-            ...options,
-        });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-            throw new Error(err.detail || `HTTP ${res.status}`);
-        }
-
-        return res.json();
-    },
-
-    async get(url: string, options?: RequestInit) {
-        const viewToken = getViewToken();
-        const resolvedUrl = url.replace(/{view_token}/g, viewToken);
-
-        const res = await fetch(resolvedUrl, {
-            method: 'GET',
-            credentials: 'include',
-            ...options,
-        });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-            throw new Error(err.detail || `HTTP ${res.status}`);
-        }
-
-        return res.json();
-    }
-};
-
-// Export route builders that use the shared routes.json structure
-export const tenantApi = {
-    auth: {
-        publicKey: () => apiClient.get('/api/auth/public-key'),
-
-        login: (viewToken: string, pin: string, rememberMe: boolean = false) =>
-            apiClient.post(`/api/auth/login/${viewToken}`, { view_token: viewToken, pin, remember_me: rememberMe }),
-
-        // These now include view_token in the path
-        refresh: () => {
-            const viewToken = getViewToken();
-            return apiClient.post(`/api/auth/refresh/${viewToken}`);
-        },
-
-        logout: () => {
-            const viewToken = getViewToken();
-            return apiClient.post(`/api/auth/logout/${viewToken}`);
-        },
-
-        logoutAll: () => {
-            const viewToken = getViewToken();
-            return apiClient.post(`/api/auth/logout-all/${viewToken}`);
-        },
-    },
-
-    profile: {
-        get: (viewToken: string) => apiClient.get(`/api/${viewToken}`),
-    },
-
-    kyc: {
-        upload: (viewToken: string, formData: FormData) =>
-            apiClient.post(`/api/${viewToken}/kyc`, formData),
-        markInactive: (viewToken: string, occupantUuid: string) =>
-            apiClient.post(`/api/${viewToken}/kyc/${occupantUuid}/inactive`),
-        delete: (viewToken: string, occupantUuid: string) =>
-            apiClient.post(`/api/${viewToken}/kyc/${occupantUuid}`),
-        getFile: (viewToken: string, filename: string) =>
-            `/api/${viewToken}/kyc/file/${filename}`,
-    },
-
-    pdf: {
-        view: (viewToken: string, billNo: string) =>
-            `/t/api/${viewToken}/pdf/${billNo}/view`,
-        download: (viewToken: string, billNo: string) =>
-            `/t/api/${viewToken}/pdf/${billNo}/download`,
-    }
-};
-```
-
-```typescript
-// File: frontend\tenant-app\src\lib\encryption.ts
-/**
- * frontend/lib/encryption.ts
- * Hybrid AES-256-GCM + RSA-OAEP encryption using native WebCrypto API.
- * No external dependencies required.
- */
-
-const RSA_OAEP_PARAMS: RsaHashedImportParams = {
-    name: "RSA-OAEP",
-    hash: "SHA-256",
-};
-
-const AES_GCM_PARAMS: AesKeyAlgorithm = {
-    name: "AES-GCM",
-    length: 256,
-};
-
-/**
- * Encrypt a payload using hybrid AES+RSA encryption.
- * 1. Generate random AES-256 key
- * 2. Encrypt payload with AES-GCM
- * 3. Encrypt AES key with RSA public key
- * 4. Return { encryptedKey, encryptedData, nonce }
- */
-export async function encryptPayload(
-    payload: Record<string, unknown>,
-    publicKeyPem: string
-): Promise<{ encryptedKey: string; encryptedData: string; nonce: string }> {
-    // 1. Import RSA public key from PEM
-    const publicKey = await importPublicKey(publicKeyPem);
-
-    // 2. Generate random AES-256 key
-    const aesKey = await crypto.subtle.generateKey(
-        AES_GCM_PARAMS,
-        true,
-        ["encrypt", "decrypt"]
-    );
-
-    // 3. Generate random 12-byte nonce for AES-GCM
-    const nonce = crypto.getRandomValues(new Uint8Array(12));
-
-    // 4. Encrypt payload with AES-GCM
-    const payloadBytes = new TextEncoder().encode(JSON.stringify(payload));
-    const encryptedData = await crypto.subtle.encrypt(
-        { name: "AES-GCM", iv: nonce },
-        aesKey,
-        payloadBytes
-    );
-
-    // 5. Export AES key raw bytes
-    const aesKeyRaw = await crypto.subtle.exportKey("raw", aesKey);
-
-    // 6. Encrypt AES key with RSA-OAEP
-    const encryptedKey = await crypto.subtle.encrypt(
-        RSA_OAEP_PARAMS,
-        publicKey,
-        aesKeyRaw
-    );
-
-    // 7. Return base64-encoded values
-    return {
-        encryptedKey: arrayBufferToBase64(encryptedKey),
-        encryptedData: arrayBufferToBase64(encryptedData),
-        nonce: arrayBufferToBase64(nonce.buffer),
-    };
-}
-
-async function importPublicKey(pem: string): Promise<CryptoKey> {
-    const pemHeader = "-----BEGIN PUBLIC KEY-----";
-    const pemFooter = "-----END PUBLIC KEY-----";
-    const pemContents = pem
-        .replace(pemHeader, "")
-        .replace(pemFooter, "")
-        .replace(/\s/g, "");
-    const binaryDer = base64ToArrayBuffer(pemContents);
-
-    return crypto.subtle.importKey(
-        "spki",
-        binaryDer,
-        RSA_OAEP_PARAMS,
-        false,
-        ["encrypt"]
-    );
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-    const bytes = new Uint8Array(buffer);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) {
-        binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-}
-
-function base64ToArrayBuffer(base64: string): ArrayBuffer {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-    }
-    return bytes.buffer;
-}
-```
-
-```typescript
-// File: frontend\tenant-app\src\lib\http.ts
-export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-  let url = input;
-  if (typeof url === 'string' && url.startsWith('/api/')) {
-    url = `/rent${url}`;
-  }
-
-  const response = await fetch(url, init);
-  
-  if (response.status === 401 || response.status === 403) {
-    if (response.headers.get('X-Session-Expired') === '1') {
-      const redirectUrl = response.headers.get('X-Redirect-Url');
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
-        return response;
-      }
-      window.location.reload();
-    }
-  }
-  
-  return response;
-};
-```
-
-```typescript
-// File: frontend\tenant-app\src\lib\routes.ts
-﻿/**
- * src/lib/routes.ts — Tenant App
- * Shared routes manifest from routes.json (via @shared alias).
- */
-
-import routesJson from "@shared/routes.json";
-
-interface RouteManifest {
-    basePath: string;
-    health: { check: string };
-    admin: { pages: Record<string, string>; api: Record<string, any> };
-    tenant: {
-        pages: Record<string, string>;
-        api: {
-            auth: Record<string, string>;
-            profile: Record<string, string>;
-            kyc: Record<string, string>;
-            pdf: Record<string, string>;  // ← ADDED
-        };
-    };
-}
-
-const manifest = routesJson as unknown as RouteManifest;
-
-function resolvePath(template: string, params?: Record<string, string | number>): string {
-    if (!params) return template;
-    return Object.entries(params).reduce(
-        (path, [key, value]) => path.replace(`{${key}}`, String(value)),
-        template
-    );
-}
-
-function fullPath(template: string, params?: Record<string, string | number>): string {
-    return `${manifest.basePath || ""}${resolvePath(template, params)}`;
-}
-
-function tenantApi(section: string, key: string, params?: Record<string, string | number>): string {
-    const template = manifest.tenant?.api?.[section as keyof typeof manifest.tenant.api]?.[key];
-    if (typeof template !== "string") throw new Error(`Tenant API route ${section}.${key} not found`);
-    return fullPath(template, params);
-}
-
-function tenantPage(key: string, params?: Record<string, string | number>): string {
-    const template = manifest.tenant?.pages?.[key];
-    if (typeof template !== "string") throw new Error(`Tenant page route ${key} not found`);
-    return fullPath(template, params);
-}
-
-export const TENANT_ROUTES = {
-    get basePath() { return manifest.basePath; },
-    get HEALTH_CHECK() { return fullPath(manifest.health.check); },
-
-    // Tenant Pages
-    get TENANT_PAGE_ROOT() { return tenantPage("root"); },
-    tenantPageProfile(view_token: string) { return tenantPage("profile", { view_token }); },
-
-    // Tenant API: Auth
-    get TENANT_API_AUTH_PUBLIC_KEY() { return tenantApi("auth", "publicKey"); },
-    tenantApiAuthLogin(view_token: string) { return tenantApi("auth", "login", { view_token }); },
-    tenantApiAuthRefresh(view_token: string) { return tenantApi("auth", "refresh", { view_token }); },
-    tenantApiAuthLogout(view_token: string) { return tenantApi("auth", "logout", { view_token }); },
-    tenantApiAuthLogoutAll(view_token: string) { return tenantApi("auth", "logoutAll", { view_token }); },
-
-    // Tenant API: Profile
-    tenantApiProfileGet(view_token: string) { return tenantApi("profile", "get", { view_token }); },
-
-    // Tenant API: PDF — FIXED: proper view/download methods
-    tenantApiPdfView(view_token: string, billno: string) {
-        return tenantApi("pdf", "view", { view_token, billno });
-    },
-    tenantApiPdfDownload(view_token: string, billno: string) {
-        return tenantApi("pdf", "download", { view_token, billno });
-    },
-
-    // Tenant API: KYC
-    tenantApiKycUpload(view_token: string) { return tenantApi("kyc", "upload", { view_token }); },
-    tenantApiKycMarkInactive(view_token: string, occupantUuid: string) {
-        return tenantApi("kyc", "markInactive", { view_token, occupantUuid });
-    },
-    tenantApiKycDelete(view_token: string, occupantUuid: string) {
-        return tenantApi("kyc", "delete", { view_token, occupantUuid });
-    },
-    tenantApiKycGetFile(filename: string) { return tenantApi("kyc", "getFile", { filename }); },
-} as const;
-
-export type RoutesType = typeof TENANT_ROUTES;
-export default TENANT_ROUTES;
-```
-
-```typescript
-// File: frontend\tenant-app\src\lib\utils.ts
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\main.tsx
-import React from "react";
-import ReactDOM from "react-dom/client";
-import { BrowserRouter } from "react-router-dom";
-import { ThemeProvider } from "@/components/theme-provider";
-import App from "@/app/App";
-import "./index.css";
-import routesJson from "@shared/routes.json";
-
-// Compute the effective basename for the tenant app
-// The tenant app is served from /rent/t/{view_token}
-// So the router basename should be /rent/t to handle the /{view_token} part as routes
-const TENANT_BASE = `${routesJson.basePath}/t`;
-
-ReactDOM.createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <BrowserRouter basename={TENANT_BASE}>
-      <ThemeProvider defaultTheme="system" storageKey="tenant-ui-theme">
-        <App />
-      </ThemeProvider>
-    </BrowserRouter>
-  </React.StrictMode>
-);
-// import React from "react";
-// import ReactDOM from "react-dom/client";
-// import { BrowserRouter } from "react-router-dom";
-// import { ThemeProvider } from "@/components/theme-provider";
-// import App from "@/app/App";
-// import "./index.css";
-// import routesJson from "@shared/routes.json";
-
-// ReactDOM.createRoot(document.getElementById("root")!).render(
-//   <React.StrictMode>
-//     {/* <BrowserRouter basename={routesJson.basePath}> */}
-//     <BrowserRouter basename="/rent/t">
-//       <ThemeProvider defaultTheme="system" storageKey="tenant-ui-theme">
-//         <App />
-//       </ThemeProvider>
-//     </BrowserRouter>
-//   </React.StrictMode>
-// );
-```
-
-```tsx
-// File: frontend\tenant-app\src\pages\PublicTenantPage.tsx
-import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Lock, ShieldCheck, Receipt, Users, LogOut } from 'lucide-react'
-
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { apiFetch } from '@/lib/http'
-
-import TENANT_ROUTES from '@/lib/routes';
-import { ReceiptRoller } from "@/components/receipts";
-
-type ReceiptItem = {
-  Bill?: string
-  ReceiptNo?: string
-  Month?: string
-  PaymentStatus?: string
-  Total?: number | string
-  PreviousArrears?: number | string
-  AmountReceived?: number | string
-}
-
-type OccupantItem = {
-  ['Occupant UUID']?: string
-  occupantuuid?: string
-  Name?: string
-  name?: string
-  Mobile?: string
-  mobile?: string
-}
-
-type TenantProfile = {
-  name: string
-  roomnumber?: string
-  phone?: string
-  email?: string
-  rent?: number
-  electricityrate?: number
-  unlocked?: boolean
-}
-
-type PortalResponse = {
-  tenant?: TenantProfile
-  receipts?: ReceiptItem[]
-  occupants?: OccupantItem[]
-  unlocked?: boolean
-  view_token?: string
-}
-
-function formatCurrency(value: number) {
-  return value.toLocaleString('en-IN', { maximumFractionDigits: 0 })
-}
-
-function getReceiptTotal(r: ReceiptItem) {
-  const total = Number(r.Total || 0)
-  const prev = Number(r.PreviousArrears || 0)
-  return total + prev
-}
-
-async function safeJson(res: Response) {
-  try {
-    return await res.json()
-  } catch {
-    return {}
-  }
-}
-
-function TenantLockScreen({
-  tenantName,
-  roomNumber,
-  error,
-  loading,
-  onUnlock,
-}: {
-  tenantName: string
-  roomNumber?: string
-  error?: string
-  loading: boolean
-  onUnlock: (pin: string) => void
-}) {
-  const [pin, setPin] = useState('')
-
-  return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md rounded-3xl border-0 shadow-xl">
-        <CardContent className="p-8">
-          <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Lock className="w-7 h-7 text-primary" />
-            </div>
-
-            <h1 className="text-2xl font-bold">Tenant Portal</h1>
-            <p className="text-muted-foreground mt-2">{tenantName}</p>
-            {roomNumber ? (
-              <p className="text-sm text-muted-foreground">Room {roomNumber}</p>
-            ) : null}
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <div className="rounded-2xl bg-muted p-3 text-center">
-              <Receipt className="w-4 h-4 mx-auto mb-1 text-primary" />
-              <div className="text-xs text-muted-foreground">Bills</div>
-            </div>
-            <div className="rounded-2xl bg-muted p-3 text-center">
-              <Users className="w-4 h-4 mx-auto mb-1 text-primary" />
-              <div className="text-xs text-muted-foreground">Occupants</div>
-            </div>
-            <div className="rounded-2xl bg-muted p-3 text-center">
-              <ShieldCheck className="w-4 h-4 mx-auto mb-1 text-primary" />
-              <div className="text-xs text-muted-foreground">Secure</div>
-            </div>
-          </div>
-
-          {error ? (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (pin.length === 4) onUnlock(pin)
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label className="text-sm font-medium block mb-2">Enter 4-digit PIN</label>
-              <Input
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={4}
-                autoFocus
-                required
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                placeholder="••••"
-                className="h-14 text-center text-2xl tracking-[0.5em] rounded-2xl"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading || pin.length !== 4}
-              className="w-full h-12 rounded-2xl"
-            >
-              {loading ? 'Unlocking...' : 'Unlock Portal'}
-            </Button>
-
-            <p className="text-xs text-center text-muted-foreground">
-              Your bills and occupant KYC are shown only after PIN verification.
-            </p>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-export default function PublicTenantPage() {
-  const { view_token } = useParams<{ view_token: string }>()
-  const [loginError, setLoginError] = useState('')
-  const [isLoggingIn, setIsLoggingIn] = useState(false)
-
-  const {
-    data,
-    isLoading,
-    isFetching,
-    refetch,
-  } = useQuery<PortalResponse>({
-    queryKey: ['tenant-profile', view_token],
-    queryFn: async () => {
-      const res = await apiFetch(TENANT_ROUTES.tenantApiProfileGet(view_token || ''), {
-        credentials: 'include',
-      })
-
-      const result = await safeJson(res)
-
-      if (!res.ok) {
-        throw new Error((result as any)?.detail || 'Failed to load profile')
-      }
-
-      return result as PortalResponse
-    },
-    enabled: !!view_token,
-    retry: false,
-  })
-
-  const tenant = data?.tenant
-  const isUnlocked = Boolean(data?.unlocked || data?.tenant?.unlocked)
-  const receipts = useMemo(() => data?.receipts ?? [], [data])
-  const occupants = useMemo(() => data?.occupants ?? [], [data])
-
-  const handleLogin = async (pin: string) => {
-    if (!view_token) return
-
-    setLoginError('')
-    setIsLoggingIn(true)
-
-    try {
-      const res = await apiFetch(TENANT_ROUTES.tenantApiAuthLogin(view_token), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ pin }),
-      })
-
-      const result = await safeJson(res)
-
-      if (!res.ok) {
-        throw new Error((result as any)?.detail || 'Incorrect PIN')
-      }
-
-      await refetch()
-    } catch (err: any) {
-      setLoginError(err?.message || 'Login failed')
-    } finally {
-      setIsLoggingIn(false)
-    }
-  }
-
-  const handleLogout = async () => {
-    setLoginError('')
-    await apiFetch(TENANT_ROUTES.tenantApiAuthLogout(view_token || ''), {
-      method: 'POST',
-      credentials: 'include',
-    })
-    await refetch()
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading tenant portal...</div>
-      </div>
-    )
-  }
-
-  if (!tenant) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md rounded-3xl">
-          <CardContent className="p-8 text-center">
-            <h2 className="text-xl font-bold mb-2">Invalid tenant link</h2>
-            <p className="text-muted-foreground">
-              This portal link is missing, expired, or not mapped to a tenant.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (!isUnlocked) {
-    return (
-      <TenantLockScreen
-        tenantName={tenant.name}
-        roomNumber={tenant.roomnumber}
-        error={loginError}
-        loading={isLoggingIn}
-        onUnlock={handleLogin}
-      />
-
-    )
-  }
-
-  return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold">Welcome, {tenant.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {tenant.roomnumber ? `Room ${tenant.roomnumber}` : 'Tenant portal'}
-            </p>
-          </div>
-
-          <Button variant="outline" onClick={handleLogout} className="rounded-full">
-            <LogOut className="w-4 h-4 mr-2" />
-            Lock Portal
-          </Button>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
-        <div className="grid md:grid-cols-3 gap-4">
-          <Card className="rounded-3xl border-0 shadow-sm">
-            <CardContent className="p-5">
-              <div className="text-sm text-muted-foreground">Monthly Rent</div>
-              <div className="text-2xl font-bold mt-1">
-                {formatCurrency(Number(tenant.rent || 0))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl border-0 shadow-sm">
-            <CardContent className="p-5">
-              <div className="text-sm text-muted-foreground">Electricity Rate</div>
-              <div className="text-2xl font-bold mt-1">
-                {tenant.electricityrate ?? 0}/unit
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl border-0 shadow-sm">
-            <CardContent className="p-5">
-              <div className="text-sm text-muted-foreground">Registered Occupants</div>
-              <div className="text-2xl font-bold mt-1">{occupants.length}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="rounded-3xl border-0 shadow-sm">
-          <CardContent className="p-5">
-            <h2 className="text-lg font-bold mb-4">Recent Receipts</h2>
-
-            {receipts.length === 0 ? (
-              <p className="text-muted-foreground">No receipts found.</p>
-            ) : (
-              <div className="space-y-3">
-                {receipts.map((r, idx) => (
-                  <div
-                    key={r.Bill || r.ReceiptNo || idx}
-                    className="flex items-center justify-between gap-4 border rounded-2xl p-4"
-                  >
-                    <div>
-                      <div className="font-semibold">{r.Month || 'Receipt'}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {r.Bill || r.ReceiptNo || '-'} · {r.PaymentStatus || 'PENDING'}
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="text-sm text-muted-foreground">Payable</div>
-                      <div className="font-bold">
-                        {formatCurrency(getReceiptTotal(r))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-3xl border-0 shadow-sm">
-          <CardContent className="p-5">
-            <h2 className="text-lg font-bold mb-4">Occupants</h2>
-
-            {occupants.length === 0 ? (
-              <p className="text-muted-foreground">No occupants registered.</p>
-            ) : (
-              <div className="grid md:grid-cols-2 gap-3">
-                {occupants.map((o, idx) => (
-                  <div
-                    key={o.occupantuuid || o['Occupant UUID'] || idx}
-                    className="border rounded-2xl p-4"
-                  >
-                    <div className="font-semibold">{o.name || o.Name || 'Unnamed'}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {o.mobile || o.Mobile || 'No mobile'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {(isFetching || isLoggingIn) ? (
-          <p className="text-sm text-muted-foreground">Refreshing portal data...</p>
-        ) : null}
-      </main>
-    </div>
-  )
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\pages\TenantPortal.tsx
-// File: frontend/tenant-app/src/pages/TenantPortal.tsx
-import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
-import { TENANT_ROUTES } from "@/lib/routes";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-
-import { toast } from "sonner";
-import {
-    Loader2,
-    Lock,
-    Unlock,
-    Receipt,
-    Users,
-    FileText,
-    Download,
-    LogOut,
-    Eye,
-    EyeOff,
-    KeyRound,
-    Archive,
-} from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
-import ReceiptRoller from "@/components/receipts/ReceiptRoller";
-import ReceiptCard from "@/components/receipts/ReceiptCard";
-
-// ─── Types ──────────────────────────────────────────────────────────
-
-interface ReceiptData {
-    Bill: string;
-    Date: string;
-    Month: string;
-    Tenant: string;
-    Previous: number;
-    Current: number;
-    Units: number;
-    Rent: number;
-    Additional: number;
-    Water: number;
-    Tank_Water: number;
-    Electricity: number;
-    Total: number;
-    PDF: string;
-    Payment_Status: string;
-    Status?: string;
-    Maintenance_Charge: number;
-    Maintenance_Desc: string;
-    Previous_Arrears: number;
-    Amount_Received: number;
-}
-
-interface Occupant {
-    "Occupant UUID": string;
-    name: string;
-    mobile: string;
-    status: string;
-    aadhaar_front?: string;
-    aadhaar_back?: string;
-    aadhaar_combined?: string;
-    emp_front?: string;
-    emp_back?: string;
-    uploaddate?: string;
-    uploadmonth?: string;
-}
-
-interface TenantProfile {
-    id: number;
-    name: string;
-    view_token: string;
-    unlocked: boolean;
-}
-
-interface ProfileResponse {
-    tenant: TenantProfile;
-    receipts?: ReceiptData[];
-    occupants?: Occupant[];
-}
-
-// ─── Helper: Extract view_token robustly ───────────────────────────
-
-function useViewToken(): string | null {
-    const params = useParams();
-
-    // Try common param names (React Router v7 may use camelCase or different naming)
-    const possibleNames = ["view_token", "viewToken", "token", "id"];
-    for (const name of possibleNames) {
-        const val = params[name];
-        if (val && val !== "undefined") return val;
-    }
-
-    // Fallback: parse from current URL path
-    // URL pattern: /rent/t/<token> or /t/<token>
-    const path = window.location.pathname;
-    const match = path.match(/\/t\/([a-f0-9-]{36})/i);
-    if (match) return match[1];
-
-    // Last resort: try to get from the last path segment
-    const segments = path.split("/").filter(Boolean);
-    const lastSegment = segments[segments.length - 1];
-    if (lastSegment && lastSegment.length === 36 && lastSegment.includes("-")) {
-        return lastSegment;
-    }
-
-    console.error("[TenantPortal] Could not extract view_token from:", { params, path });
-    return null;
-}
-
-function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-        minimumFractionDigits: 2,
-    }).format(amount);
-}
-
-// ─── Component ───────────────────────────────────────────────────────
-
-export default function TenantPortal() {
-    const view_token = useViewToken();
-
-    // ── Auth / UI State ──
-    const [profile, setProfile] = useState<ProfileResponse | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [pin, setPin] = useState("");
-    const [showPin, setShowPin] = useState(false);
-    const [pinError, setPinError] = useState("");
-    const [loggingIn, setLoggingIn] = useState(false);
-    const [activeTab, setActiveTab] = useState<"receipts" | "occupants" | "archive">("receipts");
-    const [currentPage, setCurrentPage] = useState(1);
-    const receiptsPerPage = 6;
-    const [publicKey, setPublicKey] = useState<string>("");
-
-    // Fetch public key on mount
-    useEffect(() => {
-        fetch(TENANT_ROUTES.TENANT_API_AUTH_PUBLIC_KEY)
-            .then(r => r.json())
-            .then(d => setPublicKey(d.publicKey))
-            .catch(() => toast.error("Failed to load encryption key"));
-    }, []);
-
-    // ── Fetch profile (called on mount AND after login) ──
-    const fetchProfile = useCallback(async () => {
-        if (!view_token) {
-            setLoading(false);
-            setProfile(null);
-            toast.error("Invalid portal link. Missing access token.");
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const res = await fetch(TENANT_ROUTES.tenantApiProfileGet(view_token), {
-                credentials: "include",
-                cache: "no-store",
-                headers: {
-                    "Cache-Control": "no-cache",
-                    Pragma: "no-cache",
-                },
-            });
-            if (!res.ok) {
-                if (res.status === 404) {
-                    toast.error("Invalid or expired link.");
-                } else {
-                    toast.error("Failed to load profile.");
-                }
-                setProfile(null);
-                return;
-            }
-            const data: ProfileResponse = await res.json();
-            setProfile(data);
-        } catch {
-            toast.error("Network error. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    }, [view_token]);
-
-    // Initial load
-    useEffect(() => {
-        fetchProfile();
-    }, [fetchProfile]);
-
-    // ── PIN Login ──
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!view_token) {
-            setPinError("Invalid portal link.");
-            return;
-        }
-
-        setPinError("");
-        setLoggingIn(true);
-
-        try {
-            const { encryptPayload } = await import("@/lib/encryption");
-            const encrypted = await encryptPayload({ pin }, publicKey);
-
-            const res = await fetch(TENANT_ROUTES.tenantApiAuthLogin(view_token), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify(encrypted),
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                toast.success(data.message || "Unlocked successfully");
-                setPin("");
-                // 🔑 CRITICAL: Re-fetch profile to get unlocked data with new cookies
-                await fetchProfile();
-            } else {
-                const err = await res.json().catch(() => ({}));
-                setPinError(err.detail || "Invalid PIN. Please try again.");
-                setPin("");  // Clear on error
-            }
-        } catch {
-            setPinError("Network error. Please try again.");
-            setPin("");  // Clear on error
-        } finally {
-            setLoggingIn(false);
-        }
-    };
-
-    // ── Logout ──
-    const handleLogout = async () => {
-        try {
-            await fetch(TENANT_ROUTES.tenantApiAuthLogout(view_token!), {
-                method: "POST",
-                credentials: "include",
-            });
-        } catch {
-            // ignore
-        }
-        setProfile(null);
-        setActiveTab("receipts");
-        setCurrentPage(1);
-        await fetchProfile();
-        toast.info("Logged out successfully.");
-    };
-
-    // ── Helpers ──
-    const isUnlocked = profile?.tenant?.unlocked === true;
-
-    const receipts = profile?.receipts || [];
-    const totalPages = Math.max(1, Math.ceil(receipts.length / receiptsPerPage));
-    const paginatedReceipts = receipts.slice(
-        (currentPage - 1) * receiptsPerPage,
-        currentPage * receiptsPerPage
-    );
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case "PAID":
-                return <Badge className="bg-emerald-500 hover:bg-emerald-600">Paid</Badge>;
-            case "PARTIAL":
-                return <Badge className="bg-amber-500 hover:bg-amber-600">Partial</Badge>;
-            case "PENDING":
-                return <Badge variant="secondary">Pending</Badge>;
-            default:
-                return <Badge variant="outline">{status}</Badge>;
-        }
-    };
-
-    // ── Loading State ──
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-                <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                    <p className="text-muted-foreground">Loading your portal...</p>
-                </div>
-            </div>
-        );
-    }
-
-    // ── Error: No view_token ──
-    if (!view_token) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
-                <Card className="w-full max-w-md">
-                    <CardContent className="pt-6 text-center">
-                        <p className="text-destructive font-medium">Invalid portal link.</p>
-                        <p className="text-muted-foreground text-sm mt-2">
-                            The access token is missing or malformed. Please scan the QR code again or contact your landlord.
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
-
-    // ── Error: No Profile ──
-    if (!profile) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
-                <Card className="w-full max-w-md">
-                    <CardContent className="pt-6 text-center">
-                        <p className="text-destructive font-medium">Invalid or expired link.</p>
-                        <p className="text-muted-foreground text-sm mt-2">
-                            Please scan the QR code again or contact your landlord.
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  LOCKED VIEW: Show Login Form ONLY (no data exposed)
-    // ═══════════════════════════════════════════════════════════════════
-    if (!isUnlocked) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
-                <Card className="w-full max-w-md shadow-xl">
-                    <CardHeader className="text-center pb-2">
-                        <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                            <Lock className="h-8 w-8 text-primary" />
-                        </div>
-                        <CardTitle className="text-2xl">Tenant Portal</CardTitle>
-                        <p className="text-muted-foreground">
-                            Welcome, <span className="font-semibold text-foreground">{profile.tenant.name}</span>
-                        </p>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <div>
-                                <label className="text-sm font-medium mb-1.5 block">
-                                    Enter your 4-digit PIN
-                                </label>
-                                <div className="relative">
-                                    <Input
-                                        type={showPin ? "text" : "password"}
-                                        inputMode="numeric"
-                                        maxLength={4}
-                                        value={pin}
-                                        onChange={(e) => {
-                                            const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                                            setPin(val);
-                                            setPinError("");
-                                        }}
-                                        placeholder="••••"
-                                        className="text-center text-2xl tracking-[0.5em] pr-10"
-                                        autoFocus
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPin(!showPin)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                                    >
-                                        {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                </div>
-                                {pinError && (
-                                    <p className="text-destructive text-sm mt-2">{pinError}</p>
-                                )}
-                            </div>
-                            <Button type="submit" className="w-full" disabled={pin.length !== 4 || loggingIn}>
-                                {loggingIn ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Verifying...
-                                    </>
-                                ) : (
-                                    <>
-                                        <KeyRound className="mr-2 h-4 w-4" />
-                                        Unlock Portal
-                                    </>
-                                )}
-                            </Button>
-                        </form>
-                        <p className="text-xs text-center text-muted-foreground mt-4">
-                            Forgot your PIN? Contact your landlord for assistance.
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  UNLOCKED VIEW: Full Dashboard (only after successful login)
-    // ═══════════════════════════════════════════════════════════════════
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-            {/* Header */}
-            <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b sticky top-0 z-50">
-                <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                            <Unlock className="h-5 w-5 text-emerald-500" />
-                        </div>
-                        <div>
-                            <h1 className="font-semibold text-lg leading-tight">{profile.tenant.name}</h1>
-                            <p className="text-xs text-muted-foreground">Tenant Portal</p>
-
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <ThemeToggle />
-                        <Button variant="ghost" size="sm" onClick={handleLogout}>
-                            <LogOut className="h-4 w-4 mr-2" />
-                            Logout
-                        </Button>
-                    </div>
-                </div>
-            </header>
-
-            <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-
-                {/* Tabs */}
-                <div className="flex gap-2">
-                    <Button
-                        variant={activeTab === "receipts" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => { setActiveTab("receipts"); setCurrentPage(1); }}
-                    >
-                        <Receipt className="h-4 w-4 mr-2" />
-                        Receipts
-                    </Button>
-                    <Button
-                        variant={activeTab === "occupants" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setActiveTab("occupants")}
-                    >
-                        <Users className="h-4 w-4 mr-2" />
-                        Occupants
-                    </Button>
-                    <Button
-                        variant={activeTab === "archive" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setActiveTab("archive")}
-                    >
-                        <Archive className="h-4 w-4 mr-2" />
-                        Archive
-                    </Button>
-                </div>
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Total Receipts</p>
-                                    <p className="text-2xl font-bold">{receipts.length}</p>
-                                </div>
-                                <Receipt className="h-8 w-8 text-primary/60" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Pending Amount</p>
-                                    <p className="text-2xl font-bold text-destructive">
-                                        {formatCurrency(receipts.reduce((sum, r) => {
-                                            const grandTotal = (r.Total || 0) + (r.Previous_Arrears || 0);
-                                            const received = Number(r.Amount_Received) || 0;
-                                            return r.Payment_Status === "PENDING"
-                                                ? sum + Math.max(grandTotal - received, 0)
-                                                : sum;
-                                        }, 0))}
-                                    </p>
-                                </div>
-                                <FileText className="h-8 w-8 text-amber-500/60" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Occupants</p>
-                                    <p className="text-2xl font-bold">{(profile.occupants || []).length}</p>
-                                </div>
-                                <Users className="h-8 w-8 text-blue-500/60" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Receipts Tab */}
-                {activeTab === "receipts" && (
-                    <div className="space-y-6">
-                        {receipts.length === 0 ? (
-                            <Card>
-                                <CardContent className="pt-6 text-center py-12">
-                                    <Receipt className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-                                    <p className="text-muted-foreground">No receipts found.</p>
-                                </CardContent>
-                            </Card>
-                        ) : (
-                            <>
-
-                                {/* Pagination */}
-                                {totalPages > 1 && (
-                                    <div className="flex items-center justify-center gap-2 pt-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                                            disabled={currentPage === 1}
-                                        >
-                                            Previous
-                                        </Button>
-                                        <span className="text-sm text-muted-foreground">
-                                            Page {currentPage} of {totalPages}
-                                        </span>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                                            disabled={currentPage === totalPages}
-                                        >
-                                            Next
-                                        </Button>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                        <ReceiptRoller receipts={receipts as ReceiptData[]} maxVisible={12} view_token={view_token || ""} />
-                    </div>
-                )}
-
-                {/* Occupants Tab */}
-                {activeTab === "occupants" && (
-                    <div className="space-y-4">
-                        {(profile.occupants || []).length === 0 ? (
-                            <Card>
-                                <CardContent className="pt-6 text-center py-12">
-                                    <Users className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-                                    <p className="text-muted-foreground">No occupants registered.</p>
-                                </CardContent>
-                            </Card>
-                        ) : (
-                            <div className="grid gap-4">
-                                {(profile.occupants || []).map((o) => (
-                                    <Card key={o["Occupant UUID"]}>
-                                        <CardContent className="p-4">
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <p className="font-semibold">{o.name}</p>
-                                                    <p className="text-sm text-muted-foreground">{o.mobile}</p>
-                                                </div>
-                                                <Badge variant={o.status === "Active" ? "default" : "secondary"}>
-                                                    {o.status}
-                                                </Badge>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Archive Tab */}
-                {activeTab === "archive" && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base flex items-center gap-2">
-                                <Archive className="h-4 w-4" />
-                                Archived Receipts
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {receipts.filter(r => r.Status === "ARCHIVED").length === 0 ? (
-                                <p className="text-muted-foreground text-sm">No archived receipts yet.</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {receipts
-                                        .filter(r => r.Status === "ARCHIVED")
-                                        .map(receipt => (
-                                            <ReceiptCard
-                                                key={receipt.Bill}
-                                                receipt={receipt}
-                                                variant="archive"
-                                                view_token={view_token}
-                                            />
-                                        ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-            </main>
-        </div>
-    );
-}
-```
-
-```json
-// File: frontend\tenant-app\tsconfig.app.json
-{
-  "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
-    "target": "es2023",
-    "lib": ["ES2023", "DOM"],
-    "module": "esnext",
-    "types": ["vite/client"],
-    "allowArbitraryExtensions": true,
-    "skipLibCheck": true,  "paths": { "@/*": ["./src/*"], "@shared/*": ["../../shared/*"] },
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-    "jsx": "react-jsx",
-
-    /* Linting */
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
-  },
-  "include": ["src"]
-}
-```
-
-```json
-// File: frontend\tenant-app\tsconfig.json
-{
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.app.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
-}
-```
-
-```json
-// File: frontend\tenant-app\tsconfig.node.json
-{
-  "compilerOptions": {
-    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
-    "target": "es2023",
-    "lib": ["ES2023"],
-    "types": ["node"],
-    "skipLibCheck": true,
-
-    /* Bundler mode */
-    "module": "nodenext",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-
-    /* Linting */
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
-  },
-  "include": ["vite.config.ts"]
-}
-```
-
-```typescript
-// File: frontend\tenant-app\vite.config.ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import path from 'path'
-
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  base: '/rent/t/',  // CRITICAL: Must match server mount point
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-      '@shared': path.resolve(__dirname, '../../shared'),
-    },
-  },
-})
-```
-
 ```json
 // File: shared\routes.json
 {
@@ -37361,7 +31131,7 @@ export default defineConfig({
       "archive": "/admin/archive",
       "backups": "/admin/backups",
       "catchAll": "/admin/*",
-      "tenantProfile": "/admin/tenant/{tenant_id}"
+      "TENANTPROFILE": "/admin/tenant/{tenantId}"
     },
     "api": {
       "setup": {
@@ -37397,36 +31167,36 @@ export default defineConfig({
         "months": "/admin/api/receipts/months",
         "preview": "/admin/api/receipts/preview",
         "create": "/admin/api/receipts/create",
-        "get": "/admin/api/receipts/{billno}",
-        "update": "/admin/api/receipts/{billno}",
-        "updatePayment": "/admin/api/receipts/{billno}/payment-status",
-        "archive": "/admin/api/receipts/{billno}/archive",
-        "restore": "/admin/api/receipts/{billno}/restore",
-        "delete": "/admin/api/receipts/{billno}"
+        "get": "/admin/api/receipts/{billNo}",
+        "update": "/admin/api/receipts/{billNo}",
+        "updatePayment": "/admin/api/receipts/{billNo}/payment-status",
+        "archive": "/admin/api/receipts/{billNo}/archive",
+        "restore": "/admin/api/receipts/{billNo}/restore",
+        "delete": "/admin/api/receipts/{billNo}"
       },
       "tenants": {
         "list": "/admin/api/tenants",
         "create": "/admin/api/tenants",
-        "get": "/admin/api/tenants/{tenant_id}",
-        "update": "/admin/api/tenants/{tenant_id}",
-        "delete": "/admin/api/tenants/{tenant_id}",
-        "changePin": "/admin/api/tenants/{tenant_id}/change-pin",
-        "revealPin": "/admin/api/tenants/{tenant_id}/reveal-pin",
-        "receipts": "/admin/api/tenants/{tenant_name}/receipts"
+        "get": "/admin/api/tenants/{tenantId}",
+        "update": "/admin/api/tenants/{tenantId}",
+        "delete": "/admin/api/tenants/{tenantId}",
+        "changePin": "/admin/api/tenants/{tenantId}/change-pin",
+        "revealPin": "/admin/api/tenants/{tenantId}/reveal-pin",
+        "receipts": "/admin/api/tenants/{tenantName}/receipts"
       },
       "occupants": {
         "list": "/admin/api/occupants",
         "create": "/admin/api/occupants",
-        "markInactive": "/admin/api/occupants/{tenant_id}/{occupant_uuid}/inactive",
-        "delete": "/admin/api/occupants/{tenant_id}/{occupant_uuid}",
+        "markInactive": "/admin/api/occupants/{tenantId}/{occupantUuid}/inactive",
+        "delete": "/admin/api/occupants/{tenantId}/{occupantUuid}",
         "getFile": "/admin/api/occupants/file/{filename}"
       },
       "pdf": {
-        "download": "/admin/api/pdf/receipt/{billno}",
-        "view": "/admin/api/pdf/receipt/{billno}/view"
+        "download": "/admin/api/pdf/receipt/{billNo}",
+        "view": "/admin/api/pdf/receipt/{billNo}/view"
       },
       "whatsapp": {
-        "sendSingle": "/admin/api/whatsapp/send-single/{billno}"
+        "sendSingle": "/admin/api/whatsapp/send-single/{billNo}"
       },
       "sync": {
         "exportCsv": "/admin/api/export-csv",
@@ -37439,11 +31209,11 @@ export default defineConfig({
       "backups": {
         "list": "/admin/api/backups",
         "createManual": "/admin/api/backups/manual",
-        "delete": "/admin/api/backups/{backup_id}",
-        "verify": "/admin/api/backups/{backup_id}/verify",
-        "restore": "/admin/api/backups/{backup_id}/restore",
-        "download": "/admin/api/backups/{backup_id}/download",
-        "metadata": "/admin/api/backups/{backup_id}/metadata"
+        "delete": "/admin/api/backups/{backupId}",
+        "verify": "/admin/api/backups/{backupId}/verify",
+        "restore": "/admin/api/backups/{backupId}/restore",
+        "download": "/admin/api/backups/{backupId}/download",
+        "metadata": "/admin/api/backups/{backupId}/metadata"
       },
       "settings": {
         "uploadSignature": "/admin/api/settings/upload-signature",
@@ -37455,28 +31225,28 @@ export default defineConfig({
     "pages": {
       "root": "/",
       "catchAll": "/*",
-      "profile": "/t/{view_token}"
+      "profile": "/t/{viewToken}"
     },
     "api": {
       "auth": {
         "publicKey": "/api/auth/public-key",
-        "login": "/api/auth/login/{view_token}",
-        "refresh": "/api/auth/refresh/{view_token}",
-        "logout": "/api/auth/logout/{view_token}",
-        "logoutAll": "/api/auth/logout-all/{view_token}"
+        "login": "/api/auth/login/{viewToken}",
+        "refresh": "/api/auth/refresh/{viewToken}",
+        "logout": "/api/auth/logout/{viewToken}",
+        "logoutAll": "/api/auth/logout-all/{viewToken}"
       },
       "profile": {
-        "get": "/api/{view_token}"
+        "get": "/api/{viewToken}"
       },
       "kyc": {
-        "upload": "/api/{view_token}/kyc",
-        "markInactive": "/api/{view_token}/kyc/{occupant_uuid}/inactive",
-        "delete": "/api/{view_token}/kyc/{occupant_uuid}",
-        "getFile": "/api/{view_token}/kyc/file/{filename}"
+        "upload": "/api/{viewToken}/kyc",
+        "markInactive": "/api/{viewToken}/kyc/{occupantUuid}/inactive",
+        "delete": "/api/{viewToken}/kyc/{occupantUuid}",
+        "getFile": "/api/{viewToken}/kyc/file/{filename}"
       },
       "pdf": {
-        "view": "/t/api/{view_token}/pdf/{billno}/view",
-        "download": "/t/api/{view_token}/pdf/{billno}/download"
+        "view": "/t/api/{viewToken}/pdf/{billNo}/view",
+        "download": "/t/api/{viewToken}/pdf/{billNo}/download"
       }
     }
   }

@@ -10,22 +10,22 @@ from datetime import datetime
 router = APIRouter()
 
 
-@router.get(Routes.TENANT_API_PDF_VIEW, name=Names.TENANT_PDF_VIEW)
+@router.get(Routes.TENANTAPIPDFVIEW, name=Names.TENANTPDFVIEW)
 async def tenant_view_pdf(
-    view_token: str,
-    billno: str,
+    viewToken: str,
+    billNo: str,
     request: Request,
     principal=Depends(get_current_tenant)
 ):
     """Tenant-facing PDF view endpoint — requires tenant authentication."""
-    receipt = get_receipt(billno)
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
 
     # Security: ensure tenant can only view their own receipts
     from app.services.tenant_service import load_tenants
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=403, detail="Forbidden")
     
@@ -33,12 +33,12 @@ async def tenant_view_pdf(
     if receipt.get("Tenant") != tenant.name:
         raise HTTPException(status_code=403, detail="Receipt does not belong to this tenant")
 
-    tenant_name = receipt.get("Tenant", "Unknown").replace(" ", "_")
+    tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
         formatted_date = datetime.strptime(receipt.get("Date", ""), "%d %B %Y").strftime("%Y%m%d")
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
-    custom_filename = f"{tenant_name}_{formatted_date}_{billno}.pdf"
+    custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
     from app.services.pdf_service import generate_professional_pdf
     landlord_conf = config.get("landlord", {})
@@ -56,22 +56,22 @@ async def tenant_view_pdf(
     return response
 
 
-@router.get(Routes.TENANT_API_PDF_DOWNLOAD, name=Names.TENANT_PDF_DOWNLOAD)
+@router.get(Routes.TENANTAPIPDFDOWNLOAD, name=Names.TENANTPDFDOWNLOAD)
 async def tenant_download_pdf(
-    view_token: str,
-    billno: str,
+    viewToken: str,
+    billNo: str,
     request: Request,
     principal=Depends(get_current_tenant)
 ):
     """Tenant-facing PDF download endpoint — requires tenant authentication."""
-    receipt = get_receipt(billno)
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
 
     # Security: ensure tenant can only download their own receipts
     from app.services.tenant_service import load_tenants
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=403, detail="Forbidden")
     
@@ -79,12 +79,12 @@ async def tenant_download_pdf(
     if receipt.get("Tenant") != tenant.name:
         raise HTTPException(status_code=403, detail="Receipt does not belong to this tenant")
 
-    tenant_name = receipt.get("Tenant", "Unknown").replace(" ", "_")
+    tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
         formatted_date = datetime.strptime(receipt.get("Date", ""), "%d %B %Y").strftime("%Y%m%d")
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
-    custom_filename = f"{tenant_name}_{formatted_date}_{billno}.pdf"
+    custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
     from app.services.pdf_service import generate_professional_pdf
     landlord_conf = config.get("landlord", {})

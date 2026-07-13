@@ -8,7 +8,7 @@ from app.services.billing_service import get_dashboard_stats
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_ROOT, name=Names.HOME, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGEROOT, name=Names.HOME, response_class=HTMLResponse)
 async def dashboard(request: Request):
     stats = get_dashboard_stats()
     theme = getattr(request.state, "theme", "system")

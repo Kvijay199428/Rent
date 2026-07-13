@@ -14,10 +14,10 @@ import sqlite3, uuid
 DB = '/code/storage/database/rent.db'
 conn = sqlite3.connect(DB)
 cols = [r[1] for r in conn.execute('PRAGMA table_info(tenants)')]
-if 'view_token' not in cols:
-    conn.execute('ALTER TABLE tenants ADD COLUMN view_token TEXT')
+if 'viewToken' not in cols:
+    conn.execute('ALTER TABLE tenants ADD COLUMN viewToken TEXT')
     for tid, name in conn.execute('SELECT id, name FROM tenants'):
-        conn.execute('UPDATE tenants SET view_token=? WHERE id=?', (str(uuid.uuid4()), tid))
+        conn.execute('UPDATE tenants SET viewToken=? WHERE id=?', (str(uuid.uuid4()), tid))
     conn.execute(\\"INSERT OR REPLACE INTO app_metadata VALUES ('tenant_schema_version','2')\\")
     conn.commit()
     print('Fixed!')

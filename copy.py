@@ -28,7 +28,7 @@ BASE_DIR = Path(__file__).resolve().parent
 # Specify sources as relative string paths (can be files or directories)
 SOURCE_PATHS = [
     "frontend/admin-app",
-    "frontend/tenant-app",
+    # "frontend/tenant-app",
     "app",
     
 ]

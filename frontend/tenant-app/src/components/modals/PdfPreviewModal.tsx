@@ -9,18 +9,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { FileText, Download, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
-import { TENANT_ROUTES } from "@/lib/routes";
+import { TENANTROUTES } from "@/lib/routes";
 
 interface PdfPreviewModalProps {
-  billno: string;
-  view_token: string;
+  billNo: string;
+  viewToken: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export default function PdfPreviewModal({
-  billno,
-  view_token,
+  billNo,
+  viewToken,
   open,
   onOpenChange,
 }: PdfPreviewModalProps) {
@@ -28,11 +28,11 @@ export default function PdfPreviewModal({
   const [pdfUrl, setPdfUrl] = useState<string>("");
   const [error, setError] = useState("");
 
-  const pdfViewUrl = TENANT_ROUTES.tenantApiPdfView(view_token, billno);
-  const pdfDownloadUrl = TENANT_ROUTES.tenantApiPdfDownload(view_token, billno);
+  const pdfViewUrl = TENANTROUTES.TENANTAPIPDFVIEW(viewToken, billNo);
+  const pdfDownloadUrl = TENANTROUTES.TENANTAPIPDFDOWNLOAD(viewToken, billNo);
 
   useEffect(() => {
-    if (!open || !billno || !view_token) return;
+    if (!open || !billNo || !viewToken) return;
 
     setLoading(true);
     setError("");
@@ -58,7 +58,7 @@ export default function PdfPreviewModal({
     return () => {
       if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     };
-  }, [open, billno, view_token]);
+  }, [open, billNo, viewToken]);
 
   const handleDownload = async () => {
     try {
@@ -71,7 +71,7 @@ export default function PdfPreviewModal({
       const url = window.URL.createObjectURL(blob);
 
       const disposition = res.headers.get("content-disposition");
-      let filename = `receipt_${billno}.pdf`;
+      let filename = `receipt_${billNo}.pdf`;
       if (disposition) {
         const match = disposition.match(/filename="?([^"]+)"?/);
         if (match) filename = match[1];
@@ -100,11 +100,11 @@ export default function PdfPreviewModal({
             <div>
               <DialogTitle className="text-xl">Receipt Preview</DialogTitle>
               <DialogDescription className="mt-1 text-sm">
-                {billno && (
+                {billNo && (
                   <>
                     Bill Number:{" "}
                     <span className="font-medium text-foreground">
-                      #{billno}
+                      #{billNo}
                     </span>
                   </>
                 )}
@@ -160,7 +160,7 @@ export default function PdfPreviewModal({
             <iframe
               src={pdfUrl}
               className="w-full h-full border-0"
-              title={`Receipt ${billno}`}
+              title={`Receipt ${billNo}`}
             />
           )}
         </div>

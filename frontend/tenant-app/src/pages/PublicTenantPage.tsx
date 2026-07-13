@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { apiFetch } from '@/lib/http'
 
-import TENANT_ROUTES from '@/lib/routes';
+import TENANTROUTES from '@/lib/routes';
 import { ReceiptRoller } from "@/components/receipts";
 
 type ReceiptItem = {
@@ -31,7 +31,7 @@ type OccupantItem = {
   mobile?: string
 }
 
-type TenantProfile = {
+type TENANTPROFILE = {
   name: string
   roomnumber?: string
   phone?: string
@@ -42,11 +42,11 @@ type TenantProfile = {
 }
 
 type PortalResponse = {
-  tenant?: TenantProfile
+  tenant?: TENANTPROFILE
   receipts?: ReceiptItem[]
   occupants?: OccupantItem[]
   unlocked?: boolean
-  view_token?: string
+  viewToken?: string
 }
 
 function formatCurrency(value: number) {
@@ -161,7 +161,7 @@ function TenantLockScreen({
 }
 
 export default function PublicTenantPage() {
-  const { view_token } = useParams<{ view_token: string }>()
+  const { viewToken } = useParams<{ viewToken: string }>()
   const [loginError, setLoginError] = useState('')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
@@ -171,9 +171,9 @@ export default function PublicTenantPage() {
     isFetching,
     refetch,
   } = useQuery<PortalResponse>({
-    queryKey: ['tenant-profile', view_token],
+    queryKey: ['tenant-profile', viewToken],
     queryFn: async () => {
-      const res = await apiFetch(TENANT_ROUTES.tenantApiProfileGet(view_token || ''), {
+      const res = await apiFetch(TENANTROUTES.TENANTAPIPROFILEGET(viewToken || ''), {
         credentials: 'include',
       })
 
@@ -185,7 +185,7 @@ export default function PublicTenantPage() {
 
       return result as PortalResponse
     },
-    enabled: !!view_token,
+    enabled: !!viewToken,
     retry: false,
   })
 
@@ -195,13 +195,13 @@ export default function PublicTenantPage() {
   const occupants = useMemo(() => data?.occupants ?? [], [data])
 
   const handleLogin = async (pin: string) => {
-    if (!view_token) return
+    if (!viewToken) return
 
     setLoginError('')
     setIsLoggingIn(true)
 
     try {
-      const res = await apiFetch(TENANT_ROUTES.tenantApiAuthLogin(view_token), {
+      const res = await apiFetch(TENANTROUTES.TENANTAPIAUTHLOGIN(viewToken), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -224,7 +224,7 @@ export default function PublicTenantPage() {
 
   const handleLogout = async () => {
     setLoginError('')
-    await apiFetch(TENANT_ROUTES.tenantApiAuthLogout(view_token || ''), {
+    await apiFetch(TENANTROUTES.TENANTAPIAUTHLOGOUT(viewToken || ''), {
       method: 'POST',
       credentials: 'include',
     })

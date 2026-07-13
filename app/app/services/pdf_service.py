@@ -45,8 +45,8 @@ def _safe_float(val, default=0.0):
 def generate_professional_pdf(data, landlord_config, output_path=None):
     # Live Tenant Sync Engine: Override PDF with the most current tenant attributes
     tenants = load_tenants()
-    tenant_name = data.get('Tenant', 'Unknown')
-    current_tenant = next((t for t in tenants if t.name == tenant_name), None)
+    tenantName = data.get('Tenant', 'Unknown')
+    current_tenant = next((t for t in tenants if t.name == tenantName), None)
     if current_tenant:
         data['Tenant_Phone'] = current_tenant.phone
         data['Tenant_Company'] = current_tenant.company
@@ -62,8 +62,8 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     c = canvas.Canvas(output_path, pagesize=A4)
     width, height = A4
     
-    tenant_name = data.get('Tenant', 'Unknown')
-    billno = data.get('Bill', '000')
+    tenantName = data.get('Tenant', 'Unknown')
+    billNo = data.get('Bill', '000')
     date_str = data.get('Date') or ''
     try:
         date_obj = datetime.strptime(str(date_str), "%d %B %Y")
@@ -71,8 +71,8 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     except Exception:
         formatted_date = str(date_str).replace(" ", "")
 
-    safe_tenant_name = tenant_name.replace(" ", "_")
-    pdf_title = f"{safe_tenant_name}_{formatted_date}_{billno}"
+    safe_tenantName = tenantName.replace(" ", "_")
+    pdf_title = f"{safe_tenantName}_{formatted_date}_{billNo}"
     c.setTitle(pdf_title)
     
     c.setLineWidth(1)
@@ -161,18 +161,18 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
         
     add_charge = _safe_float(data.get('Additional'))
     add_count = _safe_int(data.get("Additional_Persons"))
-    add_rate = _safe_float(data.get("Additional_Person_Rate"))
+    add_rate = _safe_float(data.get("additionalPersonRate"))
     items.append(("Additional Person Charges", f"{add_count} Persons x ₹{add_rate:,.2f}", add_charge))
             
     water = _safe_float(data.get('Water'))
     items.append(("Water Charges", "", water))
         
-    tank_water = _safe_float(data.get('Tank_Water'))
-    items.append(("Tank Water Charges", "", tank_water))
+    tankWater = _safe_float(data.get('tankWater'))
+    items.append(("Tank Water Charges", "", tankWater))
         
-    maintenance = _safe_float(data.get('Maintenance_Charge'))
+    maintenance = _safe_float(data.get('MaintenanceCharge'))
     if maintenance > 0:
-        desc = data.get('Maintenance_Desc', '')
+        desc = data.get('MaintenanceDesc', '')
         items.append(("Maintenance Charges", desc, maintenance))
         
     electricity = _safe_float(data.get('Electricity'))
@@ -202,10 +202,10 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     c.line(50, y, width - 50, y)
     
     curr_total = _safe_float(data.get('Total'))
-    prev_arr = _safe_float(data.get('Previous_Arrears'))
-    grand_total = curr_total + prev_arr
-    amt_recv = _safe_float(data.get('Amount_Received'), grand_total)
-    balance = grand_total - amt_recv
+    prev_arr = _safe_float(data.get('previousArrears'))
+    grandTotal = curr_total + prev_arr
+    amt_recv = _safe_float(data.get('amountReceived'), grandTotal)
+    balance = grandTotal - amt_recv
 
     y -= 20
     c.setFont(FONT_REGULAR, 11)
@@ -224,9 +224,9 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     y -= 20
     c.setFont(FONT_BOLD, 12)
     c.drawString(60, y, "GRAND TOTAL")
-    c.drawRightString(width - 60, y, f"     {grand_total:,.2f}")
+    c.drawRightString(width - 60, y, f"     {grandTotal:,.2f}")
 
-    if amt_recv != grand_total:
+    if amt_recv != grandTotal:
         # y -= 15
         # c.setFont(FONT_REGULAR, 11)
         # c.drawString(60, y, "AMOUNT RECEIVED")
@@ -251,7 +251,7 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     c.drawString(50, y, "Amount in Words:")
     c.setFont(FONT_ITALIC, 11)
     try:
-        total_float = grand_total
+        total_float = grandTotal
         words = num2words(total_float, lang='en_IN').replace(',', '').title()
         
         amount_style = ParagraphStyle('Amount', parent=style_normal, fontName=FONT_ITALIC, fontSize=11)

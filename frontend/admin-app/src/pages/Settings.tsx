@@ -11,7 +11,8 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { AppConfig } from '@/types';
-import { PreviewDialog } from '../components/modals/PreviewDialog';
+import ImportPreviewModal from '../components/modals/ImportPreviewModal';
+import ExportPreviewModal from '../components/modals/ExportPreviewModal';
 import {
   Receipt,
   UserCircle,
@@ -38,7 +39,8 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
   const [importFiles, setImportFiles] = useState<File[]>([]);
-  const [importPreviewData, setImportPreviewData] = useState<any>(null);
+  const [IMPORTPREVIEWDATA, setImportPreviewData] = useState<any>(null);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const toast = useToast();
   const { theme, effectiveTheme, setTheme } = useTheme();
 
@@ -265,15 +267,15 @@ export default function Settings() {
                 </Button>
               </div>
 
-              <PreviewDialog
-                open={!!importPreviewData}
+              <ImportPreviewModal
+                open={!!IMPORTPREVIEWDATA}
                 onOpenChange={(open: boolean) => {
                   if (!open) {
                     setImportPreviewData(null);
                     setImportFiles([]);
                   }
                 }}
-                previewData={importPreviewData}
+                previewData={IMPORTPREVIEWDATA}
                 files={importFiles}
                 onImportSuccess={() => {
                   setImportPreviewData(null);
@@ -296,7 +298,7 @@ export default function Settings() {
                     <strong>.zip</strong> — Archive containing multiple .xlsx files
                   </li>
                   <li>
-                    Required columns: Tenant_ID, Tenant_Name, Phone, Rent, Water, Electricity_Rate
+                    Required columns: tenantId, tenantName, Phone, Rent, Water, electricityRate
                   </li>
                 </ul>
               </div>
@@ -316,29 +318,9 @@ export default function Settings() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(api.exportExcel('xlsx'), '_blank')}
-                  className="gap-2"
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Export Excel
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(api.exportExcel('zip'), '_blank')}
-                  className="gap-2"
-                >
-                  <HardDrive className="h-4 w-4" />
-                  Export ZIP
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(api.exportExcel('csv'), '_blank')}
-                  className="gap-2"
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Export CSV
+                <Button onClick={() => setExportModalOpen(true)}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Preview & Export Data
                 </Button>
               </div>
             </CardContent>
@@ -370,16 +352,16 @@ export default function Settings() {
                 </div>
                 <div className="space-y-2">
                   <Label>Electricity Rate (₹/unit)</Label>
-                  <Input type="number" step="0.1" value={config.billing.electricity_rate} onChange={(e) => updateBilling('electricity_rate', parseFloat(e.target.value) || 0)} />
+                  <Input type="number" step="0.1" value={config.billing.electricityRate} onChange={(e) => updateBilling('electricityRate', parseFloat(e.target.value) || 0)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Default Meter Reading</Label>
-                  <Input type="number" step="0.1" value={config.billing.previous_meter_reading} onChange={(e) => updateBilling('previous_meter_reading', parseFloat(e.target.value) || 0)} />
+                  <Input type="number" step="0.1" value={config.billing.previousMeter_reading} onChange={(e) => updateBilling('previousMeter_reading', parseFloat(e.target.value) || 0)} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>Additional Person Charge (₹)</Label>
-                <Input type="number" value={config.billing.additional_person_charge} onChange={(e) => updateBilling('additional_person_charge', parseFloat(e.target.value) || 0)} />
+                <Input type="number" value={config.billing.additionalPersonCharge} onChange={(e) => updateBilling('additionalPersonCharge', parseFloat(e.target.value) || 0)} />
               </div>
             </CardContent>
           </Card>
@@ -590,14 +572,14 @@ export default function Settings() {
                     key={option.value}
                     onClick={() => setTheme(option.value)}
                     className={`p-4 rounded-xl border-2 text-left transition-all ${theme === option.value
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50'
                       }`}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${option.value === 'light' ? 'bg-amber-100 text-amber-600' :
-                          option.value === 'dark' ? 'bg-indigo-100 text-indigo-600' :
-                            'bg-gray-100 text-gray-600'
+                        option.value === 'dark' ? 'bg-indigo-100 text-indigo-600' :
+                          'bg-gray-100 text-gray-600'
                         }`}>
                         <option.icon className="h-4 w-4" />
                       </div>
@@ -717,6 +699,11 @@ export default function Settings() {
           {saving ? 'Saving...' : 'Save All Settings'}
         </Button>
       </div>
+
+      <ExportPreviewModal
+        open={exportModalOpen}
+        onOpenChange={setExportModalOpen}
+      />
     </div>
   );
 }

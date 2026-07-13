@@ -13,27 +13,27 @@ TypeScript
 // Only PAID or PENDING are ever sent
 markPaid: async (billNo: string, amountReceived?: number) => {
   return api.updatePaymentStatus(billNo, {
-    payment_status: "PAID",        // ← Hardcoded
-    amount_received: amountReceived,
+    paymentStatus: "PAID",        // ← Hardcoded
+    amountReceived: amountReceived,
   });
 },
 
 markPending: async (billNo: string) => {
   return api.updatePaymentStatus(billNo, {
-    payment_status: "PENDING",     // ← Hardcoded
-    amount_received: 0,
+    paymentStatus: "PENDING",     // ← Hardcoded
+    amountReceived: 0,
   });
 },
-Issue 3: Backend update_payment_status() Auto-Calculates Status
+Issue 3: Backend update_paymentStatus() Auto-Calculates Status
 From billing_service.py:
 Python
-def update_payment_status(billno, requested_status, amount_received=None):
+def update_paymentStatus(billNo, requestedStatus, amountReceived=None):
     # ...
-    state = resolve_payment_state(current_total, previous_arrears, amount_received)
-    status = state["payment_status"]  # ← AUTO-CALCULATED, ignores requested_status!
+    state = resolve_payment_state(currentTotal, previousArrears, amountReceived)
+    status = state["paymentStatus"]  # ← AUTO-CALCULATED, ignores requestedStatus!
     
-    if requested_status in ["PENDING", "PARTIAL"]:
-        status = requested_status  # ← Only PENDING/PARTIAL can override
+    if requestedStatus in ["PENDING", "PARTIAL"]:
+        status = requestedStatus  # ← Only PENDING/PARTIAL can override
 The backend ignores the frontend's requested status for "PAID"/"ADVANCE" and auto-calculates based on amount comparison. This is actually correct logic, but the frontend never sends "PARTIAL" or "ADVANCE" as requested statuses, and there's no modal to input custom amounts.
 Issue 4: No Amount Input Modal for Payment Processing
 The user wants:
@@ -54,8 +54,8 @@ updatePayment: async (
   amountReceived?: number
 ): Promise<{ status: string }> => {
   return api.updatePaymentStatus(billNo, {
-    payment_status: paymentStatus,
-    amount_received: amountReceived,
+    paymentStatus: paymentStatus,
+    amountReceived: amountReceived,
   });
 },
 FILE 2: frontend/admin-app/src/components/shared/ReceiptRow.tsx
@@ -251,8 +251,8 @@ const handleUpdatePayment = async (
 FILE 6: Backend app/app/api/billing.py
 The api_update_payment endpoint is already mostly correct. Just ensure it accepts all statuses:
 Python
-@router.post(Routes.ADMIN_API_BILLING_UPDATE_PAYMENT, name=Names.API_UPDATE_PAYMENT)
-async def api_update_payment(billno: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
+@router.post(Routes.ADMINAPIBILLINGUPDATEPAYMENT, name=Names.APIUPDATEPAYMENT)
+async def api_update_payment(billNo: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
     try:
         status = (data.paymentstatus or "").strip().upper()
         # VALIDATE all 4 statuses from domain.json
@@ -262,66 +262,66 @@ async def api_update_payment(billno: str, data: PaymentStatusUpdate, background_
         amount = data.amountreceived
         
         # Allow explicit status override with amount validation
-        update_payment_status(billno, status, amount)
-        background_tasks.add_task(create_full_backup, tag="payment_status")
+        update_paymentStatus(billNo, status, amount)
+        background_tasks.add_task(create_full_backup, tag="paymentStatus")
         return {"status": "success"}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 FILE 7: Backend app/app/services/billing_service.py
-Update update_payment_status to respect explicit status when provided with valid amount:
+Update update_paymentStatus to respect explicit status when provided with valid amount:
 Python
-def update_payment_status(billno, requested_status, amount_received=None):
+def update_paymentStatus(billNo, requestedStatus, amountReceived=None):
     from app.core.db import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (billno,)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         
-        current_total = float(row["total"])
-        previous_arrears = float(row["previousarrears"])
-        grand_total = round(current_total + previous_arrears, 2)
+        currentTotal = float(row["total"])
+        previousArrears = float(row["previousarrears"])
+        grandTotal = round(currentTotal + previousArrears, 2)
         
         # Determine final amount
-        if amount_received is None:
-            amount_received = grand_total if requested_status == "PAID" else 0.0
+        if amountReceived is None:
+            amountReceived = grandTotal if requestedStatus == "PAID" else 0.0
         
-        amount_received = round(float(amount_received), 2)
+        amountReceived = round(float(amountReceived), 2)
         
-        # VALIDATE: requested_status must match amount logic, OR auto-calculate
-        calculated_status = "PENDING"
-        if amount_received <= 0:
-            calculated_status = "PENDING"
-        elif amount_received < grand_total:
-            calculated_status = "PARTIAL"
-        elif amount_received == grand_total:
-            calculated_status = "PAID"
+        # VALIDATE: requestedStatus must match amount logic, OR auto-calculate
+        calculatedStatus = "PENDING"
+        if amountReceived <= 0:
+            calculatedStatus = "PENDING"
+        elif amountReceived < grandTotal:
+            calculatedStatus = "PARTIAL"
+        elif amountReceived == grandTotal:
+            calculatedStatus = "PAID"
         else:
-            calculated_status = "ADVANCE"
+            calculatedStatus = "ADVANCE"
         
         # Use requested status if it matches the amount logic, otherwise use calculated
         # This allows explicit control while preventing invalid combinations
-        final_status = requested_status
+        finalStatus = requestedStatus
         
         # Validate consistency (optional strict mode)
-        if requested_status == "PAID" and amount_received != grand_total:
-            raise ValueError(f"PAID status requires amount = {grand_total}, got {amount_received}")
-        if requested_status == "PARTIAL" and (amount_received <= 0 or amount_received >= grand_total):
-            raise ValueError(f"PARTIAL status requires 0 < amount < {grand_total}")
-        if requested_status == "ADVANCE" and amount_received <= grand_total:
-            raise ValueError(f"ADVANCE status requires amount > {grand_total}")
-        if requested_status == "PENDING" and amount_received != 0:
+        if requestedStatus == "PAID" and amountReceived != grandTotal:
+            raise ValueError(f"PAID status requires amount = {grandTotal}, got {amountReceived}")
+        if requestedStatus == "PARTIAL" and (amountReceived <= 0 or amountReceived >= grandTotal):
+            raise ValueError(f"PARTIAL status requires 0 < amount < {grandTotal}")
+        if requestedStatus == "ADVANCE" and amountReceived <= grandTotal:
+            raise ValueError(f"ADVANCE status requires amount > {grandTotal}")
+        if requestedStatus == "PENDING" and amountReceived != 0:
             raise ValueError("PENDING status requires amount = 0")
         
         conn.execute("""
             UPDATE receipts 
             SET paymentstatus = ?, amountreceived = ?
-            WHERE billno = ?
-        """, (final_status, amount_received, billno))
+            WHERE billNo = ?
+        """, (finalStatus, amountReceived, billNo))
         conn.commit()
     
-    return final_status
+    return finalStatus
 📋 SUMMARY TABLE
 Table
 File	Change Type	Description

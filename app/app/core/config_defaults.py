@@ -2,9 +2,9 @@
     "billing": {
         "rent": 8000.0,
         "water": 500.0,
-        "electricity_rate": 15.0,
-        "additional_person_charge": 1000.0,
-        "previous_meter_reading": 0.0,
+        "electricityRate": 15.0,
+        "additionalPersonCharge": 1000.0,
+        "previousMeter_reading": 0.0,
         "next_bill_number": 1
     },
     "landlord": {
@@ -27,16 +27,16 @@
             "label": "Single Receipt Message Template",
             "readonly_by_default": True,
             "allowed_variables": [
-                "{tenant_name}",
+                "{tenantName}",
                 "{month}",
-                "{billno}",
+                "{billNo}",
                 "{total}",
                 "{currency}",
                 "{link}",
-                "{tenant_pin}"
+                "{tenantPin}"
             ],
-            "default_message": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billno}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenant_pin}\n\nThank you!",
-            "message": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billno}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenant_pin}\n\nThank you!"
+            "default_message": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenantPin}\n\nThank you!",
+            "message": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenantPin}\n\nThank you!"
         },
         "country_code": "91"
     },
@@ -103,7 +103,7 @@
             "whatsapp_sync": True
         }
     },
-    "tenantProfile": {},
+    "TENANTPROFILE": {},
     "rentReceipt": {},
     "payment": {},
     "dashboard": {},

@@ -7,6 +7,6 @@ class AuthPrincipal:
     role: str
     id: int
     session_id: str
-    tenant_id: Optional[int] = None
+    tenantId: Optional[int] = None
     admin_id: Optional[int] = None
 

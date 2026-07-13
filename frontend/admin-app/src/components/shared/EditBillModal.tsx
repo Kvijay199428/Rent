@@ -20,12 +20,12 @@ import type { Tenant, Receipt } from '@/types';
 import { useToast } from '@/hooks/useToast';
 
 interface EditBillModalProps {
-  billno: string | null;
+  billNo: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function EditBillModal({ billno, onClose, onSaved }: EditBillModalProps) {
+export default function EditBillModal({ billNo, onClose, onSaved }: EditBillModalProps) {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [months, setMonths] = useState<string[]>([]);
@@ -34,10 +34,10 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
   const toast = useToast();
 
   useEffect(() => {
-    if (billno) {
+    if (billNo) {
       setLoading(true);
       Promise.all([
-        api.getReceipt(billno),
+        api.getReceipt(billNo),
         api.getTenants(),
         api.getBillingMonths(),
       ])
@@ -49,7 +49,7 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
         .catch(() => toast.error('Failed to load bill data'))
         .finally(() => setLoading(false));
     }
-  }, [billno]);
+  }, [billNo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,12 +62,12 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
         month: receipt.Month,
         current_reading: receipt.Current,
         additional_persons: receipt.Additional_Persons || 0,
-        tank_water: receipt.Tank_Water || 0,
-        maintenance_charge: receipt.Maintenance_Charge || 0,
-        maintenance_desc: receipt.Maintenance_Desc || '',
-        previous_arrears: receipt.Previous_Arrears || 0,
-        amount_received: receipt.Amount_Received || null,
-        payment_status: receipt.Payment_Status || 'PENDING',
+        tankWater: receipt.tankWater || 0,
+        MaintenanceCharge: receipt.MaintenanceCharge || 0,
+        MaintenanceDesc: receipt.MaintenanceDesc || '',
+        previousArrears: receipt.previousArrears || 0,
+        amountReceived: receipt.amountReceived || null,
+        paymentStatus: receipt.paymentStatus || 'PENDING',
       });
       toast.success('Receipt updated successfully');
       onSaved();
@@ -81,7 +81,7 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
   };
 
   return (
-    <Dialog open={!!billno} onOpenChange={(v) => !v && onClose()}>
+    <Dialog open={!!billNo} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -111,7 +111,7 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
                   <SelectContent>
                     {tenants.map((t) => (
                       <SelectItem key={t.id} value={t.name}>
-                        {t.name} {t.room_number ? `(Room ${t.room_number})` : ''}
+                        {t.name} {t.roomNumber ? `(Room ${t.roomNumber})` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -159,8 +159,8 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
                 <Input
                   type="number"
                   step="0.1"
-                  value={receipt.Tank_Water || 0}
-                  onChange={(e) => setReceipt({ ...receipt, Tank_Water: parseFloat(e.target.value) || 0 })}
+                  value={receipt.tankWater || 0}
+                  onChange={(e) => setReceipt({ ...receipt, tankWater: parseFloat(e.target.value) || 0 })}
                 />
               </div>
               <div className="space-y-2">
@@ -168,8 +168,8 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
                 <Input
                   type="number"
                   step="0.1"
-                  value={receipt.Maintenance_Charge || 0}
-                  onChange={(e) => setReceipt({ ...receipt, Maintenance_Charge: parseFloat(e.target.value) || 0 })}
+                  value={receipt.MaintenanceCharge || 0}
+                  onChange={(e) => setReceipt({ ...receipt, MaintenanceCharge: parseFloat(e.target.value) || 0 })}
                 />
               </div>
               <div className="space-y-2">
@@ -177,8 +177,8 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
                 <Input
                   type="number"
                   step="0.1"
-                  value={receipt.Previous_Arrears || 0}
-                  onChange={(e) => setReceipt({ ...receipt, Previous_Arrears: parseFloat(e.target.value) || 0 })}
+                  value={receipt.previousArrears || 0}
+                  onChange={(e) => setReceipt({ ...receipt, previousArrears: parseFloat(e.target.value) || 0 })}
                 />
               </div>
             </div>
@@ -186,8 +186,8 @@ export default function EditBillModal({ billno, onClose, onSaved }: EditBillModa
             <div className="space-y-2">
               <Label>Maintenance Description</Label>
               <Input
-                value={receipt.Maintenance_Desc || ''}
-                onChange={(e) => setReceipt({ ...receipt, Maintenance_Desc: e.target.value })}
+                value={receipt.MaintenanceDesc || ''}
+                onChange={(e) => setReceipt({ ...receipt, MaintenanceDesc: e.target.value })}
                 placeholder="e.g. Building Maintenance"
               />
             </div>

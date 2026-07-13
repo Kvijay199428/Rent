@@ -1,8 +1,8 @@
 {
     "rent": 8000.0,
     "water": 500.0,
-    "electricity_rate": 15.0,
-    "additional_person_charge": 1000.0,
-    "previous_meter_reading": 0.0,
+    "electricityRate": 15.0,
+    "additionalPersonCharge": 1000.0,
+    "previousMeter_reading": 0.0,
     "next_bill_number": 1
 }

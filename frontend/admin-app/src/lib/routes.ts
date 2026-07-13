@@ -75,126 +75,126 @@ function page(domain: "admin" | "tenant", key: string, params?: Record<string, s
 
 export const ROUTES = {
     get basePath() { return manifest.basePath; },
-    get HEALTH_CHECK() { return fullPath(manifest.health.check); },
+    get HEALTHCHECK() { return fullPath(manifest.health.check); },
 
     // Admin Pages
-    get ADMIN_PAGE_ROOT() { return page("admin", "root"); },
-    get ADMIN_PAGE_HOME() { return page("admin", "home"); },
-    get ADMIN_PAGE_LOGIN() { return page("admin", "login"); },
-    get ADMIN_PAGE_LOGOUT() { return page("admin", "logout"); },
-    get ADMIN_PAGE_DASHBOARD() { return page("admin", "dashboard"); },
-    get ADMIN_PAGE_BILLING() { return page("admin", "billing"); },
-    get ADMIN_PAGE_HISTORY() { return page("admin", "history"); },
-    get ADMIN_PAGE_TENANTS() { return page("admin", "tenants"); },
-    get ADMIN_PAGE_SETTINGS() { return page("admin", "settings"); },
-    get ADMIN_PAGE_ARCHIVE() { return page("admin", "archive"); },
-    get ADMIN_PAGE_BACKUPS() { return page("admin", "backups"); },
-    // adminPageTenantProfile(tenant_id: number) { return page("admin", "tenantProfile", { tenant_id }); },
-    adminPageTenantProfile(tenant_id: number) { return page("admin", "tenantProfile", { tenant_id }); },
+    get ADMINPAGEROOT() { return page("admin", "root"); },
+    get ADMINPAGEHOME() { return page("admin", "home"); },
+    get ADMINPAGELOGIN() { return page("admin", "login"); },
+    get ADMINPAGELOGOUT() { return page("admin", "logout"); },
+    get ADMINPAGEDASHBOARD() { return page("admin", "dashboard"); },
+    get ADMINPAGEBILLING() { return page("admin", "billing"); },
+    get ADMINPAGEHISTORY() { return page("admin", "history"); },
+    get ADMINPAGETENANTS() { return page("admin", "tenants"); },
+    get ADMINPAGESETTINGS() { return page("admin", "settings"); },
+    get ADMINPAGEARCHIVE() { return page("admin", "archive"); },
+    get ADMINPAGEBACKUPS() { return page("admin", "backups"); },
+    // ADMINPAGETENANTPROFILE(tenantId: number) { return page("admin", "TENANTPROFILE", { tenantId }); },
+    ADMINPAGETENANTPROFILE(tenantId: number) { return page("admin", "TENANTPROFILE", { tenantId }); },
 
     // Admin API: Setup
-    get ADMIN_API_SETUP_REQUIRED() { return api("admin", "setup", "required"); },
-    get ADMIN_API_SETUP_CREATE() { return api("admin", "setup", "create"); },
+    get ADMINAPISETUPREQUIRED() { return api("admin", "setup", "required"); },
+    get ADMINAPISETUPCREATE() { return api("admin", "setup", "create"); },
 
     // Admin API: Auth
-    get ADMIN_API_AUTH_PUBLIC_KEY() { return api("admin", "auth", "publicKey"); },
-    get ADMIN_API_AUTH_LOGIN() { return api("admin", "auth", "login"); },
-    get ADMIN_API_AUTH_LOGIN_TOTP() { return api("admin", "auth", "loginTotp"); },
-    get ADMIN_API_AUTH_REFRESH() { return api("admin", "auth", "refresh"); },
-    get ADMIN_API_AUTH_LOGOUT() { return api("admin", "auth", "logout"); },
-    get ADMIN_API_AUTH_ME() { return api("admin", "auth", "me"); },
+    get ADMINAPIAUTHPUBLICKEY() { return api("admin", "auth", "publicKey"); },
+    get ADMINAPIAUTHLOGIN() { return api("admin", "auth", "login"); },
+    get ADMINAPIAUTHLOGINTOTP() { return api("admin", "auth", "loginTotp"); },
+    get ADMINAPIAUTHREFRESH() { return api("admin", "auth", "refresh"); },
+    get ADMINAPIAUTHLOGOUT() { return api("admin", "auth", "logout"); },
+    get ADMINAPIAUTHME() { return api("admin", "auth", "me"); },
 
     // Admin API: TOTP
-    get ADMIN_API_TOTP_QR() { return api("admin", "totp", "qr"); },
-    get ADMIN_API_TOTP_REGENERATE() { return api("admin", "totp", "regenerate"); },
+    get ADMINAPITOTPQR() { return api("admin", "totp", "qr"); },
+    get ADMINAPITOTPREGENERATE() { return api("admin", "totp", "regenerate"); },
 
     // Admin API: Password
-    get ADMIN_API_PASSWORD_FORGOT_VERIFY() { return api("admin", "password", "forgotVerify"); },
-    get ADMIN_API_PASSWORD_FORGOT_RESET() { return api("admin", "password", "forgotReset"); },
+    get ADMINAPIPASSWORDFORGOTVERIFY() { return api("admin", "password", "forgotVerify"); },
+    get ADMINAPIPASSWORDFORGOTRESET() { return api("admin", "password", "forgotReset"); },
 
     // Admin API: Dashboard
-    get ADMIN_API_DASHBOARD_STATS() { return api("admin", "dashboard", "stats"); },
+    get ADMINAPIDASHBOARDSTATS() { return api("admin", "dashboard", "stats"); },
 
     // Admin API: Config
-    get ADMIN_API_CONFIG_GET() { return api("admin", "config", "get"); },
-    get ADMIN_API_CONFIG_UPDATE() { return api("admin", "config", "update"); },
-    get ADMIN_API_CONFIG_THEME() { return api("admin", "config", "theme"); },
+    get ADMINAPICONFIGGET() { return api("admin", "config", "get"); },
+    get ADMINAPICONFIGUPDATE() { return api("admin", "config", "update"); },
+    get ADMINAPICONFIGTHEME() { return api("admin", "config", "theme"); },
 
     // Admin API: Billing
-    get ADMIN_API_BILLING_FILTER() { return api("admin", "billing", "filter"); },
-    get ADMIN_API_BILLING_MONTHS() { return api("admin", "billing", "months"); },
-    get ADMIN_API_BILLING_PREVIEW() { return api("admin", "billing", "preview"); },
-    get ADMIN_API_BILLING_CREATE() { return api("admin", "billing", "create"); },
-    adminApiBillingGet(billno: string) { return api("admin", "billing", "get", { billno }); },
-    adminApiBillingUpdate(billno: string) { return api("admin", "billing", "update", { billno }); },
-    adminApiBillingUpdatePayment(billno: string) { return api("admin", "billing", "updatePayment", { billno }); },
-    adminApiBillingArchive(billno: string) { return api("admin", "billing", "archive", { billno }); },
-    adminApiBillingRestore(billno: string) { return api("admin", "billing", "restore", { billno }); },
-    adminApiBillingDelete(billno: string) { return api("admin", "billing", "delete", { billno }); },
+    get ADMINAPIBILLINGFILTER() { return api("admin", "billing", "filter"); },
+    get ADMINAPIBILLINGMONTHS() { return api("admin", "billing", "months"); },
+    get ADMINAPIBILLINGPREVIEW() { return api("admin", "billing", "preview"); },
+    get ADMINAPIBILLINGCREATE() { return api("admin", "billing", "create"); },
+    ADMINAPIBILLINGGET(billNo: string) { return api("admin", "billing", "get", { billNo }); },
+    ADMINAPIBILLINGUPDATE(billNo: string) { return api("admin", "billing", "update", { billNo }); },
+    ADMINAPIBILLINGUPDATEPAYMENT(billNo: string) { return api("admin", "billing", "updatePayment", { billNo }); },
+    ADMINAPIBILLINGARCHIVE(billNo: string) { return api("admin", "billing", "archive", { billNo }); },
+    ADMINAPIBILLINGRESTORE(billNo: string) { return api("admin", "billing", "restore", { billNo }); },
+    ADMINAPIBILLINGDELETE(billNo: string) { return api("admin", "billing", "delete", { billNo }); },
 
     // Admin API: Tenants
-    get ADMIN_API_TENANTS_LIST() { return api("admin", "tenants", "list"); },
-    get ADMIN_API_TENANTS_CREATE() { return api("admin", "tenants", "create"); },
-    adminApiTenantsGet(tenant_id: number) { return api("admin", "tenants", "get", { tenant_id }); },
-    adminApiTenantsUpdate(tenant_id: number) { return api("admin", "tenants", "update", { tenant_id }); },
-    adminApiTenantsDelete(tenant_id: number) { return api("admin", "tenants", "delete", { tenant_id }); },
-    adminApiTenantsChangePin(tenant_id: number) { return api("admin", "tenants", "changePin", { tenant_id }); },
-    adminApiTenantsRevealPin(tenant_id: number) { return api("admin", "tenants", "revealPin", { tenant_id }); },
-    adminApiTenantsReceipts(tenant_name: string) { return api("admin", "tenants", "receipts", { tenant_name }); },
+    get ADMINAPITENANTSLIST() { return api("admin", "tenants", "list"); },
+    get ADMINAPITENANTSCREATE() { return api("admin", "tenants", "create"); },
+    ADMINAPITENANTSGET(tenantId: number) { return api("admin", "tenants", "get", { tenantId }); },
+    ADMINAPITENANTSUPDATE(tenantId: number) { return api("admin", "tenants", "update", { tenantId }); },
+    ADMINAPITENANTSDELETE(tenantId: number) { return api("admin", "tenants", "delete", { tenantId }); },
+    ADMINAPITENANTSCHANGEPIN(tenantId: number) { return api("admin", "tenants", "changePin", { tenantId }); },
+    ADMINAPITENANTSREVEALPIN(tenantId: number) { return api("admin", "tenants", "revealPin", { tenantId }); },
+    ADMINAPITENANTSRECEIPTS(tenantName: string) { return api("admin", "tenants", "receipts", { tenantName }); },
 
     // Admin API: Occupants
-    get ADMIN_API_OCCUPANTS_LIST() { return api("admin", "occupants", "list"); },
-    get ADMIN_API_OCCUPANTS_CREATE() { return api("admin", "occupants", "create"); },
-    adminApiOccupantsMarkInactive(tenant_id: number, occupant_uuid: string) { return api("admin", "occupants", "markInactive", { tenant_id, occupant_uuid }); },
-    adminApiOccupantsDelete(tenant_id: number, occupant_uuid: string) { return api("admin", "occupants", "delete", { tenant_id, occupant_uuid }); },
-    adminApiOccupantsGetFile(filename: string) { return api("admin", "occupants", "getFile", { filename }); },
+    get ADMINAPIOCCUPANTSLIST() { return api("admin", "occupants", "list"); },
+    get ADMINAPIOCCUPANTSCREATE() { return api("admin", "occupants", "create"); },
+    ADMINAPIOCCUPANTSMARKINACTIVE(tenantId: number, occupantUuid: string) { return api("admin", "occupants", "markInactive", { tenantId, occupantUuid }); },
+    ADMINAPIOCCUPANTSDELETE(tenantId: number, occupantUuid: string) { return api("admin", "occupants", "delete", { tenantId, occupantUuid }); },
+    ADMINAPIOCCUPANTSGETFILE(filename: string) { return api("admin", "occupants", "getFile", { filename }); },
 
     // Admin API: PDF
-    adminApiPdfDownload(billno: string) { return api("admin", "pdf", "download", { billno }); },
-    adminApiPdfView(billno: string) { return api("admin", "pdf", "view", { billno }); },
+    ADMINAPIPDFDOWNLOAD(billNo: string) { return api("admin", "pdf", "download", { billNo }); },
+    ADMINAPIPDFVIEW(billNo: string) { return api("admin", "pdf", "view", { billNo }); },
 
     // Admin API: WhatsApp
-    adminApiWhatsappSendSingle(billno: string) { return api("admin", "whatsapp", "sendSingle", { billno }); },
+    ADMINAPIWHATSAPPSENDSINGLE(billNo: string) { return api("admin", "whatsapp", "sendSingle", { billNo }); },
 
     // Admin API: Sync
-    get ADMIN_API_SYNC_EXPORT_CSV() { return api("admin", "sync", "exportCsv"); },
-    get ADMIN_API_SYNC_EXPORT_ZIP() { return api("admin", "sync", "exportZip"); },
-    get ADMIN_API_SYNC_TEMPLATE() { return api("admin", "sync", "template"); },
-    get ADMIN_API_SYNC_IMPORT_PREVIEW() { return api("admin", "sync", "importPreview"); },
-    get ADMIN_API_SYNC_IMPORT_EXECUTE() { return api("admin", "sync", "importExecute"); },
-    adminApiSyncExportExcel(format: string) { return api("admin", "sync", "exportExcel", { format }); },
+    get ADMINAPISYNCEXPORTCSV() { return api("admin", "sync", "exportCsv"); },
+    get ADMINAPISYNCEXPORTZIP() { return api("admin", "sync", "exportZip"); },
+    get ADMINAPISYNCTEMPLATE() { return api("admin", "sync", "template"); },
+    get ADMINAPISYNCIMPORTPREVIEW() { return api("admin", "sync", "importPreview"); },
+    get ADMINAPISYNCIMPORTEXECUTE() { return api("admin", "sync", "importExecute"); },
+    ADMINAPISYNCEXPORTEXCEL(format: string) { return api("admin", "sync", "exportExcel", { format }); },
 
     // Admin API: Backups
-    get ADMIN_API_BACKUPS_LIST() { return api("admin", "backups", "list"); },
-    get ADMIN_API_BACKUPS_CREATE_MANUAL() { return api("admin", "backups", "createManual"); },
-    adminApiBackupsDelete(backup_id: string) { return api("admin", "backups", "delete", { backup_id }); },
-    adminApiBackupsVerify(backup_id: string) { return api("admin", "backups", "verify", { backup_id }); },
-    adminApiBackupsRestore(backup_id: string) { return api("admin", "backups", "restore", { backup_id }); },
-    adminApiBackupsDownload(backup_id: string) { return api("admin", "backups", "download", { backup_id }); },
-    adminApiBackupsMetadata(backup_id: string) { return api("admin", "backups", "metadata", { backup_id }); },
+    get ADMINAPIBACKUPSLIST() { return api("admin", "backups", "list"); },
+    get ADMINAPIBACKUPSCREATEMANUAL() { return api("admin", "backups", "createManual"); },
+    ADMINAPIBACKUPSDELETE(backupId: string) { return api("admin", "backups", "delete", { backupId }); },
+    ADMINAPIBACKUPSVERIFY(backupId: string) { return api("admin", "backups", "verify", { backupId }); },
+    ADMINAPIBACKUPSRESTORE(backupId: string) { return api("admin", "backups", "restore", { backupId }); },
+    ADMINAPIBACKUPSDOWNLOAD(backupId: string) { return api("admin", "backups", "download", { backupId }); },
+    ADMINAPIBACKUPSMETADATA(backupId: string) { return api("admin", "backups", "metadata", { backupId }); },
 
     // Admin API: Settings
-    get ADMIN_API_SETTINGS_UPLOAD_SIGNATURE() { return api("admin", "settings", "uploadSignature"); },
-    get ADMIN_API_SETTINGS_DELETE_SIGNATURE() { return api("admin", "settings", "deleteSignature"); },
+    get ADMINAPISETTINGSUPLOADSIGNATURE() { return api("admin", "settings", "uploadSignature"); },
+    get ADMINAPISETTINGSDELETESIGNATURE() { return api("admin", "settings", "deleteSignature"); },
 
     // Tenant Pages
-    tenantPageRoot(view_token: string) { return page("tenant", "root", { view_token }); },
+    TENANTPAGEROOT(viewToken: string) { return page("tenant", "root", { viewToken }); },
 
     // Tenant API: Auth
-    get TENANT_API_AUTH_PUBLIC_KEY() { return api("tenant", "auth", "publicKey"); },
-    tenantApiAuthLogin(view_token: string) { return api("tenant", "auth", "login", { view_token }); },
-    get TENANT_API_AUTH_REFRESH() { return api("tenant", "auth", "refresh"); },
-    get TENANT_API_AUTH_LOGOUT() { return api("tenant", "auth", "logout"); },
-    get TENANT_API_AUTH_LOGOUT_ALL() { return api("tenant", "auth", "logoutAll"); },
+    get TENANTAPIAUTHPUBLICKEY() { return api("tenant", "auth", "publicKey"); },
+    TENANTAPIAUTHLOGIN(viewToken: string) { return api("tenant", "auth", "login", { viewToken }); },
+    get TENANTAPIAUTHREFRESH() { return api("tenant", "auth", "refresh"); },
+    get TENANTAPIAUTHLOGOUT() { return api("tenant", "auth", "logout"); },
+    get TENANTAPIAUTHLOGOUTALL() { return api("tenant", "auth", "logoutAll"); },
 
     // Tenant API: Profile
-    tenantApiProfileGet(view_token: string) { return api("tenant", "profile", "get", { view_token }); },
+    TENANTAPIPROFILEGET(viewToken: string) { return api("tenant", "profile", "get", { viewToken }); },
 
     // Tenant API: KYC
-    tenantApiKycUpload(view_token: string) { return api("tenant", "kyc", "upload", { view_token }); },
-    tenantApiKycMarkInactive(view_token: string, occupant_uuid: string) { return api("tenant", "kyc", "markInactive", { view_token, occupant_uuid }); },
-    tenantApiKycDelete(view_token: string, occupant_uuid: string) { return api("tenant", "kyc", "delete", { view_token, occupant_uuid }); },
-    tenantApiKycGetFile(filename: string) { return api("tenant", "kyc", "getFile", { filename }); },
+    TENANTAPIKYCUPLOAD(viewToken: string) { return api("tenant", "kyc", "upload", { viewToken }); },
+    TENANTAPIKYCMARKINACTIVE(viewToken: string, occupantUuid: string) { return api("tenant", "kyc", "markInactive", { viewToken, occupantUuid }); },
+    TENANTAPIKYCDELETE(viewToken: string, occupantUuid: string) { return api("tenant", "kyc", "delete", { viewToken, occupantUuid }); },
+    TENANTAPIKYCGETFILE(filename: string) { return api("tenant", "kyc", "getFile", { filename }); },
 } as const;
 
 export type RoutesType = typeof ROUTES;

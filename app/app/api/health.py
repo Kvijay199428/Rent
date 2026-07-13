@@ -10,7 +10,7 @@ from app.core.config_service import ConfigService
 
 router = APIRouter(tags=["Health"])
 
-@router.get(Routes.HEALTH_CHECK, name=Names.HEALTH_CHECK)
+@router.get(Routes.HEALTHCHECK, name=Names.HEALTHCHECK)
 async def health_check():
     return {
         "status": "ok",

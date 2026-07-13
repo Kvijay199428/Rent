@@ -101,7 +101,7 @@ class Routes:
         from app.core.routes_manifest import Routes
         
         # Static routes
-        fetch(Routes.ADMIN_API_AUTH_LOGIN)
+        fetch(Routes.ADMINAPIAUTHLOGIN)
         
         # Parameterized routes
         fetch(Routes.admin_api_billing_get(billNo="REC-001"))
@@ -112,66 +112,66 @@ class Routes:
     BASE = property(lambda self: get_base_path())
     
     # ── Health ────────────────────────────────────────────────────
-    HEALTH_CHECK = property(lambda self: get_route("health", "check"))
+    HEALTHCHECK = property(lambda self: get_route("health", "check"))
     
     # ── Static ────────────────────────────────────────────────────
-    STATIC_UPLOADS = property(lambda self: get_route("static", "uploads"))
+    STATICUPLOADS = property(lambda self: get_route("static", "uploads"))
     STATIC_ROOT = property(lambda self: get_route("static", "static"))
-    STATIC_ADMIN_ASSETS = property(lambda self: get_route("static", "adminAssets"))
-    STATIC_TENANT_ASSETS = property(lambda self: get_route("static", "tenantAssets"))
-    STATIC_FAVICON = property(lambda self: get_route("static", "favicon"))
+    STATICADMINASSETS = property(lambda self: get_route("static", "adminAssets"))
+    STATICTENANTASSETS = property(lambda self: get_route("static", "tenantAssets"))
+    STATICFAVICON = property(lambda self: get_route("static", "favicon"))
     
     # ── Admin Pages ───────────────────────────────────────────────
-    ADMIN_PAGE_ROOT = property(lambda self: get_route("admin", "pages", "root"))
-    ADMIN_PAGE_HOME = property(lambda self: get_route("admin", "pages", "home"))
-    ADMIN_PAGE_LOGIN = property(lambda self: get_route("admin", "pages", "login"))
-    ADMIN_PAGE_LOGOUT = property(lambda self: get_route("admin", "pages", "logout"))
-    ADMIN_PAGE_DASHBOARD = property(lambda self: get_route("admin", "pages", "dashboard"))
-    ADMIN_PAGE_BILLING = property(lambda self: get_route("admin", "pages", "billing"))
-    ADMIN_PAGE_HISTORY = property(lambda self: get_route("admin", "pages", "history"))
-    ADMIN_PAGE_TENANTS = property(lambda self: get_route("admin", "pages", "tenants"))
-    ADMIN_PAGE_SETTINGS = property(lambda self: get_route("admin", "pages", "settings"))
-    ADMIN_PAGE_ARCHIVE = property(lambda self: get_route("admin", "pages", "archive"))
-    ADMIN_PAGE_BACKUPS = property(lambda self: get_route("admin", "pages", "backups"))
+    ADMINPAGEROOT = property(lambda self: get_route("admin", "pages", "root"))
+    ADMINPAGEHOME = property(lambda self: get_route("admin", "pages", "home"))
+    ADMINPAGELOGIN = property(lambda self: get_route("admin", "pages", "login"))
+    ADMINPAGELOGOUT = property(lambda self: get_route("admin", "pages", "logout"))
+    ADMINPAGEDASHBOARD = property(lambda self: get_route("admin", "pages", "dashboard"))
+    ADMINPAGEBILLING = property(lambda self: get_route("admin", "pages", "billing"))
+    ADMINPAGEHISTORY = property(lambda self: get_route("admin", "pages", "history"))
+    ADMINPAGETENANTS = property(lambda self: get_route("admin", "pages", "tenants"))
+    ADMINPAGESETTINGS = property(lambda self: get_route("admin", "pages", "settings"))
+    ADMINPAGEARCHIVE = property(lambda self: get_route("admin", "pages", "archive"))
+    ADMINPAGEBACKUPS = property(lambda self: get_route("admin", "pages", "backups"))
     ADMIN_PAGE_CATCHALL = property(lambda self: get_route("admin", "pages", "catchAll"))
     
     @staticmethod
     def admin_page_tenant_profile(tenantId: int) -> str:
-        return get_route("admin", "pages", "tenantProfile", tenantId=tenantId)
+        return get_route("admin", "pages", "TENANTPROFILE", tenantId=tenantId)
     
     # ── Admin API: Setup ──────────────────────────────────────────
-    ADMIN_API_SETUP_REQUIRED = property(lambda self: get_route("admin", "api", "setup", "required"))
-    ADMIN_API_SETUP_CREATE = property(lambda self: get_route("admin", "api", "setup", "create"))
+    ADMINAPISETUPREQUIRED = property(lambda self: get_route("admin", "api", "setup", "required"))
+    ADMINAPISETUPCREATE = property(lambda self: get_route("admin", "api", "setup", "create"))
     
     # ── Admin API: Auth ───────────────────────────────────────────
-    ADMIN_API_AUTH_PUBLIC_KEY = property(lambda self: get_route("admin", "api", "auth", "publicKey"))
-    ADMIN_API_AUTH_LOGIN = property(lambda self: get_route("admin", "api", "auth", "login"))
-    ADMIN_API_AUTH_LOGIN_TOTP = property(lambda self: get_route("admin", "api", "auth", "loginTotp"))
-    ADMIN_API_AUTH_REFRESH = property(lambda self: get_route("admin", "api", "auth", "refresh"))
-    ADMIN_API_AUTH_LOGOUT = property(lambda self: get_route("admin", "api", "auth", "logout"))
-    ADMIN_API_AUTH_ME = property(lambda self: get_route("admin", "api", "auth", "me"))
+    ADMINAPIAUTHPUBLICKEY = property(lambda self: get_route("admin", "api", "auth", "publicKey"))
+    ADMINAPIAUTHLOGIN = property(lambda self: get_route("admin", "api", "auth", "login"))
+    ADMINAPIAUTHLOGINTOTP = property(lambda self: get_route("admin", "api", "auth", "loginTotp"))
+    ADMINAPIAUTHREFRESH = property(lambda self: get_route("admin", "api", "auth", "refresh"))
+    ADMINAPIAUTHLOGOUT = property(lambda self: get_route("admin", "api", "auth", "logout"))
+    ADMINAPIAUTHME = property(lambda self: get_route("admin", "api", "auth", "me"))
     
     # ── Admin API: TOTP ───────────────────────────────────────────
-    ADMIN_API_TOTP_QR = property(lambda self: get_route("admin", "api", "totp", "qr"))
-    ADMIN_API_TOTP_REGENERATE = property(lambda self: get_route("admin", "api", "totp", "regenerate"))
+    ADMINAPITOTPQR = property(lambda self: get_route("admin", "api", "totp", "qr"))
+    ADMINAPITOTPREGENERATE = property(lambda self: get_route("admin", "api", "totp", "regenerate"))
     
     # ── Admin API: Password ───────────────────────────────────────
-    ADMIN_API_PASSWORD_FORGOT_VERIFY = property(lambda self: get_route("admin", "api", "password", "forgotVerify"))
-    ADMIN_API_PASSWORD_FORGOT_RESET = property(lambda self: get_route("admin", "api", "password", "forgotReset"))
+    ADMINAPIPASSWORDFORGOTVERIFY = property(lambda self: get_route("admin", "api", "password", "forgotVerify"))
+    ADMINAPIPASSWORDFORGOTRESET = property(lambda self: get_route("admin", "api", "password", "forgotReset"))
     
     # ── Admin API: Dashboard ──────────────────────────────────────
-    ADMIN_API_DASHBOARD_STATS = property(lambda self: get_route("admin", "api", "dashboard", "stats"))
+    ADMINAPIDASHBOARDSTATS = property(lambda self: get_route("admin", "api", "dashboard", "stats"))
     
     # ── Admin API: Config ─────────────────────────────────────────
-    ADMIN_API_CONFIG_GET = property(lambda self: get_route("admin", "api", "config", "get"))
-    ADMIN_API_CONFIG_UPDATE = property(lambda self: get_route("admin", "api", "config", "update"))
-    ADMIN_API_CONFIG_THEME = property(lambda self: get_route("admin", "api", "config", "theme"))
+    ADMINAPICONFIGGET = property(lambda self: get_route("admin", "api", "config", "get"))
+    ADMINAPICONFIGUPDATE = property(lambda self: get_route("admin", "api", "config", "update"))
+    ADMINAPICONFIGTHEME = property(lambda self: get_route("admin", "api", "config", "theme"))
     
     # ── Admin API: Billing ────────────────────────────────────────
-    ADMIN_API_BILLING_FILTER = property(lambda self: get_route("admin", "api", "billing", "filter"))
-    ADMIN_API_BILLING_MONTHS = property(lambda self: get_route("admin", "api", "billing", "months"))
-    ADMIN_API_BILLING_PREVIEW = property(lambda self: get_route("admin", "api", "billing", "preview"))
-    ADMIN_API_BILLING_CREATE = property(lambda self: get_route("admin", "api", "billing", "create"))
+    ADMINAPIBILLINGFILTER = property(lambda self: get_route("admin", "api", "billing", "filter"))
+    ADMINAPIBILLINGMONTHS = property(lambda self: get_route("admin", "api", "billing", "months"))
+    ADMINAPIBILLINGPREVIEW = property(lambda self: get_route("admin", "api", "billing", "preview"))
+    ADMINAPIBILLINGCREATE = property(lambda self: get_route("admin", "api", "billing", "create"))
     
     @staticmethod
     def admin_api_billing_get(billNo: str) -> str:
@@ -198,8 +198,8 @@ class Routes:
         return get_route("admin", "api", "billing", "delete", billNo=billNo)
     
     # ── Admin API: Tenants ────────────────────────────────────────
-    ADMIN_API_TENANTS_LIST = property(lambda self: get_route("admin", "api", "tenants", "list"))
-    ADMIN_API_TENANTS_CREATE = property(lambda self: get_route("admin", "api", "tenants", "create"))
+    ADMINAPITENANTSLIST = property(lambda self: get_route("admin", "api", "tenants", "list"))
+    ADMINAPITENANTSCREATE = property(lambda self: get_route("admin", "api", "tenants", "create"))
     
     @staticmethod
     def admin_api_tenants_get(tenantId: int) -> str:
@@ -226,8 +226,8 @@ class Routes:
         return get_route("admin", "api", "tenants", "receipts", tenantName=tenantName)
     
     # ── Admin API: Occupants ──────────────────────────────────────
-    ADMIN_API_OCCUPANTS_LIST = property(lambda self: get_route("admin", "api", "occupants", "list"))
-    ADMIN_API_OCCUPANTS_CREATE = property(lambda self: get_route("admin", "api", "occupants", "create"))
+    ADMINAPIOCCUPANTSLIST = property(lambda self: get_route("admin", "api", "occupants", "list"))
+    ADMINAPIOCCUPANTSCREATE = property(lambda self: get_route("admin", "api", "occupants", "create"))
     
     @staticmethod
     def admin_api_occupants_mark_inactive(tenantId: int, occupantUuid: str) -> str:
@@ -256,20 +256,20 @@ class Routes:
         return get_route("admin", "api", "whatsapp", "sendSingle", billNo=billNo)
     
     # ── Admin API: Sync ─────────────────────────────────────────────
-    ADMIN_API_SYNC_EXPORT_CSV = property(lambda self: get_route("admin", "api", "sync", "exportCsv"))
-    ADMIN_API_SYNC_EXPORT_ZIP = property(lambda self: get_route("admin", "api", "sync", "exportZip"))
-    ADMIN_API_SYNC_TEMPLATE = property(lambda self: get_route("admin", "api", "sync", "template"))
+    ADMINAPISYNCEXPORTCSV = property(lambda self: get_route("admin", "api", "sync", "exportCsv"))
+    ADMINAPISYNCEXPORTZIP = property(lambda self: get_route("admin", "api", "sync", "exportZip"))
+    ADMINAPISYNCTEMPLATE = property(lambda self: get_route("admin", "api", "sync", "template"))
     
     @staticmethod
     def admin_api_sync_export_excel(format: str) -> str:
         return get_route("admin", "api", "sync", "exportExcel", format=format)
     
-    ADMIN_API_SYNC_IMPORT_PREVIEW = property(lambda self: get_route("admin", "api", "sync", "importPreview"))
-    ADMIN_API_SYNC_IMPORT_EXECUTE = property(lambda self: get_route("admin", "api", "sync", "importExecute"))
+    ADMINAPISYNCIMPORTPREVIEW = property(lambda self: get_route("admin", "api", "sync", "importPreview"))
+    ADMINAPISYNCIMPORTEXECUTE = property(lambda self: get_route("admin", "api", "sync", "importExecute"))
     
     # ── Admin API: Backups ────────────────────────────────────────
-    ADMIN_API_BACKUPS_LIST = property(lambda self: get_route("admin", "api", "backups", "list"))
-    ADMIN_API_BACKUPS_CREATE_MANUAL = property(lambda self: get_route("admin", "api", "backups", "createManual"))
+    ADMINAPIBACKUPSLIST = property(lambda self: get_route("admin", "api", "backups", "list"))
+    ADMINAPIBACKUPSCREATEMANUAL = property(lambda self: get_route("admin", "api", "backups", "createManual"))
     
     @staticmethod
     def admin_api_backups_delete(backupId: str) -> str:
@@ -292,11 +292,11 @@ class Routes:
         return get_route("admin", "api", "backups", "metadata", backupId=backupId)
     
     # ── Admin API: Settings ───────────────────────────────────────
-    ADMIN_API_SETTINGS_UPLOAD_SIGNATURE = property(lambda self: get_route("admin", "api", "settings", "uploadSignature"))
-    ADMIN_API_SETTINGS_DELETE_SIGNATURE = property(lambda self: get_route("admin", "api", "settings", "deleteSignature"))
+    ADMINAPISETTINGSUPLOADSIGNATURE = property(lambda self: get_route("admin", "api", "settings", "uploadSignature"))
+    ADMINAPISETTINGSDELETESIGNATURE = property(lambda self: get_route("admin", "api", "settings", "deleteSignature"))
     
     # ── Tenant Pages ──────────────────────────────────────────────
-    TENANT_PAGE_ROOT = property(lambda self: get_route("tenant", "pages", "root"))
+    TENANTPAGEROOT = property(lambda self: get_route("tenant", "pages", "root"))
     TENANT_PAGE_CATCHALL = property(lambda self: get_route("tenant", "pages", "catchAll"))
     
     @staticmethod
@@ -304,15 +304,15 @@ class Routes:
         return get_route("tenant", "pages", "profile", viewToken=viewToken)
     
     # ── Tenant API: Auth ──────────────────────────────────────────
-    TENANT_API_AUTH_PUBLIC_KEY = property(lambda self: get_route("tenant", "api", "auth", "publicKey"))
+    TENANTAPIAUTHPUBLICKEY = property(lambda self: get_route("tenant", "api", "auth", "publicKey"))
     
     @staticmethod
     def tenant_api_auth_login(viewToken: str) -> str:
         return get_route("tenant", "api", "auth", "login", viewToken=viewToken)
     
-    TENANT_API_AUTH_REFRESH = property(lambda self: get_route("tenant", "api", "auth", "refresh"))
-    TENANT_API_AUTH_LOGOUT = property(lambda self: get_route("tenant", "api", "auth", "logout"))
-    TENANT_API_AUTH_LOGOUT_ALL = property(lambda self: get_route("tenant", "api", "auth", "logoutAll"))
+    TENANTAPIAUTHREFRESH = property(lambda self: get_route("tenant", "api", "auth", "refresh"))
+    TENANTAPIAUTHLOGOUT = property(lambda self: get_route("tenant", "api", "auth", "logout"))
+    TENANTAPIAUTHLOGOUTALL = property(lambda self: get_route("tenant", "api", "auth", "logoutAll"))
     
     # ── Tenant API: Profile ─────────────────────────────────────
     @staticmethod

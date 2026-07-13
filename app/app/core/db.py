@@ -90,7 +90,7 @@ def init_db():
             FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
         );
 
-        -- 4. TENANTS (with view_token, tenantpin, failed_attempts, locked_until)
+        -- 4. TENANTS (with viewToken, tenantpin, failed_attempts, locked_until)
         CREATE TABLE IF NOT EXISTS tenants (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
@@ -108,38 +108,38 @@ def init_db():
             previousmeter REAL NOT NULL DEFAULT 0,
             additionalpersoncharge REAL NOT NULL DEFAULT 0,
             securitydeposit REAL NOT NULL DEFAULT 0,
-            defaulttankwatercharge REAL NOT NULL DEFAULT 0,
+            defaulttankWatercharge REAL NOT NULL DEFAULT 0,
             meterid TEXT,
-            view_token TEXT,
+            viewToken TEXT,
             tenantpin TEXT,
             failed_attempts INTEGER NOT NULL DEFAULT 0,
             locked_until TEXT
         );
 
         -- 5. TENANT PIN HISTORY
-        CREATE TABLE IF NOT EXISTS tenant_pin_history (
+        CREATE TABLE IF NOT EXISTS tenantPin_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenant_id INTEGER NOT NULL,
+            tenantId INTEGER NOT NULL,
             pin_hash TEXT NOT NULL,
             changed_at TEXT NOT NULL,
-            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
         );
 
-        CREATE INDEX IF NOT EXISTS idx_tenant_pin_history_tenant_id 
-            ON tenant_pin_history(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_tenantPin_history_tenantId 
+            ON tenantPin_history(tenantId);
 
         -- 6. TENANT PIN ADMIN STORE
-        CREATE TABLE IF NOT EXISTS tenant_pin_admin_store (
-            tenant_id INTEGER PRIMARY KEY,
+        CREATE TABLE IF NOT EXISTS tenantPin_admin_store (
+            tenantId INTEGER PRIMARY KEY,
             encrypted_pin TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
         );
 
         -- 7. TENANT SESSIONS (Auth V2)
         CREATE TABLE IF NOT EXISTS tenant_sessions (
             session_id TEXT PRIMARY KEY,
-            tenant_id INTEGER NOT NULL,
+            tenantId INTEGER NOT NULL,
             refresh_token_hash TEXT NOT NULL,
             device_name TEXT,
             browser TEXT,
@@ -151,24 +151,24 @@ def init_db():
             revoked_at TEXT,
             remember_me INTEGER DEFAULT 0,
             status TEXT DEFAULT 'Active',
-            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
         );
 
         -- 8. TENANT AUDIT LOGS
         CREATE TABLE IF NOT EXISTS tenant_audit_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenant_id INTEGER,
+            tenantId INTEGER,
             action TEXT,
             ip_address TEXT,
             created_at TEXT
         );
 
-        -- 9. RECEIPTS (with tenant_id, paymentstatus, maintenance, arrears, amountreceived)
+        -- 9. RECEIPTS (with tenantId, paymentstatus, maintenance, arrears, amountreceived)
         CREATE TABLE IF NOT EXISTS receipts (
-            billno TEXT PRIMARY KEY,
+            billNo TEXT PRIMARY KEY,
             date TEXT NOT NULL,
             month TEXT NOT NULL,
-            tenant_id INTEGER,
+            tenantId INTEGER,
             tenant TEXT NOT NULL,
             previous REAL NOT NULL DEFAULT 0,
             current REAL NOT NULL DEFAULT 0,
@@ -176,7 +176,7 @@ def init_db():
             rent REAL NOT NULL DEFAULT 0,
             additional REAL NOT NULL DEFAULT 0,
             water REAL NOT NULL DEFAULT 0,
-            tankwater REAL NOT NULL DEFAULT 0,
+            tankWater REAL NOT NULL DEFAULT 0,
             electricity REAL NOT NULL DEFAULT 0,
             total REAL NOT NULL DEFAULT 0,
             pdf TEXT,
@@ -201,8 +201,8 @@ def init_db():
 
         -- 10. OCCUPANTS
         CREATE TABLE IF NOT EXISTS occupants (
-            tenant_id INTEGER NOT NULL,
-            occupant_uuid TEXT PRIMARY KEY,
+            tenantId INTEGER NOT NULL,
+            occupantUuid TEXT PRIMARY KEY,
             name TEXT,
             mobile TEXT,
             status TEXT NOT NULL DEFAULT 'Active',
@@ -213,14 +213,14 @@ def init_db():
             emp_back TEXT,
             uploaddate TEXT,
             uploadmonth TEXT,
-            FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
         );
 
         -- 11. PERFORMANCE INDEXES
         CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant);
         CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
         CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
-        CREATE INDEX IF NOT EXISTS idx_receipts_tenant_id ON receipts(tenant_id);
-        CREATE INDEX IF NOT EXISTS idx_occupants_tenant_id ON occupants(tenant_id);
+        CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
+        CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
         """)
         conn.commit()

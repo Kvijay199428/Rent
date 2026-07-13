@@ -17,7 +17,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
     const [viewToken, setViewToken] = useState<string | null>(null);
 
-    // On mount: extract view_token from URL and check existing session
+    // On mount: extract viewToken from URL and check existing session
     useEffect(() => {
         const pathParts = window.location.pathname.split('/');
         const tIndex = pathParts.indexOf('t');
@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (tokenFromUrl) {
             setViewToken(tokenFromUrl);
-            localStorage.setItem('view_token', tokenFromUrl);
+            localStorage.setItem('viewToken', tokenFromUrl);
 
             // Optionally verify session is still valid
             tenantApi.profile.get(tokenFromUrl)
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await tenantApi.auth.login(token, pin, rememberMe);
         setViewToken(token);
         setIsAuthenticated(true);
-        localStorage.setItem('view_token', token);
+        localStorage.setItem('viewToken', token);
     }, []);
 
     const logout = useCallback(async () => {
@@ -56,12 +56,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } finally {
             setIsAuthenticated(false);
             setViewToken(null);
-            localStorage.removeItem('view_token');
+            localStorage.removeItem('viewToken');
         }
     }, [viewToken]);
 
     const refreshToken = useCallback(async () => {
-        // The view_token is automatically extracted from URL in apiClient
+        // The viewToken is automatically extracted from URL in apiClient
         await tenantApi.auth.refresh();
     }, []);
 

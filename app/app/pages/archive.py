@@ -8,7 +8,7 @@ from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_ARCHIVE, name=Names.ARCHIVE_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGEARCHIVE, name=Names.ARCHIVEPAGE, response_class=HTMLResponse)
 async def archive_page(request: Request):
     receipts = get_all_receipts()
     archived_receipts = [r for r in receipts if r.get("Status") == "ARCHIVED"]

@@ -6,7 +6,7 @@ from app.core.routes_manifest import Routes, Names
 
 router = APIRouter(tags=["Dashboard API"])
 
-@router.get(Routes.ADMIN_API_DASHBOARD_STATS, name=Names.HEALTH_CHECK)
+@router.get(Routes.ADMINAPIDASHBOARDSTATS, name=Names.HEALTHCHECK)
 async def dashboard_api():
     """Returns dashboard statistics as JSON."""
     stats = get_dashboard_stats()

@@ -82,7 +82,7 @@ def hash_directory(dirpath):
                 pass
     return h.hexdigest()
 
-def create_manifest(backup_id, backup_type, timestamp_str):
+def create_manifest(backupId, backup_type, timestamp_str):
     schema_conf = config.get("schema", {})
     return {
         "application": "Rent Receipt System",
@@ -91,7 +91,7 @@ def create_manifest(backup_id, backup_type, timestamp_str):
         "created": timestamp_str,
         "platform": platform.system(),
         "backup_type": backup_type,
-        "backup_id": backup_id
+        "backupId": backupId
     }
 
 def get_db_stats():
@@ -120,13 +120,13 @@ def get_db_stats():
                 
     return receipt_count, archived_count, tenant_count, inactive_tenant_count, pdf_count
 
-def create_metadata(backup_id, backup_type, timestamp_str):
+def create_metadata(backupId, backup_type, timestamp_str):
     schema_conf = config.get("schema", {})
     ui_conf = config.get("ui", {})
     r_count, arc_count, t_count, it_count, p_count = get_db_stats()
     
     metadata = {
-        "id": backup_id,
+        "id": backupId,
         "type": backup_type,
         "date": timestamp_str,
         "application_version": "3.0.0",
@@ -159,7 +159,7 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
     start_time = datetime.now()
     timestamp = start_time.strftime("%Y%m%d_%H%M%S")
     timestamp_iso = start_time.isoformat()
-    backup_id = f"BKP-{start_time.strftime('%Y%m%d-%H%M%S')}"
+    backupId = f"BKP-{start_time.strftime('%Y%m%d-%H%M%S')}"
     
     if type_ == "Restore Point":
         dest_folder = "restore_points"
@@ -189,11 +189,11 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
                 shutil.copytree(real_path, os.path.join(temp_dir, legacy_name))
                 
         # Generate manifest & metadata
-        manifest = create_manifest(backup_id, type_, timestamp_iso)
+        manifest = create_manifest(backupId, type_, timestamp_iso)
         with open(os.path.join(temp_dir, "manifest.json"), "w") as f:
             json.dump(manifest, f, indent=4)
             
-        metadata = create_metadata(backup_id, type_, timestamp_iso)
+        metadata = create_metadata(backupId, type_, timestamp_iso)
         if tag:
             metadata["notes"] = tag
             
@@ -218,7 +218,7 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
         save_registry(registry)
         
         duration = int((datetime.now() - start_time).total_seconds() * 1000)
-        _log("Backup", type_, "Success", duration, {"backup_id": backup_id, "path": rel_path})
+        _log("Backup", type_, "Success", duration, {"backupId": backupId, "path": rel_path})
         
         # Cleanup old backups depending on type (implement later in 14B)
         
@@ -246,9 +246,9 @@ def create_full_backup(tag="auto"):
 def get_all_backups():
     return load_registry()
 
-def verify_backup_integrity(backup_id):
+def verify_backup_integrity(backupId):
     registry = load_registry()
-    backup_meta = next((b for b in registry["backups"] if b["id"] == backup_id), None)
+    backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
     if not backup_meta:
         raise Exception("Backup not found in registry")
         
@@ -262,17 +262,17 @@ def verify_backup_integrity(backup_id):
         
     return True
 
-def restore_backup(backup_id):
+def restore_backup(backupId):
     start_time = datetime.now()
     try:
-        verify_backup_integrity(backup_id)
+        verify_backup_integrity(backupId)
         
         registry = load_registry()
-        backup_meta = next((b for b in registry["backups"] if b["id"] == backup_id))
+        backup_meta = next((b for b in registry["backups"] if b["id"] == backupId))
         abs_path = os.path.join(BACKUP_DIR, backup_meta["path"])
         
         # 1. Create Temporary Backup (Rollback Point)
-        temp_backup = create_backup(type_="Emergency", subtype="before_restore", tag=f"Before restoring {backup_id}")
+        temp_backup = create_backup(type_="Emergency", subtype="before_restore", tag=f"Before restoring {backupId}")
         temp_abs_path = os.path.join(BACKUP_DIR, temp_backup["path"])
         
         # 2. Extract Backup to staging
@@ -300,18 +300,18 @@ def restore_backup(backup_id):
         shutil.rmtree(staging_dir, ignore_errors=True)
         
         duration = int((datetime.now() - start_time).total_seconds() * 1000)
-        _log("Restore", "Full", "Success", duration, {"backup_id": backup_id})
+        _log("Restore", "Full", "Success", duration, {"backupId": backupId})
         return True
         
     except Exception as e:
         duration = int((datetime.now() - start_time).total_seconds() * 1000)
-        _log("Restore", "Full", "Failed", duration, {"error": str(e), "backup_id": backup_id})
+        _log("Restore", "Full", "Failed", duration, {"error": str(e), "backupId": backupId})
         raise e
 
-def delete_backup(backup_id):
+def delete_backup(backupId):
     registry = load_registry()
     for i, b in enumerate(registry["backups"]):
-        if b["id"] == backup_id:
+        if b["id"] == backupId:
             abs_path = os.path.join(BACKUP_DIR, b["path"])
             if os.path.exists(abs_path):
                 try:

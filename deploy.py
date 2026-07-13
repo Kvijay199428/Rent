@@ -47,7 +47,7 @@ for rel_dir in FRONTEND_DIRS:
     app_dir = os.path.join(LOCAL_DIR, *rel_dir.split("/"))
     if os.path.exists(app_dir):
         print(f"Building {app_dir}...")
-        result = subprocess.run("npm run build", cwd=app_dir, shell=True)
+        result = subprocess.run("npm install && npm run build", cwd=app_dir, shell=True)
         if result.returncode != 0:
             print(f"\nERROR: Build failed for {app_dir}")
             sys.exit(1)

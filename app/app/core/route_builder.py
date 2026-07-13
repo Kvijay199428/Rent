@@ -8,12 +8,12 @@ class RouteBuilder:
         return request.url_for(name, **kwargs)
 
     @staticmethod
-    def pdf(request, billno: str):
-        return request.url_for(Names.PDF_VIEW, billno=billno)
+    def pdf(request, billNo: str):
+        return request.url_for(Names.PDFVIEW, billNo=billNo)
 
     @staticmethod
     def public_tenant(request, token: str):
-        return request.url_for(Names.PUBLIC_TENANT_PROFILE_GET, view_token=token)
+        return request.url_for(Names.PUBLICTENANTPROFILEGET, viewToken=token)
 
     @staticmethod
     def static(request, path: str):

@@ -10,9 +10,9 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Tenant portal entry point - captures view_token */}
-      <Route path="/t/:view_token" element={<PublicTenantPage />} />
-      <Route path="/t/:view_token/*" element={<TenantPortal />} />
+      {/* Tenant portal entry point - captures viewToken */}
+      <Route path="/t/:viewToken" element={<PublicTenantPage />} />
+      <Route path="/t/:viewToken/*" element={<TenantPortal />} />
 
       {/* Legacy or direct access without token */}
       <Route path="/login" element={<PublicTenantPage />} />

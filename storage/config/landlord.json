@@ -12,6 +12,6 @@
     "mask_bank_account": true,
     "signature_text": "Authorized Signature",
     "signature_image": "",
-    "whatsapp_template": "Hello {tenant_name},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {bill_no}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n\nThank you!",
-    "whatsapp_bulk_template": "Hello {tenant_name},\n\nHere are your requested rent receipts:\n\n{bill_list}\n*Total Amount:* {currency}{total_amount}\n\nYou can view and download your receipts securely here: {link}\n\nThank you!"
+    "whatsapp_template": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {BillNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n\nThank you!",
+    "whatsapp_bulk_template": "Hello {tenantName},\n\nHere are your requested rent receipts:\n\n{bill_list}\n*Total Amount:* {currency}{total_amount}\n\nYou can view and download your receipts securely here: {link}\n\nThank you!"
 }

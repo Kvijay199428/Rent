@@ -9,7 +9,7 @@ from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_BILLING, name=Names.BILLING_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGEBILLING, name=Names.BILLINGPAGE, response_class=HTMLResponse)
 async def billing_page(request: Request):
     tenants = [t for t in load_tenants() if t.status == "Active"]
     theme = getattr(request.state, "theme", "system")

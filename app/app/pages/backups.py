@@ -6,7 +6,7 @@ from app.core.routes_manifest import Routes, Names, Templates
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_PAGE_BACKUPS, name=Names.BACKUPS_PAGE, response_class=HTMLResponse)
+@router.get(Routes.ADMINPAGEBACKUPS, name=Names.BACKUPSPAGE, response_class=HTMLResponse)
 async def backups_page(request: Request):
     theme = getattr(request.state, "theme", "system")
     return templates.TemplateResponse(

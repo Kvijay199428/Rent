@@ -7,20 +7,20 @@ export interface Tenant {
   phone?: string;
   email?: string;
   address?: string;
-  room_number?: string;
+  roomNumber?: string;
   occupation?: string;
   notes?: string;
   status: string;
   rent: number;
   water: number;
-  default_tank_water_charge: number;
-  electricity_rate: number;
-  previous_meter: number;
-  additional_person_charge: number;
-  security_deposit: number;
-  meter_id?: string;
-  view_token?: string;
-  tenant_pin?: string | null;
+  defaulttankWaterCharge: number;
+  electricityRate: number;
+  previousMeter: number;
+  additionalPersonCharge: number;
+  securityDeposit: number;
+  meterId?: string;
+  viewToken?: string;
+  tenantPin?: string | null;
   arrears: number;
 }
 
@@ -36,7 +36,7 @@ export interface Receipt {
   Rent: number;
   Additional: number;
   Water: number;
-  Tank_Water: number;
+  tankWater: number;
   Electricity: number;
   Total: number;
   PDF: string;
@@ -49,14 +49,14 @@ export interface Receipt {
   Archived_By: string;
   Deleted_Date: string;
   Additional_Persons: number;
-  Additional_Person_Rate: number;
+  additionalPersonRate: number;
   Receipt_Version: number;
   Generated_By: string;
-  Payment_Status: string;
-  Maintenance_Charge: number;
-  Maintenance_Desc: string;
-  Previous_Arrears: number;
-  Amount_Received: number;
+  paymentStatus: string;
+  MaintenanceCharge: number;
+  MaintenanceDesc: string;
+  previousArrears: number;
+  amountReceived: number;
 }
 
 export interface BillRequest {
@@ -64,17 +64,17 @@ export interface BillRequest {
   month: string;
   current_reading: number;
   additional_persons: number;
-  tank_water: number;
-  maintenance_charge: number;
-  maintenance_desc: string;
-  previous_arrears: number;
-  amount_received?: number;
-  payment_status: string;
+  tankWater: number;
+  MaintenanceCharge: number;
+  MaintenanceDesc: string;
+  previousArrears: number;
+  amountReceived?: number;
+  paymentStatus: string;
 }
 
 export interface PaymentStatusUpdate {
-  payment_status: string;
-  amount_received?: number;
+  paymentStatus: string;
+  amountReceived?: number;
 }
 
 export interface ConfigUpdate {
@@ -137,13 +137,13 @@ export interface DashboardStats {
 }
 
 export interface RecentBill {
-  billno: string;
-  tenant_name: string;
+  billNo: string;
+  tenantName: string;
   total: number;
-  amount_received: number;
+  amountReceived: number;
   month: string;
-  payment_status: string;
-  Previous_Arrears?: number;
+  paymentStatus: string;
+  previousArrears?: number;
 }
 
 export interface ImportPreviewResponse {
@@ -160,7 +160,7 @@ export interface ImportExecuteResponse {
 }
 
 export interface LoginRequest {
-  view_token: string;
+  viewToken: string;
   pin: string;
   remember_me: boolean;
 }
@@ -199,20 +199,20 @@ export interface ApiResponse<T = unknown> {
 //   phone?: string;
 //   email?: string;
 //   address?: string;
-//   room_number?: string;
+//   roomNumber?: string;
 //   occupation?: string;
 //   notes?: string;
 //   status: string;
 //   rent: number;
 //   water: number;
-//   default_tank_water_charge: number;
-//   electricity_rate: number;
-//   previous_meter: number;
-//   additional_person_charge: number;
-//   security_deposit: number;
-//   meter_id?: string;
-//   view_token?: string;
-//   tenant_pin?: string;
+//   defaulttankWaterCharge: number;
+//   electricityRate: number;
+//   previousMeter: number;
+//   additionalPersonCharge: number;
+//   securityDeposit: number;
+//   meterId?: string;
+//   viewToken?: string;
+//   tenantPin?: string;
 //   arrears: number;
 // }
 
@@ -227,18 +227,18 @@ export interface ApiResponse<T = unknown> {
 //   Rent: number;
 //   Additional: number;
 //   Water: number;
-//   Tank_Water: number;
+//   tankWater: number;
 //   Electricity: number;
 //   Total: number;
 //   Status: string;
-//   Payment_Status: string;
-//   Previous_Arrears: number;
-//   Amount_Received: number;
-//   Maintenance_Charge: number;
-//   Maintenance_Desc: string;
+//   paymentStatus: string;
+//   previousArrears: number;
+//   amountReceived: number;
+//   MaintenanceCharge: number;
+//   MaintenanceDesc: string;
 //   Additional_Persons: number;
 //   Archived_Date?: string;
-//   tenant_id?: number;
+//   tenantId?: number;
 // }
 
 // export interface DashboardStats {
@@ -263,21 +263,21 @@ export interface ApiResponse<T = unknown> {
 // }
 
 // export interface RecentBill {
-//   bill_no: string;
-//   tenant_name: string;
+//   BillNo: string;
+//   tenantName: string;
 //   month: string;
 //   total: number;
-//   previous_arrears: number;
-//   amount_received: number;
-//   payment_status: string;
+//   previousArrears: number;
+//   amountReceived: number;
+//   paymentStatus: string;
 // }
 
 export interface BillingConfig {
   rent: number;
   water: number;
-  electricity_rate: number;
-  previous_meter_reading: number;
-  additional_person_charge: number;
+  electricityRate: number;
+  previousMeter_reading: number;
+  additionalPersonCharge: number;
 }
 
 export interface LandlordConfig {

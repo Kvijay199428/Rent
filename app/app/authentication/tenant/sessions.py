@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from app.core.db import get_conn
 from app.authentication.common.utils import hash_pin
 
-def create_tenant_session(tenant_id: int, request, remember_me: bool):
+def create_tenant_session(tenantId: int, request, remember_me: bool):
     refresh_token = secrets.token_urlsafe(64)
     refresh_hash = hash_pin(refresh_token)
     
@@ -20,9 +20,9 @@ def create_tenant_session(tenant_id: int, request, remember_me: bool):
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO tenant_sessions
-            (session_id, tenant_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
+            (session_id, tenantId, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (session_id, tenant_id, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
+        """, (session_id, tenantId, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
         conn.commit()
         
     return session_id, refresh_token
@@ -37,9 +37,9 @@ def revoke_tenant_session_db(session_id: str):
         conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE session_id = ?", (now, session_id))
         conn.commit()
 
-def revoke_all_tenant_sessions(tenant_id: int):
+def revoke_all_tenant_sessions(tenantId: int):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE tenant_id = ?", (now, tenant_id))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE tenantId = ?", (now, tenantId))
         conn.commit()
 

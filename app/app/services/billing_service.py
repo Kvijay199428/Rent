@@ -10,132 +10,132 @@ from app.services.pdf_service import generate_professional_pdf
 
 from app.core.paths import DB_DIR, BACKUPS_DIR as BACKUP_DIR, RECEIPTS_DIR
 
-def get_bill_details(billno):
+def get_bill_details(billNo):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (billno,)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
     if row:
         return _row_to_dict(row)
     return None
 
-def resolve_payment_state(current_total, previous_arrears=0.0, amount_received=None):
-    current_total = float(current_total or 0)
-    previous_arrears = float(previous_arrears or 0)
-    grand_total = round(current_total + previous_arrears, 2)
-    received = round(float(amount_received or 0), 2)
+def resolve_payment_state(currentTotal, previousArrears=0.0, amountReceived=None):
+    currentTotal = float(currentTotal or 0)
+    previousArrears = float(previousArrears or 0)
+    grandTotal = round(currentTotal + previousArrears, 2)
+    received = round(float(amountReceived or 0), 2)
 
     if received <= 0:
         return {
-            "payment_status": "PENDING",
-            "grand_total": grand_total,
-            "amount_received": 0.0,
-            "balance_due": max(grand_total, 0.0),
-            "advance_amount": max(-grand_total, 0.0) if grand_total < 0 else 0.0
+            "paymentStatus": "PENDING",
+            "grandTotal": grandTotal,
+            "amountReceived": 0.0,
+            "balanceDue": max(grandTotal, 0.0),
+            "advanceAmount": max(-grandTotal, 0.0) if grandTotal < 0 else 0.0
         }
 
-    if received < grand_total:
+    if received < grandTotal:
         return {
-            "payment_status": "PARTIAL",
-            "grand_total": grand_total,
-            "amount_received": received,
-            "balance_due": round(grand_total - received, 2),
-            "advance_amount": 0.0
+            "paymentStatus": "PARTIAL",
+            "grandTotal": grandTotal,
+            "amountReceived": received,
+            "balanceDue": round(grandTotal - received, 2),
+            "advanceAmount": 0.0
         }
 
-    if received == grand_total:
+    if received == grandTotal:
         return {
-            "payment_status": "PAID",
-            "grand_total": grand_total,
-            "amount_received": received,
-            "balance_due": 0.0,
-            "advance_amount": 0.0
+            "paymentStatus": "PAID",
+            "grandTotal": grandTotal,
+            "amountReceived": received,
+            "balanceDue": 0.0,
+            "advanceAmount": 0.0
         }
 
     return {
-        "payment_status": "ADVANCE",
-        "grand_total": grand_total,
-        "amount_received": received,
-        "balance_due": 0.0,
-        "advance_amount": round(received - grand_total, 2)
+        "paymentStatus": "ADVANCE",
+        "grandTotal": grandTotal,
+        "amountReceived": received,
+        "balanceDue": 0.0,
+        "advanceAmount": round(received - grandTotal, 2)
     }
 
-# def update_payment_status(billno, requested_status, amount_received=None):
+# def update_paymentStatus(billNo, requestedStatus, amountReceived=None):
 #     from app.core.db import get_conn
 #     with get_conn() as conn:
-#         row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (billno,)).fetchone()
+#         row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
 #         if not row:
 #             raise ValueError("Receipt not found")
         
-#         current_total = float(row["total"])
-#         previous_arrears = float(row["previousarrears"])
+#         currentTotal = float(row["total"])
+#         previousArrears = float(row["previousarrears"])
         
 #         state = resolve_payment_state(
-#             current_total,
-#             previous_arrears=previous_arrears,
-#             amount_received=amount_received
+#             currentTotal,
+#             previousArrears=previousArrears,
+#             amountReceived=amountReceived
 #         )
-#         status = state["payment_status"]
-#         final_received = state["amount_received"]
+#         status = state["paymentStatus"]
+#         final_received = state["amountReceived"]
         
-#         if requested_status in ["PENDING", "PARTIAL"]:
-#             status = requested_status
+#         if requestedStatus in ["PENDING", "PARTIAL"]:
+#             status = requestedStatus
 
 #         conn.execute("""
 #             UPDATE receipts 
 #             SET paymentstatus = ?, amountreceived = ?
-#             WHERE billno = ?
-#         """, (status, final_received, billno))
+#             WHERE billNo = ?
+#         """, (status, final_received, billNo))
 #         conn.commit()
 #     return status
-def update_payment_status(billno, requested_status, amount_received=None):
+def update_paymentStatus(billNo, requestedStatus, amountReceived=None):
     from app.core.db import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (billno,)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         
-        current_total = float(row["total"])
-        previous_arrears = float(row["previousarrears"])
-        grand_total = round(current_total + previous_arrears, 2)
+        currentTotal = float(row["total"])
+        previousArrears = float(row["previousarrears"])
+        grandTotal = round(currentTotal + previousArrears, 2)
         
         # Determine final amount
-        if amount_received is None:
-            amount_received = grand_total if requested_status == "PAID" else 0.0
+        if amountReceived is None:
+            amountReceived = grandTotal if requestedStatus == "PAID" else 0.0
         
-        amount_received = round(float(amount_received), 2)
+        amountReceived = round(float(amountReceived), 2)
         
-        # VALIDATE: requested_status must match amount logic, OR auto-calculate
-        calculated_status = "PENDING"
-        if amount_received <= 0:
-            calculated_status = "PENDING"
-        elif amount_received < grand_total:
-            calculated_status = "PARTIAL"
-        elif amount_received == grand_total:
-            calculated_status = "PAID"
+        # VALIDATE: requestedStatus must match amount logic, OR auto-calculate
+        calculatedStatus = "PENDING"
+        if amountReceived <= 0:
+            calculatedStatus = "PENDING"
+        elif amountReceived < grandTotal:
+            calculatedStatus = "PARTIAL"
+        elif amountReceived == grandTotal:
+            calculatedStatus = "PAID"
         else:
-            calculated_status = "ADVANCE"
+            calculatedStatus = "ADVANCE"
         
         # Use requested status if it matches the amount logic, otherwise use calculated
         # This allows explicit control while preventing invalid combinations
-        final_status = requested_status
+        finalStatus = requestedStatus
         
         # Validate consistency (optional strict mode)
-        if requested_status == "PAID" and amount_received != grand_total:
-            raise ValueError(f"PAID status requires amount = {grand_total}, got {amount_received}")
-        if requested_status == "PARTIAL" and (amount_received <= 0 or amount_received >= grand_total):
-            raise ValueError(f"PARTIAL status requires 0 < amount < {grand_total}")
-        if requested_status == "ADVANCE" and amount_received <= grand_total:
-            raise ValueError(f"ADVANCE status requires amount > {grand_total}")
-        if requested_status == "PENDING" and amount_received != 0:
+        if requestedStatus == "PAID" and amountReceived != grandTotal:
+            raise ValueError(f"PAID status requires amount = {grandTotal}, got {amountReceived}")
+        if requestedStatus == "PARTIAL" and (amountReceived <= 0 or amountReceived >= grandTotal):
+            raise ValueError(f"PARTIAL status requires 0 < amount < {grandTotal}")
+        if requestedStatus == "ADVANCE" and amountReceived <= grandTotal:
+            raise ValueError(f"ADVANCE status requires amount > {grandTotal}")
+        if requestedStatus == "PENDING" and amountReceived != 0:
             raise ValueError("PENDING status requires amount = 0")
         
         conn.execute("""
             UPDATE receipts 
             SET paymentstatus = ?, amountreceived = ?
-            WHERE billno = ?
-        """, (final_status, amount_received, billno))
+            WHERE billNo = ?
+        """, (finalStatus, amountReceived, billNo))
         conn.commit()
     
-    return final_status
+    return finalStatus
     
 def _safe_float(val, default=0.0) -> float:
     try:
@@ -156,18 +156,18 @@ def _row_to_dict(row):
         row = dict(row)
         
     return {
-        "Bill": row.get("billno", ""),
+        "Bill": row.get("billNo", ""),
         "Date": row.get("date", ""),
         "Month": row.get("month", ""),
         "Tenant": row.get("tenant", ""),
-        "TenantId": row.get("tenant_id", 0) or 0,
+        "TenantId": row.get("tenantId", 0) or 0,
         "Previous": _safe_float(row.get("previous")),
         "Current": _safe_float(row.get("current")),
         "Units": _safe_float(row.get("units")),
         "Rent": _safe_float(row.get("rent")),
         "Additional": _safe_float(row.get("additional")),
         "Water": _safe_float(row.get("water")),
-        "Tank_Water": _safe_float(row.get("tankwater")),
+        "tankWater": _safe_float(row.get("tankWater")),
         "Electricity": _safe_float(row.get("electricity")),
         "Total": _safe_float(row.get("total")),
         "PDF": row.get("pdf", "") or "",
@@ -180,14 +180,14 @@ def _row_to_dict(row):
         "Archived_By": row.get("archivedby", "") or "",
         "Deleted_Date": row.get("deleteddate", "") or "",
         "Additional_Persons": _safe_int(row.get("additionalpersons")),
-        "Additional_Person_Rate": _safe_float(row.get("additionalpersonrate")),
+        "additionalPersonRate": _safe_float(row.get("additionalpersonrate")),
         "Receipt_Version": _safe_int(row.get("receiptversion")),
         "Generated_By": row.get("generatedby", "Admin") or "Admin",
-        "Payment_Status": row.get("paymentstatus", "PENDING") or "PENDING",
-        "Maintenance_Charge": _safe_float(row.get("maintenancecharge")),
-        "Maintenance_Desc": row.get("maintenancedesc", "") or "",
-        "Previous_Arrears": _safe_float(row.get("previousarrears")),
-        "Amount_Received": _safe_float(row.get("amountreceived")),
+        "paymentStatus": row.get("paymentstatus", "PENDING") or "PENDING",
+        "MaintenanceCharge": _safe_float(row.get("maintenancecharge")),
+        "MaintenanceDesc": row.get("maintenancedesc", "") or "",
+        "previousArrears": _safe_float(row.get("previousarrears")),
+        "amountReceived": _safe_float(row.get("amountreceived")),
     }
 
 def get_all_receipts():
@@ -195,34 +195,34 @@ def get_all_receipts():
         rows = conn.execute("SELECT * FROM receipts ORDER BY rowid DESC").fetchall()
     return [_row_to_dict(r) for r in rows]
 
-def get_receipt(billno):
+def get_receipt(billNo):
     receipts = get_all_receipts()
     for r in receipts:
-        if r["Bill"] == billno:
+        if r["Bill"] == billNo:
             return r
     return None
 
-def get_latest_receipt(tenant_name: str, exclude_bill_no: str = None):
+def get_latest_receipt(tenantName: str, exclude_BillNo: str = None):
     with get_conn() as conn:
         query = "SELECT * FROM receipts WHERE tenant COLLATE NOCASE = ? AND status != 'ARCHIVED'"
-        params = [tenant_name]
-        if exclude_bill_no:
-            query += " AND billno != ?"
-            params.append(exclude_bill_no)
+        params = [tenantName]
+        if exclude_BillNo:
+            query += " AND billNo != ?"
+            params.append(exclude_BillNo)
         query += " ORDER BY rowid DESC LIMIT 1"
         row = conn.execute(query, tuple(params)).fetchone()
     if row:
         return _row_to_dict(row)
     return None
 
-def resolve_previous_reading(tenant_name: str, exclude_bill_no: str = None) -> float:
+def resolve_previous_reading(tenantName: str, exclude_BillNo: str = None) -> float:
     from app.services.tenant_service import get_tenant_by_name
-    latest = get_latest_receipt(tenant_name, exclude_bill_no)
+    latest = get_latest_receipt(tenantName, exclude_BillNo)
     if latest:
         return float(latest.get("Current", 0) or 0)
-    tenant = get_tenant_by_name(tenant_name)
+    tenant = get_tenant_by_name(tenantName)
     if tenant:
-        return float(getattr(tenant, "previous_meter", 0) or 0)
+        return float(getattr(tenant, "previousMeter", 0) or 0)
     return 0.0
 
 def get_billing_months():
@@ -241,17 +241,17 @@ def get_billing_months():
         "months": months_list
     }
 
-def calculate_charges(current_reading, additional_persons, prev_reading, rent, water, tank_water, maintenance_charge, rate, add_person_charge):
+def calculate_charges(current_reading, additional_persons, prev_reading, rent, water, tankWater, MaintenanceCharge, rate, add_person_charge):
     units = max(0.0, current_reading - prev_reading)
     electricity = units * rate
     additional = additional_persons * add_person_charge
-    total = rent + additional + water + tank_water + maintenance_charge + electricity
+    total = rent + additional + water + tankWater + MaintenanceCharge + electricity
     
     return {
         "rent": rent,
         "water": water,
-        "tank_water": tank_water,
-        "maintenance_charge": maintenance_charge,
+        "tankWater": tankWater,
+        "MaintenanceCharge": MaintenanceCharge,
         "rate": rate,
         "additional": additional,
         "units": units,
@@ -260,8 +260,8 @@ def calculate_charges(current_reading, additional_persons, prev_reading, rent, w
         "previous": prev_reading
     }
 
-def create_bill(tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, 
-                maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
+def create_bill(tenantName, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
+                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING"):
     from app.core.db import get_conn
     from datetime import datetime
     from app.services.tenant_service import load_tenants
@@ -270,7 +270,7 @@ def create_bill(tenant_name, month, current_reading, additional_persons, tank_wa
     from app.services.pdf_service import generate_professional_pdf
     
     tenants = load_tenants()
-    tenant = next((t for t in tenants if t.name == tenant_name), None)
+    tenant = next((t for t in tenants if t.name == tenantName), None)
     if not tenant:
         raise ValueError("Tenant not found")
 
@@ -278,66 +278,66 @@ def create_bill(tenant_name, month, current_reading, additional_persons, tank_wa
     # Count existing receipts for THIS specific tenant
     with get_conn() as conn:
         tenant_receipt_count = conn.execute(
-            "SELECT COUNT(*) FROM receipts WHERE tenant_id = ?", 
+            "SELECT COUNT(*) FROM receipts WHERE tenantId = ?", 
             (tenant.id,)
         ).fetchone()[0]
     
-    # Format: T{tenant_id}-{sequence:03d}  e.g., T1-001, T1-002, T2-001
+    # Format: T{tenantId}-{sequence:03d}  e.g., T1-001, T1-002, T2-001
     receipt_seq = tenant_receipt_count + 1
-    billno = f"T{tenant.id}-{receipt_seq:03d}"
+    billNo = f"T{tenant.id}-{receipt_seq:03d}"
     
     current_date = datetime.now().strftime("%Y-%m-%d")
     
-    prev = resolve_previous_reading(tenant_name)
+    prev = resolve_previous_reading(tenantName)
     if prev > 0 and current_reading < prev:
         raise ValueError("Current meter reading cannot be less than previous reading.")
     
     charges = calculate_charges(
         current_reading, additional_persons, prev,
-        tenant.rent, tenant.water, tank_water, maintenance_charge,
-        tenant.electricity_rate, tenant.additional_person_charge
+        tenant.rent, tenant.water, tankWater, MaintenanceCharge,
+        tenant.electricityRate, tenant.additionalPersonCharge
     )
     
-    if payment_status == "PAID" and amount_received is None:
-        amount_received = charges["total"] + previous_arrears
-    elif amount_received is None:
-        amount_received = 0.0
+    if paymentStatus == "PAID" and amountReceived is None:
+        amountReceived = charges["total"] + previousArrears
+    elif amountReceived is None:
+        amountReceived = 0.0
     
-    pdf_filename = f"{billno}_{tenant_name.replace(' ', '_')}_{month.replace(' ', '_')}.pdf"
+    pdf_filename = f"{billNo}_{tenantName.replace(' ', '_')}_{month.replace(' ', '_')}.pdf"
     pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
     receipt_dict = {
-        "Bill": billno,
+        "Bill": billNo,
         "Date": current_date,
         "Month": month,
-        "Tenant": tenant_name,
+        "Tenant": tenantName,
         "Previous": prev,
         "Current": current_reading,
         "Units": charges["units"],
         "Rent": tenant.rent,
         "Additional": charges["additional"],
         "Water": tenant.water,
-        "Tank_Water": tank_water,
+        "tankWater": tankWater,
         "Electricity": charges["electricity"],
         "Total": charges["total"],
         "PDF": pdf_filename,
         "Tenant_Phone": tenant.phone,
         "Tenant_Company": tenant.company,
         "Tenant_Address": tenant.address,
-        "Rate": tenant.electricity_rate,
+        "Rate": tenant.electricityRate,
         "Status": "ACTIVE",
         "Archived_Date": "",
         "Archived_By": "",
         "Deleted_Date": "",
         "Additional_Persons": additional_persons,
-        "Additional_Person_Rate": tenant.additional_person_charge,
+        "additionalPersonRate": tenant.additionalPersonCharge,
         "Receipt_Version": 8,
         "Generated_By": "Admin",
-        "Payment_Status": payment_status,
-        "Maintenance_Charge": maintenance_charge,
-        "Maintenance_Desc": maintenance_desc,
-        "Previous_Arrears": previous_arrears,
-        "Amount_Received": amount_received
+        "paymentStatus": paymentStatus,
+        "MaintenanceCharge": MaintenanceCharge,
+        "MaintenanceDesc": MaintenanceDesc,
+        "previousArrears": previousArrears,
+        "amountReceived": amountReceived
     }
     
     try:
@@ -349,26 +349,26 @@ def create_bill(tenant_name, month, current_reading, additional_persons, tank_wa
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO receipts (
-                billno, date, month, tenant_id, tenant, previous, current, units, rent,
-                additional, water, tankwater, electricity, total, pdf,
+                billNo, date, month, tenantId, tenant, previous, current, units, rent,
+                additional, water, tankWater, electricity, total, pdf,
                 tenantphone, tenantcompany, tenantaddress, rate, status,
                 archiveddate, archivedby, deleteddate, additionalpersons,
                 additionalpersonrate, receiptversion, generatedby, paymentstatus,
                 maintenancecharge, maintenancedesc, previousarrears, amountreceived
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
-            billno, current_date, month, tenant.id, tenant_name, prev, current_reading,
-            charges["units"], tenant.rent, charges["additional"], tenant.water, tank_water,
+            billNo, current_date, month, tenant.id, tenantName, prev, current_reading,
+            charges["units"], tenant.rent, charges["additional"], tenant.water, tankWater,
             charges["electricity"], charges["total"], pdf_filename, tenant.phone, tenant.company,
-            tenant.address, tenant.electricity_rate, "ACTIVE", "", "", "",
-            additional_persons, tenant.additional_person_charge, 8, "Admin",
-            payment_status, maintenance_charge, maintenance_desc, previous_arrears, amount_received
+            tenant.address, tenant.electricityRate, "ACTIVE", "", "", "",
+            additional_persons, tenant.additionalPersonCharge, 8, "Admin",
+            paymentStatus, MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived
         ))
         conn.commit()
 
     return receipt_dict
-def update_bill(billno, tenant_name, month, current_reading, additional_persons, tank_water, maintenance_charge, 
-                maintenance_desc, previous_arrears=0.0, amount_received=None, payment_status="PENDING"):
+def update_bill(billNo, tenantName, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
+                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING"):
     from app.core.db import get_conn
     from app.services.tenant_service import load_tenants
     from app.services.pdf_service import generate_professional_pdf
@@ -376,13 +376,13 @@ def update_bill(billno, tenant_name, month, current_reading, additional_persons,
     from app.core.paths import RECEIPTS_DIR
     
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE billno = ?", (billno,)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         old_receipt = dict(row)
 
     tenants = load_tenants()
-    tenant = next((t for t in tenants if t.name == tenant_name), None)
+    tenant = next((t for t in tenants if t.name == tenantName), None)
     if not tenant:
         raise ValueError("Tenant not found")
         
@@ -392,50 +392,50 @@ def update_bill(billno, tenant_name, month, current_reading, additional_persons,
         
     charges = calculate_charges(
         current_reading, additional_persons, prev,
-        tenant.rent, tenant.water, tank_water, maintenance_charge,
-        tenant.electricity_rate, tenant.additional_person_charge
+        tenant.rent, tenant.water, tankWater, MaintenanceCharge,
+        tenant.electricityRate, tenant.additionalPersonCharge
     )
     
-    if payment_status == "PAID" and amount_received is None:
-        amount_received = charges["total"] + previous_arrears
-    elif amount_received is None:
-        amount_received = 0.0
+    if paymentStatus == "PAID" and amountReceived is None:
+        amountReceived = charges["total"] + previousArrears
+    elif amountReceived is None:
+        amountReceived = 0.0
         
-    pdf_filename = old_receipt.get("pdf", f"{billno}_{tenant_name.replace(' ', '_')}_{month.replace(' ', '_')}.pdf")
+    pdf_filename = old_receipt.get("pdf", f"{billNo}_{tenantName.replace(' ', '_')}_{month.replace(' ', '_')}.pdf")
     pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
     updated_dict = {
-        "Bill": billno,
+        "Bill": billNo,
         "Date": old_receipt["date"],
         "Month": month,
-        "Tenant": tenant_name,
+        "Tenant": tenantName,
         "Previous": old_receipt["previous"],
         "Current": current_reading,
         "Units": charges["units"],
         "Rent": tenant.rent,
         "Additional": charges["additional"],
         "Water": tenant.water,
-        "Tank_Water": tank_water,
+        "tankWater": tankWater,
         "Electricity": charges["electricity"],
         "Total": charges["total"],
         "PDF": pdf_filename,
         "Tenant_Phone": tenant.phone,
         "Tenant_Company": tenant.company,
         "Tenant_Address": tenant.address,
-        "Rate": tenant.electricity_rate,
+        "Rate": tenant.electricityRate,
         "Status": old_receipt["status"],
         "Archived_Date": old_receipt["archiveddate"],
         "Archived_By": old_receipt["archivedby"],
         "Deleted_Date": old_receipt["deleteddate"],
         "Additional_Persons": additional_persons,
-        "Additional_Person_Rate": tenant.additional_person_charge,
+        "additionalPersonRate": tenant.additionalPersonCharge,
         "Receipt_Version": old_receipt.get("receiptversion", 8),
         "Generated_By": old_receipt.get("generatedby", "Admin"),
-        "Payment_Status": payment_status,
-        "Maintenance_Charge": maintenance_charge,
-        "Maintenance_Desc": maintenance_desc,
-        "Previous_Arrears": previous_arrears,
-        "Amount_Received": amount_received
+        "paymentStatus": paymentStatus,
+        "MaintenanceCharge": MaintenanceCharge,
+        "MaintenanceDesc": MaintenanceDesc,
+        "previousArrears": previousArrears,
+        "amountReceived": amountReceived
     }
     
     try:
@@ -447,53 +447,53 @@ def update_bill(billno, tenant_name, month, current_reading, additional_persons,
     with get_conn() as conn:
         conn.execute("""
             UPDATE receipts SET
-                month = ?, tenant_id = ?, tenant = ?, current = ?, units = ?, rent = ?,
-                additional = ?, water = ?, tankwater = ?, electricity = ?, total = ?,
+                month = ?, tenantId = ?, tenant = ?, current = ?, units = ?, rent = ?,
+                additional = ?, water = ?, tankWater = ?, electricity = ?, total = ?,
                 pdf = ?, tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?,
                 additionalpersons = ?, additionalpersonrate = ?, paymentstatus = ?,
                 maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
-            WHERE billno = ?
+            WHERE billNo = ?
         """, (
-            month, tenant.id, tenant_name, current_reading, charges["units"], tenant.rent,
-            charges["additional"], tenant.water, tank_water, charges["electricity"], charges["total"],
-            pdf_filename, tenant.phone, tenant.company, tenant.address, tenant.electricity_rate,
-            additional_persons, tenant.additional_person_charge, payment_status,
-            maintenance_charge, maintenance_desc, previous_arrears, amount_received,
-            billno
+            month, tenant.id, tenantName, current_reading, charges["units"], tenant.rent,
+            charges["additional"], tenant.water, tankWater, charges["electricity"], charges["total"],
+            pdf_filename, tenant.phone, tenant.company, tenant.address, tenant.electricityRate,
+            additional_persons, tenant.additionalPersonCharge, paymentStatus,
+            MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived,
+            billNo
         ))
         conn.commit()
 
     return updated_dict
-def archive_bill(billno):
+def archive_bill(billNo):
     from app.core.db import get_conn
     from datetime import datetime
     with get_conn() as conn:
         conn.execute("""
             UPDATE receipts SET status = 'ARCHIVED', archiveddate = ?, archivedby = 'Admin'
-            WHERE billno = ? AND status != 'ARCHIVED'
-        """, (datetime.now().strftime("%Y-%m-%d"), billno))
+            WHERE billNo = ? AND status != 'ARCHIVED'
+        """, (datetime.now().strftime("%Y-%m-%d"), billNo))
         conn.commit()
-    return get_receipt(billno)
+    return get_receipt(billNo)
 
-def restore_bill(billno):
+def restore_bill(billNo):
     from app.core.db import get_conn
     with get_conn() as conn:
         conn.execute("""
             UPDATE receipts SET status = 'ACTIVE', archiveddate = '', archivedby = ''
-            WHERE billno = ? AND status != 'ACTIVE'
-        """, (billno,))
+            WHERE billNo = ? AND status != 'ACTIVE'
+        """, (billNo,))
         conn.commit()
-    return get_receipt(billno)
+    return get_receipt(billNo)
 
-def delete_bill(billno):
+def delete_bill(billNo):
     from app.core.db import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT status FROM receipts WHERE billno = ?", (billno,)).fetchone()
+        row = conn.execute("SELECT status FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         if row["status"] != "ARCHIVED":
             raise ValueError("Only archived receipts can be permanently deleted.")
-        conn.execute("DELETE FROM receipts WHERE billno = ?", (billno,))
+        conn.execute("DELETE FROM receipts WHERE billNo = ?", (billNo,))
         conn.commit()
 def get_dashboard_stats():
     billing_conf = config.get("billing", {})
@@ -544,10 +544,10 @@ def get_dashboard_stats():
         except ValueError:
             pass
             
-        status = r.get("Payment_Status", "PENDING")
-        gross_amount = float(r.get("Total", 0) or 0) + float(r.get("Previous_Arrears", 0) or 0)
+        status = r.get("paymentStatus", "PENDING")
+        gross_amount = float(r.get("Total", 0) or 0) + float(r.get("previousArrears", 0) or 0)
 
-        raw_recv = r.get("Amount_Received")
+        raw_recv = r.get("amountReceived")
         received = float(raw_recv) if raw_recv not in (None, "") else (gross_amount if status == "PAID" else 0.0)
         outstanding = max(gross_amount - received, 0.0)
 
@@ -595,13 +595,13 @@ def get_dashboard_stats():
     recent_bills = []
     for r in reversed(active_receipts[-5:]):
         recent_bills.append({
-            "billno": r["Bill"],
-            "tenant_name": r["Tenant"],
-            "total": float(r.get("Total", 0)) + float(r.get("Previous_Arrears", 0)),
-            "amount_received": float(r.get("Amount_Received", 0) or 0),
+            "billNo": r["Bill"],
+            "tenantName": r["Tenant"],
+            "total": float(r.get("Total", 0)) + float(r.get("previousArrears", 0)),
+            "amountReceived": float(r.get("amountReceived", 0) or 0),
             "month": r["Month"],
-            "payment_status": r.get("Payment_Status", "PENDING"),
-            "Previous_Arrears": float(r.get("Previous_Arrears", 0))
+            "paymentStatus": r.get("paymentStatus", "PENDING"),
+            "previousArrears": float(r.get("previousArrears", 0))
         })
         
     revenue_chart_data = {m: 0.0 for m in months_names}
@@ -611,7 +611,7 @@ def get_dashboard_stats():
         try:
             r_month, r_year = r["Month"].split()
             if r_year == str(current_year) and r_month in revenue_chart_data:
-                revenue_chart_data[r_month] += float(r.get("Amount_Received", r.get("Total", 0)))
+                revenue_chart_data[r_month] += float(r.get("amountReceived", r.get("Total", 0)))
                 electricity_chart_data[r_month] += float(r.get("Units", 0.0))
         except Exception:
             pass
@@ -659,55 +659,55 @@ def save_all_receipts(receipts_list):
     
     with get_conn() as conn:
         for r in receipts_list:
-            tenant_name = r.get("Tenant", "")
-            tenant = tenant_map.get(tenant_name.lower())
-            tenant_id = tenant.id if tenant else None
+            tenantName = r.get("Tenant", "")
+            tenant = tenant_map.get(tenantName.lower())
+            tenantId = tenant.id if tenant else None
             
-            billno = r.get("Bill")
-            if not billno:
+            billNo = r.get("Bill")
+            if not billNo:
                 continue
                 
-            exists = conn.execute("SELECT 1 FROM receipts WHERE billno = ?", (billno,)).fetchone()
+            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
             
             if exists:
                 conn.execute("""
                     UPDATE receipts SET
-                        date = ?, month = ?, tenant_id = ?, tenant = ?, previous = ?, current = ?, units = ?, rent = ?,
-                        additional = ?, water = ?, tankwater = ?, electricity = ?, total = ?, pdf = ?,
+                        date = ?, month = ?, tenantId = ?, tenant = ?, previous = ?, current = ?, units = ?, rent = ?,
+                        additional = ?, water = ?, tankWater = ?, electricity = ?, total = ?, pdf = ?,
                         tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?, status = ?,
                         archiveddate = ?, archivedby = ?, deleteddate = ?, additionalpersons = ?,
                         additionalpersonrate = ?, receiptversion = ?, generatedby = ?, paymentstatus = ?,
                         maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
-                    WHERE billno = ?
+                    WHERE billNo = ?
                 """, (
-                    r.get("Date", ""), r.get("Month", ""), tenant_id, tenant_name, r.get("Previous", 0), r.get("Current", 0),
-                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("Tank_Water", 0),
+                    r.get("Date", ""), r.get("Month", ""), tenantId, tenantName, r.get("Previous", 0), r.get("Current", 0),
+                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("tankWater", 0),
                     r.get("Electricity", 0), r.get("Total", 0), r.get("PDF", ""), r.get("Tenant_Phone", ""),
                     r.get("Tenant_Company", ""), r.get("Tenant_Address", ""), r.get("Rate", 0), r.get("Status", "ACTIVE"),
                     r.get("Archived_Date", ""), r.get("Archived_By", ""), r.get("Deleted_Date", ""), r.get("Additional_Persons", 0),
-                    r.get("Additional_Person_Rate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
-                    r.get("Payment_Status", "PENDING"), r.get("Maintenance_Charge", 0), r.get("Maintenance_Desc", ""),
-                    r.get("Previous_Arrears", 0), r.get("Amount_Received", 0), billno
+                    r.get("additionalPersonRate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
+                    r.get("paymentStatus", "PENDING"), r.get("MaintenanceCharge", 0), r.get("MaintenanceDesc", ""),
+                    r.get("previousArrears", 0), r.get("amountReceived", 0), billNo
                 ))
             else:
                 conn.execute("""
                     INSERT INTO receipts (
-                        billno, date, month, tenant_id, tenant, previous, current, units, rent,
-                        additional, water, tankwater, electricity, total, pdf,
+                        billNo, date, month, tenantId, tenant, previous, current, units, rent,
+                        additional, water, tankWater, electricity, total, pdf,
                         tenantphone, tenantcompany, tenantaddress, rate, status,
                         archiveddate, archivedby, deleteddate, additionalpersons,
                         additionalpersonrate, receiptversion, generatedby, paymentstatus,
                         maintenancecharge, maintenancedesc, previousarrears, amountreceived
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
-                    billno, r.get("Date", ""), r.get("Month", ""), tenant_id, tenant_name, r.get("Previous", 0), r.get("Current", 0),
-                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("Tank_Water", 0),
+                    billNo, r.get("Date", ""), r.get("Month", ""), tenantId, tenantName, r.get("Previous", 0), r.get("Current", 0),
+                    r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("tankWater", 0),
                     r.get("Electricity", 0), r.get("Total", 0), r.get("PDF", ""), r.get("Tenant_Phone", ""),
                     r.get("Tenant_Company", ""), r.get("Tenant_Address", ""), r.get("Rate", 0), r.get("Status", "ACTIVE"),
                     r.get("Archived_Date", ""), r.get("Archived_By", ""), r.get("Deleted_Date", ""), r.get("Additional_Persons", 0),
-                    r.get("Additional_Person_Rate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
-                    r.get("Payment_Status", "PENDING"), r.get("Maintenance_Charge", 0), r.get("Maintenance_Desc", ""),
-                    r.get("Previous_Arrears", 0), r.get("Amount_Received", 0)
+                    r.get("additionalPersonRate", 0), r.get("Receipt_Version", 8), r.get("Generated_By", "Import"),
+                    r.get("paymentStatus", "PENDING"), r.get("MaintenanceCharge", 0), r.get("MaintenanceDesc", ""),
+                    r.get("previousArrears", 0), r.get("amountReceived", 0)
                 ))
         conn.commit()
 

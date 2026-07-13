@@ -6,11 +6,11 @@ TENANT_JWT_SECRET = os.environ.get("TENANT_JWT_SECRET", "REPLACE_WITH_TENANT_SEC
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 
-def create_tenant_access_token(tenant_id: int, session_id: str) -> str:
+def create_tenant_access_token(tenantId: int, session_id: str) -> str:
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {
-        "sub": str(tenant_id),
-        "tenant_id": tenant_id,
+        "sub": str(tenantId),
+        "tenantId": tenantId,
         "sid": session_id,
         "role": "tenant",
         "type": "access",

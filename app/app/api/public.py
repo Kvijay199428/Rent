@@ -24,7 +24,7 @@ from app.services.tenant_service import (
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
+    get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
 
@@ -33,11 +33,11 @@ router = APIRouter()
 
 from app.authentication.tenant.middleware import get_current_tenant
 
-# @router.get("/t/api/{view_token}/profile", name=Names.PUBLIC_TENANT_PROFILE_GET)
-@router.get(Routes.TENANT_API_PROFILE_GET, name=Names.PUBLIC_TENANT_PROFILE_GET)
-async def public_tenant_profile_json(view_token: str, request: Request):
+# @router.get("/t/api/{viewToken}/profile", name=Names.PUBLICTENANTPROFILEGET)
+@router.get(Routes.TENANTAPIPROFILEGET, name=Names.PUBLICTENANTPROFILEGET)
+async def public_tenant_profile_json(viewToken: str, request: Request):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
@@ -48,7 +48,7 @@ async def public_tenant_profile_json(view_token: str, request: Request):
         from app.authentication.tenant.sessions import get_tenant_session_db
         try:
             payload = decode_tenant_access_token(token)
-            if payload.get("role") == "tenant" and int(payload.get("tenant_id") or payload.get("sub")) == tenant.id:
+            if payload.get("role") == "tenant" and int(payload.get("tenantId") or payload.get("sub")) == tenant.id:
                 session_id = payload.get("sid")
                 if get_tenant_session_db(session_id):
                     unlocked = True
@@ -58,7 +58,7 @@ async def public_tenant_profile_json(view_token: str, request: Request):
     base_info = {
         "id": tenant.id,
         "name": getattr(tenant, "name", ""),
-        "view_token": view_token,
+        "viewToken": viewToken,
         "unlocked": unlocked
     }
     
@@ -79,7 +79,7 @@ async def public_tenant_profile_json(view_token: str, request: Request):
             "tenant": base_info
         }
 
-@router.get(Routes.TENANT_API_AUTH_PUBLIC_KEY, name=Names.TENANT_PUBLIC_KEY)
+@router.get(Routes.TENANTAPIAUTHPUBLICKEY, name=Names.TENANTPUBLICKEY)
 async def get_public_key():
     from app.encryption import get_public_key_pem
     return {"publicKey": get_public_key_pem()}
@@ -92,10 +92,10 @@ class EncryptedLoginRequest(BaseModel):
     encryptedData: str     # Base64-encoded AES-GCM encrypted payload
     nonce: str             # Base64-encoded nonce
 
-@router.post(Routes.TENANT_API_AUTH_LOGIN, name=Names.TENANT_LOGIN)
-async def public_tenant_login(view_token: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
+@router.post(Routes.TENANTAPIAUTHLOGIN, name=Names.TENANTLOGIN)
+async def public_tenant_login(viewToken: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
 
@@ -106,9 +106,9 @@ async def public_tenant_login(view_token: str, request: Request, response: Respo
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted payload")
 
-    if getattr(tenant, "tenant_pin", None) != pin:
+    if getattr(tenant, "tenantPin", None) != pin:
         from app.authentication.common.utils import verify_pin
-        if not verify_pin(pin, getattr(tenant, "tenant_pin", "")):
+        if not verify_pin(pin, getattr(tenant, "tenantPin", "")):
             raise HTTPException(status_code=401, detail="Invalid PIN")
 
     from app.authentication.tenant.sessions import create_tenant_session
@@ -134,9 +134,9 @@ async def public_tenant_login(view_token: str, request: Request, response: Respo
         }
     }
 
-@router.get(Routes.TENANT_API_PDF_VIEW, name=Names.TENANT_PDF_VIEW)
-async def tenant_view_pdf(billno: str, principal = Depends(get_current_tenant)):
-    receipt = get_receipt(billno)
+@router.get(Routes.TENANTAPIPDFVIEW, name=Names.TENANTPDFVIEW)
+async def tenant_view_pdf(billNo: str, principal = Depends(get_current_tenant)):
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
     
@@ -152,13 +152,13 @@ async def tenant_view_pdf(billno: str, principal = Depends(get_current_tenant)):
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
     
     response = StreamingResponse(iter([pdf_stream.getvalue()]), media_type='application/pdf')
-    response.headers["Content-Disposition"] = f"inline; filename=receipt_{billno}.pdf"
+    response.headers["Content-Disposition"] = f"inline; filename=receipt_{billNo}.pdf"
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
-@router.get(Routes.TENANT_API_PDF_DOWNLOAD, name=Names.TENANT_PDF_DOWNLOAD)
-async def tenant_download_pdf(billno: str, principal = Depends(get_current_tenant)):
-    receipt = get_receipt(billno)
+@router.get(Routes.TENANTAPIPDFDOWNLOAD, name=Names.TENANTPDFDOWNLOAD)
+async def tenant_download_pdf(billNo: str, principal = Depends(get_current_tenant)):
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
     
@@ -168,12 +168,12 @@ async def tenant_download_pdf(billno: str, principal = Depends(get_current_tenan
     if not tenant or receipt.get("Tenant") != tenant.name:
         raise HTTPException(status_code=403, detail="Access denied")
         
-    tenant_name = receipt.get("Tenant", "Unknown").replace(" ", "_")
+    tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
         formatted_date = datetime.strptime(receipt.get("Date", ""), "%d %B %Y").strftime("%Y%m%d")
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
-    custom_filename = f"{tenant_name}_{formatted_date}_{billno}.pdf"
+    custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
     from app.services.pdf_service import generate_professional_pdf
     landlord_conf = config.get("landlord", {})
@@ -184,9 +184,9 @@ async def tenant_download_pdf(billno: str, principal = Depends(get_current_tenan
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
     return response
 
-@router.post(Routes.TENANT_API_KYC_UPLOAD, name=Names.PUBLIC_TENANT_KYC_UPLOAD)
+@router.post(Routes.TENANTAPIKYCUPLOAD, name=Names.PUBLICTENANTKYCUPLOAD)
 async def public_tenant_kyc_upload(
-    view_token: str, 
+    viewToken: str, 
     name: str = Form(...), 
     mobile: str = Form(...),
     aadhaar_front: Optional[UploadFile] = File(None),
@@ -197,19 +197,19 @@ async def public_tenant_kyc_upload(
     principal = Depends(get_current_tenant)
 ):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     if not aadhaar_combined and not (aadhaar_front and aadhaar_back):
         raise HTTPException(status_code=400, detail="Please upload either a Combined Aadhaar file, or both Front and Back files.")
         
-    occupant_uuid = str(uuid.uuid4())
+    occupantUuid = str(uuid.uuid4())
     
     async def save_kyc_img(file_obj: UploadFile, side: str):
         if not file_obj or not file_obj.filename: return ""
         ext = file_obj.filename.split('.')[-1] if '.' in file_obj.filename else 'jpg'
-        filename = f"{tenant.id}_{occupant_uuid}_{side}.{ext}"
+        filename = f"{tenant.id}_{occupantUuid}_{side}.{ext}"
         os.makedirs(KYC_DIR, exist_ok=True)
         file_path = os.path.join(KYC_DIR, filename)
         with open(file_path, "wb") as f:
@@ -224,7 +224,7 @@ async def public_tenant_kyc_upload(
         
     now = datetime.now()
     save_occupant(tenant.id, {
-        "uuid": occupant_uuid,
+        "uuid": occupantUuid,
         "name": name,
         "mobile": mobile,
         "status": "Active",
@@ -239,26 +239,26 @@ async def public_tenant_kyc_upload(
     
     return {"status": "success", "message": "KYC uploaded successfully"}
 
-@router.put(Routes.TENANT_API_KYC_MARK_INACTIVE, name=Names.PUBLIC_TENANT_KYC_MARK_INACTIVE)
-async def public_tenant_kyc_mark_inactive(view_token: str, occupant_uuid: str, principal = Depends(get_current_tenant)):
+@router.put(Routes.TENANTAPIKYCMARKINACTIVE, name=Names.PUBLICTENANTKYCMARKINACTIVE)
+async def public_tenant_kyc_mark_inactive(viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid link.")
         
     from app.services.tenant_service import update_occupant_status
-    update_occupant_status(occupant_uuid, "Inactive")
+    update_occupant_status(occupantUuid, "Inactive")
     return {"status": "success"}
 
-@router.delete(Routes.TENANT_API_KYC_DELETE, name=Names.PUBLIC_TENANT_KYC_DELETE)
-async def public_tenant_kyc_delete(view_token: str, occupant_uuid: str, principal = Depends(get_current_tenant)):
+@router.delete(Routes.TENANTAPIKYCDELETE, name=Names.PUBLICTENANTKYCDELETE)
+async def public_tenant_kyc_delete(viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "view_token", "") == view_token), None)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     occupants = get_occupants(tenant.id)
-    target = next((o for o in occupants if o.get("Occupant UUID") == occupant_uuid), None)
+    target = next((o for o in occupants if o.get("Occupant UUID") == occupantUuid), None)
     
     if target:
         doc_keys = ["Aadhaar Front", "Aadhaar Back", "Aadhaar Combined", "Emp Front", "Emp Back"]
@@ -272,10 +272,10 @@ async def public_tenant_kyc_delete(view_token: str, occupant_uuid: str, principa
                     except Exception:
                         pass
             
-    delete_occupant(occupant_uuid)
+    delete_occupant(occupantUuid)
     return {"status": "success"}
 
-@router.get(Routes.TENANT_API_KYC_GET_FILE, name=Names.GET_KYC_FILE)
+@router.get(Routes.TENANTAPIKYCGETFILE, name=Names.GETKYCFILE)
 async def tenant_public_get_kyc_file(filename: str, principal = Depends(get_current_tenant)):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:

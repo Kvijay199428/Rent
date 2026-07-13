@@ -15,7 +15,7 @@ interface GroupedReceipts {
   };
 }
 
-export default function ArchivePage() {
+export default function ARCHIVEPAGE() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -178,8 +178,8 @@ export default function ArchivePage() {
         })
       )}
 
-      <PDFPreviewModal billno={previewBill} onClose={() => setPreviewBill(null)} />
-      <EditBillModal billno={editBill} onClose={() => setEditBill(null)} onSaved={loadReceipts} />
+      <PDFPreviewModal billNo={previewBill} onClose={() => setPreviewBill(null)} />
+      <EditBillModal billNo={editBill} onClose={() => setEditBill(null)} onSaved={loadReceipts} />
     </div>
   );
 }

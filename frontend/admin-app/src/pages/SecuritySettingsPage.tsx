@@ -42,7 +42,7 @@ export default function SecuritySettingsPage() {
 
   const loadTOTPData = async () => {
     try {
-      const result: TOTPResponse = await apiGet(ROUTES.ADMIN_API_TOTP_QR);
+      const result: TOTPResponse = await apiGet(ROUTES.ADMINAPITOTPQR);
       if (result.status === 'success') {
         setTotpData(result.totp);
       }
@@ -65,7 +65,7 @@ export default function SecuritySettingsPage() {
     setLoading(true);
 
     try {
-      const result: TOTPResponse = await apiPost(ROUTES.ADMIN_API_TOTP_REGENERATE, {
+      const result: TOTPResponse = await apiPost(ROUTES.ADMINAPITOTPREGENERATE, {
         password: password,
       });
 

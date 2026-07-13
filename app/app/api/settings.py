@@ -12,7 +12,7 @@ from app.services.backup_service import create_full_backup
 
 router = APIRouter(tags=["Settings"])
 
-@router.get(Routes.ADMIN_API_CONFIG_GET, name=Names.API_GET_CONFIG)
+@router.get(Routes.ADMINAPICONFIGGET, name=Names.APIGETCONFIG)
 async def api_get_config():
     return {
         "landlord": config.get("landlord", {}),
@@ -22,7 +22,7 @@ async def api_get_config():
         "whatsapp": config.get("whatsapp", {})
     }
 
-@router.post(Routes.ADMIN_API_SETTINGS_UPLOAD_SIGNATURE, name=Names.API_UPLOAD_SIGNATURE)
+@router.post(Routes.ADMINAPISETTINGSUPLOADSIGNATURE, name=Names.APIUPLOADSIGNATURE)
 async def api_upload_signature(file: UploadFile = File(...)):
     sys_conf = config.get("system", {})
     max_mb = config.get("system.limits.max_upload_size_mb", 2)
@@ -40,7 +40,7 @@ async def api_upload_signature(file: UploadFile = File(...)):
 
     return {"status": "success", "path": filename}
 
-@router.delete(Routes.ADMIN_API_SETTINGS_DELETE_SIGNATURE, name=Names.API_DELETE_SIGNATURE)
+@router.delete(Routes.ADMINAPISETTINGSDELETESIGNATURE, name=Names.APIDELETESIGNATURE)
 async def api_delete_signature():
     delete_signature()
     config.save("landlord", {"signature_image": ""})
@@ -52,7 +52,7 @@ class ConfigUpdateModel(BaseModel):
     whatsapp: dict = {}
     backup: dict = {}
 
-@router.post(Routes.ADMIN_API_CONFIG_UPDATE, name=Names.UPDATE_CONFIG)
+@router.post(Routes.ADMINAPICONFIGUPDATE, name=Names.UPDATECONFIG)
 async def update_config(data: ConfigUpdateModel, background_tasks: BackgroundTasks):
     background_tasks.add_task(create_full_backup, tag="settings_change")
 
@@ -67,7 +67,7 @@ async def update_config(data: ConfigUpdateModel, background_tasks: BackgroundTas
 
     return {"status": "success"}
 
-@router.post(Routes.ADMIN_API_CONFIG_THEME, name=Names.UPDATE_THEME)
+@router.post(Routes.ADMINAPICONFIGTHEME, name=Names.UPDATETHEME)
 async def update_theme(data: dict):
     theme = data.get("theme", "system")
     config.save("ui", {"theme": theme})

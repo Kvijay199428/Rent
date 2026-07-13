@@ -19,7 +19,7 @@ from app.services.tenant_service import (
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
-    get_dashboard_stats, archive_bill, restore_bill, update_payment_status
+    get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
 
@@ -29,19 +29,19 @@ router = APIRouter()
 from app.authentication.admin.middleware import get_current_admin_api
 from datetime import datetime
 
-@router.get(Routes.ADMIN_API_PDF_DOWNLOAD, name=Names.PDF_DOWNLOAD)
-async def download_pdf(billno: str, admin = Depends(get_current_admin_api)):
-    billno = billno
-    receipt = get_receipt(billno)
+@router.get(Routes.ADMINAPIPDFDOWNLOAD, name=Names.PDFDOWNLOAD)
+async def download_pdf(billNo: str, admin = Depends(get_current_admin_api)):
+    billNo = billNo
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
         
-    tenant_name = receipt.get("Tenant", "Unknown").replace(" ", "_")
+    tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
         formatted_date = datetime.strptime(receipt.get("Date", ""), "%d %B %Y").strftime("%Y%m%d")
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
-    custom_filename = f"{tenant_name}_{formatted_date}_{billno}.pdf"
+    custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
     from app.services.pdf_service import generate_professional_pdf
     landlord_conf = config.get("landlord", {})
@@ -52,19 +52,19 @@ async def download_pdf(billno: str, admin = Depends(get_current_admin_api)):
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
     return response
 
-@router.get(Routes.ADMIN_API_PDF_VIEW, name=Names.PDF_VIEW)
-async def view_pdf(billno: str, admin = Depends(get_current_admin_api)):
-    billno = billno
-    receipt = get_receipt(billno)
+@router.get(Routes.ADMINAPIPDFVIEW, name=Names.PDFVIEW)
+async def view_pdf(billNo: str, admin = Depends(get_current_admin_api)):
+    billNo = billNo
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
         
-    tenant_name = receipt.get("Tenant", "Unknown").replace(" ", "_")
+    tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
         formatted_date = datetime.strptime(receipt.get("Date", ""), "%d %B %Y").strftime("%Y%m%d")
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
-    custom_filename = f"{tenant_name}_{formatted_date}_{billno}.pdf"
+    custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
     from app.services.pdf_service import generate_professional_pdf
     landlord_conf = config.get("landlord", {})

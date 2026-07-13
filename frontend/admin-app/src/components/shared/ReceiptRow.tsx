@@ -19,8 +19,8 @@ import {
 interface ReceiptRowProps {
   receipt: Receipt;
   onAction: () => void;
-  onPreview: (billno: string) => void;
-  onEdit: (billno: string) => void;
+  onPreview: (billNo: string) => void;
+  onEdit: (billNo: string) => void;
   variant?: 'history' | 'archive';
   onUpdatePayment?: (billNo: string, status: "PENDING" | "PARTIAL" | "PAID" | "ADVANCE", amount: number) => void;
 }
@@ -30,9 +30,9 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
 
   const currTotal = receipt.Total || 0;
-  const prevArr = receipt.Previous_Arrears || 0;
+  const prevArr = receipt.previousArrears || 0;
   const grandTotal = currTotal + prevArr;
-  const amtRecv = receipt.Amount_Received || 0;
+  const amtRecv = receipt.amountReceived || 0;
   const balance = grandTotal - amtRecv;
   const advanceAmount = balance < 0 ? Math.abs(balance) : 0;
 
@@ -44,8 +44,8 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
         onUpdatePayment(receipt.Bill, status, amount);
       } else {
         await api.updatePaymentStatus(receipt.Bill, {
-          payment_status: status,
-          amount_received: amount,
+          paymentStatus: status,
+          amountReceived: amount,
         });
         toast.success(`Payment updated to ${status}`);
         onAction();
@@ -113,7 +113,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
     PENDING: { bg: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300', label: 'Pending', icon: RotateCcw },
   };
 
-  const status = statusConfig[receipt.Payment_Status as keyof typeof statusConfig] || statusConfig.PENDING;
+  const status = statusConfig[receipt.paymentStatus as keyof typeof statusConfig] || statusConfig.PENDING;
   const StatusIcon = status.icon;
 
   return (
@@ -157,7 +157,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
             )}
           </div>
           <div>
-            <span 
+            <span
               className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium cursor-pointer transition-opacity hover:opacity-80 ${status.bg}`}
               onClick={() => setPaymentModalOpen(true)}
               title="Update Payment"
@@ -262,9 +262,9 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
         bill={{
           Bill: receipt.Bill,
           Total: receipt.Total,
-          PreviousArrears: receipt.Previous_Arrears,
-          AmountReceived: receipt.Amount_Received,
-          PaymentStatus: receipt.Payment_Status,
+          PreviousArrears: receipt.previousArrears,
+          AmountReceived: receipt.amountReceived,
+          PaymentStatus: receipt.paymentStatus,
         }}
         onUpdate={handleUpdatePayment}
       />

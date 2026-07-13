@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
   const [setupRequired, setSetupRequired] = useState(false);
 
   useEffect(() => {
-    apiGet(ROUTES.ADMIN_API_SETUP_REQUIRED)
+    apiGet(ROUTES.ADMINAPISETUPREQUIRED)
       .then((data: any) => {
         if (data.setup_required) {
           setSetupRequired(true);
@@ -51,7 +51,7 @@ export default function AdminLoginPage() {
     try {
       if (needsTOTP) {
         // Step 2: Login with TOTP
-        const result = await apiPost(ROUTES.ADMIN_API_AUTH_LOGIN_TOTP, {
+        const result = await apiPost(ROUTES.ADMINAPIAUTHLOGINTOTP, {
           username: loginData.username,
           password: loginData.password,
           totp_token: loginData.totpToken,
@@ -63,7 +63,7 @@ export default function AdminLoginPage() {
         }
       } else {
         // Step 1: Initial login attempt
-        const result: LoginResponse = await apiPost(ROUTES.ADMIN_API_AUTH_LOGIN, {
+        const result: LoginResponse = await apiPost(ROUTES.ADMINAPIAUTHLOGIN, {
           username: loginData.username,
           password: loginData.password,
           remember_me: loginData.rememberMe,
@@ -89,7 +89,7 @@ export default function AdminLoginPage() {
 
     try {
       if (forgotStep === 'verify') {
-        const result = await apiPost(ROUTES.ADMIN_API_PASSWORD_FORGOT_VERIFY, {
+        const result = await apiPost(ROUTES.ADMINAPIPASSWORDFORGOTVERIFY, {
           username: forgotData.username,
           totp_token: forgotData.totpToken,
         });
@@ -111,7 +111,7 @@ export default function AdminLoginPage() {
           return;
         }
 
-        const result = await apiPost(ROUTES.ADMIN_API_PASSWORD_FORGOT_RESET, {
+        const result = await apiPost(ROUTES.ADMINAPIPASSWORDFORGOTRESET, {
           username: forgotData.username,
           totp_token: forgotData.totpToken,
           new_password: forgotData.newPassword,

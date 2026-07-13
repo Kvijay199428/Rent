@@ -11,10 +11,10 @@ import re
 
 router = APIRouter()
 
-@router.get(Routes.ADMIN_API_WHATSAPP_SEND_SINGLE, name=Names.SEND_WHATSAPP_SINGLE)
-async def send_whatsapp_single(request: Request, billno: str):
-    billno = billno
-    receipt = get_receipt(billno)
+@router.get(Routes.ADMINAPIWHATSAPPSENDSINGLE, name=Names.SENDWHATSAPPSINGLE)
+async def send_whatsapp_single(request: Request, billNo: str):
+    billNo = billNo
+    receipt = get_receipt(billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
 
@@ -38,17 +38,17 @@ async def send_whatsapp_single(request: Request, billno: str):
         country_code = str(whatsapp_conf.get("country_code") or "91")
         phone = country_code + phone
 
-    token = getattr(tenant, "view_token", "")
+    token = getattr(tenant, "viewToken", "")
     if not token:
         import uuid
         from app.services.tenant_service import update_tenant
         token = str(uuid.uuid4())
-        tenant.view_token = token
+        tenant.viewToken = token
         update_tenant(tenant)
 
     base_url = str(request.base_url).rstrip("/")
     link = f"{base_url}/t/{token}"
-    grand_total = float(receipt.get("Total", 0)) + float(receipt.get("Previous_Arrears", 0))
+    grandTotal = float(receipt.get("Total", 0)) + float(receipt.get("previousArrears", 0))
 
     tenant_portal_pin = "(Unavailable)"
     try:
@@ -56,7 +56,7 @@ async def send_whatsapp_single(request: Request, billno: str):
         from app.core.db import get_conn
         with get_conn() as conn:
             row = conn.execute(
-                "SELECT encrypted_pin FROM tenant_pin_admin_store WHERE tenant_id = ?",
+                "SELECT encrypted_pin FROM tenantPin_admin_store WHERE tenantId = ?",
                 (tenant.id,)
             ).fetchone()
         if row:
@@ -65,13 +65,13 @@ async def send_whatsapp_single(request: Request, billno: str):
         pass
 
     msg = template.format(
-        tenant_name=tenant.name,
+        tenantName=tenant.name,
         month=receipt.get("Month", ""),
-        billno=billno,
-        total="{:,.0f}".format(grand_total),
+        billNo=billNo,
+        total="{:,.0f}".format(grandTotal),
         currency="Rs.",
         link=link,
-        tenant_pin=tenant_portal_pin
+        tenantPin=tenant_portal_pin
     )
 
     url = f"https://api.whatsapp.com/send?phone={phone}&text={quote(msg)}"

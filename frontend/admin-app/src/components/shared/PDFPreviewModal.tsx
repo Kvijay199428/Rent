@@ -9,12 +9,12 @@ import { api } from '@/services/api';
 import { FileText } from 'lucide-react';
 
 interface PDFPreviewModalProps {
-  billno: string | null;
+  billNo: string | null;
   onClose: () => void;
 }
 
-export default function PDFPreviewModal({ billno, onClose }: PDFPreviewModalProps) {
-  const open = !!billno;
+export default function PDFPreviewModal({ billNo, onClose }: PDFPreviewModalProps) {
+  const open = !!billNo;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -27,11 +27,11 @@ export default function PDFPreviewModal({ billno, onClose }: PDFPreviewModalProp
             <div>
               <DialogTitle className="text-xl">Receipt Preview</DialogTitle>
               <DialogDescription className="mt-1 text-sm">
-                {billno && (
+                {billNo && (
                   <>
                     Bill Number:{" "}
                     <span className="font-medium text-foreground">
-                      #{billno}
+                      #{billNo}
                     </span>
                   </>
                 )}
@@ -40,11 +40,11 @@ export default function PDFPreviewModal({ billno, onClose }: PDFPreviewModalProp
           </div>
         </DialogHeader>
         <div className="flex-1 min-h-0 bg-muted">
-          {billno && (
+          {billNo && (
             <iframe
-              src={api.getPDFViewUrl(billno)}
+              src={api.getPDFViewUrl(billNo)}
               className="w-full h-full border-0"
-              title={`Receipt ${billno}`}
+              title={`Receipt ${billNo}`}
             />
           )}
         </div>

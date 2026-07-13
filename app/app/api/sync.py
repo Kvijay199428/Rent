@@ -22,7 +22,7 @@ from app.services.billing_service import get_all_receipts
 from app.services.backup_service import create_full_backup
 from app.core.paths import BACKUPS_DIR
 
-from app.authentication.common.utils import validate_tenant_pin, hash_pin
+from app.authentication.common.utils import validate_tenantPin, hash_pin
 from app.authentication.common.pin_vault import encrypt_admin_view_pin
 from app.authentication.tenant.sessions import revoke_all_tenant_sessions
 from app.core.db import get_conn
@@ -37,15 +37,15 @@ router = APIRouter()
 # ==========================================
 
 PROFILE_HEADERS = [
-    "Tenant_ID", "Tenant_Name", "Phone", "Email", "Company", "Address", "Room",
-    "Meter_ID", "PIN", "Rent", "Water", "Electricity_Rate", "Additional_Person_Rate",
-    "Tank_Water", "Status"
+    "tenantId", "tenantName", "Phone", "Email", "Company", "Address", "Room",
+    "meterId", "PIN", "Rent", "Water", "electricityRate", "additionalPersonRate",
+    "tankWater", "Status"
 ]
 
 RECEIPT_HEADERS = [
-    "Bill_No", "Tenant_ID", "Month", "Date", "Previous", "Current", "Units", "Rent",
-    "Water", "Electricity", "Additional", "Tank_Water", "Maintenance", "Arrears",
-    "Amount_Received", "Total", "Payment_Status", "Receipt_Status"
+    "BillNo", "tenantId", "Month", "Date", "Previous", "Current", "Units", "Rent",
+    "Water", "Electricity", "Additional", "tankWater", "Maintenance", "Arrears",
+    "amountReceived", "Total", "paymentStatus", "receiptStatus"
 ]
 
 def _build_excel_workbook(tenants_list, receipts_list):
@@ -65,34 +65,34 @@ def _build_excel_workbook(tenants_list, receipts_list):
             cell.font = header_font
             cell.fill = header_fill
 
-    tenant_id_map = {}
+    tenantId_map = {}
     for t in tenants_list:
         t_id_str = f"T{str(t.id).zfill(3)}"
-        tenant_id_map[t.name] = t_id_str
+        tenantId_map[t.name] = t_id_str
         ws_profile.append([
             t_id_str, t.name, str(t.phone), getattr(t, 'email', ''), getattr(t, 'company', ''),
-            getattr(t, 'address', ''), getattr(t, 'room_number', ''), getattr(t, 'meter_id', ''),
-            getattr(t, 'tenant_pin', ''), float(t.rent), float(t.water), float(t.electricity_rate),
-            float(t.additional_person_charge), float(getattr(t, 'default_tank_water_charge', 0.0)), t.status
+            getattr(t, 'address', ''), getattr(t, 'roomNumber', ''), getattr(t, 'meterId', ''),
+            getattr(t, 'tenantPin', ''), float(t.rent), float(t.water), float(t.electricityRate),
+            float(t.additionalPersonCharge), float(getattr(t, 'defaulttankWaterCharge', 0.0)), t.status
         ])
 
     for r in receipts_list:
         t_name = r.get("Tenant", "")
-        t_id_str = tenant_id_map.get(t_name, "UNKNOWN")
+        t_id_str = tenantId_map.get(t_name, "UNKNOWN")
         ws_receipts.append([
             r.get("Bill", ""), t_id_str, r.get("Month", ""), r.get("Date", ""),
             float(r.get("Previous", 0)), float(r.get("Current", 0)), float(r.get("Units", 0)),
             float(r.get("Rent", 0)), float(r.get("Water", 0)), float(r.get("Electricity", 0)),
-            float(r.get("Additional", 0)), float(r.get("Tank_Water", 0)),
-            float(r.get("Maintenance_Charge", 0)), float(r.get("Previous_Arrears", 0)),
-            float(r.get("Amount_Received", 0)), float(r.get("Total", 0)),
-            r.get("Payment_Status", "PENDING"), r.get("Status", "ACTIVE")
+            float(r.get("Additional", 0)), float(r.get("tankWater", 0)),
+            float(r.get("MaintenanceCharge", 0)), float(r.get("previousArrears", 0)),
+            float(r.get("amountReceived", 0)), float(r.get("Total", 0)),
+            r.get("paymentStatus", "PENDING"), r.get("Status", "ACTIVE")
         ])
 
     return wb
 
 
-@router.get(Routes.ADMIN_API_SYNC_EXPORT_CSV, name=Names.EXPORT_RECEIPTS_CSV)
+@router.get(Routes.ADMINAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
 async def export_receipts_csv(tenants_list: str = "all"):
     tenants = load_tenants()
     receipts = get_all_receipts()
@@ -117,7 +117,7 @@ async def export_receipts_csv(tenants_list: str = "all"):
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
-@router.get(Routes.ADMIN_API_SYNC_EXPORT_ZIP, name=Names.EXPORT_FULL_ZIP)
+@router.get(Routes.ADMINAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
 async def export_full_zip(tenants_list: str = "all"):
     tenants = load_tenants()
     receipts = get_all_receipts()
@@ -145,7 +145,7 @@ async def export_full_zip(tenants_list: str = "all"):
         zipf.writestr("receipts_data.csv", stream.getvalue())
 
         for r in receipts:
-            tenant_name = r.get("Tenant", "Unknown").replace(" ", "_")
+            tenantName = r.get("Tenant", "Unknown").replace(" ", "_")
             try:
                 formatted_date = datetime.datetime.strptime(
                                 r.get("Date", ""), "%d %B %Y"
@@ -153,7 +153,7 @@ async def export_full_zip(tenants_list: str = "all"):
             except Exception:
                 formatted_date = r.get("Date", "").replace(" ", "")
 
-            custom_filename = f"{tenant_name}_{formatted_date}_{r['Bill']}.pdf"
+            custom_filename = f"{tenantName}_{formatted_date}_{r['Bill']}.pdf"
             status = r.get("Status", "ACTIVE")
             folder = "archive" if status == "ARCHIVED" else "active"
 
@@ -167,7 +167,7 @@ async def export_full_zip(tenants_list: str = "all"):
     response.headers["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
     return response
 
-@router.get(Routes.ADMIN_API_SYNC_TEMPLATE, name=Names.DOWNLOAD_EXCEL_TEMPLATE)
+@router.get(Routes.ADMINAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
 async def download_excel_template():
     wb = openpyxl.Workbook()
     ws_profile = wb.active
@@ -196,7 +196,7 @@ async def download_excel_template():
     response.headers["Content-Disposition"] = 'attachment; filename="Rent_Data_Template.xlsx"'
     return response
 
-# @router.get(Routes.ADMIN_API_SYNC_EXPORT_EXCEL, name=Names.EXPORT_EXCEL_DATA)
+# @router.get(Routes.ADMINAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
 # async def export_excel_data(format: str):
 #     tenants = load_tenants()
 #     receipts = get_all_receipts()
@@ -232,7 +232,7 @@ async def download_excel_template():
 #         return response
 
 #     raise HTTPException(status_code=400, detail="Unsupported format. Use 'xlsx' or 'zip'.")
-@router.get(Routes.ADMIN_API_SYNC_EXPORT_EXCEL, name=Names.EXPORT_EXCEL_DATA)
+@router.get(Routes.ADMINAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
 async def export_excel_data(format: str):
     tenants = load_tenants()
     receipts = get_all_receipts()
@@ -303,7 +303,7 @@ def parse_excel_bytes(file_bytes, filename):
         if not row[0]:
             continue
         row_dict = {p_headers[i]: (str(val).strip() if val is not None else "") for i, val in enumerate(row)}
-        t_id = row_dict.get("Tenant_ID", "")
+        t_id = row_dict.get("tenantId", "")
         if t_id:
             tenants_dict[t_id] = {"profile": row_dict, "receipts": []}
 
@@ -311,13 +311,13 @@ def parse_excel_bytes(file_bytes, filename):
         if not row[0]:
             continue
         row_dict = {r_headers[i]: (str(val).strip() if val is not None else "") for i, val in enumerate(row)}
-        t_id = row_dict.get("Tenant_ID", "")
+        t_id = row_dict.get("tenantId", "")
         if t_id in tenants_dict:
             tenants_dict[t_id]["receipts"].append(row_dict)
 
     return tenants_dict
 
-@router.post(Routes.ADMIN_API_SYNC_IMPORT_PREVIEW, name=Names.IMPORT_PREVIEW_DATA)
+@router.post(Routes.ADMINAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
 async def import_preview_data(files: List[UploadFile] = File(...)):
     preview_data = {}
     try:
@@ -392,7 +392,7 @@ def _parse_month_date(val: str) -> str:
 
     return val_str
 
-@router.post(Routes.ADMIN_API_SYNC_IMPORT_EXECUTE, name=Names.IMPORT_EXECUTE_DATA)
+@router.post(Routes.ADMINAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
 async def import_execute_data(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
@@ -438,26 +438,26 @@ async def import_execute_data(
             skipped_targets.discard(target_key)  # Mark as processed
 
             p = t_data["profile"]
-            t_name = p.get("Tenant_Name", "").strip()
+            t_name = p.get("tenantName", "").strip()
             if not t_name:
                 continue
 
             t = next((x for x in sys_tenants if x.name.lower() == t_name.lower()), None)
             is_new = False
             if not t:
-                t = Tenant(name=t_name, phone=p.get("Phone", ""), rent=0.0, water=0.0, electricity_rate=0.0)
+                t = Tenant(name=t_name, phone=p.get("Phone", ""), rent=0.0, water=0.0, electricityRate=0.0)
                 is_new = True
 
             t.phone = p.get("Phone", t.phone)
             t.email = p.get("Email", getattr(t, 'email', ''))
             t.company = p.get("Company", getattr(t, 'company', ''))
             t.address = p.get("Address", getattr(t, 'address', ''))
-            t.room_number = p.get("Room", getattr(t, 'room_number', ''))
-            t.meter_id = p.get("Meter_ID", getattr(t, "meter_id", ""))
+            t.roomNumber = p.get("Room", getattr(t, 'roomNumber', ''))
+            t.meterId = p.get("meterId", getattr(t, "meterId", ""))
 
-            if not getattr(t, "view_token", ""):
+            if not getattr(t, "viewToken", ""):
                 import uuid
-                t.view_token = str(uuid.uuid4())
+                t.viewToken = str(uuid.uuid4())
 
             plain_pin = str(p.get("PIN") or "").strip()
 
@@ -466,22 +466,22 @@ async def import_execute_data(
             encrypted_pin = None
 
             if plain_pin:
-                validate_tenant_pin(plain_pin)
+                validate_tenantPin(plain_pin)
                 hashed_pin = hash_pin(plain_pin)
                 encrypted_pin = encrypt_admin_view_pin(plain_pin)
-                t.tenant_pin = hashed_pin
+                t.tenantPin = hashed_pin
                 pin_changed = True
 
             t.rent = float(p.get("Rent", t.rent) or 0.0)
             t.water = float(p.get("Water", t.water) or 0.0)
-            t.electricity_rate = float(p.get("Electricity_Rate", t.electricity_rate) or 0.0)
-            t.additional_person_charge = float(p.get("Additional_Person_Rate", getattr(t, 'additional_person_charge', 0.0)) or 0.0)
-            t.default_tank_water_charge = float(p.get("Tank_Water", getattr(t, 'default_tank_water_charge', 0.0)) or 0.0)
+            t.electricityRate = float(p.get("electricityRate", t.electricityRate) or 0.0)
+            t.additionalPersonCharge = float(p.get("additionalPersonRate", getattr(t, 'additionalPersonCharge', 0.0)) or 0.0)
+            t.defaulttankWaterCharge = float(p.get("tankWater", getattr(t, 'defaulttankWaterCharge', 0.0)) or 0.0)
             t.status = p.get("Status", getattr(t, 'status', 'Active'))
 
             if is_new:
-                tenant_id = add_tenant(t)
-                t.id = tenant_id
+                tenantId = add_tenant(t)
+                t.id = tenantId
                 sys_tenants.append(t)
 
                 if pin_changed:
@@ -489,19 +489,19 @@ async def import_execute_data(
                     with get_conn() as conn:
                         conn.execute(
                             """
-                            INSERT INTO tenant_pin_history
-                            (tenant_id, pin_hash, changed_at)
+                            INSERT INTO tenantPin_history
+                            (tenantId, pin_hash, changed_at)
                             VALUES (?, ?, ?)
                             """,
-                            (tenant_id, hashed_pin, now)
+                            (tenantId, hashed_pin, now)
                         )
                         conn.execute(
                             """
-                            INSERT OR REPLACE INTO tenant_pin_admin_store
-                            (tenant_id, encrypted_pin, updated_at)
+                            INSERT OR REPLACE INTO tenantPin_admin_store
+                            (tenantId, encrypted_pin, updated_at)
                             VALUES (?, ?, ?)
                             """,
-                            (tenant_id, encrypted_pin, now)
+                            (tenantId, encrypted_pin, now)
                         )
                         conn.commit()
             else:
@@ -512,16 +512,16 @@ async def import_execute_data(
                     with get_conn() as conn:
                         conn.execute(
                             """
-                            INSERT INTO tenant_pin_history
-                            (tenant_id, pin_hash, changed_at)
+                            INSERT INTO tenantPin_history
+                            (tenantId, pin_hash, changed_at)
                             VALUES (?, ?, ?)
                             """,
                             (t.id, hashed_pin, now)
                         )
                         conn.execute(
                             """
-                            INSERT OR REPLACE INTO tenant_pin_admin_store
-                            (tenant_id, encrypted_pin, updated_at)
+                            INSERT OR REPLACE INTO tenantPin_admin_store
+                            (tenantId, encrypted_pin, updated_at)
                             VALUES (?, ?, ?)
                             """,
                             (t.id, encrypted_pin, now)
@@ -532,7 +532,7 @@ async def import_execute_data(
             imported_tenants.append(t_name)
 
             for r in t_data["receipts"]:
-                billNo = r.get("Bill_No", "").strip()
+                billNo = r.get("BillNo", "").strip()
                 if not billNo:
                     continue
                 sys_r = next((x for x in sys_receipts if x.get("Bill") == billNo), None)
@@ -552,16 +552,16 @@ async def import_execute_data(
                     "Rent": float(r.get("Rent", 0) or 0),
                     "Additional": float(r.get("Additional", 0) or 0),
                     "Water": float(r.get("Water", 0) or 0),
-                    "Tank_Water": float(r.get("Tank_Water", 0) or 0),
+                    "tankWater": float(r.get("tankWater", 0) or 0),
                     "Electricity": float(r.get("Electricity", 0) or 0),
-                    "Maintenance_Charge": float(r.get("Maintenance", 0) or 0),
-                    "Maintenance_Desc": r.get("Maintenance_Desc", ""),
-                    "Previous_Arrears": float(r.get("Arrears", 0) or 0),
-                    # FIX #7: Ensure Amount_Received is float
-                    "Amount_Received": float(r.get("Amount_Received", 0) or 0),
+                    "MaintenanceCharge": float(r.get("Maintenance", 0) or 0),
+                    "MaintenanceDesc": r.get("MaintenanceDesc", ""),
+                    "previousArrears": float(r.get("Arrears", 0) or 0),
+                    # FIX #7: Ensure amountReceived is float
+                    "amountReceived": float(r.get("amountReceived", 0) or 0),
                     "Total": float(r.get("Total", 0) or 0),
-                    "Payment_Status": r.get("Payment_Status", "PENDING"),
-                    "Status": r.get("Receipt_Status", "ACTIVE"),
+                    "paymentStatus": r.get("paymentStatus", "PENDING"),
+                    "Status": r.get("receiptStatus", "ACTIVE"),
                     "Receipt_Version": 8,
                     "Generated_By": "Import"
                 }

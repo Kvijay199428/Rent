@@ -16,7 +16,7 @@ def verify_pin(plain_pin: str, hashed_pin: str) -> bool:
     except Exception:
         return False
 
-def validate_tenant_pin(pin: str) -> str:
+def validate_tenantPin(pin: str) -> str:
     """Validates that a PIN is exactly 4 digits."""
     if not pin or not re.fullmatch(r"\d{4}", str(pin)):
         raise HTTPException(

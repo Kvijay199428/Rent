@@ -1,7 +1,7 @@
 // File: frontend/tenant-app/src/pages/TenantPortal.tsx
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { TENANT_ROUTES } from "@/lib/routes";
+import { TENANTROUTES } from "@/lib/routes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,8 +24,7 @@ import {
     Archive,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
-import ReceiptRoller from "@/components/receipts/ReceiptRoller";
-import ReceiptCard from "@/components/receipts/ReceiptCard";
+import { ReceiptRoller, ReceiptCard } from "@/components/receipts";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -40,16 +39,16 @@ interface ReceiptData {
     Rent: number;
     Additional: number;
     Water: number;
-    Tank_Water: number;
+    tankWater: number;
     Electricity: number;
     Total: number;
     PDF: string;
-    Payment_Status: string;
+    paymentStatus: string;
     Status?: string;
-    Maintenance_Charge: number;
-    Maintenance_Desc: string;
-    Previous_Arrears: number;
-    Amount_Received: number;
+    MaintenanceCharge: number;
+    MaintenanceDesc: string;
+    previousArrears: number;
+    amountReceived: number;
 }
 
 interface Occupant {
@@ -66,26 +65,26 @@ interface Occupant {
     uploadmonth?: string;
 }
 
-interface TenantProfile {
+interface TENANTPROFILE {
     id: number;
     name: string;
-    view_token: string;
+    viewToken: string;
     unlocked: boolean;
 }
 
 interface ProfileResponse {
-    tenant: TenantProfile;
+    tenant: TENANTPROFILE;
     receipts?: ReceiptData[];
     occupants?: Occupant[];
 }
 
-// ─── Helper: Extract view_token robustly ───────────────────────────
+// ─── Helper: Extract viewToken robustly ───────────────────────────
 
 function useViewToken(): string | null {
     const params = useParams();
 
     // Try common param names (React Router v7 may use camelCase or different naming)
-    const possibleNames = ["view_token", "viewToken", "token", "id"];
+    const possibleNames = ["viewToken", "viewToken", "token", "id"];
     for (const name of possibleNames) {
         const val = params[name];
         if (val && val !== "undefined") return val;
@@ -104,7 +103,7 @@ function useViewToken(): string | null {
         return lastSegment;
     }
 
-    console.error("[TenantPortal] Could not extract view_token from:", { params, path });
+    console.error("[TenantPortal] Could not extract viewToken from:", { params, path });
     return null;
 }
 
@@ -119,7 +118,7 @@ function formatCurrency(amount: number): string {
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function TenantPortal() {
-    const view_token = useViewToken();
+    const viewToken = useViewToken();
 
     // ── Auth / UI State ──
     const [profile, setProfile] = useState<ProfileResponse | null>(null);
@@ -135,7 +134,7 @@ export default function TenantPortal() {
 
     // Fetch public key on mount
     useEffect(() => {
-        fetch(TENANT_ROUTES.TENANT_API_AUTH_PUBLIC_KEY)
+        fetch(TENANTROUTES.TENANTAPIAUTHPUBLICKEY)
             .then(r => r.json())
             .then(d => setPublicKey(d.publicKey))
             .catch(() => toast.error("Failed to load encryption key"));
@@ -143,7 +142,7 @@ export default function TenantPortal() {
 
     // ── Fetch profile (called on mount AND after login) ──
     const fetchProfile = useCallback(async () => {
-        if (!view_token) {
+        if (!viewToken) {
             setLoading(false);
             setProfile(null);
             toast.error("Invalid portal link. Missing access token.");
@@ -152,7 +151,7 @@ export default function TenantPortal() {
 
         setLoading(true);
         try {
-            const res = await fetch(TENANT_ROUTES.tenantApiProfileGet(view_token), {
+            const res = await fetch(TENANTROUTES.TENANTAPIPROFILEGET(viewToken), {
                 credentials: "include",
                 cache: "no-store",
                 headers: {
@@ -176,7 +175,7 @@ export default function TenantPortal() {
         } finally {
             setLoading(false);
         }
-    }, [view_token]);
+    }, [viewToken]);
 
     // Initial load
     useEffect(() => {
@@ -186,7 +185,7 @@ export default function TenantPortal() {
     // ── PIN Login ──
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!view_token) {
+        if (!viewToken) {
             setPinError("Invalid portal link.");
             return;
         }
@@ -198,7 +197,7 @@ export default function TenantPortal() {
             const { encryptPayload } = await import("@/lib/encryption");
             const encrypted = await encryptPayload({ pin }, publicKey);
 
-            const res = await fetch(TENANT_ROUTES.tenantApiAuthLogin(view_token), {
+            const res = await fetch(TENANTROUTES.TENANTAPIAUTHLOGIN(viewToken), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
@@ -227,7 +226,7 @@ export default function TenantPortal() {
     // ── Logout ──
     const handleLogout = async () => {
         try {
-            await fetch(TENANT_ROUTES.tenantApiAuthLogout(view_token!), {
+            await fetch(TENANTROUTES.TENANTAPIAUTHLOGOUT(viewToken!), {
                 method: "POST",
                 credentials: "include",
             });
@@ -276,8 +275,8 @@ export default function TenantPortal() {
         );
     }
 
-    // ── Error: No view_token ──
-    if (!view_token) {
+    // ── Error: No viewToken ──
+    if (!viewToken) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
                 <Card className="w-full max-w-md">
@@ -458,9 +457,9 @@ export default function TenantPortal() {
                                     <p className="text-sm text-muted-foreground">Pending Amount</p>
                                     <p className="text-2xl font-bold text-destructive">
                                         {formatCurrency(receipts.reduce((sum, r) => {
-                                            const grandTotal = (r.Total || 0) + (r.Previous_Arrears || 0);
-                                            const received = Number(r.Amount_Received) || 0;
-                                            return r.Payment_Status === "PENDING"
+                                            const grandTotal = (r.Total || 0) + (r.previousArrears || 0);
+                                            const received = Number(r.amountReceived) || 0;
+                                            return r.paymentStatus === "PENDING"
                                                 ? sum + Math.max(grandTotal - received, 0)
                                                 : sum;
                                         }, 0))}
@@ -522,7 +521,7 @@ export default function TenantPortal() {
                                 )}
                             </>
                         )}
-                        <ReceiptRoller receipts={receipts as ReceiptData[]} maxVisible={12} view_token={view_token || ""} />
+                        <ReceiptRoller receipts={receipts as ReceiptData[]} maxVisible={12} viewToken={viewToken || ""} />
                     </div>
                 )}
 
@@ -579,7 +578,7 @@ export default function TenantPortal() {
                                                 key={receipt.Bill}
                                                 receipt={receipt}
                                                 variant="archive"
-                                                view_token={view_token}
+                                                viewToken={viewToken}
                                             />
                                         ))}
                                 </div>
