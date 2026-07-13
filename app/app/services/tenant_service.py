@@ -1,13 +1,18 @@
-﻿import os
+import os
 from typing import List, Optional
 import uuid
 
 from app.models.tenant import Tenant
 from app.core.db import get_conn
 
-def load_tenants() -> List[Tenant]:
+def load_tenants(include_archived: bool = False) -> List[Tenant]:
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM tenants ORDER BY id").fetchall()
+        if include_archived:
+            rows = conn.execute("SELECT * FROM tenants ORDER BY id").fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM tenants WHERE status != 'Archived' ORDER BY id"
+            ).fetchall()
     tenants = []
     for row in rows:
         t = Tenant(

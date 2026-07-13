@@ -1,4 +1,4 @@
-﻿import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant } from "@/types";
+import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant } from "@/types";
 import { ROUTES } from "@/lib/routes";
 
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
@@ -103,10 +103,10 @@ export const api = {
   },
 
   getArchivedReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGFILTER}?status=all`);
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVEDATA);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     const data = await res.json();
-    return data.filter((r: Receipt) => r.Status === "ARCHIVED");
+    return data.receipts;
   },
 
   getReceipt: async (billNo: string): Promise<Receipt> => {

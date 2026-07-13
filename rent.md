@@ -124,7 +124,7 @@ router = APIRouter()
 
 @router.get(Routes.ADMINAPIBILLINGFILTER, name=Names.APIFILTERBILLS)
 async def api_filter_bills(status: str = "active"):
-    receipts = get_all_receipts()
+    receipts = get_all_receipts(include_archived_tenants=False)
     if status == "pending":
         filtered = [
             r for r in receipts
@@ -850,6 +850,22 @@ RECEIPT_HEADERS = [
 
 def _build_excel_workbook(tenants_list, receipts_list):
     """Shared helper: builds and returns an openpyxl workbook in memory."""
+    from app.authentication.common.pin_vault import decrypt_admin_view_pin
+    from app.core.db import get_conn
+
+    # Pre-fetch all decrypted PINs from admin store
+    decrypted_pins = {}
+    try:
+        with get_conn() as conn:
+            rows = conn.execute("SELECT tenantId, encrypted_pin FROM tenantPin_admin_store").fetchall()
+            for row in rows:
+                try:
+                    decrypted_pins[row["tenantId"]] = decrypt_admin_view_pin(row["encrypted_pin"])
+                except Exception:
+                    decrypted_pins[row["tenantId"]] = ""
+    except Exception:
+        pass
+
     wb = openpyxl.Workbook()
     ws_profile = wb.active
     ws_profile.title = "Tenant_Profile"
@@ -869,10 +885,12 @@ def _build_excel_workbook(tenants_list, receipts_list):
     for t in tenants_list:
         t_id_str = f"T{str(t.id).zfill(3)}"
         tenantId_map[t.name] = t_id_str
+        # Use decrypted PIN for export, fallback to empty string if not available
+        plain_pin = decrypted_pins.get(t.id, "")
         ws_profile.append([
             t_id_str, t.name, str(t.phone), getattr(t, 'email', ''), getattr(t, 'company', ''),
             getattr(t, 'address', ''), getattr(t, 'roomNumber', ''), getattr(t, 'meterId', ''),
-            getattr(t, 'tenantPin', ''), float(t.rent), float(t.water), float(t.electricityRate),
+            plain_pin, float(t.rent), float(t.water), float(t.electricityRate),
             float(t.additionalPersonCharge), float(getattr(t, 'defaulttankWaterCharge', 0.0)), t.status
         ])
 
@@ -1192,12 +1210,21 @@ def _parse_month_date(val: str) -> str:
 
     return val_str
 
+from typing import Dict, Literal
+
+VALID_TENANT_STATUSES = {"Active", "Inactive", "Archived"}
+
+def normalize_tenant_status(value: str | None, default: str = "Active") -> str:
+    candidate = str(value or "").strip().title()
+    return candidate if candidate in VALID_TENANT_STATUSES else default
+
 @router.post(Routes.ADMINAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
 async def import_execute_data(
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     selectedtargets: Optional[str] = Form(None),
     selectedTargets: Optional[str] = Form(None),
+    targetstatuses: Optional[str] = Form(None),
 ):
     # Accept either casing
     targets = selectedtargets or selectedTargets or ""
@@ -1211,6 +1238,14 @@ async def import_execute_data(
 
     if not isinstance(selected_list, list):
         raise HTTPException(status_code=400, detail="selectedtargets must be a JSON array")
+
+    try:
+        status_overrides: Dict[str, str] = json.loads(targetstatuses or "{}")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON in targetstatuses.")
+
+    if not isinstance(status_overrides, dict):
+        raise HTTPException(status_code=400, detail="targetstatuses must be a JSON object.")
 
     if not selected_list:
         raise HTTPException(status_code=400, detail="No tenants selected for import.")
@@ -1277,7 +1312,13 @@ async def import_execute_data(
             t.electricityRate = float(p.get("electricityRate", t.electricityRate) or 0.0)
             t.additionalPersonCharge = float(p.get("additionalPersonRate", getattr(t, 'additionalPersonCharge', 0.0)) or 0.0)
             t.defaulttankWaterCharge = float(p.get("tankWater", getattr(t, 'defaulttankWaterCharge', 0.0)) or 0.0)
-            t.status = p.get("Status", getattr(t, 'status', 'Active'))
+            
+            excel_status = normalize_tenant_status(
+                p.get("Status"),
+                getattr(t, "status", "Active") if not is_new else "Active",
+            )
+            requested_status = status_overrides.get(target_key)
+            t.status = normalize_tenant_status(requested_status, excel_status)
 
             if is_new:
                 tenantId = add_tenant(t)
@@ -1329,7 +1370,12 @@ async def import_execute_data(
                         conn.commit()
                     revoke_all_tenant_sessions(t.id)
 
-            imported_tenants.append(t_name)
+            imported_tenants.append({
+                "target": target_key,
+                "tenantId": t.id,
+                "tenantName": t.name,
+                "status": t.status,
+            })
 
             for r in t_data["receipts"]:
                 billNo = r.get("BillNo", "").strip()
@@ -1407,6 +1453,7 @@ async def import_execute_data(
             "message": " ".join(msg_parts),
             "tenants": len(imported_tenants),
             "receipts": imported_receipts,
+            "imported_tenants": imported_tenants,
             "unmatched_targets": list(skipped_targets) if skipped_targets else []
         }
 
@@ -1430,6 +1477,24 @@ async def import_execute_data(
             except Exception:
                 pass
 
+
+@router.get(Routes.ADMINAPIBILLINGARCHIVEDATA)
+async def get_archive_data():
+    tenants = load_tenants(include_archived=True)
+    archived_tenants = [tenant for tenant in tenants if tenant.status == "Archived"]
+    archived_names = {tenant.name for tenant in archived_tenants}
+
+    receipts = get_all_receipts(include_archived_tenants=True)
+    archived_receipts = [
+        receipt for receipt in receipts
+        if receipt.get("Status") == "ARCHIVED"
+        or receipt.get("Tenant") in archived_names
+    ]
+
+    return {
+        "tenants": archived_tenants,
+        "receipts": archived_receipts,
+    }
 
 if __name__ == "__main__":
     sys_conf = config.get("system", {})
@@ -1570,7 +1635,7 @@ async def tenant_download_pdf(
 
 ```python
 // File: app\app\api\tenants.py
-﻿# app\app\api\tenants.py
+# app\app\api\tenants.py
 
 from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks, Query
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
@@ -1602,7 +1667,7 @@ router = APIRouter()
 
 @router.get(Routes.ADMINAPITENANTSLIST, name=Names.APIGETTENANTS)
 async def api_get_tenants():
-    return load_tenants()
+    return load_tenants(include_archived=False)
 
 @router.get(Routes.ADMINAPITENANTSUPDATE, name=Names.APIGETTENANT)
 async def api_get_tenant(tenantId: int):
@@ -3190,7 +3255,7 @@ def register_all_routers(app: FastAPI):
 
 ```python
 // File: app\app\core\routes_manifest.py
-﻿# app\app\core\routes_manifest.py
+# app\app\core\routes_manifest.py
 
 """
 Auto-generated route manifest from shared/routes.json.
@@ -3269,6 +3334,7 @@ class Routes:
     ADMINAPIBILLINGARCHIVE = "/admin/api/receipts/{billNo}/archive"
     ADMINAPIBILLINGRESTORE = "/admin/api/receipts/{billNo}/restore"
     ADMINAPIBILLINGDELETE = "/admin/api/receipts/{billNo}"
+    ADMINAPIBILLINGARCHIVEDATA = "/admin/api/archive-data"
 
     # Admin API: Tenants
     ADMINAPITENANTSLIST = "/admin/api/tenants"
@@ -3297,8 +3363,8 @@ class Routes:
     # Admin API: Sync
     ADMINAPISYNCEXPORTCSV = "/admin/api/export-csv"
     ADMINAPISYNCEXPORTZIP = "/admin/api/export-zip"
-    ADMINAPISYNCTEMPLATE = "/admin/api/import-template"
     ADMINAPISYNCEXPORTEXCEL = "/admin/api/export-excel"
+    ADMINAPISYNCTEMPLATE = "/admin/api/import-template"
     ADMINAPISYNCIMPORTPREVIEW = "/admin/api/import-preview"
     ADMINAPISYNCIMPORTEXECUTE = "/admin/api/import-execute"
 
@@ -4514,25 +4580,37 @@ class Tenant(BaseModel):
 
 ```python
 // File: app\app\pages\archive.py
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
 from app.core.routes_manifest import Routes, Names, Templates
 
+from app.services.tenant_service import load_tenants
 from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
 @router.get(Routes.ADMINPAGEARCHIVE, name=Names.ARCHIVEPAGE, response_class=HTMLResponse)
 async def archive_page(request: Request):
-    receipts = get_all_receipts()
-    archived_receipts = [r for r in receipts if r.get("Status") == "ARCHIVED"]
+    # Get archived tenants
+    all_tenants = load_tenants(include_archived=True)
+    archived_tenants = [t for t in all_tenants if t.status == "Archived"]
+    archived_tenant_names = {t.name for t in archived_tenants}
+    
+    # Get receipts that are either ARCHIVED status OR belong to archived tenants
+    all_receipts = get_all_receipts(include_archived_tenants=True)
+    archived_receipts = [
+        r for r in all_receipts 
+        if r.get("Status") == "ARCHIVED" or r.get("Tenant") in archived_tenant_names
+    ]
     archived_receipts.reverse()
+    
     theme = getattr(request.state, "theme", "system")
     return templates.TemplateResponse(
         request=request, name=Templates.ARCHIVE, context={
             "receipts": archived_receipts,
+            "archived_tenants": archived_tenants,  # Pass archived tenants too
             "theme": theme,
             "sys": getattr(request.state, "sys", config.get("system", {}))
         }
@@ -4562,7 +4640,7 @@ async def backups_page(request: Request):
 
 ```python
 // File: app\app\pages\billing.py
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
@@ -4575,9 +4653,9 @@ router = APIRouter()
 
 @router.get(Routes.ADMINPAGEBILLING, name=Names.BILLINGPAGE, response_class=HTMLResponse)
 async def billing_page(request: Request):
-    tenants = [t for t in load_tenants() if t.status == "Active"]
+    tenants = [t for t in load_tenants(include_archived=False) if t.status == "Active"]
     theme = getattr(request.state, "theme", "system")
-    receipts_list = get_all_receipts()
+    receipts_list = get_all_receipts(include_archived_tenants=False)
     active_receipts = [r for r in receipts_list if r.get("Status", "ACTIVE") == "ACTIVE"]
 
     return templates.TemplateResponse(
@@ -4664,7 +4742,7 @@ def register_exception_handlers(app: FastAPI):
 
 ```python
 // File: app\app\pages\history.py
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
@@ -4676,7 +4754,7 @@ router = APIRouter()
 
 @router.get(Routes.ADMINPAGEHISTORY, name=Names.HISTORYPAGE, response_class=HTMLResponse)
 async def history_page(request: Request):
-    receipts = get_all_receipts()
+    receipts = get_all_receipts(include_archived_tenants=False)
     active_receipts = [r for r in receipts if r.get("Status", "ACTIVE") == "ACTIVE"]
     active_receipts.reverse()
     theme = getattr(request.state, "theme", "system")
@@ -4779,7 +4857,7 @@ async def serve_tenant_app(path: str = ""):
 
 ```python
 // File: app\app\pages\tenants.py
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
@@ -4792,8 +4870,8 @@ router = APIRouter()
 
 @router.get(Routes.ADMINPAGETENANTS, name=Names.TENANTSPAGE, response_class=HTMLResponse)
 async def tenants_page(request: Request):
-    tenants = load_tenants()
-    receipts = get_all_receipts()
+    tenants = load_tenants(include_archived=False)
+    receipts = get_all_receipts(include_archived_tenants=False)
     
     for tenant in tenants:
         active_receipts = [r for r in receipts if r["Tenant"] == tenant.name and r.get("Status") != "ARCHIVED"]
@@ -5496,7 +5574,7 @@ async def auth_logout_all(
 
 ```python
 // File: app\app\services\backup_service.py
-﻿import os
+import os
 import json
 import shutil
 import hashlib
@@ -5623,6 +5701,24 @@ def create_metadata(backupId, backup_type, timestamp_str):
     ui_conf = config.get("ui", {})
     r_count, arc_count, t_count, it_count, p_count = get_db_stats()
     
+    # Get tenant snapshot for restore point identification
+    tenant_snapshot = []
+    try:
+        from app.services.tenant_service import load_tenants
+        all_tenants = load_tenants(include_archived=True)
+        tenant_snapshot = [
+            {
+                "id": t.id,
+                "name": t.name,
+                "status": t.status,
+                "phone": t.phone,
+                "roomNumber": t.roomNumber
+            }
+            for t in all_tenants
+        ]
+    except Exception:
+        pass
+    
     metadata = {
         "id": backupId,
         "type": backup_type,
@@ -5637,6 +5733,7 @@ def create_metadata(backupId, backup_type, timestamp_str):
         "tenant_count": t_count,
         "inactive_tenant_count": it_count,
         "pdf_count": p_count,
+        "tenant_snapshot": tenant_snapshot,
         "theme": ui_conf.get("theme", "system"),
         "checksums": {
             "database": hash_directory(DB_DIR),
@@ -6016,10 +6113,23 @@ def _row_to_dict(row):
         "amountReceived": _safe_float(row.get("amountreceived")),
     }
 
-def get_all_receipts():
+def get_active_tenant_names() -> set:
+    """Returns a set of tenant names that are NOT archived."""
+    from app.services.tenant_service import load_tenants
+    tenants = load_tenants(include_archived=False)
+    return {t.name for t in tenants}
+
+def get_all_receipts(include_archived_tenants: bool = False):
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM receipts ORDER BY rowid DESC").fetchall()
-    return [_row_to_dict(r) for r in rows]
+    
+    receipts = [_row_to_dict(r) for r in rows]
+    
+    if not include_archived_tenants:
+        active_tenants = get_active_tenant_names()
+        receipts = [r for r in receipts if r.get("Tenant") in active_tenants]
+    
+    return receipts
 
 def get_receipt(billNo):
     receipts = get_all_receipts()
@@ -6313,18 +6423,27 @@ def restore_bill(billNo):
 
 def delete_bill(billNo):
     from app.core.db import get_conn
+    from app.services.tenant_service import get_tenant_by_name
     with get_conn() as conn:
-        row = conn.execute("SELECT status FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+        row = conn.execute("SELECT status, tenant FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
-        if row["status"] != "ARCHIVED":
+        
+        is_archived = str(row["status"]).upper() == "ARCHIVED"
+        
+        # Also allow deletion if the tenant is archived
+        tenant = get_tenant_by_name(row["tenant"])
+        is_tenant_archived = tenant is not None and str(tenant.status).upper() == "ARCHIVED"
+        
+        if not (is_archived or is_tenant_archived):
             raise ValueError("Only archived receipts can be permanently deleted.")
+            
         conn.execute("DELETE FROM receipts WHERE billNo = ?", (billNo,))
         conn.commit()
 def get_dashboard_stats():
     billing_conf = config.get("billing", {})
-    receipts = get_all_receipts()
-    tenants = load_tenants()
+    receipts = get_all_receipts(include_archived_tenants=False)
+    tenants = load_tenants(include_archived=False)
     
     next_bill = str(billing_conf.get("next_bill_number", 1)).zfill(3)
     
@@ -7005,16 +7124,21 @@ def delete_signature():
 
 ```python
 // File: app\app\services\tenant_service.py
-﻿import os
+import os
 from typing import List, Optional
 import uuid
 
 from app.models.tenant import Tenant
 from app.core.db import get_conn
 
-def load_tenants() -> List[Tenant]:
+def load_tenants(include_archived: bool = False) -> List[Tenant]:
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM tenants ORDER BY id").fetchall()
+        if include_archived:
+            rows = conn.execute("SELECT * FROM tenants ORDER BY id").fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM tenants WHERE status != 'Archived' ORDER BY id"
+            ).fetchall()
     tenants = []
     for row in rows:
         t = Tenant(
@@ -7239,6 +7363,11 @@ def delete_occupant(occupantUuid: str):
     with get_conn() as conn:
         conn.execute("DELETE FROM occupants WHERE occupantUuid = ?", (occupantUuid,))
         conn.commit()
+```
+
+```
+// File: app\app\tenant.db
+
 ```
 
 ```json
@@ -16938,6 +17067,744 @@ export default function BillsModal({
 ```
 
 ```tsx
+// File: frontend\admin-app\src\components\modals\ExportPreviewModal.tsx
+import { useEffect, useMemo, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
+import {
+    Loader2,
+    Search,
+    FileSpreadsheet,
+    AlertCircle,
+    FileText,
+    FileArchive,
+    User,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import {
+    fetchExportPreview,
+    exportCsv,
+    exportZip,
+    exportExcel,
+    downloadBlob,
+    type ExportPreviewResponse,
+    type TenantProfile,
+    type Receipt,
+} from './ExportService';
+import { toast } from 'sonner';
+
+// ─── Types ─────────────────────────────────────────────────────────
+
+type ExportTarget = {
+    tenant: TenantProfile;
+    receipts: Receipt[];
+};
+
+type ExportPreviewModalProps = {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+};
+
+// ─── Helpers ───────────────────────────────────────────────────────
+
+function formatCurrency(value?: string | number) {
+    const num = Number(value || 0);
+    if (Number.isNaN(num)) return '₹0.00';
+    return `₹${num.toFixed(2)}`;
+}
+
+function getStatusTone(status: string) {
+    switch ((status || '').toUpperCase()) {
+        case 'ACTIVE':
+            return 'bg-green-50 text-green-700 border-green-200';
+        case 'INACTIVE':
+            return 'bg-slate-50 text-slate-700 border-slate-200';
+        case 'ARCHIVED':
+            return 'bg-red-50 text-red-700 border-red-200';
+        default:
+            return 'bg-amber-50 text-amber-700 border-amber-200';
+    }
+}
+
+function getPaymentTone(status: string) {
+    switch ((status || '').toUpperCase()) {
+        case 'PAID':
+            return 'bg-green-50 text-green-700 border-green-200';
+        case 'ADVANCE':
+            return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        case 'PARTIAL':
+            return 'bg-amber-50 text-amber-700 border-amber-200';
+        default:
+            return 'bg-red-50 text-red-700 border-red-200';
+    }
+}
+
+// ─── Component ─────────────────────────────────────────────────────
+
+export default function ExportPreviewModal({
+    open,
+    onOpenChange,
+}: ExportPreviewModalProps) {
+    const [query, setQuery] = useState('');
+    const [selectedTenant, setSelectedTenant] = useState<ExportTarget | null>(null);
+    const [selectedTenantIds, setSelectedTenantIds] = useState<Set<number>>(new Set());
+    const [isLoading, setIsLoading] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
+    const [previewData, setPreviewData] = useState<ExportPreviewResponse | null>(null);
+
+    // Load preview data when modal opens
+    useEffect(() => {
+        if (open && !previewData) {
+            setIsLoading(true);
+            fetchExportPreview()
+                .then((data) => {
+                    setPreviewData(data);
+                })
+                .catch((err) => {
+                    toast.error(err.message || 'Failed to load export preview');
+                    console.error('Export preview error:', err);
+                })
+                .finally(() => {
+                    setIsLoading(false);
+                });
+        }
+    }, [open, previewData]);
+
+    // Build tenant + receipts list
+    const allTenants = useMemo(() => {
+        const list: ExportTarget[] = [];
+        if (!previewData?.tenants) return list;
+
+        const receiptsByTenant = new Map<string, Receipt[]>();
+        for (const receipt of previewData.receipts || []) {
+            const tenantName = receipt.Tenant;
+            if (!receiptsByTenant.has(tenantName)) {
+                receiptsByTenant.set(tenantName, []);
+            }
+            receiptsByTenant.get(tenantName)!.push(receipt);
+        }
+
+        for (const tenant of previewData.tenants) {
+            list.push({
+                tenant,
+                receipts: receiptsByTenant.get(tenant.name) || [],
+            });
+        }
+        return list;
+    }, [previewData]);
+
+    // Filtered tenants based on search
+    const filteredTenants = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (!q) return allTenants;
+        return allTenants.filter((t) => {
+            const name = (t.tenant.name || '').toLowerCase();
+            const id = String(t.tenant.id).toLowerCase();
+            const phone = (t.tenant.phone || '').toLowerCase();
+            const company = (t.tenant.company || '').toLowerCase();
+            const room = (t.tenant.roomNumber || '').toLowerCase();
+            return (
+                name.includes(q) ||
+                id.includes(q) ||
+                phone.includes(q) ||
+                company.includes(q) ||
+                room.includes(q)
+            );
+        });
+    }, [allTenants, query]);
+
+    // Stats
+    const stats = useMemo(() => {
+        const total = allTenants.length;
+        const selected = selectedTenantIds.size;
+        const totalReceipts = allTenants.reduce((sum, t) => sum + t.receipts.length, 0);
+        return { total, selected, totalReceipts };
+    }, [allTenants, selectedTenantIds]);
+
+    // Auto-select first tenant on open
+    useEffect(() => {
+        if (!selectedTenant && filteredTenants.length > 0 && open) {
+            setSelectedTenant(filteredTenants[0]);
+        }
+    }, [selectedTenant, filteredTenants, open]);
+
+    // Keep selected tenant in sync if filtered list changes
+    useEffect(() => {
+        if (selectedTenant) {
+            const stillExists = filteredTenants.find(
+                (t) => t.tenant.id === selectedTenant.tenant.id
+            );
+            if (!stillExists && filteredTenants.length > 0) {
+                setSelectedTenant(filteredTenants[0]);
+            }
+        }
+    }, [filteredTenants, selectedTenant]);
+
+    const toggleTenant = (tenantId: number) => {
+        setSelectedTenantIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(tenantId)) {
+                next.delete(tenantId);
+            } else {
+                next.add(tenantId);
+            }
+            return next;
+        });
+    };
+
+    const toggleAll = () => {
+        if (selectedTenantIds.size === filteredTenants.length && filteredTenants.length > 0) {
+            setSelectedTenantIds(new Set());
+        } else {
+            const all = new Set(filteredTenants.map((t) => t.tenant.id));
+            setSelectedTenantIds(all);
+        }
+    };
+
+    const getSelectedIds = (): number[] | 'all' => {
+        if (selectedTenantIds.size === 0) return 'all';
+        return Array.from(selectedTenantIds);
+    };
+
+    const handleExport = async (format: 'csv' | 'xlsx' | 'zip') => {
+        const ids = getSelectedIds();
+        const isAll = ids === 'all';
+        const count = isAll ? stats.total : (ids as number[]).length;
+
+        if (!isAll && count === 0) {
+            toast.error('Please select at least one tenant to export');
+            return;
+        }
+
+        setIsExporting(true);
+        try {
+            let blob: Blob;
+            let filename: string;
+            const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+
+            switch (format) {
+                case 'csv':
+                    blob = await exportCsv(ids);
+                    filename = `receipts_export_${dateStr}.csv`;
+                    break;
+                case 'xlsx':
+                    blob = await exportExcel('xlsx', ids);
+                    filename = `Rent_Data_Export_${dateStr}.xlsx`;
+                    break;
+                case 'zip':
+                    blob = await exportZip(ids);
+                    filename = `tenant_data_${dateStr}.zip`;
+                    break;
+            }
+
+            downloadBlob(blob, filename);
+
+            toast.success(
+                `Exported ${format.toUpperCase()} for ${count} tenant${count !== 1 ? 's' : ''}`
+            );
+        } catch (err: any) {
+            toast.error(err.message || `${format.toUpperCase()} export failed`);
+            console.error('Export error:', err);
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
+    const active = selectedTenant ? selectedTenant.tenant.id : -1;
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
+                {/* Header */}
+                <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <FileSpreadsheet className="h-6 w-6 text-blue-500 shrink-0" />
+                            <div>
+                                <DialogTitle className="text-xl">Export Preview</DialogTitle>
+                                <DialogDescription className="mt-1 text-sm">
+                                    Select tenants and choose export format
+                                </DialogDescription>
+                            </div>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            <Badge className="bg-blue-100 text-blue-700 border-blue-200">
+                                {stats.total} Tenant{stats.total !== 1 ? 's' : ''}
+                            </Badge>
+                            <Badge className="bg-purple-100 text-purple-700 border-purple-200">
+                                {stats.totalReceipts} Receipt{stats.totalReceipts !== 1 ? 's' : ''}
+                            </Badge>
+                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
+                                {stats.selected} Selected
+                            </Badge>
+                        </div>
+                    </div>
+                </DialogHeader>
+
+                {/* Split Pane Content */}
+                <div className="flex-1 min-h-0 flex">
+                    {/* LEFT PANE: Tenant List */}
+                    <div className="w-[380px] lg:w-[420px] border-r bg-muted/30 flex flex-col shrink-0">
+                        <div className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0 border-b bg-muted/50 flex items-center justify-between">
+                            <span>Tenants ({filteredTenants.length})</span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs"
+                                onClick={toggleAll}
+                            >
+                                {selectedTenantIds.size === filteredTenants.length && filteredTenants.length > 0
+                                    ? 'Deselect All'
+                                    : 'Select All'}
+                            </Button>
+                        </div>
+
+                        <div className="shrink-0 border-b p-3 space-y-2">
+                            <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <Input
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder="Search name, ID, phone, company, room"
+                                    className="pl-9"
+                                />
+                            </div>
+                        </div>
+
+                        <ScrollArea className="flex-1">
+                            <div className="p-2 space-y-1.5">
+                                {isLoading ? (
+                                    <div className="flex items-center justify-center p-8">
+                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                    </div>
+                                ) : filteredTenants.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground p-3">
+                                        No tenants found.
+                                    </div>
+                                ) : (
+                                    filteredTenants.map((target) => {
+                                        const tenant = target.tenant;
+                                        const isSelected = selectedTenantIds.has(tenant.id);
+                                        const isActive = active === tenant.id;
+                                        const receiptCount = target.receipts.length;
+
+                                        return (
+                                            <div
+                                                key={tenant.id}
+                                                onClick={() => setSelectedTenant(target)}
+                                                className={cn(
+                                                    "group relative rounded-lg border p-3 cursor-pointer transition-all",
+                                                    "hover:bg-accent hover:border-accent-foreground/20",
+                                                    isActive && "bg-primary/10 border-primary/50 ring-1 ring-primary/30",
+                                                    !isActive && "bg-card border-border"
+                                                )}
+                                            >
+                                                <div className="flex items-start gap-2">
+                                                    <div
+                                                        className="pt-0.5 shrink-0"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleTenant(tenant.id);
+                                                        }}
+                                                    >
+                                                        <Checkbox
+                                                            checked={isSelected}
+                                                            className="h-4 w-4"
+                                                        />
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-start justify-between gap-2">
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="font-semibold text-sm truncate">
+                                                                    {tenant.name || 'Unnamed Tenant'}
+                                                                </div>
+                                                                <div className="text-xs text-muted-foreground mt-0.5">
+                                                                    ID: {tenant.id}
+                                                                    {tenant.roomNumber && ` • Room ${tenant.roomNumber}`}
+                                                                </div>
+                                                            </div>
+                                                            <Badge
+                                                                className={cn(
+                                                                    getStatusTone(tenant.status || 'Active'),
+                                                                    "text-[10px] h-5 px-1.5 shrink-0"
+                                                                )}
+                                                            >
+                                                                {(tenant.status || 'Active').toUpperCase()}
+                                                            </Badge>
+                                                        </div>
+
+                                                        <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                                                            <span>{receiptCount} receipt{receiptCount !== 1 ? 's' : ''}</span>
+                                                            {tenant.phone && (
+                                                                <span>• {tenant.phone}</span>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="mt-1 text-xs text-muted-foreground">
+                                                            Rent {formatCurrency(tenant.rent)}
+                                                            {tenant.water && ` • Water ${formatCurrency(tenant.water)}`}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {isActive && (
+                                                    <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-primary rounded-r-full" />
+                                                )}
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </ScrollArea>
+                    </div>
+
+                    {/* RIGHT PANE: Receipts Table */}
+                    <div className="flex-1 flex flex-col min-w-0 bg-background">
+                        {selectedTenant ? (
+                            <>
+                                {/* Tenant Header */}
+                                <div className="px-5 py-3 border-b bg-muted/20 shrink-0">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                                <User className="h-5 w-5 text-primary" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-semibold text-base">
+                                                    {selectedTenant.tenant.name || 'Unnamed Tenant'}
+                                                </h3>
+                                                <p className="text-xs text-muted-foreground">
+                                                    ID: {selectedTenant.tenant.id}
+                                                    {selectedTenant.tenant.company && ` • ${selectedTenant.tenant.company}`}
+                                                    {selectedTenant.tenant.phone && ` • ${selectedTenant.tenant.phone}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Badge
+                                                className={cn(
+                                                    getStatusTone(selectedTenant.tenant.status || 'Active'),
+                                                    "text-[10px] h-5 px-1.5"
+                                                )}
+                                            >
+                                                {(selectedTenant.tenant.status || 'Active').toUpperCase()}
+                                            </Badge>
+                                            <Badge variant="outline" className="text-[10px] h-5 px-1.5">
+                                                {selectedTenant.receipts.length} Receipts
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Receipts Table */}
+                                <div className="flex-1 min-h-0 overflow-auto">
+                                    {selectedTenant.receipts.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                                            <AlertCircle className="h-10 w-10 mb-3 opacity-40" />
+                                            <p className="text-sm">No receipts found for this tenant</p>
+                                        </div>
+                                    ) : (
+                                        <div className="p-4">
+                                            <Table>
+                                                <TableHeader className="sticky top-0 bg-background z-10">
+                                                    <TableRow>
+                                                        <TableHead className="w-[100px]">Bill No</TableHead>
+                                                        <TableHead>Month</TableHead>
+                                                        <TableHead>Date</TableHead>
+                                                        <TableHead className="text-right">Rent</TableHead>
+                                                        <TableHead className="text-right">Electricity</TableHead>
+                                                        <TableHead className="text-right">Water</TableHead>
+                                                        <TableHead className="text-right">Total</TableHead>
+                                                        <TableHead>Status</TableHead>
+                                                        <TableHead>Payment</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {selectedTenant.receipts.map((receipt, idx) => (
+                                                        <TableRow key={`${receipt.Bill}-${idx}`}>
+                                                            <TableCell className="font-medium">
+                                                                {receipt.Bill}
+                                                            </TableCell>
+                                                            <TableCell>{receipt.Month}</TableCell>
+                                                            <TableCell className="text-muted-foreground text-sm">
+                                                                {receipt.Date}
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                {formatCurrency(receipt.Rent)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                {formatCurrency(receipt.Electricity)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right">
+                                                                {formatCurrency(receipt.Water)}
+                                                            </TableCell>
+                                                            <TableCell className="text-right font-medium">
+                                                                {formatCurrency(receipt.Total)}
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Badge
+                                                                    className={cn(
+                                                                        getStatusTone(receipt.Status || 'ACTIVE'),
+                                                                        "text-[10px] h-5 px-1.5"
+                                                                    )}
+                                                                >
+                                                                    {(receipt.Status || 'ACTIVE').toUpperCase()}
+                                                                </Badge>
+                                                            </TableCell>
+                                                            <TableCell>
+                                                                <Badge
+                                                                    className={cn(
+                                                                        getPaymentTone(receipt.paymentStatus || 'PENDING'),
+                                                                        "text-[10px] h-5 px-1.5"
+                                                                    )}
+                                                                >
+                                                                    {(receipt.paymentStatus || 'PENDING').toUpperCase()}
+                                                                </Badge>
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+                                <AlertCircle className="h-10 w-10 mb-3 opacity-40" />
+                                <p className="text-sm">Select a tenant from the left panel to preview receipts</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <Separator />
+
+                {/* Footer with Export Buttons */}
+                <div className="px-6 py-4 shrink-0 flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                        {stats.selected === 0
+                            ? 'All tenants will be exported (no selection)'
+                            : `${stats.selected} of ${stats.total} tenant${stats.total !== 1 ? 's' : ''} selected for export`}
+                    </p>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onOpenChange(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleExport('csv')}
+                            disabled={isExporting}
+                        >
+                            {isExporting ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <FileText className="mr-2 h-4 w-4" />
+                            )}
+                            Export CSV
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleExport('xlsx')}
+                            disabled={isExporting}
+                        >
+                            {isExporting ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                            )}
+                            Export XLSX
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={() => handleExport('zip')}
+                            disabled={isExporting}
+                        >
+                            {isExporting ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <FileArchive className="mr-2 h-4 w-4" />
+                            )}
+                            Export ZIP
+                        </Button>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+```
+
+```typescript
+// File: frontend\admin-app\src\components\modals\ExportService.ts
+// ExportService.ts
+import { ROUTES } from '@/lib/routes';
+
+export type TenantProfile = {
+    id: number;
+    name: string;
+    company?: string;
+    phone?: string;
+    email?: string;
+    address?: string;
+    roomNumber?: string;
+    meterId?: string;
+    status: string;
+    rent: number;
+    water: number;
+    electricityRate: number;
+    additionalPersonCharge: number;
+    defaulttankWaterCharge: number;
+};
+
+export type Receipt = {
+    Bill: string;
+    Date: string;
+    Month: string;
+    Tenant: string;
+    Previous: number;
+    Current: number;
+    Units: number;
+    Rent: number;
+    Additional: number;
+    Water: number;
+    tankWater: number;
+    Electricity: number;
+    Total: number;
+    paymentStatus: string;
+    Status: string;
+    MaintenanceCharge: number;
+    MaintenanceDesc: string;
+    previousArrears: number;
+    amountReceived: number;
+};
+
+export type ExportPreviewResponse = {
+    tenants: TenantProfile[];
+    receipts: Receipt[];
+};
+
+/**
+ * Fetch all tenants and receipts for export preview
+ */
+export async function fetchExportPreview(): Promise<ExportPreviewResponse> {
+    const [tenantsRes, receiptsRes] = await Promise.all([
+        fetch(ROUTES.ADMINAPITENANTSLIST, { credentials: 'include' }),
+        fetch(`${ROUTES.ADMINAPIBILLINGFILTER}?status=active`, { credentials: 'include' }),
+    ]);
+
+    if (!tenantsRes.ok) {
+        throw new Error(`Failed to fetch tenants: ${tenantsRes.status}`);
+    }
+    if (!receiptsRes.ok) {
+        throw new Error(`Failed to fetch receipts: ${receiptsRes.status}`);
+    }
+
+    const tenants = await tenantsRes.json();
+    const receipts = await receiptsRes.json();
+
+    return { tenants, receipts };
+}
+
+/**
+ * Export selected tenants' data as CSV
+ * @param tenantIds - Array of tenant IDs to export, or "all"
+ */
+export async function exportCsv(tenantIds: number[] | 'all'): Promise<Blob> {
+    const idsParam = tenantIds === 'all' ? 'all' : tenantIds.join(',');
+
+    const response = await fetch(
+        `${ROUTES.ADMINAPISYNCEXPORTCSV}?tenants_list=${encodeURIComponent(idsParam)}`,
+        { credentials: 'include' }
+    );
+
+    if (!response.ok) {
+        throw new Error(`CSV export failed: ${response.status}`);
+    }
+
+    return response.blob();
+}
+
+/**
+ * Export selected tenants' data as ZIP (with PDFs)
+ * @param tenantIds - Array of tenant IDs to export, or "all"
+ */
+export async function exportZip(tenantIds: number[] | 'all'): Promise<Blob> {
+    const idsParam = tenantIds === 'all' ? 'all' : tenantIds.join(',');
+
+    const response = await fetch(
+        `${ROUTES.ADMINAPISYNCEXPORTZIP}?tenants_list=${encodeURIComponent(idsParam)}`,
+        { credentials: 'include' }
+    );
+
+    if (!response.ok) {
+        throw new Error(`ZIP export failed: ${response.status}`);
+    }
+
+    return response.blob();
+}
+
+/**
+ * Export selected tenants' data as XLSX/CSV/ZIP via the unified export-excel endpoint
+ * @param format - 'xlsx', 'csv', or 'zip'
+ * @param tenantIds - Array of tenant IDs to export, or "all"
+ */
+export async function exportExcel(format: 'xlsx' | 'csv' | 'zip', tenantIds: number[] | 'all'): Promise<Blob> {
+    const idsParam = tenantIds === 'all' ? 'all' : tenantIds.join(',');
+
+    const response = await fetch(
+        `${ROUTES.ADMINAPISYNCEXPORTEXCEL(format)}&tenants_list=${encodeURIComponent(idsParam)}`,
+        { credentials: 'include' }
+    );
+
+    if (!response.ok) {
+        throw new Error(`${format.toUpperCase()} export failed: ${response.status}`);
+    }
+
+    return response.blob();
+}
+
+/**
+ * Trigger file download from blob
+ */
+export function downloadBlob(blob: Blob, filename: string) {
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+}
+```
+
+```tsx
 // File: frontend\admin-app\src\components\modals\ImportPreviewModal.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
@@ -17074,6 +17941,10 @@ export default function ImportPreviewModal({
     const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
     const [isExecuting, setIsExecuting] = useState(false);
 
+    type TenantStatus = "Active" | "Inactive" | "Archived";
+    const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+    const [targetStatuses, setTargetStatuses] = useState<Record<string, TenantStatus>>({});
+
     // Flatten preview data into a list of tenants
     const allTenants = useMemo(() => {
         const list: ImportTarget[] = [];
@@ -17090,6 +17961,19 @@ export default function ImportPreviewModal({
         }
         return list;
     }, [previewData]);
+
+    useEffect(() => {
+        const next: Record<string, TenantStatus> = {};
+        allTenants.forEach((tenant) => {
+            const key = makeTargetKey(tenant.file, tenant.tenantId);
+            const importedStatus = tenant.profile.Status?.trim().toUpperCase();
+
+            next[key] = importedStatus === "ARCHIVED"
+                ? "Active"
+                : (tenant.profile.Status?.trim().replace(/^./, c => c.toUpperCase()) as TenantStatus || "Active");
+        });
+        setTargetStatuses(next);
+    }, [allTenants]);
 
     // Filtered tenants based on search
     const filteredTenants = useMemo(() => {
@@ -17152,24 +18036,45 @@ export default function ImportPreviewModal({
         }
     };
 
-    const handleConfirm = async () => {
+    const handleConfirm = () => {
         if (selectedTargets.size === 0) {
             toast.error("Please select at least one tenant to import");
             return;
         }
 
+        const containsArchivedSource = Array.from(selectedTargets).some((key) => {
+            const tenant = allTenants.find(
+                (item) => makeTargetKey(item.file, item.tenantId) === key
+            );
+            return tenant?.profile.Status?.trim().toUpperCase() === "ARCHIVED";
+        });
+
+        if (containsArchivedSource) {
+            setStatusDialogOpen(true);
+            return;
+        }
+
+        executeImport();
+    };
+
+    const executeImport = async () => {
         setIsExecuting(true);
         try {
-            const targetsArray = Array.from(selectedTargets);
-            const result = await importExecute(files, targetsArray);
+            const targets = Array.from(selectedTargets);
+            const selectedStatusMap = Object.fromEntries(
+                targets.map((target) => [target, targetStatuses[target] || "Active"])
+            );
+
+            const result = await importExecute(files, targets, selectedStatusMap);
             toast.success(result.message || "Import completed successfully");
-            onOpenChange(false);
             onImportSuccess();
+            onOpenChange(false);
         } catch (err: any) {
-            toast.error(err.message || "Import failed");
+            toast.error(err?.message || "Import failed");
             console.error("Import execute error:", err);
         } finally {
             setIsExecuting(false);
+            setStatusDialogOpen(false);
         }
     };
 
@@ -17178,6 +18083,7 @@ export default function ImportPreviewModal({
         : '';
 
     return (
+        <>
         <Dialog open={open} onOpenChange={onOpenChange}>
             {/* Match PreviewDialog / BillsModal sizing pattern exactly */}
             <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
@@ -17473,12 +18379,83 @@ export default function ImportPreviewModal({
                 </div>
             </DialogContent>
         </Dialog>
+
+        {/* Status Override Dialog */}
+        <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+            <DialogContent className="max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Archived tenant detected</DialogTitle>
+                    <DialogDescription>
+                        Some selected Excel records are marked Archived. Select the final
+                        tenant status before importing.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                    {Array.from(selectedTargets).map((targetKey) => {
+                        const tenant = allTenants.find(
+                            (item) => makeTargetKey(item.file, item.tenantId) === targetKey
+                        );
+
+                        if (tenant?.profile.Status?.trim().toUpperCase() !== "ARCHIVED") {
+                            return null;
+                        }
+
+                        return (
+                            <div key={targetKey} className="rounded-md border p-3">
+                                <p className="mb-2 font-medium">{tenant.profile.tenantName}</p>
+                                <div className="flex gap-2">
+                                    {(["Active", "Inactive", "Archived"] as const).map((status) => (
+                                        <Button
+                                            key={status}
+                                            type="button"
+                                            size="sm"
+                                            variant={targetStatuses[targetKey] === status ? "default" : "outline"}
+                                            onClick={() =>
+                                                setTargetStatuses((current) => ({
+                                                    ...current,
+                                                    [targetKey]: status,
+                                                }))
+                                            }
+                                        >
+                                            {status}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button
+                        variant="outline"
+                        onClick={() => setStatusDialogOpen(false)}
+                        disabled={isExecuting}
+                    >
+                        Cancel
+                    </Button>
+                    <Button onClick={executeImport} disabled={isExecuting}>
+                        {isExecuting ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Importing...
+                            </>
+                        ) : "Confirm Import"}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+        </>
     );
 }
 ```
 
 ```typescript
 // File: frontend\admin-app\src\components\modals\importService.ts
+import { ROUTES } from '@/lib/routes';
+import type { SchemaMismatchInfo } from './SchemaMismatchDialog';
+
 export interface PreviewResponse {
   status: string;
   files: {
@@ -17527,21 +18504,40 @@ export interface PreviewResponse {
 }
 
 /**
- * Preview import data from Excel/Zip files
+ * Upload files for import preview. Returns parsed data or throws with schema mismatch info.
  */
 export async function importPreview(files: File[]): Promise<PreviewResponse> {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
 
-  const basePath = window.location.pathname.startsWith('/rent') ? '/rent' : '';
-  const response = await fetch(`${basePath}/admin/api/import-preview`, {
+  const response = await fetch(ROUTES.ADMINAPISYNCIMPORTPREVIEW, {
     method: "POST",
     body: formData,
+    credentials: 'include',
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || "Preview failed");
+    const errorData = await response.json().catch(() => ({}));
+
+    // Check if this is a schema mismatch error
+    const detail = errorData.detail || '';
+    if (
+        detail.includes('missing required sheets') ||
+        detail.includes('Tenant_Profile') ||
+        detail.includes('Rent_Receipts') ||
+        response.status === 400
+    ) {
+        // Try to extract mismatch info from error
+        const mismatch: SchemaMismatchInfo = {
+            filename: files[0]?.name || 'unknown',
+            expected: 'Tenant_Profile, Rent_Receipts',
+            actual: detail,
+            missingSheets: extractMissingSheets(detail),
+        };
+        throw new SchemaMismatchError(mismatch);
+    }
+
+    throw new Error(detail || `Import preview failed: ${response.status}`);
   }
 
   return response.json();
@@ -17556,8 +18552,9 @@ export async function importPreview(files: File[]): Promise<PreviewResponse> {
  */
 export async function importExecute(
   files: File[],
-  selectedTargets: string[]
-): Promise<{ status: string; message: string }> {
+  selectedTargets: string[],
+  targetStatuses: Record<string, string> = {}
+): Promise<{ status: string; message: string; tenants?: number; receipts?: number }> {
   const formData = new FormData();
 
   // Re-append the original files (required by backend)
@@ -17566,20 +18563,101 @@ export async function importExecute(
   // CRITICAL: selectedtargets must be a Form field with JSON string value
   // Backend: selectedtargets: str = Form(...)
   formData.append("selectedtargets", JSON.stringify(selectedTargets));
+  formData.append("targetstatuses", JSON.stringify(targetStatuses));
 
-  const basePath = window.location.pathname.startsWith('/rent') ? '/rent' : '';
-  const response = await fetch(`${basePath}/admin/api/import-execute`, {
+  const response = await fetch(ROUTES.ADMINAPISYNCIMPORTEXECUTE, {
     method: "POST",
     body: formData,
+    credentials: 'include',
     // DO NOT set Content-Type header - browser will set multipart boundary automatically
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    throw new Error(error.detail || `Import failed: ${response.status}`);
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Import failed: ${response.status}`);
   }
 
   return response.json();
+}
+
+/**
+ * Download the import template.
+ */
+export async function downloadImportTemplate(): Promise<Blob> {
+    const response = await fetch(ROUTES.ADMINAPISYNCTEMPLATE, {
+        credentials: 'include',
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to download template: ${response.status}`);
+    }
+
+    return response.blob();
+}
+
+// ─── Schema Mismatch Error Class ───────────────────────────────────────
+
+export class SchemaMismatchError extends Error {
+    public mismatch: SchemaMismatchInfo;
+
+    constructor(mismatch: SchemaMismatchInfo) {
+        super('Schema mismatch detected');
+        this.name = 'SchemaMismatchError';
+        this.mismatch = mismatch;
+    }
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────
+
+function extractMissingSheets(detail: string): string[] | undefined {
+    const missing: string[] = [];
+    if (detail.includes('Tenant_Profile')) {
+        // If the error mentions Tenant_Profile is missing
+        if (detail.includes('missing') && detail.includes('Tenant_Profile')) {
+            missing.push('Tenant_Profile');
+        }
+    }
+    if (detail.includes('Rent_Receipts')) {
+        if (detail.includes('missing') && detail.includes('Rent_Receipts')) {
+            missing.push('Rent_Receipts');
+        }
+    }
+    return missing.length > 0 ? missing : undefined;
+}
+
+/**
+ * Check if an error is a schema mismatch error.
+ */
+export function isSchemaMismatchError(error: unknown): error is SchemaMismatchError {
+    return error instanceof SchemaMismatchError;
+}
+
+/**
+ * Parse schema mismatch from a generic API error response.
+ * Use this when the backend returns 400 with sheet/header mismatch details.
+ */
+export function parseSchemaMismatch(
+    filename: string,
+    detail: string
+): SchemaMismatchInfo {
+    const info: SchemaMismatchInfo = {
+        filename,
+        expected: 'Tenant_Profile, Rent_Receipts sheets with specific headers',
+        actual: detail,
+    };
+
+    // Extract missing sheets
+    const missingSheets: string[] = [];
+    for (const sheet of ['Tenant_Profile', 'Rent_Receipts']) {
+        if (detail.includes(sheet) && detail.toLowerCase().includes('missing')) {
+            missingSheets.push(sheet);
+        }
+    }
+    if (missingSheets.length > 0) {
+        info.missingSheets = missingSheets;
+    }
+
+    return info;
 }
 ```
 
@@ -17719,529 +18797,290 @@ export default function PaymentModal({ open, onOpenChange, bill, onUpdate }: Pay
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\modals\PreviewDialog.tsx
-import React, { useState, useCallback } from "react";
+// File: frontend\admin-app\src\components\modals\SchemaMismatchDialog.tsx
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
-import {
-  User,
-  Receipt,
-  FileSpreadsheet,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  Building2,
-  Phone,
-  MapPin,
-  Wallet,
-  ChevronRight,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+    AlertTriangle,
+    FileSpreadsheet,
+    Download,
+    X,
+    CheckCircle2,
+    XCircle,
+    Sheet,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // ─── Types ─────────────────────────────────────────────────────────
 
-interface TENANTPROFILE {
-  tenantId: string;
-  tenantName: string;
-  Phone: string;
-  Email: string;
-  Company: string;
-  Address: string;
-  Room: string;
-  meterId: string;
-  PIN: string;
-  Rent: string;
-  Water: string;
-  electricityRate: string;
-  additionalPersonRate: string;
-  tankWater: string;
-  Status: string;
-}
+export type SchemaMismatchInfo = {
+    /** The file name that failed validation */
+    filename: string;
+    /** What was expected (e.g. "Tenant_Profile, Rent_Receipts sheets") */
+    expected?: string;
+    /** What was actually found in the file */
+    actual?: string;
+    /** Specific missing sheets */
+    missingSheets?: string[];
+    /** Specific missing headers per sheet */
+    missingHeaders?: Record<string, string[]>;
+    /** Extra headers that are not recognized */
+    extraHeaders?: Record<string, string[]>;
+};
 
-interface ReceiptData {
-  BillNo: string;
-  tenantId: string;
-  Month: string;
-  Date: string;
-  Previous: string;
-  Current: string;
-  Units: string;
-  Rent: string;
-  Water: string;
-  Electricity: string;
-  Additional: string;
-  tankWater: string;
-  Maintenance: string;
-  Arrears: string;
-  amountReceived: string;
-  Total: string;
-  paymentStatus: string;
-  receiptStatus: string;
-}
+type SchemaMismatchDialogProps = {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    /** Single mismatch or list of mismatches (for multi-file upload) */
+    mismatches: SchemaMismatchInfo | SchemaMismatchInfo[];
+    /** Called when user clicks "Download Template" */
+    onDownloadTemplate?: () => void;
+    /** Called when user clicks "Try Again" */
+    onRetry?: () => void;
+};
 
-interface TenantPreview {
-  profile: TENANTPROFILE;
-  receipts: ReceiptData[];
-}
+// ─── Constants ───────────────────────────────────────────────────────
 
-interface FilePreview {
-  [tenantId: string]: TenantPreview;
-}
+const EXPECTED_PROFILE_HEADERS = [
+    'tenantId', 'tenantName', 'Phone', 'Email', 'Company', 'Address',
+    'Room', 'meterId', 'PIN', 'Rent', 'Water', 'electricityRate',
+    'additionalPersonRate', 'tankWater', 'Status',
+];
 
-interface PreviewResponse {
-  status: string;
-  files: {
-    [filename: string]: FilePreview;
-  };
-}
+const EXPECTED_RECEIPT_HEADERS = [
+    'BillNo', 'tenantId', 'Month', 'Date', 'Previous', 'Current',
+    'Units', 'Rent', 'Water', 'Electricity', 'Additional',
+    'tankWater', 'Maintenance', 'Arrears', 'amountReceived',
+    'Total', 'paymentStatus', 'receiptStatus',
+];
 
-interface PreviewDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  previewData: PreviewResponse | null;
-  files: File[];
-  onImportSuccess: () => void;
-}
+const EXPECTED_SHEETS = ['Tenant_Profile', 'Rent_Receipts'];
 
-// ─── Component ─────────────────────────────────────────────────────
+// ─── Component ───────────────────────────────────────────────────────
 
-export function PreviewDialog({
-  open,
-  onOpenChange,
-  previewData,
-  files,
-  onImportSuccess,
-}: PreviewDialogProps) {
-  const [selectedTenantKey, setSelectedTenantKey] = useState<string | null>(null);
-  const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
-  const [isExecuting, setIsExecuting] = useState(false);
+export default function SchemaMismatchDialog({
+    open,
+    onOpenChange,
+    mismatches,
+    onDownloadTemplate,
+    onRetry,
+}: SchemaMismatchDialogProps) {
+    const mismatchList = Array.isArray(mismatches) ? mismatches : [mismatches];
 
-  // Flatten all tenants from all files into a single list
-  const allTenants = React.useMemo(() => {
-    if (!previewData?.files) return [];
-    const tenants: {
-      key: string;
-      filename: string;
-      tenantId: string;
-      profile: TENANTPROFILE;
-      receipts: ReceiptData[];
-    }[] = [];
-
-    Object.entries(previewData.files).forEach(([filename, fileData]) => {
-      Object.entries(fileData).forEach(([tenantId, tenantData]) => {
-        tenants.push({
-          key: `${filename}::${tenantId}`,
-          filename,
-          tenantId,
-          profile: tenantData.profile,
-          receipts: tenantData.receipts,
-        });
-      });
-    });
-    return tenants;
-  }, [previewData]);
-
-  // Select first tenant by default when data loads
-  React.useEffect(() => {
-    if (allTenants.length > 0 && !selectedTenantKey) {
-      setSelectedTenantKey(allTenants[0].key);
-      setSelectedTargets(new Set(allTenants.map((t) => t.key)));
-    }
-  }, [allTenants, selectedTenantKey]);
-
-  const selectedTenant = allTenants.find((t) => t.key === selectedTenantKey);
-
-  const toggleSelection = (key: string) => {
-    setSelectedTargets((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-  };
-
-  const toggleAll = () => {
-    if (selectedTargets.size === allTenants.length) {
-      setSelectedTargets(new Set());
-    } else {
-      setSelectedTargets(new Set(allTenants.map((t) => t.key)));
-    }
-  };
-
-  // ─── FIXED: Import Execute ─────────────────────────────────────
-  const handleExecute = async () => {
-    if (selectedTargets.size === 0) {
-      toast.error("Please select at least one tenant to import");
-      return;
-    }
-
-    setIsExecuting(true);
-    try {
-      const formData = new FormData();
-      files.forEach((file) => {
-        formData.append("files", file);
-      });
-      const targetsArray = Array.from(selectedTargets);
-      formData.append("selectedtargets", JSON.stringify(targetsArray));
-
-      const basePath = window.location.pathname.startsWith('/rent') ? '/rent' : '';
-      const response = await fetch(`${basePath}/admin/api/import-execute`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Import failed: ${response.status}`);
-      }
-
-      const result = await response.json();
-      toast.success(result.message || "Import completed successfully");
-      onOpenChange(false);
-      onImportSuccess();
-    } catch (err: any) {
-      toast.error(err.message || "Import failed");
-      console.error("Import execute error:", err);
-    } finally {
-      setIsExecuting(false);
-    }
-  };
-
-  if (!previewData || allTenants.length === 0) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Import Preview</DialogTitle>
-            <DialogDescription>No data to preview</DialogDescription>
-          </DialogHeader>
-        </DialogContent>
-      </Dialog>
-    );
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* OPTIMIZED: Full viewport width with proper max-width, increased height */}
-      <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
-        {/* Header */}
-        <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <FileSpreadsheet className="h-6 w-6 text-emerald-500 shrink-0" />
-              <div>
-                <DialogTitle className="text-xl">Import Preview</DialogTitle>
-                <DialogDescription className="mt-1 text-sm">
-                  Review tenants and receipts before importing.{" "}
-                  <span className="font-medium text-foreground">
-                    {selectedTargets.size} of {allTenants.length}
-                  </span>{" "}
-                  selected.
-                </DialogDescription>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={toggleAll}
-              className="h-8"
-            >
-              {selectedTargets.size === allTenants.length ? (
-                <>Deselect All</>
-              ) : (
-                <>Select All</>
-              )}
-            </Button>
-          </div>
-        </DialogHeader>
-
-        {/* Split Pane Content */}
-        <div className="flex-1 min-h-0 flex">
-          {/* LEFT PANE: Tenant Cards - OPTIMIZED wider */}
-          <div className="w-[380px] lg:w-[420px] border-r bg-muted/30 flex flex-col shrink-0">
-            <div className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0 border-b bg-muted/50">
-              Tenants ({allTenants.length})
-            </div>
-            <ScrollArea className="flex-1">
-              <div className="p-2 space-y-1.5">
-                {allTenants.map((tenant) => {
-                  const isSelected = selectedTargets.has(tenant.key);
-                  const isActive = selectedTenantKey === tenant.key;
-                  const profile = tenant.profile;
-
-                  return (
-                    <div
-                      key={tenant.key}
-                      onClick={() => setSelectedTenantKey(tenant.key)}
-                      className={cn(
-                        "group relative rounded-lg border p-3 cursor-pointer transition-all",
-                        "hover:bg-accent hover:border-accent-foreground/20",
-                        isActive && "bg-primary/10 border-primary/50 ring-1 ring-primary/30",
-                        !isActive && "bg-card border-border"
-                      )}
-                    >
-                      {/* Checkbox */}
-                      <div
-                        className="absolute top-3 right-3 z-10"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleSelection(tenant.key);
-                        }}
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => toggleSelection(tenant.key)}
-                        />
-                      </div>
-
-                      {/* Profile Content */}
-                      <div className="pr-8">
-                        <div className="flex items-center gap-2.5 mb-2">
-                          <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                            <User className="h-4 w-4 text-primary" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-sm truncate leading-tight">
-                              {profile.tenantName}
-                            </p>
-                            <p className="text-xs text-muted-foreground font-medium">
-                              {profile.tenantId}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mt-2 space-y-1.5">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                            <span className="truncate">{profile.Phone || "—"}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                            <span className="truncate">Room {profile.Room || "—"}</span>
-                            {profile.meterId && (
-                              <span className="text-muted-foreground/50">• {profile.meterId}</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Wallet className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                            <span>₹{parseFloat(profile.Rent || "0").toLocaleString("en-IN")}</span>
-                            <span className="text-muted-foreground/50">/mo</span>
-                          </div>
-                        </div>
-
-                        <div className="mt-2.5 flex items-center gap-2">
-                          <Badge
-                            variant={
-                              profile.Status === "Active" ? "default" : "secondary"
-                            }
-                            className="text-[10px] h-5 px-1.5"
-                          >
-                            {profile.Status}
-                          </Badge>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] h-5 px-1.5 gap-1"
-                          >
-                            <Receipt className="h-3 w-3" />
-                            {tenant.receipts.length} receipt{tenant.receipts.length !== 1 ? "s" : ""}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {/* Active indicator */}
-                      {isActive && (
-                        <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-primary rounded-r-full" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </ScrollArea>
-          </div>
-
-          {/* RIGHT PANE: Receipts Table - OPTIMIZED */}
-          <div className="flex-1 flex flex-col min-w-0 bg-background">
-            {selectedTenant ? (
-              <>
-                {/* Tenant Header - Compact */}
-                <div className="px-5 py-3 border-b bg-muted/20 shrink-0">
-                  <div className="flex items-center justify-between">
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-[600px] max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden">
+                {/* Header */}
+                <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b bg-red-50/50">
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <Building2 className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold text-base">
-                          {selectedTenant.profile.tenantName}
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          {selectedTenant.receipts.length} receipt
-                          {selectedTenant.receipts.length !== 1 ? "s" : ""} to import
-                          {selectedTenant.profile.Room && ` • Room ${selectedTenant.profile.Room}`}
-                          {selectedTenant.profile.Phone && ` • ${selectedTenant.profile.Phone}`}
+                        <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                            <AlertTriangle className="h-5 w-5 text-red-600" />
+                        </div>
+                        <div>
+                            <DialogTitle className="text-lg text-red-800">
+                                Schema Mismatch Detected
+                            </DialogTitle>
+                            <DialogDescription className="mt-0.5 text-sm text-red-600/80">
+                                The uploaded file does not match the expected import schema
+                            </DialogDescription>
+                        </div>
+                    </div>
+                </DialogHeader>
+
+                {/* Content */}
+                <div className="flex-1 overflow-auto px-6 py-4 space-y-4">
+                    {/* Summary */}
+                    <div className="rounded-lg border border-red-200 bg-red-50/30 p-4">
+                        <p className="text-sm text-red-800 leading-relaxed">
+                            We could not process your import because the file structure does not
+                            match what the system expects. Please compare your file against the
+                            required schema below, or download the official template to ensure
+                            compatibility.
                         </p>
-                      </div>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                      {selectedTenant.profile.Status}
+
+                    {/* File-specific errors */}
+                    {mismatchList.map((mismatch, idx) => (
+                        <div
+                            key={idx}
+                            className="rounded-lg border border-amber-200 bg-amber-50/20 p-4 space-y-3"
+                        >
+                            <div className="flex items-center gap-2">
+                                <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                                <span className="text-sm font-medium text-red-700">
+                                    {mismatch.filename}
+                                </span>
+                            </div>
+
+                            {mismatch.missingSheets && mismatch.missingSheets.length > 0 && (
+                                <div className="ml-6 space-y-1.5">
+                                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                                        Missing Sheets
+                                    </p>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {mismatch.missingSheets.map((sheet) => (
+                                            <Badge
+                                                key={sheet}
+                                                variant="outline"
+                                                className="bg-red-50 text-red-700 border-red-200 text-[11px]"
+                                            >
+                                                <X className="h-3 w-3 mr-1" />
+                                                {sheet}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {mismatch.missingHeaders &&
+                                Object.entries(mismatch.missingHeaders).map(
+                                    ([sheet, headers]) =>
+                                        headers.length > 0 ? (
+                                            <div key={sheet} className="ml-6 space-y-1.5">
+                                                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                                                    Missing Headers in "{sheet}"
+                                                </p>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {headers.map((header) => (
+                                                        <Badge
+                                                            key={header}
+                                                            variant="outline"
+                                                            className="bg-red-50 text-red-700 border-red-200 text-[11px]"
+                                                        >
+                                                            <X className="h-3 w-3 mr-1" />
+                                                            {header}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : null
+                                )}
+
+                            {mismatch.actual && (
+                                <p className="ml-6 text-xs text-muted-foreground">
+                                    Found: {mismatch.actual}
+                                </p>
+                            )}
+                        </div>
+                    ))}
+
+                    <Separator />
+
+                    {/* Expected Schema Reference */}
+                    <div className="space-y-4">
+                        <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                            <Sheet className="h-4 w-4 text-blue-500" />
+                            Required Schema Reference
+                        </h4>
+
+                        {/* Expected Sheets */}
+                        <div className="rounded-lg border p-3 space-y-2">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                Required Sheets
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {EXPECTED_SHEETS.map((sheet) => (
+                                    <Badge
+                                        key={sheet}
+                                        className="bg-green-50 text-green-700 border-green-200"
+                                    >
+                                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                                        {sheet}
+                                    </Badge>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Tenant_Profile headers */}
+                        <div className="rounded-lg border p-3 space-y-2">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                Tenant_Profile Headers
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {EXPECTED_PROFILE_HEADERS.map((header) => (
+                                    <code
+                                        key={header}
+                                        className="text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border"
+                                    >
+                                        {header}
+                                    </code>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Rent_Receipts headers */}
+                        <div className="rounded-lg border p-3 space-y-2">
+                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                                Rent_Receipts Headers
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {EXPECTED_RECEIPT_HEADERS.map((header) => (
+                                    <code
+                                        key={header}
+                                        className="text-[11px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border"
+                                    >
+                                        {header}
+                                    </code>
+                                ))}
+                            </div>
+                        </div>
                     </div>
-                  </div>
                 </div>
 
-                {/* Receipts Table - Scrollable */}
-                <ScrollArea className="flex-1">
-                  {selectedTenant.receipts.length > 0 ? (
-                    <div className="p-4">
-                      <Table>
-                        <TableHeader className="bg-muted/50 sticky top-0">
-                          <TableRow>
-                            <TableHead className="w-[90px] text-xs">Bill No</TableHead>
-                            <TableHead className="text-xs">Month</TableHead>
-                            <TableHead className="text-xs">Date</TableHead>
-                            <TableHead className="text-right text-xs">Units</TableHead>
-                            <TableHead className="text-right text-xs">Rent</TableHead>
-                            <TableHead className="text-right text-xs">Electricity</TableHead>
-                            <TableHead className="text-right text-xs">Water</TableHead>
-                            <TableHead className="text-right text-xs">Total</TableHead>
-                            <TableHead className="text-xs">Status</TableHead>
-                            <TableHead className="text-xs">Payment</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {selectedTenant.receipts.map((receipt, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell className="font-medium text-xs py-2">
-                                {receipt.BillNo}
-                              </TableCell>
-                              <TableCell className="text-xs py-2">{receipt.Month}</TableCell>
-                              <TableCell className="text-xs py-2 whitespace-nowrap">{receipt.Date}</TableCell>
-                              <TableCell className="text-right text-xs py-2 tabular-nums">{receipt.Units}</TableCell>
-                              <TableCell className="text-right text-xs py-2 tabular-nums">
-                                ₹{parseFloat(receipt.Rent || "0").toLocaleString("en-IN")}
-                              </TableCell>
-                              <TableCell className="text-right text-xs py-2 tabular-nums">
-                                ₹{parseFloat(receipt.Electricity || "0").toLocaleString("en-IN")}
-                              </TableCell>
-                              <TableCell className="text-right text-xs py-2 tabular-nums">
-                                ₹{parseFloat(receipt.Water || "0").toLocaleString("en-IN")}
-                              </TableCell>
-                              <TableCell className="text-right font-semibold text-xs py-2 tabular-nums">
-                                ₹{parseFloat(receipt.Total || "0").toLocaleString("en-IN")}
-                              </TableCell>
-                              <TableCell className="py-2">
-                                <Badge
-                                  variant={
-                                    receipt.receiptStatus === "ACTIVE"
-                                      ? "default"
-                                      : "secondary"
-                                  }
-                                  className="text-[10px] h-5"
-                                >
-                                  {receipt.receiptStatus}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="py-2">
-                                <Badge
-                                  variant={
-                                    receipt.paymentStatus === "PAID"
-                                      ? "default"
-                                      : receipt.paymentStatus === "PENDING"
-                                        ? "destructive"
-                                        : "outline"
-                                  }
-                                  className="text-[10px] h-5"
-                                >
-                                  {receipt.paymentStatus}
-                                </Badge>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-                      <Receipt className="h-10 w-10 mb-3 opacity-40" />
-                      <p className="text-sm">No receipts for this tenant</p>
-                    </div>
-                  )}
-                </ScrollArea>
-              </>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <AlertCircle className="h-10 w-10 mb-3 opacity-40" />
-                <p className="text-sm">Select a tenant to preview receipts</p>
-              </div>
-            )}
-          </div>
-        </div>
+                <Separator />
 
-        <Separator />
-
-        {/* Footer */}
-        <DialogFooter className="px-6 py-4 shrink-0">
-          <div className="flex items-center gap-3 w-full justify-between">
-            <p className="text-xs text-muted-foreground">
-              {selectedTargets.size} tenant{selectedTargets.size !== 1 ? "s" : ""} selected for import
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isExecuting}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleExecute}
-                disabled={isExecuting || selectedTargets.size === 0}
-                className="min-w-[140px]"
-              >
-                {isExecuting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Importing...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Import {selectedTargets.size > 0 && `(${selectedTargets.size})`}
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+                {/* Footer */}
+                <div className="px-6 py-4 shrink-0 flex items-center justify-between bg-muted/20">
+                    <p className="text-xs text-muted-foreground">
+                        Download the template to ensure your data is formatted correctly.
+                    </p>
+                    <div className="flex gap-2">
+                        {onRetry && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    onOpenChange(false);
+                                    onRetry();
+                                }}
+                            >
+                                Try Again
+                            </Button>
+                        )}
+                        {onDownloadTemplate && (
+                            <Button
+                                size="sm"
+                                onClick={() => {
+                                    onDownloadTemplate();
+                                    onOpenChange(false);
+                                }}
+                                className="bg-red-600 hover:bg-red-700 text-white"
+                            >
+                                <Download className="mr-2 h-4 w-4" />
+                                Download Template
+                            </Button>
+                        )}
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onOpenChange(false)}
+                        >
+                            Close
+                        </Button>
+                    </div>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
 }
-
-export default PreviewDialog;
 ```
 
 ```tsx
@@ -25698,6 +26537,7 @@ export const ROUTES = {
     ADMINAPIBILLINGARCHIVE(billNo: string) { return api("admin", "billing", "archive", { billNo }); },
     ADMINAPIBILLINGRESTORE(billNo: string) { return api("admin", "billing", "restore", { billNo }); },
     ADMINAPIBILLINGDELETE(billNo: string) { return api("admin", "billing", "delete", { billNo }); },
+    get ADMINAPIBILLINGARCHIVEDATA() { return api("admin", "billing", "archiveData"); },
 
     // Admin API: Tenants
     get ADMINAPITENANTSLIST() { return api("admin", "tenants", "list"); },
@@ -28352,6 +29192,9 @@ import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { AppConfig } from '@/types';
 import ImportPreviewModal from '../components/modals/ImportPreviewModal';
+import ExportPreviewModal from '../components/modals/ExportPreviewModal';
+import SchemaMismatchDialog, { type SchemaMismatchInfo } from '../components/modals/SchemaMismatchDialog';
+import { importPreview, downloadImportTemplate, isSchemaMismatchError } from '../components/modals/importService';
 import {
   Receipt,
   UserCircle,
@@ -28379,6 +29222,9 @@ export default function Settings() {
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
   const [importFiles, setImportFiles] = useState<File[]>([]);
   const [IMPORTPREVIEWDATA, setImportPreviewData] = useState<any>(null);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [mismatchOpen, setMismatchOpen] = useState(false);
+  const [mismatchInfo, setMismatchInfo] = useState<SchemaMismatchInfo | null>(null);
   const toast = useToast();
   const { theme, effectiveTheme, setTheme } = useTheme();
 
@@ -28422,16 +29268,19 @@ export default function Settings() {
       return;
     }
     setImportFiles(validFiles);
-    const form = new FormData();
-    validFiles.forEach(f => form.append("files", f));
 
     try {
-      const data = await api.importPreview(form);
+      const data = await importPreview(validFiles);
       setImportPreviewData(data);
     } catch (e: any) {
-      toast.error(e.message || "Preview failed");
-      setImportFiles([]);
-      setImportPreviewData(null);
+      if (isSchemaMismatchError(e)) {
+        setMismatchInfo(e.mismatch);
+        setMismatchOpen(true);
+      } else {
+        toast.error(e.message || "Preview failed");
+        setImportFiles([]);
+        setImportPreviewData(null);
+      }
     }
   }
 
@@ -28474,6 +29323,23 @@ export default function Settings() {
   const resetWhatsappTemplate = () => {
     const defaultMessage = config?.whatsapp?.single_template?.default_message || '';
     updateWhatsappTemplate(defaultMessage);
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const blob = await downloadImportTemplate();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Rent_Data_Template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('Template downloaded successfully');
+    } catch (err) {
+      toast.error('Failed to download template');
+    }
   };
 
   const handleSave = async () => {
@@ -28595,7 +29461,7 @@ export default function Settings() {
 
                 <Button
                   variant="outline"
-                  onClick={() => window.open(api.downloadTemplate(), '_blank')}
+                  onClick={handleDownloadTemplate}
                   className="gap-2 h-auto py-6"
                 >
                   <Download className="h-4 w-4" />
@@ -28619,6 +29485,20 @@ export default function Settings() {
                   setImportPreviewData(null);
                   setImportFiles([]);
                   loadConfig();
+                }}
+              />
+
+              <SchemaMismatchDialog
+                open={mismatchOpen}
+                onOpenChange={setMismatchOpen}
+                mismatches={mismatchInfo ?? {
+                  filename: importFiles[0]?.name || 'unknown',
+                  expected: 'Tenant_Profile, Rent_Receipts',
+                  actual: 'Unknown schema mismatch'
+                }}
+                onDownloadTemplate={handleDownloadTemplate}
+                onRetry={() => {
+                  setImportFiles([]);
                 }}
               />
 
@@ -28656,29 +29536,9 @@ export default function Settings() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(api.exportExcel('xlsx'), '_blank')}
-                  className="gap-2"
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Export Excel
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(api.exportExcel('zip'), '_blank')}
-                  className="gap-2"
-                >
-                  <HardDrive className="h-4 w-4" />
-                  Export ZIP
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => window.open(api.exportExcel('csv'), '_blank')}
-                  className="gap-2"
-                >
-                  <FileSpreadsheet className="h-4 w-4" />
-                  Export CSV
+                <Button onClick={() => setExportModalOpen(true)}>
+                  <Download className="mr-2 h-4 w-4" />
+                  Preview & Export Data
                 </Button>
               </div>
             </CardContent>
@@ -29057,6 +29917,11 @@ export default function Settings() {
           {saving ? 'Saving...' : 'Save All Settings'}
         </Button>
       </div>
+
+      <ExportPreviewModal
+        open={exportModalOpen}
+        onOpenChange={setExportModalOpen}
+      />
     </div>
   );
 }
@@ -29083,6 +29948,13 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import type { Tenant } from '@/types';
 import BillsModal, { type TenantBill } from '@/components/modals/BillsModal';
+import { exportExcel, downloadBlob } from '@/components/modals/ExportService';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Users,
   Plus,
@@ -29095,6 +29967,7 @@ import {
   Building,
   MapPin,
   Gauge,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -29377,10 +30250,21 @@ export default function Tenants() {
     }
   };
 
+  const handleExportTenant = async (tenantId: number, name: string, format: 'xlsx' | 'csv' | 'zip') => {
+    try {
+      toast.info(`Exporting ${name} as ${format.toUpperCase()}...`);
+      const blob = await exportExcel(format, [tenantId]);
+      downloadBlob(blob, `Tenant_${name}_${format.toUpperCase()}.${format}`);
+      toast.success('Export successful');
+    } catch (e: any) {
+      toast.error(`Export failed: ${e.message}`);
+    }
+  };
+
   const qrPinMissing = !qrPinLoading && (!qrPin || qrPin === '----');
 
   const handleSaveQrPin = async () => {
-    if (!qrTenant || newQrPin.length !== 4) return;
+    if (!qrTenant || !qrTenant.id || newQrPin.length !== 4) return;
 
     try {
       setSavingQrPin(true);
@@ -29397,6 +30281,7 @@ export default function Tenants() {
   };
 
   const handleShowQr = async (tenant: Tenant) => {
+    if (!tenant.id) return;
     setQrTenant(tenant);
     setQrPin('----');
     setQrPinLoading(true);
@@ -29414,6 +30299,7 @@ export default function Tenants() {
   };
 
   const handleOpenOccupants = async (tenant: Tenant) => {
+    if (!tenant.id) return;
     setOccupantTenant(tenant);
     await loadOccupants(tenant.id);
   };
@@ -29487,6 +30373,7 @@ export default function Tenants() {
   );
 
   const handleDelete = async (tenant: Tenant, action: string) => {
+    if (!tenant.id) return;
     try {
       await api.deleteTenant(tenant.id, action);
       toast.success(`Tenant ${action}d successfully`);
@@ -29571,6 +30458,7 @@ export default function Tenants() {
                     onShowQr={() => handleShowQr(tenant)}
                     onShowOccupants={() => handleOpenOccupants(tenant)}
                     onShowBills={() => loadTenantBills(tenant)}
+                    onExport={(format) => tenant.id && handleExportTenant(tenant.id, tenant.name, format)}
                   />
                 ))}
             </div>
@@ -29594,6 +30482,7 @@ export default function Tenants() {
             <TenantForm
               tenant={editingTenant}
               onSave={async (data) => {
+                if (!editingTenant.id) return;
                 try {
                   await api.updateTenant(editingTenant.id, { ...editingTenant, ...data });
                   toast.success('Tenant updated');
@@ -29604,6 +30493,7 @@ export default function Tenants() {
                 }
               }}
               onChangePin={async (pin) => {
+                if (!editingTenant.id) return;
                 try {
                   await api.CHANGETENANTPIN(editingTenant.id, { pin, logout_all: true });
                   toast.success('Tenant PIN changed');
@@ -29756,7 +30646,7 @@ export default function Tenants() {
                     size="sm"
                     className="text-red-500"
                     onClick={async () => {
-                      if (!occupantTenant) return;
+                      if (!occupantTenant || !occupantTenant.id) return;
                       try {
                         await api.deleteOccupant(occupantTenant.id, o['Occupant UUID']);
                         toast.success('Occupant deleted');
@@ -29777,7 +30667,7 @@ export default function Tenants() {
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  if (!occupantTenant) return;
+                  if (!occupantTenant || !occupantTenant.id) return;
                   const form = new FormData(e.target as HTMLFormElement);
                   try {
                     await api.saveOccupant(occupantTenant.id, form);
@@ -29822,7 +30712,7 @@ export default function Tenants() {
             setSelectedBill(null);
           }
         }}
-        tenantName={billsTenant?.name}
+        tenantname={billsTenant?.name}
         bills={tenantBills}
         loading={billsLoading}
         selectedBill={selectedBill}
@@ -29839,6 +30729,7 @@ function TenantCard({
   onShowQr,
   onShowOccupants,
   onShowBills,
+  onExport,
 }: {
   tenant: Tenant;
   onEdit: () => void;
@@ -29846,6 +30737,7 @@ function TenantCard({
   onShowQr: () => void;
   onShowOccupants: () => void;
   onShowBills: () => void;
+  onExport: (format: 'xlsx' | 'csv' | 'zip') => void;
 }) {
   return (
     <Card className="overflow-hidden">
@@ -29955,7 +30847,7 @@ function TenantCard({
             className="w-full"
             disabled={!tenant.viewToken}
             onClick={async () => {
-              if (!tenant.viewToken) return;
+              if (!tenant.viewToken || !tenant.id) return;
 
               const url = `${window.location.origin}/rent/t/${tenant.viewToken}`;
 
@@ -29998,11 +30890,24 @@ function TenantCard({
           <Button
             variant="outline"
             size="sm"
-            className="w-full col-span-2"
+            className="w-full"
             onClick={onShowBills}
           >
             Bills
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full">
+                <Download className="h-3.5 w-3.5 mr-1.5" /> Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => onExport('xlsx')}>Excel (.xlsx)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onExport('csv')}>CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onExport('zip')}>ZIP File</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {tenant.arrears !== 0 && (
@@ -30220,7 +31125,7 @@ function TenantForm({
 
 ```typescript
 // File: frontend\admin-app\src\services\api.ts
-﻿import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant } from "@/types";
+import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant } from "@/types";
 import { ROUTES } from "@/lib/routes";
 
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
@@ -30325,10 +31230,10 @@ export const api = {
   },
 
   getArchivedReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGFILTER}?status=all`);
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVEDATA);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     const data = await res.json();
-    return data.filter((r: Receipt) => r.Status === "ARCHIVED");
+    return data.receipts;
   },
 
   getReceipt: async (billNo: string): Promise<Receipt> => {
@@ -31172,7 +32077,8 @@ export default defineConfig({
         "updatePayment": "/admin/api/receipts/{billNo}/payment-status",
         "archive": "/admin/api/receipts/{billNo}/archive",
         "restore": "/admin/api/receipts/{billNo}/restore",
-        "delete": "/admin/api/receipts/{billNo}"
+        "delete": "/admin/api/receipts/{billNo}",
+        "archiveData": "/admin/api/archive-data"
       },
       "tenants": {
         "list": "/admin/api/tenants",

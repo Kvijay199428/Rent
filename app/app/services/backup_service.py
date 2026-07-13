@@ -1,4 +1,4 @@
-﻿import os
+import os
 import json
 import shutil
 import hashlib
@@ -125,6 +125,24 @@ def create_metadata(backupId, backup_type, timestamp_str):
     ui_conf = config.get("ui", {})
     r_count, arc_count, t_count, it_count, p_count = get_db_stats()
     
+    # Get tenant snapshot for restore point identification
+    tenant_snapshot = []
+    try:
+        from app.services.tenant_service import load_tenants
+        all_tenants = load_tenants(include_archived=True)
+        tenant_snapshot = [
+            {
+                "id": t.id,
+                "name": t.name,
+                "status": t.status,
+                "phone": t.phone,
+                "roomNumber": t.roomNumber
+            }
+            for t in all_tenants
+        ]
+    except Exception:
+        pass
+    
     metadata = {
         "id": backupId,
         "type": backup_type,
@@ -139,6 +157,7 @@ def create_metadata(backupId, backup_type, timestamp_str):
         "tenant_count": t_count,
         "inactive_tenant_count": it_count,
         "pdf_count": p_count,
+        "tenant_snapshot": tenant_snapshot,
         "theme": ui_conf.get("theme", "system"),
         "checksums": {
             "database": hash_directory(DB_DIR),

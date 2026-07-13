@@ -13,6 +13,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import type { AppConfig } from '@/types';
 import ImportPreviewModal from '../components/modals/ImportPreviewModal';
 import ExportPreviewModal from '../components/modals/ExportPreviewModal';
+import SchemaMismatchDialog, { type SchemaMismatchInfo } from '../components/modals/SchemaMismatchDialog';
+import { importPreview, downloadImportTemplate, isSchemaMismatchError } from '../components/modals/importService';
 import {
   Receipt,
   UserCircle,
@@ -41,6 +43,8 @@ export default function Settings() {
   const [importFiles, setImportFiles] = useState<File[]>([]);
   const [IMPORTPREVIEWDATA, setImportPreviewData] = useState<any>(null);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [mismatchOpen, setMismatchOpen] = useState(false);
+  const [mismatchInfo, setMismatchInfo] = useState<SchemaMismatchInfo | null>(null);
   const toast = useToast();
   const { theme, effectiveTheme, setTheme } = useTheme();
 
@@ -84,16 +88,19 @@ export default function Settings() {
       return;
     }
     setImportFiles(validFiles);
-    const form = new FormData();
-    validFiles.forEach(f => form.append("files", f));
 
     try {
-      const data = await api.importPreview(form);
+      const data = await importPreview(validFiles);
       setImportPreviewData(data);
     } catch (e: any) {
-      toast.error(e.message || "Preview failed");
-      setImportFiles([]);
-      setImportPreviewData(null);
+      if (isSchemaMismatchError(e)) {
+        setMismatchInfo(e.mismatch);
+        setMismatchOpen(true);
+      } else {
+        toast.error(e.message || "Preview failed");
+        setImportFiles([]);
+        setImportPreviewData(null);
+      }
     }
   }
 
@@ -136,6 +143,23 @@ export default function Settings() {
   const resetWhatsappTemplate = () => {
     const defaultMessage = config?.whatsapp?.single_template?.default_message || '';
     updateWhatsappTemplate(defaultMessage);
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const blob = await downloadImportTemplate();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Rent_Data_Template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      toast.success('Template downloaded successfully');
+    } catch (err) {
+      toast.error('Failed to download template');
+    }
   };
 
   const handleSave = async () => {
@@ -257,7 +281,7 @@ export default function Settings() {
 
                 <Button
                   variant="outline"
-                  onClick={() => window.open(api.downloadTemplate(), '_blank')}
+                  onClick={handleDownloadTemplate}
                   className="gap-2 h-auto py-6"
                 >
                   <Download className="h-4 w-4" />
@@ -281,6 +305,20 @@ export default function Settings() {
                   setImportPreviewData(null);
                   setImportFiles([]);
                   loadConfig();
+                }}
+              />
+
+              <SchemaMismatchDialog
+                open={mismatchOpen}
+                onOpenChange={setMismatchOpen}
+                mismatches={mismatchInfo ?? {
+                  filename: importFiles[0]?.name || 'unknown',
+                  expected: 'Tenant_Profile, Rent_Receipts',
+                  actual: 'Unknown schema mismatch'
+                }}
+                onDownloadTemplate={handleDownloadTemplate}
+                onRetry={() => {
+                  setImportFiles([]);
                 }}
               />
 

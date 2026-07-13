@@ -133,6 +133,10 @@ export default function ImportPreviewModal({
     const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
     const [isExecuting, setIsExecuting] = useState(false);
 
+    type TenantStatus = "Active" | "Inactive" | "Archived";
+    const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+    const [targetStatuses, setTargetStatuses] = useState<Record<string, TenantStatus>>({});
+
     // Flatten preview data into a list of tenants
     const allTenants = useMemo(() => {
         const list: ImportTarget[] = [];
@@ -149,6 +153,19 @@ export default function ImportPreviewModal({
         }
         return list;
     }, [previewData]);
+
+    useEffect(() => {
+        const next: Record<string, TenantStatus> = {};
+        allTenants.forEach((tenant) => {
+            const key = makeTargetKey(tenant.file, tenant.tenantId);
+            const importedStatus = tenant.profile.Status?.trim().toUpperCase();
+
+            next[key] = importedStatus === "ARCHIVED"
+                ? "Active"
+                : (tenant.profile.Status?.trim().replace(/^./, c => c.toUpperCase()) as TenantStatus || "Active");
+        });
+        setTargetStatuses(next);
+    }, [allTenants]);
 
     // Filtered tenants based on search
     const filteredTenants = useMemo(() => {
@@ -211,24 +228,45 @@ export default function ImportPreviewModal({
         }
     };
 
-    const handleConfirm = async () => {
+    const handleConfirm = () => {
         if (selectedTargets.size === 0) {
             toast.error("Please select at least one tenant to import");
             return;
         }
 
+        const containsArchivedSource = Array.from(selectedTargets).some((key) => {
+            const tenant = allTenants.find(
+                (item) => makeTargetKey(item.file, item.tenantId) === key
+            );
+            return tenant?.profile.Status?.trim().toUpperCase() === "ARCHIVED";
+        });
+
+        if (containsArchivedSource) {
+            setStatusDialogOpen(true);
+            return;
+        }
+
+        executeImport();
+    };
+
+    const executeImport = async () => {
         setIsExecuting(true);
         try {
-            const targetsArray = Array.from(selectedTargets);
-            const result = await importExecute(files, targetsArray);
+            const targets = Array.from(selectedTargets);
+            const selectedStatusMap = Object.fromEntries(
+                targets.map((target) => [target, targetStatuses[target] || "Active"])
+            );
+
+            const result = await importExecute(files, targets, selectedStatusMap);
             toast.success(result.message || "Import completed successfully");
-            onOpenChange(false);
             onImportSuccess();
+            onOpenChange(false);
         } catch (err: any) {
-            toast.error(err.message || "Import failed");
+            toast.error(err?.message || "Import failed");
             console.error("Import execute error:", err);
         } finally {
             setIsExecuting(false);
+            setStatusDialogOpen(false);
         }
     };
 
@@ -237,6 +275,7 @@ export default function ImportPreviewModal({
         : '';
 
     return (
+        <>
         <Dialog open={open} onOpenChange={onOpenChange}>
             {/* Match PreviewDialog / BillsModal sizing pattern exactly */}
             <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
@@ -532,5 +571,73 @@ export default function ImportPreviewModal({
                 </div>
             </DialogContent>
         </Dialog>
+
+        {/* Status Override Dialog */}
+        <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+            <DialogContent className="max-w-lg">
+                <DialogHeader>
+                    <DialogTitle>Archived tenant detected</DialogTitle>
+                    <DialogDescription>
+                        Some selected Excel records are marked Archived. Select the final
+                        tenant status before importing.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                    {Array.from(selectedTargets).map((targetKey) => {
+                        const tenant = allTenants.find(
+                            (item) => makeTargetKey(item.file, item.tenantId) === targetKey
+                        );
+
+                        if (tenant?.profile.Status?.trim().toUpperCase() !== "ARCHIVED") {
+                            return null;
+                        }
+
+                        return (
+                            <div key={targetKey} className="rounded-md border p-3">
+                                <p className="mb-2 font-medium">{tenant.profile.tenantName}</p>
+                                <div className="flex gap-2">
+                                    {(["Active", "Inactive", "Archived"] as const).map((status) => (
+                                        <Button
+                                            key={status}
+                                            type="button"
+                                            size="sm"
+                                            variant={targetStatuses[targetKey] === status ? "default" : "outline"}
+                                            onClick={() =>
+                                                setTargetStatuses((current) => ({
+                                                    ...current,
+                                                    [targetKey]: status,
+                                                }))
+                                            }
+                                        >
+                                            {status}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button
+                        variant="outline"
+                        onClick={() => setStatusDialogOpen(false)}
+                        disabled={isExecuting}
+                    >
+                        Cancel
+                    </Button>
+                    <Button onClick={executeImport} disabled={isExecuting}>
+                        {isExecuting ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Importing...
+                            </>
+                        ) : "Confirm Import"}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+        </>
     );
 }

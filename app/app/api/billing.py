@@ -27,7 +27,7 @@ router = APIRouter()
 
 @router.get(Routes.ADMINAPIBILLINGFILTER, name=Names.APIFILTERBILLS)
 async def api_filter_bills(status: str = "active"):
-    receipts = get_all_receipts()
+    receipts = get_all_receipts(include_archived_tenants=False)
     if status == "pending":
         filtered = [
             r for r in receipts

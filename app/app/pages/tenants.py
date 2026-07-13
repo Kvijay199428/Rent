@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
@@ -11,8 +11,8 @@ router = APIRouter()
 
 @router.get(Routes.ADMINPAGETENANTS, name=Names.TENANTSPAGE, response_class=HTMLResponse)
 async def tenants_page(request: Request):
-    tenants = load_tenants()
-    receipts = get_all_receipts()
+    tenants = load_tenants(include_archived=False)
+    receipts = get_all_receipts(include_archived_tenants=False)
     
     for tenant in tenants:
         active_receipts = [r for r in receipts if r["Tenant"] == tenant.name and r.get("Status") != "ARCHIVED"]

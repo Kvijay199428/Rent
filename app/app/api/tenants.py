@@ -1,4 +1,4 @@
-﻿# app\app\api\tenants.py
+# app\app\api\tenants.py
 
 from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks, Query
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
@@ -30,7 +30,7 @@ router = APIRouter()
 
 @router.get(Routes.ADMINAPITENANTSLIST, name=Names.APIGETTENANTS)
 async def api_get_tenants():
-    return load_tenants()
+    return load_tenants(include_archived=False)
 
 @router.get(Routes.ADMINAPITENANTSUPDATE, name=Names.APIGETTENANT)
 async def api_get_tenant(tenantId: int):

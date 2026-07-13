@@ -131,6 +131,7 @@ export const ROUTES = {
     ADMINAPIBILLINGARCHIVE(billNo: string) { return api("admin", "billing", "archive", { billNo }); },
     ADMINAPIBILLINGRESTORE(billNo: string) { return api("admin", "billing", "restore", { billNo }); },
     ADMINAPIBILLINGDELETE(billNo: string) { return api("admin", "billing", "delete", { billNo }); },
+    get ADMINAPIBILLINGARCHIVEDATA() { return api("admin", "billing", "archiveData"); },
 
     // Admin API: Tenants
     get ADMINAPITENANTSLIST() { return api("admin", "tenants", "list"); },

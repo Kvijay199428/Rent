@@ -17,6 +17,13 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import type { Tenant } from '@/types';
 import BillsModal, { type TenantBill } from '@/components/modals/BillsModal';
+import { exportExcel, downloadBlob } from '@/components/modals/ExportService';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Users,
   Plus,
@@ -29,6 +36,7 @@ import {
   Building,
   MapPin,
   Gauge,
+  Download,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -311,10 +319,21 @@ export default function Tenants() {
     }
   };
 
+  const handleExportTenant = async (tenantId: number, name: string, format: 'xlsx' | 'csv' | 'zip') => {
+    try {
+      toast.info(`Exporting ${name} as ${format.toUpperCase()}...`);
+      const blob = await exportExcel(format, [tenantId]);
+      downloadBlob(blob, `Tenant_${name}_${format.toUpperCase()}.${format}`);
+      toast.success('Export successful');
+    } catch (e: any) {
+      toast.error(`Export failed: ${e.message}`);
+    }
+  };
+
   const qrPinMissing = !qrPinLoading && (!qrPin || qrPin === '----');
 
   const handleSaveQrPin = async () => {
-    if (!qrTenant || newQrPin.length !== 4) return;
+    if (!qrTenant || !qrTenant.id || newQrPin.length !== 4) return;
 
     try {
       setSavingQrPin(true);
@@ -331,6 +350,7 @@ export default function Tenants() {
   };
 
   const handleShowQr = async (tenant: Tenant) => {
+    if (!tenant.id) return;
     setQrTenant(tenant);
     setQrPin('----');
     setQrPinLoading(true);
@@ -348,6 +368,7 @@ export default function Tenants() {
   };
 
   const handleOpenOccupants = async (tenant: Tenant) => {
+    if (!tenant.id) return;
     setOccupantTenant(tenant);
     await loadOccupants(tenant.id);
   };
@@ -421,6 +442,7 @@ export default function Tenants() {
   );
 
   const handleDelete = async (tenant: Tenant, action: string) => {
+    if (!tenant.id) return;
     try {
       await api.deleteTenant(tenant.id, action);
       toast.success(`Tenant ${action}d successfully`);
@@ -505,6 +527,7 @@ export default function Tenants() {
                     onShowQr={() => handleShowQr(tenant)}
                     onShowOccupants={() => handleOpenOccupants(tenant)}
                     onShowBills={() => loadTenantBills(tenant)}
+                    onExport={(format) => tenant.id && handleExportTenant(tenant.id, tenant.name, format)}
                   />
                 ))}
             </div>
@@ -528,6 +551,7 @@ export default function Tenants() {
             <TenantForm
               tenant={editingTenant}
               onSave={async (data) => {
+                if (!editingTenant.id) return;
                 try {
                   await api.updateTenant(editingTenant.id, { ...editingTenant, ...data });
                   toast.success('Tenant updated');
@@ -538,6 +562,7 @@ export default function Tenants() {
                 }
               }}
               onChangePin={async (pin) => {
+                if (!editingTenant.id) return;
                 try {
                   await api.CHANGETENANTPIN(editingTenant.id, { pin, logout_all: true });
                   toast.success('Tenant PIN changed');
@@ -690,7 +715,7 @@ export default function Tenants() {
                     size="sm"
                     className="text-red-500"
                     onClick={async () => {
-                      if (!occupantTenant) return;
+                      if (!occupantTenant || !occupantTenant.id) return;
                       try {
                         await api.deleteOccupant(occupantTenant.id, o['Occupant UUID']);
                         toast.success('Occupant deleted');
@@ -711,7 +736,7 @@ export default function Tenants() {
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  if (!occupantTenant) return;
+                  if (!occupantTenant || !occupantTenant.id) return;
                   const form = new FormData(e.target as HTMLFormElement);
                   try {
                     await api.saveOccupant(occupantTenant.id, form);
@@ -756,7 +781,7 @@ export default function Tenants() {
             setSelectedBill(null);
           }
         }}
-        tenantName={billsTenant?.name}
+        tenantname={billsTenant?.name}
         bills={tenantBills}
         loading={billsLoading}
         selectedBill={selectedBill}
@@ -773,6 +798,7 @@ function TenantCard({
   onShowQr,
   onShowOccupants,
   onShowBills,
+  onExport,
 }: {
   tenant: Tenant;
   onEdit: () => void;
@@ -780,6 +806,7 @@ function TenantCard({
   onShowQr: () => void;
   onShowOccupants: () => void;
   onShowBills: () => void;
+  onExport: (format: 'xlsx' | 'csv' | 'zip') => void;
 }) {
   return (
     <Card className="overflow-hidden">
@@ -889,7 +916,7 @@ function TenantCard({
             className="w-full"
             disabled={!tenant.viewToken}
             onClick={async () => {
-              if (!tenant.viewToken) return;
+              if (!tenant.viewToken || !tenant.id) return;
 
               const url = `${window.location.origin}/rent/t/${tenant.viewToken}`;
 
@@ -932,11 +959,24 @@ function TenantCard({
           <Button
             variant="outline"
             size="sm"
-            className="w-full col-span-2"
+            className="w-full"
             onClick={onShowBills}
           >
             Bills
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="w-full">
+                <Download className="h-3.5 w-3.5 mr-1.5" /> Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => onExport('xlsx')}>Excel (.xlsx)</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onExport('csv')}>CSV</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onExport('zip')}>ZIP File</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {tenant.arrears !== 0 && (

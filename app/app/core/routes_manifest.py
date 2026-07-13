@@ -1,4 +1,4 @@
-﻿# app\app\core\routes_manifest.py
+# app\app\core\routes_manifest.py
 
 """
 Auto-generated route manifest from shared/routes.json.
@@ -77,6 +77,7 @@ class Routes:
     ADMINAPIBILLINGARCHIVE = "/admin/api/receipts/{billNo}/archive"
     ADMINAPIBILLINGRESTORE = "/admin/api/receipts/{billNo}/restore"
     ADMINAPIBILLINGDELETE = "/admin/api/receipts/{billNo}"
+    ADMINAPIBILLINGARCHIVEDATA = "/admin/api/archive-data"
 
     # Admin API: Tenants
     ADMINAPITENANTSLIST = "/admin/api/tenants"

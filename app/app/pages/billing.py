@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
@@ -11,9 +11,9 @@ router = APIRouter()
 
 @router.get(Routes.ADMINPAGEBILLING, name=Names.BILLINGPAGE, response_class=HTMLResponse)
 async def billing_page(request: Request):
-    tenants = [t for t in load_tenants() if t.status == "Active"]
+    tenants = [t for t in load_tenants(include_archived=False) if t.status == "Active"]
     theme = getattr(request.state, "theme", "system")
-    receipts_list = get_all_receipts()
+    receipts_list = get_all_receipts(include_archived_tenants=False)
     active_receipts = [r for r in receipts_list if r.get("Status", "ACTIVE") == "ACTIVE"]
 
     return templates.TemplateResponse(

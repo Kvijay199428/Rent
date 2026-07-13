@@ -190,10 +190,23 @@ def _row_to_dict(row):
         "amountReceived": _safe_float(row.get("amountreceived")),
     }
 
-def get_all_receipts():
+def get_active_tenant_names() -> set:
+    """Returns a set of tenant names that are NOT archived."""
+    from app.services.tenant_service import load_tenants
+    tenants = load_tenants(include_archived=False)
+    return {t.name for t in tenants}
+
+def get_all_receipts(include_archived_tenants: bool = False):
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM receipts ORDER BY rowid DESC").fetchall()
-    return [_row_to_dict(r) for r in rows]
+    
+    receipts = [_row_to_dict(r) for r in rows]
+    
+    if not include_archived_tenants:
+        active_tenants = get_active_tenant_names()
+        receipts = [r for r in receipts if r.get("Tenant") in active_tenants]
+    
+    return receipts
 
 def get_receipt(billNo):
     receipts = get_all_receipts()
@@ -487,18 +500,27 @@ def restore_bill(billNo):
 
 def delete_bill(billNo):
     from app.core.db import get_conn
+    from app.services.tenant_service import get_tenant_by_name
     with get_conn() as conn:
-        row = conn.execute("SELECT status FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+        row = conn.execute("SELECT status, tenant FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
-        if row["status"] != "ARCHIVED":
+        
+        is_archived = str(row["status"]).upper() == "ARCHIVED"
+        
+        # Also allow deletion if the tenant is archived
+        tenant = get_tenant_by_name(row["tenant"])
+        is_tenant_archived = tenant is not None and str(tenant.status).upper() == "ARCHIVED"
+        
+        if not (is_archived or is_tenant_archived):
             raise ValueError("Only archived receipts can be permanently deleted.")
+            
         conn.execute("DELETE FROM receipts WHERE billNo = ?", (billNo,))
         conn.commit()
 def get_dashboard_stats():
     billing_conf = config.get("billing", {})
-    receipts = get_all_receipts()
-    tenants = load_tenants()
+    receipts = get_all_receipts(include_archived_tenants=False)
+    tenants = load_tenants(include_archived=False)
     
     next_bill = str(billing_conf.get("next_bill_number", 1)).zfill(3)
     

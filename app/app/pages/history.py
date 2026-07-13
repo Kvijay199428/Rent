@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
@@ -10,7 +10,7 @@ router = APIRouter()
 
 @router.get(Routes.ADMINPAGEHISTORY, name=Names.HISTORYPAGE, response_class=HTMLResponse)
 async def history_page(request: Request):
-    receipts = get_all_receipts()
+    receipts = get_all_receipts(include_archived_tenants=False)
     active_receipts = [r for r in receipts if r.get("Status", "ACTIVE") == "ACTIVE"]
     active_receipts.reverse()
     theme = getattr(request.state, "theme", "system")

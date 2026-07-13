@@ -65,7 +65,8 @@
         "updatePayment": "/admin/api/receipts/{billNo}/payment-status",
         "archive": "/admin/api/receipts/{billNo}/archive",
         "restore": "/admin/api/receipts/{billNo}/restore",
-        "delete": "/admin/api/receipts/{billNo}"
+        "delete": "/admin/api/receipts/{billNo}",
+        "archiveData": "/admin/api/archive-data"
       },
       "tenants": {
         "list": "/admin/api/tenants",
