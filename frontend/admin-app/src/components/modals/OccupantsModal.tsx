@@ -235,14 +235,9 @@ export default function OccupantsModal({ tenant, open, onOpenChange }: Occupants
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Occupant | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<string>("");
-  const [isUploading, setIsUploading] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
 
   const tenantId = tenant?.id ?? 0;
-
-  function handleOpenChange(nextOpen: boolean) {
-    if (!nextOpen) setIsUploading(false);
-    onOpenChange(nextOpen);
-  }
 
   const loadOccupants = useCallback(async (selectUuid?: string) => {
     if (!tenantId) return;
@@ -268,7 +263,7 @@ export default function OccupantsModal({ tenant, open, onOpenChange }: Occupants
     if (open && tenantId) {
       setSelected(null);
       setSelectedDoc("");
-      setIsUploading(false);
+      setShowUpload(false);
       loadOccupants();
     }
   }, [open, tenantId]);
@@ -302,209 +297,187 @@ export default function OccupantsModal({ tenant, open, onOpenChange }: Occupants
     : null;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
 
-        {/* Header — pr-16 reserves space for the Radix close ✕ button at top-4 right-4 */}
-        <DialogHeader className="shrink-0 border-b px-6 pt-5 pb-3 pr-16">
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <DialogTitle className="flex items-center gap-2 text-lg">
-                <Users className="h-5 w-5 shrink-0 text-primary" />
-                <span className="truncate">
-                  {isUploading
-                    ? `Upload KYC — ${tenant?.name}`
-                    : `Occupants — ${tenant?.name}`}
-                </span>
-              </DialogTitle>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant={isUploading ? "secondary" : "default"}
-              className="mr-2 shrink-0"
-              onClick={() => setIsUploading((v) => !v)}
-            >
-              {isUploading
-                ? <><X className="mr-2 h-4 w-4" />Cancel Upload</>
-                : <><Upload className="mr-2 h-4 w-4" />Upload KYC</>}
+        {/* Header */}
+        <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Users className="h-5 w-5 text-primary" />
+              Occupants — {tenant?.name} {tenant?.id}
+            </DialogTitle>
+            <Button size="sm" variant={showUpload ? "secondary" : "default"} onClick={() => setShowUpload((v) => !v)}>
+              {showUpload ? <><X className="mr-2 h-4 w-4" />Cancel Upload</> : <><Upload className="mr-2 h-4 w-4" />Upload KYC</>}
             </Button>
           </div>
         </DialogHeader>
 
-        {/* Body — exactly one of upload form OR viewer, never both */}
-        <main className="flex-1 min-h-0 overflow-hidden">
-          {isUploading ? (
-            /* ── Upload mode ── */
-            <div className="h-full overflow-y-auto bg-muted/20">
-              <div className="mx-auto w-full max-w-3xl p-6">
-                <UploadForm
-                  tenantId={tenantId}
-                  onSuccess={(uuid) => {
-                    setIsUploading(false);
-                    loadOccupants(uuid);
-                  }}
-                  onCancel={() => setIsUploading(false)}
-                />
-              </div>
-            </div>
-          ) : (
-            /* ── Viewer mode ── */
-            <div className="flex h-full min-h-0">
+        {/* Upload form */}
+        {showUpload && (
+          <div className="flex-shrink-0 border-b bg-muted/30 px-6 py-4">
+            <UploadForm
+              tenantId={tenantId}
+              onSuccess={(uuid) => { setShowUpload(false); loadOccupants(uuid); }}
+              onCancel={() => setShowUpload(false)}
+            />
+          </div>
+        )}
 
-              {/* Left pane: occupant list */}
-              <div className="w-[380px] lg:w-[420px] flex-shrink-0 border-r flex flex-col">
-                <div className="px-4 py-2 border-b bg-muted/20">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                    {occupants.length} occupant{occupants.length !== 1 ? "s" : ""}
-                  </p>
+        {/* Body */}
+        <div className="flex flex-1 min-h-0">
+
+          {/* Left pane: occupant list */}
+          <div className="w-[380px] lg:w-[420px] flex-shrink-0 border-r flex flex-col">
+            <div className="px-4 py-2 border-b bg-muted/20">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {occupants.length} occupant{occupants.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+            {loading ? (
+              <div className="flex flex-1 items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : occupants.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
+                <Users className="h-8 w-8 opacity-40" />
+                <p className="text-sm">No occupants yet.</p>
+                <Button size="sm" variant="outline" onClick={() => setShowUpload(true)}>Upload first KYC</Button>
+              </div>
+            ) : (
+              <ScrollArea className="flex-1">
+                <div className="p-2 space-y-1">
+                  {occupants.map((o) => {
+                    const active = o.status === "Active";
+                    const isSel = getUuid(o) === getUuid(selected ?? ({} as Occupant));
+                    return (
+                      <button key={getUuid(o)} onClick={() => setSelected(o)}
+                        className={`w-full text-left rounded-lg px-3 py-2.5 transition-colors ${isSel ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">{o.name || "—"}</p>
+                            {o.mobile && (
+                              <p className={`text-xs truncate mt-0.5 ${isSel ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{o.mobile}</p>
+                            )}
+                            {o.address && (
+                              <p className={`text-xs line-clamp-1 mt-0.5 ${isSel ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{o.address}</p>
+                            )}
+                          </div>
+                          <Badge className={`text-[10px] flex-shrink-0 ${active ? "bg-green-100 text-green-700 border-green-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                            {active ? "ACTIVE" : "INACTIVE"}
+                          </Badge>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-                {loading ? (
-                  <div className="flex flex-1 items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </ScrollArea>
+            )}
+          </div>
+
+          {/* Right pane: detail + document viewer */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            {!selected ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                Select an occupant to preview their documents.
+              </div>
+            ) : (
+              <>
+                {/* Profile bar */}
+                <div className="flex-shrink-0 border-b px-5 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h3 className="text-base font-semibold truncate">{selected.name}</h3>
+                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {selected.mobile && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{selected.mobile}</span>}
+                        {selected.address && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{selected.address}</span>}
+                        {selected.residentSince && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />Since {formatDate(selected.residentSince)}</span>}
+                        {daysStayed(selected.residentSince) && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{daysStayed(selected.residentSince)}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge className={selected.status === "Active" ? "bg-green-100 text-green-700 border-green-200" : "bg-slate-100 text-slate-600 border-slate-200"}>
+                        {selected.status.toUpperCase()}
+                      </Badge>
+                      {selected.status === "Active" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="outline" className="h-7 text-xs">
+                              <UserX className="mr-1 h-3.5 w-3.5" />Mark Inactive
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Mark occupant as inactive?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This changes {selected.name}'s status to Inactive. It cannot be reversed from the admin panel.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleMarkInactive(selected)}>Confirm</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete occupant?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              All KYC documents for {selected.name} will be permanently removed.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDelete(selected)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
-                ) : occupants.length === 0 ? (
-                  <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
-                    <Users className="h-8 w-8 opacity-40" />
-                    <p className="text-sm">No occupants yet.</p>
-                    <Button size="sm" variant="outline" onClick={() => setIsUploading(true)}>Upload first KYC</Button>
-                  </div>
-                ) : (
-                  <ScrollArea className="flex-1">
-                    <div className="p-2 space-y-1">
-                      {occupants.map((o) => {
-                        const active = o.status === "Active";
-                        const isSel = getUuid(o) === getUuid(selected ?? ({} as Occupant));
+
+                  {/* Document buttons */}
+                  {availableDocs.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {availableDocs.map((label) => {
+                        const filename = getDocFilename(selected, label);
                         return (
-                          <button key={getUuid(o)} onClick={() => setSelected(o)}
-                            className={`w-full text-left rounded-lg px-3 py-2.5 transition-colors ${isSel ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                          <Button key={label} size="sm"
+                            variant={selectedDoc === filename ? "default" : "outline"}
+                            className="h-7 text-xs"
+                            onClick={() => setSelectedDoc((prev) => prev === filename ? "" : filename)}
                           >
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium text-sm truncate">{o.name || "—"}</p>
-                                {o.mobile && (
-                                  <p className={`text-xs truncate mt-0.5 ${isSel ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{o.mobile}</p>
-                                )}
-                                {o.address && (
-                                  <p className={`text-xs line-clamp-1 mt-0.5 ${isSel ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{o.address}</p>
-                                )}
-                              </div>
-                              <Badge className={`text-[10px] flex-shrink-0 ${active ? "bg-green-100 text-green-700 border-green-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
-                                {active ? "ACTIVE" : "INACTIVE"}
-                              </Badge>
-                            </div>
-                          </button>
+                            <FileText className="mr-1.5 h-3.5 w-3.5" />{label}
+                          </Button>
                         );
                       })}
                     </div>
-                  </ScrollArea>
-                )}
-              </div>
+                  )}
+                </div>
 
-              {/* Right pane: detail + document viewer */}
-              <div className="flex-1 min-w-0 flex flex-col">
-                {!selected ? (
-                  <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-                    Select an occupant to preview their documents.
-                  </div>
-                ) : (
-                  <>
-                    {/* Profile bar */}
-                    <div className="flex-shrink-0 border-b px-5 py-4">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <h3 className="text-base font-semibold truncate">{selected.name}</h3>
-                          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                            {selected.mobile && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{selected.mobile}</span>}
-                            {selected.address && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{selected.address}</span>}
-                            {selected.residentSince && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />Since {formatDate(selected.residentSince)}</span>}
-                            {daysStayed(selected.residentSince) && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{daysStayed(selected.residentSince)}</span>}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <Badge className={selected.status === "Active" ? "bg-green-100 text-green-700 border-green-200" : "bg-slate-100 text-slate-600 border-slate-200"}>
-                            {selected.status.toUpperCase()}
-                          </Badge>
-                          {selected.status === "Active" && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="outline" className="h-7 text-xs">
-                                  <UserX className="mr-1 h-3.5 w-3.5" />Mark Inactive
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Mark occupant as inactive?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This changes {selected.name}'s status to Inactive. It cannot be reversed from the admin panel.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleMarkInactive(selected)}>Confirm</AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                          <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Delete occupant?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  All KYC documents for {selected.name} will be permanently removed.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDelete(selected)}>Delete</AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                      </div>
-
-                      {/* Document buttons */}
-                      {availableDocs.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {availableDocs.map((label) => {
-                            const filename = getDocFilename(selected, label);
-                            return (
-                              <Button key={label} size="sm"
-                                variant={selectedDoc === filename ? "default" : "outline"}
-                                className="h-7 text-xs"
-                                onClick={() => setSelectedDoc((prev) => prev === filename ? "" : filename)}
-                              >
-                                <FileText className="mr-1.5 h-3.5 w-3.5" />{label}
-                              </Button>
-                            );
-                          })}
-                        </div>
-                      )}
+                {/* Document viewer */}
+                <div className="flex-1 min-h-0 bg-muted/20 p-4">
+                  {!selectedDoc ? (
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                      {availableDocs.length === 0 ? "No documents uploaded for this occupant." : "Select a document above to preview it."}
                     </div>
-
-                    {/* Document viewer */}
-                    <div className="flex-1 min-h-0 bg-muted/20 p-4">
-                      {!selectedDoc ? (
-                        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                          {availableDocs.length === 0 ? "No documents uploaded for this occupant." : "Select a document above to preview it."}
-                        </div>
-                      ) : isPdf(selectedDoc) ? (
-                        <iframe src={documentUrl!} title="KYC document" className="h-full min-h-[360px] w-full rounded-lg border bg-white" />
-                      ) : (
-                        <img src={documentUrl!} alt="KYC document" className="h-full max-h-[60vh] w-full rounded-lg object-contain" />
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-        </main>
+                  ) : isPdf(selectedDoc) ? (
+                    <iframe src={documentUrl!} title="KYC document" className="h-full min-h-[360px] w-full rounded-lg border bg-white" />
+                  ) : (
+                    <img src={documentUrl!} alt="KYC document" className="h-full max-h-[60vh] w-full rounded-lg object-contain" />
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
