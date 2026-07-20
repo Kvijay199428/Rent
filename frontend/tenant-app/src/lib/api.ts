@@ -41,6 +41,41 @@ const apiClient = {
         return res.json();
     },
 
+    async put(url: string, body?: unknown, options?: RequestInit) {
+        const res = await fetch(url, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                ...options?.headers,
+            },
+            body: body ? JSON.stringify(body) : undefined,
+            ...options,
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+            throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+
+        return res.json();
+    },
+
+    async delete(url: string, options?: RequestInit) {
+        const res = await fetch(url, {
+            method: 'DELETE',
+            credentials: 'include',
+            ...options,
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+            throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+
+        return res.json();
+    },
+
     async get(url: string, options?: RequestInit) {
         const res = await fetch(url, {
             method: 'GET',
@@ -102,9 +137,9 @@ export const tenantApi = {
             });
         },
         markInactive: (tenantId: string | number, viewToken: string, occupantUuid: string) =>
-            apiClient.post(TENANTROUTES.TENANTAPIKYCMARKINACTIVE(tenantId, viewToken, occupantUuid)),
+            apiClient.put(TENANTROUTES.TENANTAPIKYCMARKINACTIVE(tenantId, viewToken, occupantUuid)),
         delete: (tenantId: string | number, viewToken: string, occupantUuid: string) =>
-            apiClient.post(TENANTROUTES.TENANTAPIKYCDELETE(tenantId, viewToken, occupantUuid)),
+            apiClient.delete(TENANTROUTES.TENANTAPIKYCDELETE(tenantId, viewToken, occupantUuid)),
         getFile: (tenantId: string | number, viewToken: string, filename: string) =>
             TENANTROUTES.TENANTAPIKYCGETFILE(tenantId, viewToken, filename),
     },

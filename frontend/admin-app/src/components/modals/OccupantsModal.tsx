@@ -302,7 +302,7 @@ export default function OccupantsModal({ tenant, open, onOpenChange }: Occupants
 
         {/* Header */}
         <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pr-8">
             <DialogTitle className="flex items-center gap-2 text-lg">
               <Users className="h-5 w-5 text-primary" />
               Occupants — {tenant?.name} {tenant?.id}

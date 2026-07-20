@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -31,6 +32,7 @@ import {
   Shield,
   HardDrive,
   Download,
+  QrCode,
 } from 'lucide-react';
 
 export default function Settings() {
@@ -45,6 +47,9 @@ export default function Settings() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [mismatchOpen, setMismatchOpen] = useState(false);
   const [mismatchInfo, setMismatchInfo] = useState<SchemaMismatchInfo | null>(null);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrData, setQrData] = useState<{ secret: string, qr_code_base64: string } | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
   const toast = useToast();
   const { theme, effectiveTheme, setTheme } = useTheme();
 
@@ -162,6 +167,19 @@ export default function Settings() {
     }
   };
 
+  const handleShowTotpQr = async () => {
+    setQrLoading(true);
+    try {
+      const data = await api.getTotpQr();
+      setQrData(data.totp);
+      setQrModalOpen(true);
+    } catch {
+      toast.error('Failed to load TOTP QR code');
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!config) return;
     setSaving(true);
@@ -171,6 +189,7 @@ export default function Settings() {
         billing: config.billing,
         whatsapp: config.whatsapp,
         backup: config.backup,
+        system: config.system,
       });
       await uploadSignature();
       toast.success('Settings saved successfully');
@@ -695,6 +714,40 @@ export default function Settings() {
             <CardContent className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
+                  <Label htmlFor="admin-totp-required">Enable TOTP for Admin Login</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Require TOTP after username and password for admin login.
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Button variant="outline" size="sm" onClick={handleShowTotpQr} disabled={qrLoading}>
+                    <QrCode className="h-4 w-4 mr-2" />
+                    {qrLoading ? "Loading..." : "Show TOTP QR"}
+                  </Button>
+                  <Switch
+                    id="admin-totp-required"
+                  checked={config.system?.security?.adminTotpRequired ?? true}
+                  onCheckedChange={(v) => {
+                    if (!config) return;
+                    setConfig({
+                      ...config,
+                      system: {
+                        ...config.system,
+                        security: {
+                          ...(config.system?.security || {}),
+                          adminTotpRequired: v
+                        }
+                      }
+                    });
+                  }}
+                />
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
                   <Label>Mask Bank Account</Label>
                   <p className="text-sm text-muted-foreground">
                     Hide full account number on printed receipts
@@ -815,6 +868,36 @@ export default function Settings() {
         open={exportModalOpen}
         onOpenChange={setExportModalOpen}
       />
+
+      <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Admin TOTP Settings</DialogTitle>
+            <DialogDescription>
+              Scan this QR code with your authenticator app (like Google Authenticator or Authy).
+            </DialogDescription>
+          </DialogHeader>
+          {qrData && (
+            <div className="flex flex-col items-center space-y-4 py-4">
+              <div className="bg-white p-4 rounded-xl shadow-sm border">
+                <img src={`data:image/png;base64,${qrData.qr_code_base64}`} alt="TOTP QR Code" className="w-48 h-48" />
+              </div>
+              <div className="space-y-1 text-center w-full">
+                <Label>Secret Key</Label>
+                <div className="p-2 bg-muted rounded-md text-sm font-mono break-all font-semibold">
+                  {qrData.secret}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  If you cannot scan the QR code, manually enter this secret key into your app.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setQrModalOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

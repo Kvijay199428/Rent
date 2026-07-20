@@ -328,6 +328,7 @@ export interface AppConfig {
   ui: { theme: string };
   backup: Record<string, unknown>;
   whatsapp: WhatsappConfig;
+  system?: any;
 }
 
 export interface Backup {

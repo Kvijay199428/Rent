@@ -85,6 +85,10 @@ DEFAULT_CONFIGS = {
         }
     },
     "system": {
+        "security": {
+            "tenantPinlength": 4,
+            "adminTotpRequired": True,
+        },
         "server": {
             "host": "0.0.0.0",
             "port": 20081,

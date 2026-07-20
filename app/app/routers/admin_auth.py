@@ -17,6 +17,7 @@ from app.database.auth_repository import (
     regenerate_totp_secret
 )
 from app.encryption import decrypt_payload
+from app.core.config_service import config
 
 # router = APIRouter(tags=["Admin Authentication"])
 router = APIRouter()
@@ -102,8 +103,10 @@ async def admin_login(request: Request, login_req: EncryptedPayload):
     if not admin or not verify_pin(password, admin["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid username or password.")
     
-    # If TOTP is configured, require it
-    if admin["totp_secret"]:
+    require_totp = config.get("system", {}).get("security", {}).get("adminTotpRequired", True)
+    
+    # If TOTP is configured and required, require it
+    if require_totp and admin["totp_secret"]:
         return {
             "status": "totp_required",
             "message": "TOTP verification required.",

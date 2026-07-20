@@ -1,4 +1,4 @@
-﻿# // File: app\app\api\settings.py
+# // File: app\app\api\settings.py
 from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
 
 from app.core.routes_manifest import Names, Routes
@@ -19,7 +19,8 @@ async def api_get_config():
         "billing": config.get("billing", {}),
         "ui": config.get("ui", {}),
         "backup": config.get("backup", {}),
-        "whatsapp": config.get("whatsapp", {})
+        "whatsapp": config.get("whatsapp", {}),
+        "system": config.get("system", {})
     }
 
 @router.post(Routes.ADMINAPISETTINGSUPLOADSIGNATURE, name=Names.APIUPLOADSIGNATURE)
@@ -51,6 +52,7 @@ class ConfigUpdateModel(BaseModel):
     billing: dict
     whatsapp: dict = {}
     backup: dict = {}
+    system: dict | None = None
 
 @router.post(Routes.ADMINAPICONFIGUPDATE, name=Names.UPDATECONFIG)
 async def update_config(data: ConfigUpdateModel, background_tasks: BackgroundTasks):
@@ -64,6 +66,9 @@ async def update_config(data: ConfigUpdateModel, background_tasks: BackgroundTas
 
     if data.backup:
         config.save("backup", data.backup)
+
+    if data.system:
+        config.save("system", data.system)
 
     return {"status": "success"}
 

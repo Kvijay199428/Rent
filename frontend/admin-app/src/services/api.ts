@@ -279,6 +279,12 @@ export const api = {
     return res.json();
   },
 
+  getTotpQr: async (): Promise<{ status: string, totp: { secret: string, qr_code_base64: string, provisioning_uri: string } }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPITOTPQR);
+    if (!res.ok) throw new Error('Failed to fetch TOTP QR');
+    return res.json();
+  },
+
   saveConfig: async (config: Partial<AppConfig>): Promise<{ status: string }> => {
     const res = await fetchWithAuth(ROUTES.ADMINAPICONFIGUPDATE, {
       method: 'POST',
