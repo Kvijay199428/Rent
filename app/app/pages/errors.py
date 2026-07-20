@@ -1,4 +1,4 @@
-﻿from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.dependencies import templates
@@ -17,7 +17,7 @@ def register_exception_handlers(app: FastAPI):
             
         accept = request.headers.get("accept", "")
         if "text/html" in accept:
-            return templates.TemplateResponse(
+            response = templates.TemplateResponse(
                 request=request,
                 name=Templates.ERROR,
                 context={
@@ -28,7 +28,23 @@ def register_exception_handlers(app: FastAPI):
                 },
                 status_code=exc.status_code
             )
-        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+        else:
+            response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+            
+        if exc.headers:
+            for k, v in exc.headers.items():
+                response.headers[k] = v
+                
+        # If the backend signaled to clear cookies, clear them on the response
+        clear_cookies_type = (exc.headers or {}).get("X-Clear-Cookies")
+        if clear_cookies_type == "admin":
+            from app.authentication.admin.cookies import clear_admin_auth_cookies
+            clear_admin_auth_cookies(response, request)
+        elif clear_cookies_type == "tenant":
+            from app.authentication.tenant.cookies import clear_tenant_auth_cookies
+            clear_tenant_auth_cookies(response, request)
+            
+        return response
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):

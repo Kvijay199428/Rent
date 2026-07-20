@@ -1,7 +1,8 @@
-﻿# // File: app\app\api\public.py
+# // File: app\app\api\public.py
 from fastapi import APIRouter, Request, Response, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 
 from app.core.routes_manifest import Names, Routes
+from app.core.routes_manifest_tenant import TenantRoutes, TenantNames
 
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
 from app.core.dependencies import templates, config
@@ -33,9 +34,9 @@ router = APIRouter()
 
 from app.authentication.tenant.middleware import get_current_tenant
 
-# @router.get("/t/api/{viewToken}/profile", name=Names.PUBLICTENANTPROFILEGET)
-@router.get(Routes.TENANTAPIPROFILEGET, name=Names.PUBLICTENANTPROFILEGET)
-async def public_tenant_profile_json(viewToken: str, request: Request):
+# @router.get("/t/api/{viewToken}/profile", name=TenantNames.TENANTPROFILEGET)
+@router.get(TenantRoutes.TENANTAPIPROFILEGET, name=TenantNames.TENANTPROFILEGET)
+async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Request):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant:
@@ -64,7 +65,11 @@ async def public_tenant_profile_json(viewToken: str, request: Request):
     
     if unlocked:
         receipts = get_all_receipts()
-        tenant_receipts = [r for r in receipts if r["Tenant"] == tenant.name and r.get("Status") != "ARCHIVED"]
+        tenant_receipts = [
+            r for r in receipts
+            if int(r.get("TenantId", 0) or 0) == tenant.id
+            and (r.get("Status") or "").upper() != "ARCHIVED"
+        ]
         tenant_receipts.reverse()
         tenant_receipts = tenant_receipts[:config.get("system.limits.public_history_months", 12)]
         occupants = get_occupants(tenant.id)
@@ -79,7 +84,7 @@ async def public_tenant_profile_json(viewToken: str, request: Request):
             "tenant": base_info
         }
 
-@router.get(Routes.TENANTAPIAUTHPUBLICKEY, name=Names.TENANTPUBLICKEY)
+@router.get(TenantRoutes.TENANTAPIAUTHPUBLICKEY, name=TenantNames.TENANTPUBLICKEY)
 async def get_public_key():
     from app.encryption import get_public_key_pem
     return {"publicKey": get_public_key_pem()}
@@ -92,8 +97,8 @@ class EncryptedLoginRequest(BaseModel):
     encryptedData: str     # Base64-encoded AES-GCM encrypted payload
     nonce: str             # Base64-encoded nonce
 
-@router.post(Routes.TENANTAPIAUTHLOGIN, name=Names.TENANTLOGIN)
-async def public_tenant_login(viewToken: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
+@router.post(TenantRoutes.TENANTAPIAUTHLOGIN, name=TenantNames.TENANTLOGIN)
+async def public_tenant_login(tenantId: int, viewToken: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant:
@@ -134,16 +139,16 @@ async def public_tenant_login(viewToken: str, request: Request, response: Respon
         }
     }
 
-@router.get(Routes.TENANTAPIPDFVIEW, name=Names.TENANTPDFVIEW)
-async def tenant_view_pdf(billNo: str, principal = Depends(get_current_tenant)):
-    receipt = get_receipt(billNo)
+@router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)
+async def tenant_view_pdf(tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
+    receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
     
-    # Verify tenant owns this receipt
+    # Verify tenant owns this receipt by ID (name-based check breaks after a rename)
     tenants = load_tenants()
     tenant = next((t for t in tenants if t.id == principal.id), None)
-    if not tenant or receipt.get("Tenant") != tenant.name:
+    if not tenant or int(receipt.get("TenantId", 0) or 0) != tenant.id:
         raise HTTPException(status_code=403, detail="Access denied")
         
     from app.services.pdf_service import generate_professional_pdf
@@ -156,16 +161,16 @@ async def tenant_view_pdf(billNo: str, principal = Depends(get_current_tenant)):
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
 
-@router.get(Routes.TENANTAPIPDFDOWNLOAD, name=Names.TENANTPDFDOWNLOAD)
-async def tenant_download_pdf(billNo: str, principal = Depends(get_current_tenant)):
-    receipt = get_receipt(billNo)
+@router.get(TenantRoutes.TENANTAPIPDFDOWNLOAD, name=TenantNames.TENANTPDFDOWNLOAD)
+async def tenant_download_pdf(tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
+    receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
     
-    # Verify tenant owns this receipt
+    # Verify tenant owns this receipt by ID (name-based check breaks after a rename)
     tenants = load_tenants()
     tenant = next((t for t in tenants if t.id == principal.id), None)
-    if not tenant or receipt.get("Tenant") != tenant.name:
+    if not tenant or int(receipt.get("TenantId", 0) or 0) != tenant.id:
         raise HTTPException(status_code=403, detail="Access denied")
         
     tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
@@ -184,30 +189,53 @@ async def tenant_download_pdf(billNo: str, principal = Depends(get_current_tenan
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
     return response
 
-@router.post(Routes.TENANTAPIKYCUPLOAD, name=Names.PUBLICTENANTKYCUPLOAD)
+@router.post(TenantRoutes.TENANTAPIKYCUPLOAD, name=TenantNames.TENANTKYCUPLOAD)
 async def public_tenant_kyc_upload(
-    viewToken: str, 
-    name: str = Form(...), 
-    mobile: str = Form(...),
-    aadhaar_front: Optional[UploadFile] = File(None),
-    aadhaar_back: Optional[UploadFile] = File(None),
-    aadhaar_combined: Optional[UploadFile] = File(None),
-    emp_front: Optional[UploadFile] = File(None),
-    emp_back: Optional[UploadFile] = File(None),
+    tenantId: int,
+    viewToken: str,
+    name: str = Form(...),
+    mobile: str = Form(""),
+    address: str = Form(""),
+    residentSince: str = Form(""),
+    aadhaarfront: Optional[UploadFile] = File(None),
+    aadhaarback: Optional[UploadFile] = File(None),
+    aadhaarcombined: Optional[UploadFile] = File(None),
+    empfront: Optional[UploadFile] = File(None),
+    empback: Optional[UploadFile] = File(None),
     principal = Depends(get_current_tenant)
 ):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
-        
-    if not aadhaar_combined and not (aadhaar_front and aadhaar_back):
-        raise HTTPException(status_code=400, detail="Please upload either a Combined Aadhaar file, or both Front and Back files.")
-        
+
+    # Validate residentSince date if provided
+    if residentSince:
+        try:
+            from datetime import date
+            parsed_date = date.fromisoformat(residentSince)
+            if parsed_date > date.today():
+                raise HTTPException(status_code=400, detail="Residing-since date cannot be in the future.")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Residing-since date must use YYYY-MM-DD format.")
+
+    # Need either combined OR both front+back (check filename to exclude empty browser inputs)
+    has_combined = bool(aadhaarcombined and aadhaarcombined.filename)
+    has_both = bool(
+        (aadhaarfront and aadhaarfront.filename) and
+        (aadhaarback and aadhaarback.filename)
+    )
+    if not has_combined and not has_both:
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload either a Combined Aadhaar file, or both Front and Back files."
+        )
+
     occupantUuid = str(uuid.uuid4())
-    
+
     async def save_kyc_img(file_obj: UploadFile, side: str):
-        if not file_obj or not file_obj.filename: return ""
+        if not file_obj or not file_obj.filename:
+            return ""
         ext = file_obj.filename.split('.')[-1] if '.' in file_obj.filename else 'jpg'
         filename = f"{tenant.id}_{occupantUuid}_{side}.{ext}"
         os.makedirs(KYC_DIR, exist_ok=True)
@@ -216,17 +244,19 @@ async def public_tenant_kyc_upload(
             f.write(await file_obj.read())
         return filename
 
-    af_path = await save_kyc_img(aadhaar_front, "aadhaar_front") if aadhaar_front else ""
-    ab_path = await save_kyc_img(aadhaar_back, "aadhaar_back") if aadhaar_back else ""
-    ac_path = await save_kyc_img(aadhaar_combined, "aadhaar_combined") if aadhaar_combined else ""
-    ef_path = await save_kyc_img(emp_front, "emp_front") if emp_front else ""
-    eb_path = await save_kyc_img(emp_back, "emp_back") if emp_back else ""
-        
+    af_path = await save_kyc_img(aadhaarfront, "aadhaar_front") if has_both else ""
+    ab_path = await save_kyc_img(aadhaarback, "aadhaar_back") if has_both else ""
+    ac_path = await save_kyc_img(aadhaarcombined, "aadhaar_combined") if has_combined else ""
+    ef_path = await save_kyc_img(empfront, "emp_front") if (empfront and empfront.filename) else ""
+    eb_path = await save_kyc_img(empback, "emp_back") if (empback and empback.filename) else ""
+
     now = datetime.now()
     save_occupant(tenant.id, {
         "uuid": occupantUuid,
-        "name": name,
-        "mobile": mobile,
+        "name": name.strip(),
+        "mobile": mobile.strip(),
+        "address": address.strip(),
+        "residentSince": residentSince,
         "status": "Active",
         "aadhaar_front": af_path,
         "aadhaar_back": ab_path,
@@ -234,13 +264,13 @@ async def public_tenant_kyc_upload(
         "emp_front": ef_path,
         "emp_back": eb_path,
         "uploaddate": now.strftime("%Y-%m-%dT%H:%M:%S"),
-        "uploadmonth": now.strftime("%B %Y")
+        "uploadmonth": now.strftime("%B %Y"),
     })
-    
+
     return {"status": "success", "message": "KYC uploaded successfully"}
 
-@router.put(Routes.TENANTAPIKYCMARKINACTIVE, name=Names.PUBLICTENANTKYCMARKINACTIVE)
-async def public_tenant_kyc_mark_inactive(viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
+@router.put(TenantRoutes.TENANTAPIKYCMARKINACTIVE, name=TenantNames.TENANTKYCMARKINACTIVE)
+async def public_tenant_kyc_mark_inactive(tenantId: int, viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
@@ -250,18 +280,18 @@ async def public_tenant_kyc_mark_inactive(viewToken: str, occupantUuid: str, pri
     update_occupant_status(occupantUuid, "Inactive")
     return {"status": "success"}
 
-@router.delete(Routes.TENANTAPIKYCDELETE, name=Names.PUBLICTENANTKYCDELETE)
-async def public_tenant_kyc_delete(viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
+@router.delete(TenantRoutes.TENANTAPIKYCDELETE, name=TenantNames.TENANTKYCDELETE)
+async def public_tenant_kyc_delete(tenantId: int, viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
-        
+
     occupants = get_occupants(tenant.id)
-    target = next((o for o in occupants if o.get("Occupant UUID") == occupantUuid), None)
-    
+    target = next((o for o in occupants if o.get("occupantUuid") == occupantUuid or o.get("Occupant UUID") == occupantUuid), None)
+
     if target:
-        doc_keys = ["Aadhaar Front", "Aadhaar Back", "Aadhaar Combined", "Emp Front", "Emp Back"]
+        doc_keys = ["aadhaarfront", "aadhaarback", "aadhaarcombined", "empfront", "empback"]
         for key in doc_keys:
             filename = target.get(key)
             if filename:
@@ -275,8 +305,8 @@ async def public_tenant_kyc_delete(viewToken: str, occupantUuid: str, principal 
     delete_occupant(occupantUuid)
     return {"status": "success"}
 
-@router.get(Routes.TENANTAPIKYCGETFILE, name=Names.GETKYCFILE)
-async def tenant_public_get_kyc_file(filename: str, principal = Depends(get_current_tenant)):
+@router.get(TenantRoutes.TENANTAPIKYCGETFILE, name=TenantNames.TENANTKYCGETFILE)
+async def tenant_public_get_kyc_file(tenantId: int, viewToken: str, filename: str, principal = Depends(get_current_tenant)):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")

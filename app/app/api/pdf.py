@@ -1,4 +1,4 @@
-﻿# File: app\app\api\pdf.py
+# File: app\app\api\pdf.py
 from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
 from app.core.dependencies import templates, config
@@ -30,9 +30,9 @@ from app.authentication.admin.middleware import get_current_admin_api
 from datetime import datetime
 
 @router.get(Routes.ADMINAPIPDFDOWNLOAD, name=Names.PDFDOWNLOAD)
-async def download_pdf(billNo: str, admin = Depends(get_current_admin_api)):
+async def download_pdf(tenantId: int, billNo: str, admin = Depends(get_current_admin_api)):
     billNo = billNo
-    receipt = get_receipt(billNo)
+    receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
         
@@ -53,9 +53,9 @@ async def download_pdf(billNo: str, admin = Depends(get_current_admin_api)):
     return response
 
 @router.get(Routes.ADMINAPIPDFVIEW, name=Names.PDFVIEW)
-async def view_pdf(billNo: str, admin = Depends(get_current_admin_api)):
+async def view_pdf(tenantId: int, billNo: str, admin = Depends(get_current_admin_api)):
     billNo = billNo
-    receipt = get_receipt(billNo)
+    receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
         

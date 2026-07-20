@@ -22,9 +22,13 @@ import {
     EyeOff,
     KeyRound,
     Archive,
+    Upload,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ReceiptRoller, ReceiptCard } from "@/components/receipts";
+import { OccupantDocumentViewer } from "@/components/OccupantDocumentViewer";
+import { OccupantKycUploadDialog } from "@/components/OccupantKycUploadDialog";
+import { tenantApi } from "@/lib/api";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -56,6 +60,8 @@ interface Occupant {
     name: string;
     mobile: string;
     status: string;
+    address?: string;
+    residentSince?: string;
     aadhaar_front?: string;
     aadhaar_back?: string;
     aadhaar_combined?: string;
@@ -80,31 +86,31 @@ interface ProfileResponse {
 
 // ─── Helper: Extract viewToken robustly ───────────────────────────
 
-function useViewToken(): string | null {
+function useTenantParams(): { tenantId: string | null, viewToken: string | null } {
     const params = useParams();
 
     // Try common param names (React Router v7 may use camelCase or different naming)
     const possibleNames = ["viewToken", "viewToken", "token", "id"];
     for (const name of possibleNames) {
         const val = params[name];
-        if (val && val !== "undefined") return val;
+        if (val && val !== "undefined") return { tenantId: params.tenantId || null, viewToken: val };
     }
 
     // Fallback: parse from current URL path
     // URL pattern: /rent/t/<token> or /t/<token>
     const path = window.location.pathname;
     const match = path.match(/\/t\/([a-f0-9-]{36})/i);
-    if (match) return match[1];
+    if (match) return { tenantId: params.tenantId || null, viewToken: match[1] };
 
     // Last resort: try to get from the last path segment
     const segments = path.split("/").filter(Boolean);
     const lastSegment = segments[segments.length - 1];
     if (lastSegment && lastSegment.length === 36 && lastSegment.includes("-")) {
-        return lastSegment;
+        return { tenantId: params.tenantId || null, viewToken: lastSegment };
     }
 
     console.error("[TenantPortal] Could not extract viewToken from:", { params, path });
-    return null;
+    return { tenantId: params.tenantId || null, viewToken: null };
 }
 
 function formatCurrency(amount: number): string {
@@ -115,10 +121,68 @@ function formatCurrency(amount: number): string {
     }).format(amount);
 }
 
+type PaymentState = "PENDING" | "PARTIAL" | "PAID" | "ADVANCE";
+
+function getPaymentSummary(receipt?: ReceiptData) {
+    if (!receipt) {
+        return {
+            status: "PENDING" as PaymentState,
+            amount: 0,
+            label: "No pending bill",
+        };
+    }
+
+    const total = Number(receipt.Total ?? 0);
+    const arrears = Number(receipt.previousArrears ?? 0);
+    const received = Number(receipt.amountReceived ?? 0);
+    const payable = total + arrears;
+    const storedStatus = String(receipt.paymentStatus ?? "").toUpperCase();
+
+    if (storedStatus === "ADVANCE" || received > payable) {
+        return {
+            status: "ADVANCE" as PaymentState,
+            amount: Math.max(0, received - payable),
+            label: "Advance credit",
+        };
+    }
+
+    if (storedStatus === "PARTIAL" || (received > 0 && received < payable)) {
+        return {
+            status: "PARTIAL" as PaymentState,
+            amount: Math.max(0, payable - received),
+            label: "Balance due",
+        };
+    }
+
+    if (storedStatus === "PAID" || received >= payable) {
+        return {
+            status: "PAID" as PaymentState,
+            amount: 0,
+            label: "Amount due",
+        };
+    }
+
+    return {
+        status: "PENDING" as PaymentState,
+        amount: payable,
+        label: "Amount due",
+    };
+}
+
+function PaymentBadge({ status }: { status: PaymentState }) {
+    switch (status) {
+        case "PAID": return <Badge className="bg-emerald-500 hover:bg-emerald-600">Paid</Badge>;
+        case "PARTIAL": return <Badge className="bg-amber-500 hover:bg-amber-600">Partial</Badge>;
+        case "PENDING": return <Badge variant="destructive">Pending</Badge>;
+        case "ADVANCE": return <Badge className="bg-cyan-500 hover:bg-cyan-600">Advance</Badge>;
+        default: return <Badge variant="outline">{status}</Badge>;
+    }
+}
+
 // ─── Component ───────────────────────────────────────────────────────
 
 export default function TenantPortal() {
-    const viewToken = useViewToken();
+    const { tenantId, viewToken } = useTenantParams();
 
     // ── Auth / UI State ──
     const [profile, setProfile] = useState<ProfileResponse | null>(null);
@@ -131,6 +195,9 @@ export default function TenantPortal() {
     const [currentPage, setCurrentPage] = useState(1);
     const receiptsPerPage = 6;
     const [publicKey, setPublicKey] = useState<string>("");
+    const [kycDialogOpen, setKycDialogOpen] = useState(false);
+    const [selectedOccupant, setSelectedOccupant] = useState<Occupant | null>(null);
+    const [viewerOpen, setViewerOpen] = useState(false);
 
     // Fetch public key on mount
     useEffect(() => {
@@ -151,7 +218,7 @@ export default function TenantPortal() {
 
         setLoading(true);
         try {
-            const res = await fetch(TENANTROUTES.TENANTAPIPROFILEGET(viewToken), {
+            const res = await fetch(TENANTROUTES.TENANTAPIPROFILEGET(tenantId || 0, viewToken), {
                 credentials: "include",
                 cache: "no-store",
                 headers: {
@@ -180,7 +247,7 @@ export default function TenantPortal() {
     // Initial load
     useEffect(() => {
         fetchProfile();
-    }, [fetchProfile]);
+    }, [fetchProfile, viewToken]);
 
     // ── PIN Login ──
     const handleLogin = async (e: React.FormEvent) => {
@@ -197,7 +264,7 @@ export default function TenantPortal() {
             const { encryptPayload } = await import("@/lib/encryption");
             const encrypted = await encryptPayload({ pin }, publicKey);
 
-            const res = await fetch(TENANTROUTES.TENANTAPIAUTHLOGIN(viewToken), {
+            const res = await fetch(TENANTROUTES.TENANTAPIAUTHLOGIN(tenantId || 0, viewToken), {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
@@ -226,7 +293,7 @@ export default function TenantPortal() {
     // ── Logout ──
     const handleLogout = async () => {
         try {
-            await fetch(TENANTROUTES.TENANTAPIAUTHLOGOUT(viewToken!), {
+            await fetch(TENANTROUTES.TENANTAPIAUTHLOGOUT(tenantId || 0, viewToken!), {
                 method: "POST",
                 credentials: "include",
             });
@@ -238,6 +305,16 @@ export default function TenantPortal() {
         setCurrentPage(1);
         await fetchProfile();
         toast.info("Logged out successfully.");
+    };
+
+    const handleMarkInactive = async (occupantUuid: string) => {
+        try {
+            await tenantApi.kyc.markInactive(tenantId!, viewToken!, occupantUuid);
+            toast.success("Occupant marked inactive");
+            fetchProfile();
+        } catch {
+            toast.error("Failed to mark inactive");
+        }
     };
 
     // ── Helpers ──
@@ -392,12 +469,32 @@ export default function TenantPortal() {
                             <Unlock className="h-5 w-5 text-emerald-500" />
                         </div>
                         <div>
-                            <h1 className="font-semibold text-lg leading-tight">{profile.tenant.name}</h1>
+                            <h1 className="font-semibold text-lg leading-tight">
+                                {profile.tenant.name}
+                                <span className="ml-2 text-sm font-medium text-muted-foreground">
+                                    #{profile.tenant.id}
+                                </span>
+                            </h1>
                             <p className="text-xs text-muted-foreground">Tenant Portal</p>
-
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
+                        <Button
+                            onClick={() => setKycDialogOpen(true)}
+                            className="rounded-full hidden sm:flex"
+                            size="sm"
+                        >
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload KYC
+                        </Button>
+                        <Button
+                            onClick={() => setKycDialogOpen(true)}
+                            className="rounded-full sm:hidden"
+                            size="icon"
+                            title="Upload KYC"
+                        >
+                            <Upload className="h-4 w-4" />
+                        </Button>
                         <ThemeToggle />
                         <Button variant="ghost" size="sm" onClick={handleLogout}>
                             <LogOut className="h-4 w-4 mr-2" />
@@ -450,31 +547,33 @@ export default function TenantPortal() {
                             </div>
                         </CardContent>
                     </Card>
-                    <Card>
+                    <Card className="rounded-xl shadow-sm">
                         <CardContent className="pt-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Pending Amount</p>
-                                    <p className="text-2xl font-bold text-destructive">
-                                        {formatCurrency(receipts.reduce((sum, r) => {
-                                            const grandTotal = (r.Total || 0) + (r.previousArrears || 0);
-                                            const received = Number(r.amountReceived) || 0;
-                                            return r.paymentStatus === "PENDING"
-                                                ? sum + Math.max(grandTotal - received, 0)
-                                                : sum;
-                                        }, 0))}
-                                    </p>
-                                </div>
-                                <FileText className="h-8 w-8 text-amber-500/60" />
-                            </div>
+                            {(() => {
+                                const latestReceipt = receipts[0];
+                                const payment = getPaymentSummary(latestReceipt);
+                                return (
+                                    <div className="flex flex-col justify-between h-full">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-muted-foreground">{payment.label}</span>
+                                            <PaymentBadge status={payment.status} />
+                                        </div>
+                                        <div className="mt-2 text-2xl font-bold">
+                                            {formatCurrency(payment.amount)}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="pt-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-muted-foreground">Occupants</p>
-                                    <p className="text-2xl font-bold">{(profile.occupants || []).length}</p>
+                                    <p className="text-sm text-muted-foreground">Active Occupants</p>
+                                    <p className="text-2xl font-bold">
+                                        {(profile.occupants || []).filter(o => String(o.status ?? "Active").toUpperCase() === "ACTIVE").length}
+                                    </p>
                                 </div>
                                 <Users className="h-8 w-8 text-blue-500/60" />
                             </div>
@@ -521,7 +620,7 @@ export default function TenantPortal() {
                                 )}
                             </>
                         )}
-                        <ReceiptRoller receipts={receipts as ReceiptData[]} maxVisible={12} viewToken={viewToken || ""} />
+                        <ReceiptRoller receipts={receipts as ReceiptData[]} maxVisible={12} tenantId={tenantId || 0} viewToken={viewToken || ""} />
                     </div>
                 )}
 
@@ -537,21 +636,39 @@ export default function TenantPortal() {
                             </Card>
                         ) : (
                             <div className="grid gap-4">
-                                {(profile.occupants || []).map((o) => (
-                                    <Card key={o["Occupant UUID"]}>
-                                        <CardContent className="p-4">
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <p className="font-semibold">{o.name}</p>
-                                                    <p className="text-sm text-muted-foreground">{o.mobile}</p>
+                                {(profile.occupants || []).map((o) => {
+                                    const isActive = String(o.status || "Active").toUpperCase() === "ACTIVE";
+                                    return (
+                                        <Card 
+                                            key={o["Occupant UUID"]} 
+                                            className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                            onClick={() => {
+                                                setSelectedOccupant(o);
+                                                setViewerOpen(true);
+                                            }}
+                                        >
+                                            <CardContent className="p-4">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                                    <div>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-semibold">{o.name}</p>
+                                                            <Badge variant={isActive ? "default" : "secondary"} className={isActive ? "bg-green-500 hover:bg-green-600" : ""}>
+                                                                {o.status || "Active"}
+                                                            </Badge>
+                                                        </div>
+                                                        <p className="text-sm text-muted-foreground mt-1">
+                                                            {o.mobile} &middot; {o.address || "No address"}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-sm text-muted-foreground sm:text-right">
+                                                        {o.residentSince && <p>Since: {new Date(`${o.residentSince}T00:00:00`).toLocaleDateString("en-IN")}</p>}
+                                                        <p>Added: {o.uploaddate ? new Date(`${o.uploaddate}Z`).toLocaleDateString("en-IN") : "Unknown"}</p>
+                                                    </div>
                                                 </div>
-                                                <Badge variant={o.status === "Active" ? "default" : "secondary"}>
-                                                    {o.status}
-                                                </Badge>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
+                                            </CardContent>
+                                        </Card>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -578,7 +695,8 @@ export default function TenantPortal() {
                                                 key={receipt.Bill}
                                                 receipt={receipt}
                                                 variant="archive"
-                                                viewToken={viewToken}
+                                                tenantId={tenantId || 0}
+                                                viewToken={viewToken || ""}
                                             />
                                         ))}
                                 </div>
@@ -587,6 +705,30 @@ export default function TenantPortal() {
                     </Card>
                 )}
             </main>
+
+            {kycDialogOpen && (
+                <OccupantKycUploadDialog
+                    tenantId={tenantId!}
+                    viewToken={viewToken!}
+                    open={kycDialogOpen}
+                    onOpenChange={setKycDialogOpen}
+                    onSuccess={() => {
+                        setKycDialogOpen(false);
+                        fetchProfile();
+                    }}
+                />
+            )}
+
+            {viewerOpen && selectedOccupant && (
+                <OccupantDocumentViewer
+                    tenantId={tenantId!}
+                    viewToken={viewToken!}
+                    occupant={selectedOccupant}
+                    open={viewerOpen}
+                    onOpenChange={setViewerOpen}
+                    onMarkInactive={handleMarkInactive}
+                />
+            )}
         </div>
     );
 }

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * src/lib/routes.ts — Tenant App
  * Shared routes manifest from routes.json (via @shared alias).
  */
@@ -22,6 +22,8 @@ interface RouteManifest {
 
 const manifest = routesJson as unknown as RouteManifest;
 
+export const APP_BASE_PATH = import.meta.env.VITE_APP_BASE_PATH?.replace(/\/$/, "") || "/rent";
+
 function resolvePath(template: string, params?: Record<string, string | number>): string {
     if (!params) return template;
     return Object.entries(params).reduce(
@@ -31,7 +33,7 @@ function resolvePath(template: string, params?: Record<string, string | number>)
 }
 
 function fullPath(template: string, params?: Record<string, string | number>): string {
-    return `${manifest.basePath || ""}${resolvePath(template, params)}`;
+    return `${APP_BASE_PATH}${resolvePath(template, params)}`;
 }
 
 function tenantApi(section: string, key: string, params?: Record<string, string | number>): string {
@@ -47,40 +49,40 @@ function tenantPage(key: string, params?: Record<string, string | number>): stri
 }
 
 export const TENANTROUTES = {
-    get basePath() { return manifest.basePath; },
+    get basePath() { return APP_BASE_PATH; },
     get HEALTHCHECK() { return fullPath(manifest.health.check); },
 
     // Tenant Pages
-    get TENANTPAGEROOT() { return tenantPage("root"); },
-    tenantPageProfile(viewToken: string) { return tenantPage("profile", { viewToken }); },
+    TENANTPAGEROOT(tenantId: string | number, viewToken: string) { return tenantPage("root", { tenantId, viewToken }); },
+    tenantPageProfile(tenantId: string | number, viewToken: string) { return tenantPage("profile", { tenantId, viewToken }); },
 
     // Tenant API: Auth
     get TENANTAPIAUTHPUBLICKEY() { return tenantApi("auth", "publicKey"); },
-    TENANTAPIAUTHLOGIN(viewToken: string) { return tenantApi("auth", "login", { viewToken }); },
-    TENANTAPIAUTHREFRESH(viewToken: string) { return tenantApi("auth", "refresh", { viewToken }); },
-    TENANTAPIAUTHLOGOUT(viewToken: string) { return tenantApi("auth", "logout", { viewToken }); },
-    TENANTAPIAUTHLOGOUTALL(viewToken: string) { return tenantApi("auth", "logoutAll", { viewToken }); },
+    TENANTAPIAUTHLOGIN(tenantId: string | number, viewToken: string) { return tenantApi("auth", "login", { tenantId, viewToken }); },
+    TENANTAPIAUTHREFRESH(tenantId: string | number, viewToken: string) { return tenantApi("auth", "refresh", { tenantId, viewToken }); },
+    TENANTAPIAUTHLOGOUT(tenantId: string | number, viewToken: string) { return tenantApi("auth", "logout", { tenantId, viewToken }); },
+    TENANTAPIAUTHLOGOUTALL(tenantId: string | number, viewToken: string) { return tenantApi("auth", "logoutAll", { tenantId, viewToken }); },
 
     // Tenant API: Profile
-    TENANTAPIPROFILEGET(viewToken: string) { return tenantApi("profile", "get", { viewToken }); },
+    TENANTAPIPROFILEGET(tenantId: string | number, viewToken: string) { return tenantApi("profile", "get", { tenantId, viewToken }); },
 
     // Tenant API: PDF — FIXED: proper view/download methods
-    TENANTAPIPDFVIEW(viewToken: string, billNo: string) {
-        return tenantApi("pdf", "view", { viewToken, billNo });
+    TENANTAPIPDFVIEW(tenantId: number | string, viewToken: string, billNo: string) {
+        return tenantApi("pdf", "view", { tenantId, viewToken, billNo });
     },
-    TENANTAPIPDFDOWNLOAD(viewToken: string, billNo: string) {
-        return tenantApi("pdf", "download", { viewToken, billNo });
+    TENANTAPIPDFDOWNLOAD(tenantId: number | string, viewToken: string, billNo: string) {
+        return tenantApi("pdf", "download", { tenantId, viewToken, billNo });
     },
 
     // Tenant API: KYC
-    TENANTAPIKYCUPLOAD(viewToken: string) { return tenantApi("kyc", "upload", { viewToken }); },
-    TENANTAPIKYCMARKINACTIVE(viewToken: string, occupantUuid: string) {
-        return tenantApi("kyc", "markInactive", { viewToken, occupantUuid });
+    TENANTAPIKYCUPLOAD(tenantId: string | number, viewToken: string) { return tenantApi("kyc", "upload", { tenantId, viewToken }); },
+    TENANTAPIKYCMARKINACTIVE(tenantId: string | number, viewToken: string, occupantUuid: string) {
+        return tenantApi("kyc", "markInactive", { tenantId, viewToken, occupantUuid });
     },
-    TENANTAPIKYCDELETE(viewToken: string, occupantUuid: string) {
-        return tenantApi("kyc", "delete", { viewToken, occupantUuid });
+    TENANTAPIKYCDELETE(tenantId: string | number, viewToken: string, occupantUuid: string) {
+        return tenantApi("kyc", "delete", { tenantId, viewToken, occupantUuid });
     },
-    TENANTAPIKYCGETFILE(filename: string) { return tenantApi("kyc", "getFile", { filename }); },
+    TENANTAPIKYCGETFILE(tenantId: string | number, viewToken: string, filename: string) { return tenantApi("kyc", "getFile", { tenantId, viewToken, filename }); },
 } as const;
 
 export type RoutesType = typeof TENANTROUTES;

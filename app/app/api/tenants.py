@@ -12,6 +12,7 @@ from app.models.tenant import Tenant
 from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
+from pydantic import BaseModel
 
 
 from app.services.tenant_service import (
@@ -40,12 +41,17 @@ async def api_get_tenant(tenantId: int):
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
 
-@router.get(Routes.ADMINAPITENANTSRECEIPTS + "_legacy", name=Names.APIGETTENANTRECEIPTS + "_legacy")
 @router.get(Routes.ADMINAPITENANTSRECEIPTS, name=Names.APIGETTENANTRECEIPTS)
-async def api_get_tenant_receipts(tenantName: str):  # CHANGED: tenantName → tenantName
-    receipts = get_all_receipts()
-    target = tenantName.strip().casefold()  # CHANGED: tenantName → tenantName
-    tenant_receipts = [r for r in receipts if r.get("Tenant", "").strip().casefold() == target]
+async def api_get_tenant_receipts(tenantId: int):
+    # Use include_archived=True so admin can view receipts of archived tenants
+    tenants = load_tenants(include_archived=True)
+    tenant = next((t for t in tenants if t.id == tenantId), None)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    # ID-based lookup only — name is display-only and must never be used for ownership
+    receipts = get_all_receipts(include_archived_tenants=True)
+    tenant_receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) == tenantId]
     tenant_receipts.reverse()
     return tenant_receipts
 
@@ -187,10 +193,55 @@ async def api_delete_tenant(
 ):
     action = (action or "archive").strip().lower()
 
+    # ── New: permanent-with-recovery action ──────────────────────────────────
+    if action == "permanent-with-recovery":
+        from app.services.tenant_recovery_service import (
+            create_tenant_recovery_snapshot,
+            permanently_delete_tenant_data,
+        )
+
+        tenants = load_tenants(include_archived=True)
+        tenant = next((t for t in tenants if t.id == tenantId), None)
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found.")
+
+        if (tenant.status or "").strip().lower() != "archived":
+            raise HTTPException(
+                status_code=409,
+                detail="Only archived tenants can be permanently deleted. Archive the tenant first.",
+            )
+
+        try:
+            # Step 1: Create recovery snapshot SYNCHRONOUSLY (must complete before deletion)
+            snapshot = create_tenant_recovery_snapshot(
+                tenant_id=tenantId,
+                admin_id=None,  # admin principal not injected here; safe to omit
+            )
+            # Step 2: Permanently delete all live data
+            permanently_delete_tenant_data(tenantId)
+
+            return {
+                "status": "success",
+                "action": "permanent-with-recovery",
+                "snapshotId": snapshot["id"],
+                "expiresAt": snapshot["expires_at"],
+                "tenantId": tenantId,
+                "tenantName": snapshot["tenant_name"],
+            }
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Permanent deletion failed; no live data was deleted: {exc}",
+            )
+
+    # ── Existing actions ─────────────────────────────────────────────────────
     if action not in {"archive", "delete", "hard", "inactive"}:
         raise HTTPException(status_code=400, detail="Invalid tenant action.")
 
-    tenants = load_tenants()
+    # Must include archived tenants so an already-archived tenant is not missed
+    tenants = load_tenants(include_archived=True)
     tenant = next((t for t in tenants if t.id == tenantId), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found.")
@@ -206,52 +257,151 @@ async def api_delete_tenant(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Tenant {action} failed: {str(e)}")
 
+
+# ── Tenant Recovery Snapshot Endpoints ───────────────────────────────────────
+
+@router.get(Routes.ADMINAPITENANTSNAPSHOTS, name=Names.APILISTRECOVERYSNAPSHOTS)
+async def api_list_recovery_snapshots():
+    """List all tenant recovery snapshots (runs expiry purge first)."""
+    from app.services.tenant_recovery_service import get_tenant_recovery_snapshots
+    snapshots = get_tenant_recovery_snapshots()
+    return {"status": "success", "snapshots": snapshots}
+
+
+@router.get(Routes.ADMINAPITENANTSNAPSHOT_PREVIEW, name=Names.APIRECOVERYSNAPSHOT_PREVIEW)
+async def api_recovery_snapshot_preview(snapshotId: str):
+    """Return a conflict preview for restoring a tenant recovery snapshot."""
+    from app.services.tenant_recovery_service import get_snapshot_restore_preview
+    try:
+        preview = get_snapshot_restore_preview(snapshotId)
+        return {"status": "success", **preview}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Preview failed: {e}")
+
+
+class RestoreSnapshotRequest(BaseModel):
+    force_new_id: bool = False
+
+
+@router.post(Routes.ADMINAPITENANTSNAPSHOT_RESTORE, name=Names.APIRECOVERYSNAPSHOT_RESTORE)
+async def api_restore_recovery_snapshot(snapshotId: str, payload: RestoreSnapshotRequest = RestoreSnapshotRequest()):
+    """Restore a tenant from a recovery snapshot."""
+    from app.services.tenant_recovery_service import restore_tenant_from_snapshot
+    try:
+        result = restore_tenant_from_snapshot(snapshotId, force_new_id=payload.force_new_id)
+        return {"status": "success", **result}
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Restore failed: {e}")
+
+
+@router.post(Routes.ADMINAPITENANTSRESTORE, name=Names.APIRESTORETENANT)
+async def api_restore_tenant(
+    tenantId: int,
+    background_tasks: BackgroundTasks,
+):
+    # Archived tenants must be visible for the existence check — this is why restore
+    # cannot share the normal pre-check that excludes archived tenants.
+    tenants = load_tenants(include_archived=True)
+    tenant = next((t for t in tenants if t.id == tenantId), None)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found.")
+
+    try:
+        background_tasks.add_task(create_full_backup, tag="restore_tenant")
+        result = delete_tenant(tenantId, "restore")
+        return {"status": "success", "action": "restore", "data": result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tenant restore failed: {str(e)}")
+
 from app.core.paths import KYC_DIR
 import mimetypes
 
 @router.get(Routes.ADMINAPIOCCUPANTSLIST, name=Names.APIGETOCCUPANTS)
 async def admin_get_occupants(tenantId: int):
     occupants = get_occupants(tenantId)
-    # Map occupantUuid to "Occupant UUID" for frontend compatibility
-    for o in occupants:
-        if "occupantUuid" in o and "Occupant UUID" not in o:
-            o["Occupant UUID"] = o["occupantUuid"]
     return {"occupants": occupants}
 
-@router.post(Routes.ADMINAPIOCCUPANTSLIST, name=Names.APICREATEOCCUPANT)
+@router.post(Routes.ADMINAPIOCCUPANTSCREATE, name=Names.APICREATEOCCUPANT)
 async def admin_post_occupants(
-    tenantId: int = Query(...),
+    tenantId: int,
     name: str = Form(...),
     mobile: str = Form(""),
-    files: List[UploadFile] = File(None)
+    address: str = Form(""),
+    residentSince: str = Form(""),
+    aadhaarfront: Optional[UploadFile] = File(None),
+    aadhaarback: Optional[UploadFile] = File(None),
+    aadhaarcombined: Optional[UploadFile] = File(None),
+    empfront: Optional[UploadFile] = File(None),
+    empback: Optional[UploadFile] = File(None),
 ):
     import uuid
     from app.core.paths import KYC_DIR
     import os
     import shutil
-    
+
+    # Validate Aadhaar: need combined OR both front+back
+    has_combined = aadhaarcombined and aadhaarcombined.filename
+    has_both = (aadhaarfront and aadhaarfront.filename) and (aadhaarback and aadhaarback.filename)
+    if not has_combined and not has_both:
+        raise HTTPException(
+            status_code=400,
+            detail="Upload one combined Aadhaar document, or both front and back.",
+        )
+
+    # Validate residentSince date if provided
+    if residentSince:
+        try:
+            from datetime import date
+            parsed = date.fromisoformat(residentSince)
+            if parsed > date.today():
+                raise HTTPException(status_code=400, detail="Residing since date cannot be in the future.")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid residentSince date format. Use YYYY-MM-DD.")
+
     occ_uuid = str(uuid.uuid4())
-    doc_urls = {}
-    
-    if files:
-        for file in files:
-            if file.filename:
-                # Basic saving logic for occupant files
-                ext = file.filename.split(".")[-1] if "." in file.filename else ""
-                safe_name = f"{occ_uuid}_{file.filename}"
-                file_path = os.path.join(KYC_DIR, safe_name)
-                with open(file_path, "wb") as buffer:
-                    shutil.copyfileobj(file.file, buffer)
-                # Assign to first available slot just for simplicity, or aadhaar_combined
-                if not doc_urls.get("aadhaar_combined"):
-                    doc_urls["aadhaar_combined"] = safe_name
-                
+    prefix = f"{tenantId}_{occ_uuid}"
+    doc_urls: dict = {}
+
+    async def _save(upload: UploadFile, field: str):
+        if not upload or not upload.filename:
+            return
+        ext = os.path.splitext(upload.filename)[-1].lower()
+        safe_name = f"{prefix}_{field}{ext}"
+        file_path = os.path.join(KYC_DIR, safe_name)
+        with open(file_path, "wb") as buf:
+            shutil.copyfileobj(upload.file, buf)
+        doc_urls[field] = safe_name
+
+    await _save(aadhaarcombined, "aadhaar_combined")
+    await _save(aadhaarfront,    "aadhaar_front")
+    await _save(aadhaarback,     "aadhaar_back")
+    await _save(empfront,        "emp_front")
+    await _save(empback,         "emp_back")
+
+    from datetime import datetime
+    now = datetime.utcnow()
     occ_data = {
-        "occupantUuid": occ_uuid,
-        "name": name,
-        "mobile": mobile,
-        "status": "Active",
-        "aadhaar_combined": doc_urls.get("aadhaar_combined", "")
+        "occupantUuid":    occ_uuid,
+        "name":            name,
+        "mobile":          mobile,
+        "address":         address,
+        "residentSince":   residentSince,
+        "status":          "Active",
+        "aadhaar_combined": doc_urls.get("aadhaar_combined", ""),
+        "aadhaar_front":   doc_urls.get("aadhaar_front", ""),
+        "aadhaar_back":    doc_urls.get("aadhaar_back", ""),
+        "emp_front":       doc_urls.get("emp_front", ""),
+        "emp_back":        doc_urls.get("emp_back", ""),
+        "uploaddate":      now.strftime("%d %b %Y"),
+        "uploadmonth":     now.strftime("%B %Y"),
     }
     save_occupant(tenantId, occ_data)
     return {"status": "success", "occupantUuid": occ_uuid}
@@ -267,10 +417,10 @@ async def admin_tenant_kyc_delete(tenantId: int, occupantUuid: str):
     tenantId = tenantId
     occupantUuid = occupantUuid
     occupants = get_occupants(tenantId)
-    target = next((o for o in occupants if o.get("Occupant UUID") == occupantUuid), None)
-    
+    target = next((o for o in occupants if o.get("occupantUuid") == occupantUuid or o.get("Occupant UUID") == occupantUuid), None)
+
     if target:
-        doc_keys = ["Aadhaar Front", "Aadhaar Back", "Aadhaar Combined", "Emp Front", "Emp Back"]
+        doc_keys = ["aadhaarfront", "aadhaarback", "aadhaarcombined", "empfront", "empback"]
         for key in doc_keys:
             filename = target.get(key)
             if filename:
@@ -280,12 +430,12 @@ async def admin_tenant_kyc_delete(tenantId: int, occupantUuid: str):
                         os.remove(file_path)
                     except Exception:
                         pass
-            
+
     delete_occupant(occupantUuid)
     return {"status": "success"}
 
-@router.get(Routes.ADMINAPIOCCUPANTSGETFILE, name=Names.GETKYCFILE)
-async def admin_get_kyc_file(filename: str):
+@router.get(Routes.ADMINAPIOCCUPANTSGETFILE, name=Names.APIGETOCCUPANTFILE)
+async def admin_get_kyc_file(tenantId: int, filename: str):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")

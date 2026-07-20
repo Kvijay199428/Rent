@@ -1,4 +1,6 @@
 # //File: app\app\services\billing_service.py
+# POLICY: tenantId is the only identity key for tenant-related data.
+# tenantName is display-only and must never be used for joins, ownership, lookup, or mutation.
 
 from app.core.db import get_conn
 import os
@@ -10,9 +12,9 @@ from app.services.pdf_service import generate_professional_pdf
 
 from app.core.paths import DB_DIR, BACKUPS_DIR as BACKUP_DIR, RECEIPTS_DIR
 
-def get_bill_details(billNo):
+def get_bill_details(tenantId, billNo):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
     if row:
         return _row_to_dict(row)
     return None
@@ -86,10 +88,10 @@ def resolve_payment_state(currentTotal, previousArrears=0.0, amountReceived=None
 #         """, (status, final_received, billNo))
 #         conn.commit()
 #     return status
-def update_paymentStatus(billNo, requestedStatus, amountReceived=None):
+def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None):
     from app.core.db import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         
@@ -131,8 +133,8 @@ def update_paymentStatus(billNo, requestedStatus, amountReceived=None):
         conn.execute("""
             UPDATE receipts 
             SET paymentstatus = ?, amountreceived = ?
-            WHERE billNo = ?
-        """, (finalStatus, amountReceived, billNo))
+            WHERE tenantId = ? AND billNo = ?
+        """, (finalStatus, amountReceived, tenantId, billNo))
         conn.commit()
     
     return finalStatus
@@ -190,11 +192,11 @@ def _row_to_dict(row):
         "amountReceived": _safe_float(row.get("amountreceived")),
     }
 
-def get_active_tenant_names() -> set:
-    """Returns a set of tenant names that are NOT archived."""
+def get_active_tenant_ids() -> set:
+    """Returns a set of tenant IDs that are NOT archived."""
     from app.services.tenant_service import load_tenants
     tenants = load_tenants(include_archived=False)
-    return {t.name for t in tenants}
+    return {t.id for t in tenants}
 
 def get_all_receipts(include_archived_tenants: bool = False):
     with get_conn() as conn:
@@ -203,22 +205,35 @@ def get_all_receipts(include_archived_tenants: bool = False):
     receipts = [_row_to_dict(r) for r in rows]
     
     if not include_archived_tenants:
-        active_tenants = get_active_tenant_names()
-        receipts = [r for r in receipts if r.get("Tenant") in active_tenants]
+        active_ids = get_active_tenant_ids()
+        receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) in active_ids]
     
     return receipts
 
-def get_receipt(billNo):
-    receipts = get_all_receipts()
-    for r in receipts:
-        if r["Bill"] == billNo:
-            return r
+def get_receipts_for_tenant(tenant_id: int, include_archived: bool = False) -> list:
+    """Fetch all receipts for a single tenant by ID.
+    
+    Use this everywhere instead of name-based filtering. The relationship key is
+    TenantId, not the mutable tenant name, so this is rename-safe.
+    """
+    receipts = get_all_receipts(include_archived_tenants=True)
+    result = [r for r in receipts if int(r.get("TenantId", 0) or 0) == int(tenant_id)]
+    if not include_archived:
+        result = [r for r in result if (r.get("Status") or "").upper() != "ARCHIVED"]
+    return result
+
+def get_receipt(tenantId, billNo):
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+    if row:
+        return _row_to_dict(row)
     return None
 
-def get_latest_receipt(tenantName: str, exclude_BillNo: str = None):
+def get_latest_receipt(tenantId: int, exclude_BillNo: str = None):
     with get_conn() as conn:
-        query = "SELECT * FROM receipts WHERE tenant COLLATE NOCASE = ? AND status != 'ARCHIVED'"
-        params = [tenantName]
+        query = "SELECT * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'"
+        params = [tenantId]
         if exclude_BillNo:
             query += " AND billNo != ?"
             params.append(exclude_BillNo)
@@ -228,12 +243,12 @@ def get_latest_receipt(tenantName: str, exclude_BillNo: str = None):
         return _row_to_dict(row)
     return None
 
-def resolve_previous_reading(tenantName: str, exclude_BillNo: str = None) -> float:
-    from app.services.tenant_service import get_tenant_by_name
-    latest = get_latest_receipt(tenantName, exclude_BillNo)
+def resolve_previous_reading(tenantId: int, exclude_BillNo: str = None) -> float:
+    from app.services.tenant_service import get_tenant
+    latest = get_latest_receipt(tenantId, exclude_BillNo)
     if latest:
         return float(latest.get("Current", 0) or 0)
-    tenant = get_tenant_by_name(tenantName)
+    tenant = get_tenant(tenantId)
     if tenant:
         return float(getattr(tenant, "previousMeter", 0) or 0)
     return 0.0
@@ -273,19 +288,19 @@ def calculate_charges(current_reading, additional_persons, prev_reading, rent, w
         "previous": prev_reading
     }
 
-def create_bill(tenantName, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
+def create_bill(tenantId, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
                 MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING"):
     from app.core.db import get_conn
     from datetime import datetime
-    from app.services.tenant_service import load_tenants
+    from app.services.tenant_service import get_tenant
     import os
     from app.core.paths import RECEIPTS_DIR
     from app.services.pdf_service import generate_professional_pdf
     
-    tenants = load_tenants()
-    tenant = next((t for t in tenants if t.name == tenantName), None)
+    tenant = get_tenant(tenantId)
     if not tenant:
         raise ValueError("Tenant not found")
+    tenantName = tenant.name
 
     # FIX: Generate bill number with tenant ID prefix (T1, T2, etc.)
     # Count existing receipts for THIS specific tenant
@@ -301,7 +316,7 @@ def create_bill(tenantName, month, current_reading, additional_persons, tankWate
     
     current_date = datetime.now().strftime("%Y-%m-%d")
     
-    prev = resolve_previous_reading(tenantName)
+    prev = resolve_previous_reading(tenantId)
     if prev > 0 and current_reading < prev:
         raise ValueError("Current meter reading cannot be less than previous reading.")
     
@@ -380,24 +395,24 @@ def create_bill(tenantName, month, current_reading, additional_persons, tankWate
         conn.commit()
 
     return receipt_dict
-def update_bill(billNo, tenantName, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
+def update_bill(tenantId, billNo, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
                 MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING"):
     from app.core.db import get_conn
-    from app.services.tenant_service import load_tenants
+    from app.services.tenant_service import get_tenant
     from app.services.pdf_service import generate_professional_pdf
     import os
     from app.core.paths import RECEIPTS_DIR
     
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         old_receipt = dict(row)
 
-    tenants = load_tenants()
-    tenant = next((t for t in tenants if t.name == tenantName), None)
+    tenant = get_tenant(tenantId)
     if not tenant:
         raise ValueError("Tenant not found")
+    tenantName = tenant.name
         
     prev = float(old_receipt["previous"])
     if prev > 0 and current_reading < prev:
@@ -477,47 +492,64 @@ def update_bill(billNo, tenantName, month, current_reading, additional_persons, 
         conn.commit()
 
     return updated_dict
-def archive_bill(billNo):
+def archive_bill(tenantId, billNo):
     from app.core.db import get_conn
     from datetime import datetime
     with get_conn() as conn:
+        row = conn.execute(
+            "SELECT status FROM receipts WHERE tenantId = ? AND billNo = ?",
+            (tenantId, billNo),
+        ).fetchone()
+        if not row:
+            raise ValueError("Bill not found for this tenant.")
+
         conn.execute("""
             UPDATE receipts SET status = 'ARCHIVED', archiveddate = ?, archivedby = 'Admin'
-            WHERE billNo = ? AND status != 'ARCHIVED'
-        """, (datetime.now().strftime("%Y-%m-%d"), billNo))
+            WHERE tenantId = ? AND billNo = ? AND status != 'ARCHIVED'
+        """, (datetime.now().strftime("%Y-%m-%d"), tenantId, billNo))
         conn.commit()
-    return get_receipt(billNo)
+    return get_receipt(tenantId, billNo)
 
-def restore_bill(billNo):
+def restore_bill(tenantId, billNo):
     from app.core.db import get_conn
     with get_conn() as conn:
+        row = conn.execute(
+            "SELECT status, tenantId FROM receipts WHERE tenantId = ? AND billNo = ?",
+            (tenantId, billNo),
+        ).fetchone()
+        if not row:
+            raise ValueError("Bill not found for this tenant.")
+
         conn.execute("""
             UPDATE receipts SET status = 'ACTIVE', archiveddate = '', archivedby = ''
-            WHERE billNo = ? AND status != 'ACTIVE'
-        """, (billNo,))
+            WHERE tenantId = ? AND billNo = ? AND status != 'ACTIVE'
+        """, (tenantId, billNo))
         conn.commit()
-    return get_receipt(billNo)
+    return get_receipt(tenantId, billNo)
 
-def delete_bill(billNo):
+def delete_bill(tenantId, billNo):
     from app.core.db import get_conn
-    from app.services.tenant_service import get_tenant_by_name
+    from app.services.tenant_service import get_tenant
     with get_conn() as conn:
-        row = conn.execute("SELECT status, tenant FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+        row = conn.execute("SELECT status, tenantId FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
-        
+
         is_archived = str(row["status"]).upper() == "ARCHIVED"
-        
+
         # Also allow deletion if the tenant is archived
-        tenant = get_tenant_by_name(row["tenant"])
+        tenant = get_tenant(tenantId)
         is_tenant_archived = tenant is not None and str(tenant.status).upper() == "ARCHIVED"
-        
+
         if not (is_archived or is_tenant_archived):
             raise ValueError("Only archived receipts can be permanently deleted.")
-            
-        conn.execute("DELETE FROM receipts WHERE billNo = ?", (billNo,))
+
+        conn.execute("DELETE FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo))
         conn.commit()
+
+
 def get_dashboard_stats():
+    
     billing_conf = config.get("billing", {})
     receipts = get_all_receipts(include_archived_tenants=False)
     tenants = load_tenants(include_archived=False)
@@ -538,159 +570,208 @@ def get_dashboard_stats():
         prev_year = current_year
     prev_month_str = f"{months_names[prev_month_idx - 1]} {prev_year}"
     
-    active_tenants = len([t for t in tenants if t.status == "Active"])
-    inactive_tenants = len([t for t in tenants if t.status == "Inactive"])
+    active_tenants = [t for t in tenants if t.status == "Active"]
+    inactive_tenants = [t for t in tenants if t.status == "Inactive"]
     total_tenants = len(tenants)
-    
-    active_receipts = [r for r in receipts if r.get("Status", "ACTIVE") == "ACTIVE"]
-    archived_receipts = [r for r in receipts if r.get("Status") == "ARCHIVED"]
+
+    active_receipts = [r for r in receipts if (r.get("Status") or "ACTIVE").upper() == "ACTIVE"]
+    archived_receipts = [r for r in receipts if (r.get("Status") or "").upper() == "ARCHIVED"]
     total_active_receipts = len(active_receipts)
     total_archived_receipts = len(archived_receipts)
     total_receipts_all = total_active_receipts + total_archived_receipts
     
     monthly_revenue = 0.0
     prev_monthly_revenue = 0.0
-    pending_payments_count = 0
-    pending_amount = 0.0
+    lifetime_revenue = 0.0
+
+    pending_payments_count = 0          # unique tenants with dues
+    pending_payments_amount = 0.0       # total due amount across PENDING/PARTIAL receipts
+    pending_receipts_count = 0          # number of due receipts
+
     amount_collected = 0.0
     electricity_consumed_this_month = 0.0
+
     highest_meter_reading = 0.0
+    highest_meter_tenant_id = 0
+    highest_meter_bill_no = ""
+
     paid_bills_count = 0
     advance_bills_count = 0
+    due_tenant_ids = set()
     
     for r in active_receipts:
         try:
-            current_reading = float(r.get("Current", 0.0))
+            current_reading = float(r.get("Current", 0.0) or 0.0)
             if current_reading > highest_meter_reading:
                 highest_meter_reading = current_reading
-        except ValueError:
+                highest_meter_tenant_id = int(r.get("TenantId", 0) or 0)
+                highest_meter_bill_no = r.get("Bill", "")
+        except Exception:
             pass
-            
-        status = r.get("paymentStatus", "PENDING")
-        gross_amount = float(r.get("Total", 0) or 0) + float(r.get("previousArrears", 0) or 0)
+
+        status = str(r.get("paymentStatus", "PENDING")).upper()
+        base_total = float(r.get("Total", 0) or 0)
+        previous_arrears = float(r.get("previousArrears", 0) or 0)
+        grand_total = round(base_total + previous_arrears, 2)
 
         raw_recv = r.get("amountReceived")
-        received = float(raw_recv) if raw_recv not in (None, "") else (gross_amount if status == "PAID" else 0.0)
-        outstanding = max(gross_amount - received, 0.0)
+        if raw_recv not in (None, ""):
+            received = round(float(raw_recv), 2)
+        else:
+            received = grand_total if status == "PAID" else 0.0
 
-        is_paid = status in ["PAID", "ADVANCE"]
-        is_partial = status == "PARTIAL"
-        is_due = status in ["PENDING", "PARTIAL"]
+        outstanding = round(max(grand_total - received, 0.0), 2)
 
         amount_collected += received
+        lifetime_revenue += received
 
         if r.get("Month") == current_month_str:
             monthly_revenue += received
+            try:
+                electricity_consumed_this_month += float(r.get("Units", 0.0) or 0.0)
+            except Exception:
+                pass
 
         if r.get("Month") == prev_month_str:
             prev_monthly_revenue += received
 
-        if is_due:
-            pending_payments_count += 1
-            if outstanding > 0:
-                pending_amount += outstanding
+        if status in ("PENDING", "PARTIAL") and outstanding > 0:
+            pending_receipts_count += 1
+            pending_payments_amount += outstanding
+            due_tenant_ids.add(int(r.get("TenantId", 0) or 0))
 
-        if is_paid:
+        if status in ("PAID", "ADVANCE"):
             paid_bills_count += 1
             if status == "ADVANCE":
                 advance_bills_count += 1
             
-        if r.get("Month") == current_month_str:
-            try:
-                electricity_consumed_this_month += float(r.get("Units", 0.0))
-            except ValueError:
-                pass
-            
+    pending_payments_count = len(due_tenant_ids)
+
     revenue_change_str = ""
     if prev_monthly_revenue == 0.0:
         revenue_change_str = "New Month"
     else:
         diff = monthly_revenue - prev_monthly_revenue
         pct = (diff / prev_monthly_revenue) * 100
-        sign = "+" if diff > 0 else ""
+        sign = "+" if diff >= 0 else ""
         revenue_change_str = f"{sign}{pct:.2f}%"
-        
+
     collection_rate = 0.0
     if total_active_receipts > 0:
         collection_rate = (paid_bills_count / total_active_receipts) * 100
         
     recent_bills = []
-    for r in reversed(active_receipts[-5:]):
+    for r in active_receipts[-5:][::-1]:
         recent_bills.append({
-            "billNo": r["Bill"],
-            "tenantName": r["Tenant"],
-            "total": float(r.get("Total", 0)) + float(r.get("previousArrears", 0)),
+            "billNo": r.get("Bill"),
+            "tenantName": r.get("Tenant"),
+            "tenantId": int(r.get("TenantId", 0) or 0),
+            "total": float(r.get("Total", 0) or 0),
             "amountReceived": float(r.get("amountReceived", 0) or 0),
-            "month": r["Month"],
+            "month": r.get("Month"),
             "paymentStatus": r.get("paymentStatus", "PENDING"),
-            "previousArrears": float(r.get("previousArrears", 0))
+            "previousArrears": float(r.get("previousArrears", 0) or 0),
         })
         
     revenue_chart_data = {m: 0.0 for m in months_names}
     electricity_chart_data = {m: 0.0 for m in months_names}
-    
+
     for r in active_receipts:
         try:
-            r_month, r_year = r["Month"].split()
+            r_month, r_year = str(r.get("Month", "")).split()
             if r_year == str(current_year) and r_month in revenue_chart_data:
-                revenue_chart_data[r_month] += float(r.get("amountReceived", r.get("Total", 0)))
-                electricity_chart_data[r_month] += float(r.get("Units", 0.0))
+                r_status = str(r.get("paymentStatus", "PENDING")).upper()
+                r_total = float(r.get("Total", 0) or 0) + float(r.get("previousArrears", 0) or 0)
+                r_received_raw = r.get("amountReceived")
+                r_received = float(r_received_raw) if r_received_raw not in (None, "") else (r_total if r_status == "PAID" else 0.0)
+                revenue_chart_data[r_month] += r_received
+                electricity_chart_data[r_month] += float(r.get("Units", 0.0) or 0.0)
         except Exception:
             pass
-            
-    chart_months = [m for m in months_names if revenue_chart_data[m] > 0 or electricity_chart_data[m] > 0]
+
+    chart_months = [m for m in months_names if revenue_chart_data[m] != 0 or electricity_chart_data[m] != 0]
     if not chart_months:
         chart_months = months_names[:current_month_idx]
-        
+
     revenue_list = [revenue_chart_data[m] for m in chart_months]
     electricity_list = [electricity_chart_data[m] for m in chart_months]
-    
+
     return {
         "next_bill": next_bill,
         "current_month": current_month_str,
+
         "monthly_revenue": monthly_revenue,
+        "lifetime_revenue": lifetime_revenue,
         "prev_monthly_revenue": prev_monthly_revenue,
         "revenue_change_str": revenue_change_str,
+
         "total_active_receipts": total_active_receipts,
         "total_archived_receipts": total_archived_receipts,
         "total_receipts_all": total_receipts_all,
-        "active_tenants": active_tenants,
-        "inactive_tenants": inactive_tenants,
+
+        "active_tenants": len(active_tenants),
+        "inactive_tenants": len(inactive_tenants),
         "total_tenants": total_tenants,
+
         "highest_meter_reading": highest_meter_reading,
+        "highest_meter_tenant_id": highest_meter_tenant_id,
+        "highest_meter_bill_no": highest_meter_bill_no,
+
         "electricity_consumed": electricity_consumed_this_month,
+
         "pending_payments_count": pending_payments_count,
-        "pending_amount": pending_amount,
+        "pending_payments_amount": pending_payments_amount,
+        "pending_receipts_count": pending_receipts_count,
+        "pending_amount": pending_payments_amount,  # backward compat alias
+
         "amount_collected": amount_collected,
         "paid_bills_count": paid_bills_count,
         "advance_bills_count": advance_bills_count,
         "collection_rate": collection_rate,
+
         "recent_bills": recent_bills,
         "chart_labels": chart_months,
         "chart_revenue": revenue_list,
-        "chart_electricity": electricity_list
+        "chart_electricity": electricity_list,
     }
 
+
 def save_all_receipts(receipts_list):
-    """Saves a batch of receipt dictionaries into the SQLite database. Used for imports."""
+    """Saves a batch of receipt dictionaries into the SQLite database.
+
+    POLICY: TenantId is required in each receipt dict. Rows missing a valid
+    TenantId are skipped — the caller must supply the correct ID. Name-based
+    tenant resolution has been removed to prevent cross-tenant contamination.
+    """
+    import logging
     from app.core.db import get_conn
     from app.services.tenant_service import load_tenants
-    
-    tenants = load_tenants()
-    tenant_map = {t.name.lower(): t for t in tenants}
-    
+
+    # Build an ID set for fast existence checks — used only for validation,
+    # not for ownership derivation.
+    tenants = load_tenants(include_archived=True)
+    valid_tenant_ids = {t.id for t in tenants}
+
     with get_conn() as conn:
         for r in receipts_list:
-            tenantName = r.get("Tenant", "")
-            tenant = tenant_map.get(tenantName.lower())
-            tenantId = tenant.id if tenant else None
-            
             billNo = r.get("Bill")
             if not billNo:
                 continue
-                
+
+            # Require TenantId; never derive it from tenant name.
+            raw_tid = r.get("TenantId") or r.get("tenantId")
+            tenantId = int(raw_tid) if raw_tid is not None else None
+            if not tenantId or tenantId not in valid_tenant_ids:
+                logging.warning(
+                    "save_all_receipts: skipping billNo=%s — missing or invalid TenantId=%s",
+                    billNo, tenantId
+                )
+                continue
+
+            tenantName = r.get("Tenant", "")  # display snapshot only
+
             exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
-            
+
             if exists:
                 conn.execute("""
                     UPDATE receipts SET

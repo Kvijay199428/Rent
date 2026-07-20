@@ -1,24 +1,28 @@
-// Extract viewToken from URL path: /t/{viewToken}/...
-const getViewToken = (): string => {
+import { TENANTROUTES } from "./routes";
+
+// Extract tenantId and viewToken from URL path: /t/{tenantId}/{viewToken}/...
+export const getTenantParams = (): { tenantId: string; viewToken: string } => {
     const pathParts = window.location.pathname.split('/');
-    // Handle paths like /t/abc123 or /t/abc123/receipts
     const tIndex = pathParts.indexOf('t');
-    if (tIndex !== -1 && pathParts[tIndex + 1]) {
-        return pathParts[tIndex + 1];
+    if (tIndex !== -1 && pathParts[tIndex + 1] && pathParts[tIndex + 2]) {
+        return {
+            tenantId: pathParts[tIndex + 1],
+            viewToken: pathParts[tIndex + 2]
+        };
     }
     // Fallback: try from localStorage if stored
-    return localStorage.getItem('viewToken') || '';
+    return {
+        tenantId: localStorage.getItem('tenantId') || '',
+        viewToken: localStorage.getItem('viewToken') || ''
+    };
 };
 
-// Base API client that injects viewToken into auth endpoints
+export const APP_BASE_PATH = import.meta.env.VITE_APP_BASE_PATH?.replace(/\/$/, "") || "/rent";
+
+// Base API client
 const apiClient = {
     async post(url: string, body?: unknown, options?: RequestInit) {
-        const viewToken = getViewToken();
-
-        // Replace {viewToken} placeholder in URL if present
-        const resolvedUrl = url.replace(/{viewToken}/g, viewToken);
-
-        const res = await fetch(resolvedUrl, {
+        const res = await fetch(url, {
             method: 'POST',
             credentials: 'include', // Important: send cookies
             headers: {
@@ -38,10 +42,7 @@ const apiClient = {
     },
 
     async get(url: string, options?: RequestInit) {
-        const viewToken = getViewToken();
-        const resolvedUrl = url.replace(/{viewToken}/g, viewToken);
-
-        const res = await fetch(resolvedUrl, {
+        const res = await fetch(url, {
             method: 'GET',
             credentials: 'include',
             ...options,
@@ -56,50 +57,62 @@ const apiClient = {
     }
 };
 
-// Export route builders that use the shared routes.json structure
+// Export route builders that use the shared routes.json structure via TENANTROUTES
 export const tenantApi = {
     auth: {
-        publicKey: () => apiClient.get('/api/auth/public-key'),
+        publicKey: () => apiClient.get(TENANTROUTES.TENANTAPIAUTHPUBLICKEY),
 
-        login: (viewToken: string, pin: string, rememberMe: boolean = false) =>
-            apiClient.post(`/api/auth/login/${viewToken}`, { viewToken: viewToken, pin, remember_me: rememberMe }),
+        login: (tenantId: string | number, viewToken: string, pin: string, rememberMe: boolean = false) =>
+            apiClient.post(TENANTROUTES.TENANTAPIAUTHLOGIN(tenantId, viewToken), { viewToken, pin, remember_me: rememberMe }),
 
-        // These now include viewToken in the path
         refresh: () => {
-            const viewToken = getViewToken();
-            return apiClient.post(`/api/auth/refresh/${viewToken}`);
+            const { tenantId, viewToken } = getTenantParams();
+            return apiClient.post(TENANTROUTES.TENANTAPIAUTHREFRESH(tenantId, viewToken));
         },
 
         logout: () => {
-            const viewToken = getViewToken();
-            return apiClient.post(`/api/auth/logout/${viewToken}`);
+            const { tenantId, viewToken } = getTenantParams();
+            return apiClient.post(TENANTROUTES.TENANTAPIAUTHLOGOUT(tenantId, viewToken));
         },
 
         logoutAll: () => {
-            const viewToken = getViewToken();
-            return apiClient.post(`/api/auth/logout-all/${viewToken}`);
+            const { tenantId, viewToken } = getTenantParams();
+            return apiClient.post(TENANTROUTES.TENANTAPIAUTHLOGOUTALL(tenantId, viewToken));
         },
     },
 
     profile: {
-        get: (viewToken: string) => apiClient.get(`/api/${viewToken}`),
+        get: (tenantId: string | number, viewToken: string) => 
+            apiClient.get(TENANTROUTES.TENANTAPIPROFILEGET(tenantId, viewToken)),
     },
 
     kyc: {
-        upload: (viewToken: string, formData: FormData) =>
-            apiClient.post(`/api/${viewToken}/kyc`, formData),
-        markInactive: (viewToken: string, occupantUuid: string) =>
-            apiClient.post(`/api/${viewToken}/kyc/${occupantUuid}/inactive`),
-        delete: (viewToken: string, occupantUuid: string) =>
-            apiClient.post(`/api/${viewToken}/kyc/${occupantUuid}`),
-        getFile: (viewToken: string, filename: string) =>
-            `/api/${viewToken}/kyc/file/${filename}`,
+        upload: (tenantId: string | number, viewToken: string, formData: FormData) => {
+            // Note: FormData requires different headers than standard JSON requests
+            return fetch(TENANTROUTES.TENANTAPIKYCUPLOAD(tenantId, viewToken), {
+                method: 'POST',
+                credentials: 'include',
+                body: formData,
+            }).then(async res => {
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
+                    throw new Error(err.detail || `HTTP ${res.status}`);
+                }
+                return res.json();
+            });
+        },
+        markInactive: (tenantId: string | number, viewToken: string, occupantUuid: string) =>
+            apiClient.post(TENANTROUTES.TENANTAPIKYCMARKINACTIVE(tenantId, viewToken, occupantUuid)),
+        delete: (tenantId: string | number, viewToken: string, occupantUuid: string) =>
+            apiClient.post(TENANTROUTES.TENANTAPIKYCDELETE(tenantId, viewToken, occupantUuid)),
+        getFile: (tenantId: string | number, viewToken: string, filename: string) =>
+            TENANTROUTES.TENANTAPIKYCGETFILE(tenantId, viewToken, filename),
     },
 
     pdf: {
-        view: (viewToken: string, billNo: string) =>
-            `/t/api/${viewToken}/pdf/${billNo}/view`,
-        download: (viewToken: string, billNo: string) =>
-            `/t/api/${viewToken}/pdf/${billNo}/download`,
+        view: (tenantId: number | string, viewToken: string, billNo: string) =>
+            TENANTROUTES.TENANTAPIPDFVIEW(tenantId, viewToken, billNo),
+        download: (tenantId: number | string, viewToken: string, billNo: string) =>
+            TENANTROUTES.TENANTAPIPDFDOWNLOAD(tenantId, viewToken, billNo),
     }
 };

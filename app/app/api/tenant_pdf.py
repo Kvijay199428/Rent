@@ -1,7 +1,7 @@
 # File: app/app/api/tenant_pdf.py
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import StreamingResponse
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_tenant import TenantRoutes, TenantNames
 from app.services.billing_service import get_receipt
 from app.core.config_service import config
 from app.authentication.tenant.middleware import get_current_tenant
@@ -10,27 +10,28 @@ from datetime import datetime
 router = APIRouter()
 
 
-@router.get(Routes.TENANTAPIPDFVIEW, name=Names.TENANTPDFVIEW)
+@router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)
 async def tenant_view_pdf(
+    tenantId: int,
     viewToken: str,
     billNo: str,
     request: Request,
     principal=Depends(get_current_tenant)
 ):
     """Tenant-facing PDF view endpoint — requires tenant authentication."""
-    receipt = get_receipt(billNo)
+    if principal.id != tenantId:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    from app.services.tenant_service import load_tenants
+    tenant = next((t for t in load_tenants(include_archived=True) if t.id == tenantId and getattr(t, "viewToken", None) == viewToken), None)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Invalid tenant link")
+
+    receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
 
-    # Security: ensure tenant can only view their own receipts
-    from app.services.tenant_service import load_tenants
-    tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
-    if not tenant or tenant.id != principal.id:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    
-    # Verify receipt belongs to this tenant
-    if receipt.get("Tenant") != tenant.name:
+    if int(receipt.get("TenantId", 0) or 0) != tenantId:
         raise HTTPException(status_code=403, detail="Receipt does not belong to this tenant")
 
     tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
@@ -56,27 +57,28 @@ async def tenant_view_pdf(
     return response
 
 
-@router.get(Routes.TENANTAPIPDFDOWNLOAD, name=Names.TENANTPDFDOWNLOAD)
+@router.get(TenantRoutes.TENANTAPIPDFDOWNLOAD, name=TenantNames.TENANTPDFDOWNLOAD)
 async def tenant_download_pdf(
+    tenantId: int,
     viewToken: str,
     billNo: str,
     request: Request,
     principal=Depends(get_current_tenant)
 ):
     """Tenant-facing PDF download endpoint — requires tenant authentication."""
-    receipt = get_receipt(billNo)
+    if principal.id != tenantId:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    from app.services.tenant_service import load_tenants
+    tenant = next((t for t in load_tenants(include_archived=True) if t.id == tenantId and getattr(t, "viewToken", None) == viewToken), None)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Invalid tenant link")
+
+    receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
 
-    # Security: ensure tenant can only download their own receipts
-    from app.services.tenant_service import load_tenants
-    tenants = load_tenants()
-    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
-    if not tenant or tenant.id != principal.id:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    
-    # Verify receipt belongs to this tenant
-    if receipt.get("Tenant") != tenant.name:
+    if int(receipt.get("TenantId", 0) or 0) != tenantId:
         raise HTTPException(status_code=403, detail="Receipt does not belong to this tenant")
 
     tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")

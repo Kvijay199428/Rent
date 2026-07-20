@@ -9,8 +9,6 @@ Usage:
     python script-copier.py --dry-run    # preview what would be copied
 """
 
-from PIL import GimpGradientFile
-from PIL import GimpGradientFile
 import os
 import sys
 import argparse
@@ -27,31 +25,31 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # Specify sources as relative string paths (can be files or directories)
 SOURCE_PATHS = [
-    "frontend/admin-app",
-    # "frontend/tenant-app",
     "app",
-    
+    "frontend",
+    "shared",
 ]
 
 SOURCE_FILE_PATHS = [
     "docker-compose.yml",
     "Dockerfile",
-    "shared/routes.json",
+    # "gateway.py",
+    # "manifest.yaml",
 ]
 
 # Directories to exclude from scanning
 EXCLUDE_DIR_PATHS = [
-    "frontend/admin-app/dist",
+    "copy.md",
     "frontend/admin-app/node_modules",
-    "frontend/tenant-app/dist",
     "frontend/tenant-app/node_modules",
+    "frontend/admin-app/dist",
+    "frontend/tenant-app/dist",
 ]
 
 # Files to exclude
 EXCLUDE_FILE_PATHS = [
     "copy.py",
-    "rent.md",
-    "README.md"
+    "logs.py",
 ]
 
 # Convert strings to resolved Paths internally
@@ -59,7 +57,7 @@ SOURCE_DIR = [BASE_DIR / p for p in SOURCE_PATHS] + [BASE_DIR / p for p in SOURC
 EXCLUDE_DIRS = {(BASE_DIR / p).resolve() for p in EXCLUDE_DIR_PATHS}
 EXCLUDE_FILES = {(BASE_DIR / p).resolve() for p in EXCLUDE_FILE_PATHS}
 
-OUTPUT_FILE = BASE_DIR / "rent.md"
+OUTPUT_FILE = BASE_DIR / "nginx.md"
 
 # Map file extensions → markdown code-fence language tags
 EXTENSION_LANG = {
@@ -89,6 +87,7 @@ EXTENSION_LANG = {
     ".ini":        "ini",
     ".toml":       "toml",
     "Dockerfile":  "Dockerfile",
+    ".conf":  	   "conf",
 }
 
 # Extensions to skip (binary / non-script files)

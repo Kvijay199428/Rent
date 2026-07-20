@@ -21,11 +21,12 @@ import { useToast } from '@/hooks/useToast';
 
 interface EditBillModalProps {
   billNo: string | null;
+  tenantId: number | null;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function EditBillModal({ billNo, onClose, onSaved }: EditBillModalProps) {
+export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: EditBillModalProps) {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [months, setMonths] = useState<string[]>([]);
@@ -34,10 +35,10 @@ export default function EditBillModal({ billNo, onClose, onSaved }: EditBillModa
   const toast = useToast();
 
   useEffect(() => {
-    if (billNo) {
+    if (billNo && tenantId) {
       setLoading(true);
       Promise.all([
-        api.getReceipt(billNo),
+        api.getReceipt(tenantId, billNo),
         api.getTenants(),
         api.getBillingMonths(),
       ])
@@ -57,7 +58,7 @@ export default function EditBillModal({ billNo, onClose, onSaved }: EditBillModa
 
     setSaving(true);
     try {
-      await api.updateBill(receipt.Bill, {
+      await api.updateBill(receipt.TenantId, receipt.Bill, {
         tenant: receipt.Tenant,
         month: receipt.Month,
         current_reading: receipt.Current,

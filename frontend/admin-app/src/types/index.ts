@@ -1,7 +1,7 @@
 // Types matching backend models
 
 export interface Tenant {
-  id?: number;
+  id: number;
   name: string;
   company?: string;
   phone?: string;
@@ -113,23 +113,36 @@ export interface BackupMetadata {
 export interface DashboardStats {
   next_bill: string;
   current_month: string;
+
   monthly_revenue: number;
+  lifetime_revenue: number;
   prev_monthly_revenue: number;
   revenue_change_str: string;
+
   total_active_receipts: number;
   total_archived_receipts: number;
   total_receipts_all: number;
+
   active_tenants: number;
   inactive_tenants: number;
   total_tenants: number;
+
   highest_meter_reading: number;
+  highest_meter_tenant_id: number;
+  highest_meter_bill_no: string;
+
   electricity_consumed: number;
+
   pending_payments_count: number;
+  pending_payments_amount: number;
+  pending_receipts_count: number;
   pending_amount: number;
+
   amount_collected: number;
   paid_bills_count: number;
   advance_bills_count: number;
   collection_rate: number;
+
   recent_bills: RecentBill[];
   chart_labels: string[];
   chart_revenue: number[];
@@ -139,11 +152,12 @@ export interface DashboardStats {
 export interface RecentBill {
   billNo: string;
   tenantName: string;
+  tenantId: number;
   total: number;
   amountReceived: number;
   month: string;
   paymentStatus: string;
-  previousArrears?: number;
+  previousArrears: number;
 }
 
 export interface ImportPreviewResponse {
@@ -330,15 +344,87 @@ export interface Backup {
 }
 
 export interface Occupant {
-  "Occupant UUID": string;
+  // Primary key — always present
+  occupantUuid: string;
+  /** Legacy alias for occupantUuid — kept for backward compat */
+  "Occupant UUID"?: string;
+
   name: string;
   mobile: string;
+  address?: string;
+  residentSince?: string;
   status: string;
-  "Aadhaar Front": string;
-  "Aadhaar Back": string;
-  "Aadhaar Combined": string;
-  "Emp Front": string;
-  "Emp Back": string;
-  "Upload Date": string;
-  "Upload Month": string;
+
+  // Document filenames — camelCase/joined names returned by get_occupants
+  aadhaarfront?: string;
+  aadhaarback?: string;
+  aadhaarcombined?: string;
+  empfront?: string;
+  empback?: string;
+
+  // Kept for backward compatibility with old DB rows or code
+  aadhaar_front?: string;
+  aadhaar_back?: string;
+  aadhaar_combined?: string;
+  emp_front?: string;
+  emp_back?: string;
+  "Aadhaar Front"?: string;
+  "Aadhaar Back"?: string;
+  "Aadhaar Combined"?: string;
+  "Emp Front"?: string;
+  "Emp Back"?: string;
+
+  uploaddate?: string;
+  uploadmonth?: string;
+  "Upload Date"?: string;
+  "Upload Month"?: string;
+}
+
+export interface TenantRecoverySnapshot {
+  id: string;
+  tenant_id: number;
+  tenant_name: string;
+  created_at: string;
+  expires_at: string;
+  deleted_by: number | null;
+  status: 'AVAILABLE' | 'RESTORED' | 'PURGED';
+  archive_path: string;
+  sha256: string;
+  metadata_json: string;
+  restored_at: string | null;
+  purged_at: string | null;
+  days_remaining: number;
+  expired: boolean;
+  archive_exists: boolean;
+  metadata: Record<string, unknown>;
+}
+
+export interface SnapshotConflictInfo {
+  tenantId?: number;
+  existingTenantName?: string;
+  roomNumber?: string;
+  roomOccupiedBy?: string;
+  phone?: string;
+  phoneConflictTenant?: string;
+  email?: string;
+  emailConflictTenant?: string;
+  billNumbers?: string[];
+}
+
+export interface SnapshotRestorePreview {
+  canRestore: boolean;
+  reason: string;
+  conflicts: SnapshotConflictInfo;
+  options: string[];
+  snapshot: TenantRecoverySnapshot;
+  receiptCount: number;
+}
+
+export interface PermanentDeleteResult {
+  status: string;
+  action: string;
+  snapshotId: string;
+  expiresAt: string;
+  tenantId: number;
+  tenantName: string;
 }

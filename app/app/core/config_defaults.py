@@ -1,4 +1,4 @@
-﻿DEFAULT_CONFIGS = {
+DEFAULT_CONFIGS = {
     "billing": {
         "rent": 8000.0,
         "water": 500.0,
@@ -78,6 +78,10 @@
             "receipt_archive": True,
             "settings_save": True,
             "schema_migration": True
+        },
+        "tenantRecoveryRetention": {
+            "value": 30,
+            "unit": "days"
         }
     },
     "system": {

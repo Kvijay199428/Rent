@@ -170,6 +170,7 @@ export default function Settings() {
         landlord: config.landlord,
         billing: config.billing,
         whatsapp: config.whatsapp,
+        backup: config.backup,
       });
       await uploadSignature();
       toast.success('Settings saved successfully');
@@ -725,6 +726,78 @@ export default function Settings() {
                   disabled={!config.landlord.signature_image && !signatureFile}
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Tenant Recovery Retention */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <HardDrive className="h-5 w-5 text-primary" />
+                Tenant Recovery Retention
+              </CardTitle>
+              <CardDescription>
+                How long permanently-deleted tenant snapshots are kept before automatic purge.
+                After this period, the data is irrecoverable.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-3">
+                <div className="space-y-1 flex-1">
+                  <Label>Retention Value</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={(config.backup as any)?.tenantRecoveryRetention?.value ?? 30}
+                    onChange={(e) => {
+                      if (!config) return;
+                      setConfig({
+                        ...config,
+                        backup: {
+                          ...config.backup,
+                          tenantRecoveryRetention: {
+                            ...((config.backup as any)?.tenantRecoveryRetention || {}),
+                            value: Math.max(1, parseInt(e.target.value) || 1),
+                          },
+                        } as any,
+                      });
+                    }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Unit</Label>
+                  <select
+                    className="flex h-10 w-32 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={(config.backup as any)?.tenantRecoveryRetention?.unit ?? 'days'}
+                    onChange={(e) => {
+                      if (!config) return;
+                      setConfig({
+                        ...config,
+                        backup: {
+                          ...config.backup,
+                          tenantRecoveryRetention: {
+                            ...((config.backup as any)?.tenantRecoveryRetention || {}),
+                            unit: e.target.value,
+                          },
+                        } as any,
+                      });
+                    }}
+                  >
+                    <option value="days">Days</option>
+                    <option value="months">Months</option>
+                    <option value="years">Years</option>
+                  </select>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Currently set to{' '}
+                <strong>
+                  {(config.backup as any)?.tenantRecoveryRetention?.value ?? 30}{' '}
+                  {((config.backup as any)?.tenantRecoveryRetention?.unit ?? 'days').charAt(0).toUpperCase() +
+                    ((config.backup as any)?.tenantRecoveryRetention?.unit ?? 'days').slice(1)}
+                </strong>.
+                Applies to all future permanent deletions.
+              </p>
             </CardContent>
           </Card>
         </TabsContent>

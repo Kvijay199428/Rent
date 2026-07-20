@@ -19,13 +19,18 @@ import {
 interface ReceiptRowProps {
   receipt: Receipt;
   onAction: () => void;
-  onPreview: (billNo: string) => void;
-  onEdit: (billNo: string) => void;
+  onPreview: (data: { billNo: string; tenantId: number }) => void;
+  onEdit: (data: { billNo: string; tenantId: number }) => void;
   variant?: 'history' | 'archive';
   onUpdatePayment?: (billNo: string, status: "PENDING" | "PARTIAL" | "PAID" | "ADVANCE", amount: number) => void;
+  /** When true the receipt belongs to a tenant whose profile is currently archived.
+   *  Restore is blocked and a prompt directs the admin to restore the tenant first. */
+  ownerTenantIsArchived?: boolean;
+  /** Display name of the owning tenant — used in the blocked-restore prompt. */
+  ownerTenantName?: string;
 }
 
-export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, variant = 'history', onUpdatePayment }: ReceiptRowProps) {
+export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, variant = 'history', onUpdatePayment, ownerTenantIsArchived = false, ownerTenantName }: ReceiptRowProps) {
   const toast = useToast();
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
 
@@ -43,7 +48,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
       if (onUpdatePayment) {
         onUpdatePayment(receipt.Bill, status, amount);
       } else {
-        await api.updatePaymentStatus(receipt.Bill, {
+        await api.updatePaymentStatus(receipt.TenantId, receipt.Bill, {
           paymentStatus: status,
           amountReceived: amount,
         });
@@ -57,7 +62,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
 
   const handleArchive = async () => {
     try {
-      await api.archiveBill(receipt.Bill);
+      await api.archiveBill(receipt.TenantId, receipt.Bill);
       toast.success('Receipt archived');
       onAction();
     } catch {
@@ -68,17 +73,18 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
 
   const handleRestore = async () => {
     try {
-      await api.restoreBill(receipt.Bill);
+      await api.restoreBill(receipt.TenantId, receipt.Bill);
       toast.success('Receipt restored');
       onAction();
     } catch {
       toast.error('Failed to restore receipt');
     }
+    setConfirmAction(null);
   };
 
   const handleDelete = async () => {
     try {
-      await api.permanentlyDeleteBill(receipt.Bill);
+      await api.permanentlyDeleteBill(receipt.TenantId, receipt.Bill);
       toast.success('Receipt permanently deleted');
       onAction();
     } catch {
@@ -89,7 +95,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
 
   const handleWhatsApp = async () => {
     try {
-      const data = await api.sendWhatsApp(receipt.Bill);
+      const data = await api.sendWhatsApp(receipt.TenantId, receipt.Bill);
       if (data.url) {
         window.open(data.url, '_blank');
       }
@@ -99,7 +105,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
   };
 
   const handleDownload = () => {
-    const url = api.getPDFDownloadUrl(receipt.Bill);
+    const url = api.getPDFDownloadUrl(receipt.TenantId, receipt.Bill);
     const a = document.createElement('a');
     a.href = url;
     a.download = `Receipt_${receipt.Bill}.pdf`;
@@ -182,15 +188,21 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleWhatsApp} title="Send WhatsApp">
             <MessageCircle size={14} className="text-green-500" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onPreview(receipt.Bill)} title="View PDF">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => onPreview({ billNo: receipt.Bill, tenantId: receipt.TenantId })} title="Preview">
             <Eye size={14} />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(receipt.Bill)} title="Edit">
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-yellow-500 hover:text-yellow-600 hover:bg-yellow-500/10" onClick={() => onEdit({ billNo: receipt.Bill, tenantId: receipt.TenantId })} title="Edit">
             <Pencil size={14} className="text-yellow-500" />
           </Button>
           {variant === 'archive' ? (
             <>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleRestore} title="Restore">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setConfirmAction('restore')}
+                title="Restore"
+              >
                 <RotateCcw size={14} className="text-blue-500" />
               </Button>
               <Button
@@ -233,6 +245,55 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleArchive} className="bg-red-500 hover:bg-red-600">
               Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Blocked Restore — receipt belongs to an archived tenant profile */}
+      <AlertDialog open={confirmAction === 'restore' && ownerTenantIsArchived} onOpenChange={() => setConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-amber-500" />
+              Cannot Restore Receipt
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>
+                  Receipt <span className="font-semibold font-mono">#{receipt.Bill}</span> belongs to tenant profile{' '}
+                  <span className="font-semibold">{ownerTenantName ?? receipt.Tenant}</span>, which is currently <span className="font-semibold text-amber-600">Archived</span>.
+                </p>
+                <p>
+                  Individual receipts cannot be restored while their tenant profile remains archived.
+                  To restore this receipt, first restore the tenant profile{' '}
+                  <span className="font-semibold">{ownerTenantName ?? receipt.Tenant}</span> — that will
+                  automatically restore all linked receipts including this one.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setConfirmAction(null)}>
+              Understood
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Normal Restore Confirmation — receipt belongs to an active tenant (orphan archived bill) */}
+      <AlertDialog open={confirmAction === 'restore' && !ownerTenantIsArchived} onOpenChange={() => setConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Restore Receipt?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Receipt <span className="font-semibold font-mono">#{receipt.Bill}</span> will be moved back to Active Receipts.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleRestore}>
+              Restore
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

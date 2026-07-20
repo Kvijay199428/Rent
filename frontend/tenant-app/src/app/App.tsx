@@ -4,7 +4,7 @@ import TenantPortal from '../pages/TenantPortal'
 function App() {
     return (
         <Routes>
-            <Route path=":token" element={<TenantPortal />} />
+            <Route path=":tenantId/:token" element={<TenantPortal />} />
             <Route path="*" element={<div className="p-8 text-center">Invalid URL</div>} />
         </Routes>
     )

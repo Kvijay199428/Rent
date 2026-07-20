@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, Request, Response, HTTPException, Path
+from fastapi import APIRouter, Depends, Request, Response, HTTPException, Path
 from app.models.auth import LoginRequest, ChangePinRequest
 from app.authentication.common.utils import verify_pin, hash_pin
 from app.authentication.tenant.jwt import create_tenant_access_token
@@ -9,7 +9,7 @@ from app.database.auth_repository import log_audit
 from app.core.db import get_conn
 from app.services.tenant_service import load_tenants  # ADD THIS
 
-from app.core.routes_manifest import Routes, Names  # ADD Names import
+from app.core.routes_manifest_tenant import TenantRoutes, TenantNames
 
 router = APIRouter(tags=["Authentication"])
 
@@ -43,8 +43,8 @@ def _verify_tenant_viewToken(request: Request, viewToken: str) -> None:
         raise HTTPException(status_code=401, detail="Invalid access token")
 
 
-@router.post(Routes.TENANTAPIAUTHLOGIN)
-async def auth_login(viewToken: str, request: Request, response: Response, payload: LoginRequest):
+@router.post(TenantRoutes.TENANTAPIAUTHLOGIN)
+async def auth_login(tenantId: int, viewToken: str, request: Request, response: Response, payload: LoginRequest):
     """Unchanged - login already receives viewToken via path"""
     ip = request.client.host if request.client else "Unknown IP"
     
@@ -101,8 +101,9 @@ async def auth_login(viewToken: str, request: Request, response: Response, paylo
     return {"status": "success", "message": "Logged in successfully"}
 
 
-@router.post(Routes.TENANTAPIAUTHREFRESH)
+@router.post(TenantRoutes.TENANTAPIAUTHREFRESH)
 async def auth_refresh(
+    tenantId: int = Path(...),
     viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None, 
     response: Response = None
@@ -141,8 +142,9 @@ async def auth_refresh(
     return {"status": "success", "message": "Tokens refreshed silently"}
 
 
-@router.post(Routes.TENANTAPIAUTHLOGOUT)
+@router.post(TenantRoutes.TENANTAPIAUTHLOGOUT)
 async def auth_logout(
+    tenantId: int = Path(...),
     viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None, 
     response: Response = None
@@ -165,8 +167,9 @@ async def auth_logout(
     return {"status": "success"}
 
 
-@router.post(Routes.TENANTAPIAUTHLOGOUTALL)
+@router.post(TenantRoutes.TENANTAPIAUTHLOGOUTALL)
 async def auth_logout_all(
+    tenantId: int = Path(...),
     viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None,
     principal = Depends(get_current_tenant)

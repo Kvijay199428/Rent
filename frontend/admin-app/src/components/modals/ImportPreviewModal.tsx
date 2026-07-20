@@ -20,10 +20,18 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Loader2, Search, FileSpreadsheet, AlertCircle, Upload, Check } from 'lucide-react';
+import { Loader2, Search, FileSpreadsheet, AlertCircle, Check, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { importExecute, type PreviewResponse } from './importService';
 import { toast } from 'sonner';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -102,18 +110,7 @@ function getStatusTone(status: string) {
     }
 }
 
-function getPaymentTone(status: string) {
-    switch ((status || '').toUpperCase()) {
-        case 'PAID':
-            return 'bg-green-50 text-green-700 border-green-200';
-        case 'ADVANCE':
-            return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-        case 'PARTIAL':
-            return 'bg-amber-50 text-amber-700 border-amber-200';
-        default:
-            return 'bg-red-50 text-red-700 border-red-200';
-    }
-}
+
 
 function makeTargetKey(file: string, tenantId: string) {
     return `${file}::${tenantId}`;
@@ -135,7 +132,13 @@ export default function ImportPreviewModal({
 
     type TenantStatus = "Active" | "Inactive" | "Archived";
     const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
     const [targetStatuses, setTargetStatuses] = useState<Record<string, TenantStatus>>({});
+    
+    // Conflict Resolutions
+    const [idResolutions, setIdResolutions] = useState<Record<string, string>>({});
+    const [receiptStrategies, setReceiptStrategies] = useState<Record<string, string>>({});
+    const [pinHandling, setPinHandling] = useState<'prompt' | 'skip' | 'assign_random'>('assign_random');
 
     // Flatten preview data into a list of tenants
     const allTenants = useMemo(() => {
@@ -155,17 +158,45 @@ export default function ImportPreviewModal({
     }, [previewData]);
 
     useEffect(() => {
-        const next: Record<string, TenantStatus> = {};
+        const nextStatuses: Record<string, TenantStatus> = {};
+        const nextIdResolutions: Record<string, string> = {};
+        const nextReceiptStrategies: Record<string, string> = {};
+        const nextSelected = new Set<string>();
+
         allTenants.forEach((tenant) => {
             const key = makeTargetKey(tenant.file, tenant.tenantId);
             const importedStatus = tenant.profile.Status?.trim().toUpperCase();
 
-            next[key] = importedStatus === "ARCHIVED"
+            nextStatuses[key] = importedStatus === "ARCHIVED"
                 ? "Active"
                 : (tenant.profile.Status?.trim().replace(/^./, c => c.toUpperCase()) as TenantStatus || "Active");
+                
+            // Check conflicts
+            const conflicts = previewData?.conflicts?.[tenant.file]?.[tenant.tenantId];
+            if (conflicts) {
+                if (conflicts.matches?.length > 0) {
+                    nextIdResolutions[key] = "SKIP"; // Do not auto-select UPDATE_EXISTING
+                } else {
+                    nextIdResolutions[key] = "CREATE_NEW";
+                }
+                
+                if (conflicts.receiptConflicts?.length > 0) {
+                    nextReceiptStrategies[key] = "SKIP"; // Default to skip receipt conflicts
+                } else {
+                    nextReceiptStrategies[key] = "MERGE_RECEIPTS_ONLY";
+                }
+            } else {
+                nextIdResolutions[key] = "CREATE_NEW";
+                nextReceiptStrategies[key] = "MERGE_RECEIPTS_ONLY";
+                nextSelected.add(key); // Auto-select non-conflicting
+            }
         });
-        setTargetStatuses(next);
-    }, [allTenants]);
+        
+        setTargetStatuses(nextStatuses);
+        setIdResolutions(nextIdResolutions);
+        setReceiptStrategies(nextReceiptStrategies);
+        setSelectedTargets(nextSelected);
+    }, [allTenants, previewData]);
 
     // Filtered tenants based on search
     const filteredTenants = useMemo(() => {
@@ -194,18 +225,6 @@ export default function ImportPreviewModal({
             setSelectedTenant(filteredTenants[0]);
         }
     }, [selectedTenant, filteredTenants, open]);
-
-    // Keep selected tenant in sync if filtered list changes
-    useEffect(() => {
-        if (selectedTenant) {
-            const stillExists = filteredTenants.find(
-                (t) => t.file === selectedTenant.file && t.tenantId === selectedTenant.tenantId
-            );
-            if (!stillExists && filteredTenants.length > 0) {
-                setSelectedTenant(filteredTenants[0]);
-            }
-        }
-    }, [filteredTenants, selectedTenant]);
 
     const toggleTarget = (targetKey: string) => {
         setSelectedTargets((prev) => {
@@ -246,7 +265,7 @@ export default function ImportPreviewModal({
             return;
         }
 
-        executeImport();
+        setConfirmDialogOpen(true);
     };
 
     const executeImport = async () => {
@@ -257,7 +276,15 @@ export default function ImportPreviewModal({
                 targets.map((target) => [target, targetStatuses[target] || "Active"])
             );
 
-            const result = await importExecute(files, targets, selectedStatusMap);
+            const result = await importExecute(
+                files, 
+                targets, 
+                selectedStatusMap,
+                idResolutions,
+                {}, // pinResolutions - using auto-assign for now
+                pinHandling,
+                receiptStrategies
+            );
             toast.success(result.message || "Import completed successfully");
             onImportSuccess();
             onOpenChange(false);
@@ -273,21 +300,25 @@ export default function ImportPreviewModal({
     const active = selectedTenant
         ? makeTargetKey(selectedTenant.file, selectedTenant.tenantId)
         : '';
+        
+    const activeConflicts = selectedTenant 
+        ? previewData?.conflicts?.[selectedTenant.file]?.[selectedTenant.tenantId]
+        : null;
 
     return (
         <>
         <Dialog open={open} onOpenChange={onOpenChange}>
             {/* Match PreviewDialog / BillsModal sizing pattern exactly */}
             <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
-                {/* Header — Match BillsModal header styling */}
+                {/* Header */}
                 <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <FileSpreadsheet className="h-6 w-6 text-emerald-500 shrink-0" />
                             <div>
-                                <DialogTitle className="text-xl">Import Preview</DialogTitle>
+                                <DialogTitle className="text-xl">Import Preview & Resolutions</DialogTitle>
                                 <DialogDescription className="mt-1 text-sm">
-                                    Review tenant profiles and receipts before importing
+                                    Review data, resolve conflicts, and confirm import actions.
                                 </DialogDescription>
                             </div>
                         </div>
@@ -295,19 +326,21 @@ export default function ImportPreviewModal({
                             <Badge className="bg-blue-100 text-blue-700 border-blue-200">
                                 {stats.total} Tenant{stats.total !== 1 ? 's' : ''}
                             </Badge>
-                            <Badge className="bg-purple-100 text-purple-700 border-purple-200">
-                                {stats.totalReceipts} Receipt{stats.totalReceipts !== 1 ? 's' : ''}
-                            </Badge>
                             <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">
                                 {stats.selected} Selected
                             </Badge>
+                            {previewData?.requires_resolution && (
+                                <Badge className="bg-amber-100 text-amber-700 border-amber-200 flex gap-1">
+                                    <AlertTriangle className="w-3 h-3" /> Conflicts Detected
+                                </Badge>
+                            )}
                         </div>
                     </div>
                 </DialogHeader>
 
-                {/* Split Pane Content — Match BillsModal layout */}
+                {/* Split Pane Content */}
                 <div className="flex-1 min-h-0 flex">
-                    {/* LEFT PANE: Tenant List — Match BillsModal left pane */}
+                    {/* LEFT PANE: Tenant List */}
                     <div className="w-[380px] lg:w-[420px] border-r bg-muted/30 flex flex-col shrink-0">
                         <div className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0 border-b bg-muted/50 flex items-center justify-between">
                             <span>Tenants ({filteredTenants.length})</span>
@@ -329,7 +362,7 @@ export default function ImportPreviewModal({
                                 <Input
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
-                                    placeholder="Search name, ID, phone, company"
+                                    placeholder="Search name, ID, phone..."
                                     className="pl-9"
                                 />
                             </div>
@@ -347,7 +380,8 @@ export default function ImportPreviewModal({
                                         const isSelected = selectedTargets.has(targetKey);
                                         const isActive = active === targetKey;
                                         const profile = tenant.profile;
-                                        const receiptCount = tenant.receipts.length;
+                                        
+                                        const hasConflicts = !!previewData?.conflicts?.[tenant.file]?.[tenant.tenantId];
 
                                         return (
                                             <div
@@ -357,7 +391,8 @@ export default function ImportPreviewModal({
                                                     "group relative rounded-lg border p-3 cursor-pointer transition-all",
                                                     "hover:bg-accent hover:border-accent-foreground/20",
                                                     isActive && "bg-primary/10 border-primary/50 ring-1 ring-primary/30",
-                                                    !isActive && "bg-card border-border"
+                                                    !isActive && "bg-card border-border",
+                                                    hasConflicts && !isActive && "border-amber-200 bg-amber-50/30"
                                                 )}
                                             >
                                                 <div className="flex items-start gap-2">
@@ -376,12 +411,12 @@ export default function ImportPreviewModal({
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-start justify-between gap-2">
                                                             <div className="min-w-0 flex-1">
-                                                                <div className="font-semibold text-sm truncate">
+                                                                <div className="font-semibold text-sm truncate flex items-center gap-2">
                                                                     {profile.tenantName || 'Unnamed Tenant'}
+                                                                    {hasConflicts && <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />}
                                                                 </div>
                                                                 <div className="text-xs text-muted-foreground mt-0.5">
                                                                     {profile.tenantId}
-                                                                    {profile.Room && ` • Room ${profile.Room}`}
                                                                 </div>
                                                             </div>
                                                             <Badge
@@ -394,21 +429,15 @@ export default function ImportPreviewModal({
                                                             </Badge>
                                                         </div>
 
-                                                        <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground">
-                                                            <span>{receiptCount} receipt{receiptCount !== 1 ? 's' : ''}</span>
-                                                            {profile.Phone && (
-                                                                <span>• {profile.Phone}</span>
-                                                            )}
-                                                        </div>
-
-                                                        <div className="mt-1 text-xs text-muted-foreground">
-                                                            Rent {formatCurrency(profile.Rent)}
-                                                            {profile.Water && ` • Water ${formatCurrency(profile.Water)}`}
-                                                        </div>
+                                                        {idResolutions[targetKey] && (
+                                                            <div className="mt-2 text-[11px] font-medium text-muted-foreground">
+                                                                Action: <span className="text-primary">{idResolutions[targetKey].replace(/_/g, ' ')}</span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
 
-                                                {/* Active indicator — Match PreviewDialog */}
+                                                {/* Active indicator */}
                                                 {isActive && (
                                                     <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-primary rounded-r-full" />
                                                 )}
@@ -420,121 +449,150 @@ export default function ImportPreviewModal({
                         </ScrollArea>
                     </div>
 
-                    {/* RIGHT PANE: Receipts Table — Match BillsModal right pane */}
-                    <div className="flex-1 flex flex-col min-w-0 bg-background">
+                    {/* RIGHT PANE: Details & Resolutions */}
+                    <div className="flex-1 flex flex-col min-w-0 bg-background overflow-auto">
                         {selectedTenant ? (
-                            <>
-                                {/* Tenant Header — Compact, Match BillsModal bill header */}
-                                <div className="px-5 py-3 border-b bg-muted/20 shrink-0">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                                                <Upload className="h-5 w-5 text-primary" />
-                                            </div>
-                                            <div>
-                                                <h3 className="font-semibold text-base">
-                                                    {selectedTenant.profile.tenantName || 'Unnamed Tenant'}
-                                                </h3>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {selectedTenant.profile.tenantId}
-                                                    {selectedTenant.profile.Company && ` • ${selectedTenant.profile.Company}`}
-                                                    {selectedTenant.profile.Phone && ` • ${selectedTenant.profile.Phone}`}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Badge
-                                                className={cn(
-                                                    getStatusTone(selectedTenant.profile.Status || 'Active'),
-                                                    "text-[10px] h-5 px-1.5"
-                                                )}
-                                            >
-                                                {(selectedTenant.profile.Status || 'Active').toUpperCase()}
-                                            </Badge>
-                                            <Badge variant="outline" className="text-[10px] h-5 px-1.5">
-                                                {selectedTenant.receipts.length} Receipts
-                                            </Badge>
-                                        </div>
+                            <div className="p-6 space-y-6">
+                                {/* Tenant Overview */}
+                                <div>
+                                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                                        {selectedTenant.profile.tenantName || 'Unnamed Tenant'}
+                                        <Badge variant="outline">{selectedTenant.profile.tenantId}</Badge>
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-4 mt-4 text-sm">
+                                        <div><span className="text-muted-foreground">Phone:</span> {selectedTenant.profile.Phone || '-'}</div>
+                                        <div><span className="text-muted-foreground">Email:</span> {selectedTenant.profile.Email || '-'}</div>
+                                        <div><span className="text-muted-foreground">Meter ID:</span> {selectedTenant.profile.meterId || '-'}</div>
+                                        <div><span className="text-muted-foreground">Company:</span> {selectedTenant.profile.Company || '-'}</div>
                                     </div>
                                 </div>
+                                
+                                <Separator />
+
+                                {/* Resolution Settings (If Selected) */}
+                                <div className={cn("space-y-4", !selectedTargets.has(active) && "opacity-50 pointer-events-none")}>
+                                    <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                        {activeConflicts ? <AlertTriangle className="h-4 w-4 text-amber-500" /> : <ShieldAlert className="h-4 w-4 text-emerald-500" />}
+                                        Import Strategy
+                                    </h4>
+
+                                    {activeConflicts?.matches && activeConflicts.matches.length > 0 && (
+                                        <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-900">
+                                            <AlertCircle className="h-4 w-4 !text-amber-600" />
+                                            <AlertTitle>Tenant Profile Conflict</AlertTitle>
+                                            <AlertDescription className="text-amber-800">
+                                                Matches found for: {activeConflicts.matches.map(m => m.type).join(', ')}.
+                                                Please choose how to handle this tenant.
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+
+                                    <div className="grid gap-2">
+                                        <label className="text-sm font-medium">Tenant Action</label>
+                                        <Select
+                                            value={idResolutions[active] || "CREATE_NEW"}
+                                            onValueChange={(val) => setIdResolutions(p => ({ ...p, [active]: val }))}
+                                        >
+                                            <SelectTrigger className="w-[300px]">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="CREATE_NEW">Create as New Tenant</SelectItem>
+                                                {(activeConflicts?.matches?.length ?? 0) > 0 && (
+                                                    <SelectItem value="UPDATE_EXISTING">Update Existing Profile</SelectItem>
+                                                )}
+                                                <SelectItem value="MERGE_RECEIPTS_ONLY">Import Receipts Only</SelectItem>
+                                                <SelectItem value="SKIP">Skip Tenant</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        {(idResolutions[active] || "CREATE_NEW") === "CREATE_NEW" && previewData?.predicted_next_tenant_id && (
+                                            <div className="text-xs text-muted-foreground mt-1">
+                                                <span className="font-semibold text-primary">New Assigned Code:</span> T{String(previewData.predicted_next_tenant_id).padStart(3, '0')} (ID: {previewData.predicted_next_tenant_id})
+                                                <br/>
+                                                <span className="text-[11px] opacity-80">*ID might shift if multiple new tenants are created at once.</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {activeConflicts?.receiptConflicts && activeConflicts.receiptConflicts.length > 0 && (
+                                        <Alert variant="destructive" className="bg-amber-50 border-amber-200 text-amber-900 mt-4">
+                                            <AlertCircle className="h-4 w-4 !text-amber-600" />
+                                            <AlertTitle>Receipt Conflicts ({activeConflicts.receiptConflicts.length})</AlertTitle>
+                                            <AlertDescription className="text-amber-800">
+                                                Some receipts already exist in the system (Duplicate Bill No or Month).
+                                            </AlertDescription>
+                                        </Alert>
+                                    )}
+
+                                    <div className="grid gap-2">
+                                        <label className="text-sm font-medium">Receipt Strategy</label>
+                                        <Select
+                                            value={receiptStrategies[active] || "MERGE_RECEIPTS_ONLY"}
+                                            onValueChange={(val) => setReceiptStrategies(p => ({ ...p, [active]: val }))}
+                                            disabled={idResolutions[active] === "SKIP"}
+                                        >
+                                            <SelectTrigger className="w-[300px]">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="MERGE_RECEIPTS_ONLY">Add / Update Uploaded Receipts</SelectItem>
+                                                <SelectItem value="REPLACE_RECEIPTS">Wipe & Replace ALL Receipts</SelectItem>
+                                                <SelectItem value="SKIP">Skip Receipts</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                
+                                <Separator />
 
                                 {/* Receipts Table */}
-                                <div className="flex-1 min-h-0 overflow-auto">
-                                    {selectedTenant.receipts.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                                            <AlertCircle className="h-10 w-10 mb-3 opacity-40" />
-                                            <p className="text-sm">No receipts found for this tenant</p>
-                                        </div>
-                                    ) : (
-                                        <div className="p-4">
-                                            <Table>
-                                                <TableHeader className="sticky top-0 bg-background z-10">
-                                                    <TableRow>
-                                                        <TableHead className="w-[100px]">Bill No</TableHead>
-                                                        <TableHead>Month</TableHead>
-                                                        <TableHead>Date</TableHead>
-                                                        <TableHead className="text-right">Rent</TableHead>
-                                                        <TableHead className="text-right">Electricity</TableHead>
-                                                        <TableHead className="text-right">Water</TableHead>
-                                                        <TableHead className="text-right">Total</TableHead>
-                                                        <TableHead>Status</TableHead>
-                                                        <TableHead>Payment</TableHead>
+                                <div>
+                                    <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">
+                                        Receipts Preview ({selectedTenant.receipts.length})
+                                    </h4>
+                                    <div className="border rounded-lg overflow-hidden">
+                                        <Table>
+                                            <TableHeader className="bg-muted/50">
+                                                <TableRow>
+                                                    <TableHead className="w-[100px]">Bill No</TableHead>
+                                                    <TableHead>Month</TableHead>
+                                                    <TableHead>Date</TableHead>
+                                                    <TableHead className="text-right">Total</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {selectedTenant.receipts.slice(0, 5).map((receipt, idx) => (
+                                                    <TableRow key={idx}>
+                                                        <TableCell className="font-medium">{receipt.BillNo}</TableCell>
+                                                        <TableCell>{receipt.Month}</TableCell>
+                                                        <TableCell>{receipt.Date}</TableCell>
+                                                        <TableCell className="text-right font-medium">{formatCurrency(receipt.Total)}</TableCell>
                                                     </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {selectedTenant.receipts.map((receipt, idx) => (
-                                                        <TableRow key={`${receipt.BillNo}-${idx}`}>
-                                                            <TableCell className="font-medium">
-                                                                {receipt.BillNo}
-                                                            </TableCell>
-                                                            <TableCell>{receipt.Month}</TableCell>
-                                                            <TableCell className="text-muted-foreground text-sm">
-                                                                {receipt.Date}
-                                                            </TableCell>
-                                                            <TableCell className="text-right">
-                                                                {formatCurrency(receipt.Rent)}
-                                                            </TableCell>
-                                                            <TableCell className="text-right">
-                                                                {formatCurrency(receipt.Electricity)}
-                                                            </TableCell>
-                                                            <TableCell className="text-right">
-                                                                {formatCurrency(receipt.Water)}
-                                                            </TableCell>
-                                                            <TableCell className="text-right font-medium">
-                                                                {formatCurrency(receipt.Total)}
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <Badge
-                                                                    className={cn(
-                                                                        getStatusTone(receipt.receiptStatus || 'ACTIVE'),
-                                                                        "text-[10px] h-5 px-1.5"
-                                                                    )}
-                                                                >
-                                                                    {(receipt.receiptStatus || 'ACTIVE').toUpperCase()}
-                                                                </Badge>
-                                                            </TableCell>
-                                                            <TableCell>
-                                                                <Badge
-                                                                    className={cn(
-                                                                        getPaymentTone(receipt.paymentStatus || 'PENDING'),
-                                                                        "text-[10px] h-5 px-1.5"
-                                                                    )}
-                                                                >
-                                                                    {(receipt.paymentStatus || 'PENDING').toUpperCase()}
-                                                                </Badge>
-                                                            </TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
-                                    )}
+                                                ))}
+                                                {selectedTenant.receipts.length > 5 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={4} className="text-center text-muted-foreground bg-muted/20">
+                                                            + {selectedTenant.receipts.length - 5} more receipts...
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                                {selectedTenant.receipts.length === 0 && (
+                                                    <TableRow>
+                                                        <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                                            No receipts to import.
+                                                        </TableCell>
+                                                    </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 </div>
-                            </>
+                                
+                            </div>
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                                 <AlertCircle className="h-10 w-10 mb-3 opacity-40" />
-                                <p className="text-sm">Select a tenant from the left panel to preview receipts</p>
+                                <p className="text-sm">Select a tenant to preview and resolve conflicts</p>
                             </div>
                         )}
                     </div>
@@ -542,30 +600,45 @@ export default function ImportPreviewModal({
 
                 <Separator />
 
-                {/* Footer — Match BillsModal footer style */}
-                <div className="px-6 py-4 shrink-0 flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground">
-                        {stats.selected} of {stats.total} tenant{stats.total !== 1 ? 's' : ''} selected for import
-                    </p>
+                {/* Footer */}
+                <div className="px-6 py-4 shrink-0 flex items-center justify-between bg-muted/10">
+                    <div className="flex items-center gap-4">
+                        <p className="text-sm font-medium">
+                            {stats.selected} of {stats.total} tenants selected
+                        </p>
+                        
+                        <div className="flex items-center gap-2 border-l pl-4">
+                            <span className="text-sm text-muted-foreground">PIN Strategy:</span>
+                            <Select value={pinHandling} onValueChange={(val: any) => setPinHandling(val)}>
+                                <SelectTrigger className="w-[160px] h-8">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="assign_random">Auto-assign Random</SelectItem>
+                                    <SelectItem value="skip">Skip PINs</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    
                     <div className="flex gap-2">
                         <Button
                             variant="outline"
-                            size="sm"
                             onClick={() => onOpenChange(false)}
                         >
                             Cancel
                         </Button>
                         <Button
-                            size="sm"
                             onClick={handleConfirm}
                             disabled={selectedTargets.size === 0 || isExecuting}
+                            className="bg-primary hover:bg-primary/90"
                         >
                             {isExecuting ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                             ) : (
                                 <Check className="mr-2 h-4 w-4" />
                             )}
-                            Import {selectedTargets.size > 0 && `(${selectedTargets.size})`}
+                            Execute Import ({selectedTargets.size})
                         </Button>
                     </div>
                 </div>
@@ -578,8 +651,7 @@ export default function ImportPreviewModal({
                 <DialogHeader>
                     <DialogTitle>Archived tenant detected</DialogTitle>
                     <DialogDescription>
-                        Some selected Excel records are marked Archived. Select the final
-                        tenant status before importing.
+                        Some selected records are marked Archived. Select the final tenant status before importing.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -620,20 +692,50 @@ export default function ImportPreviewModal({
                 </div>
 
                 <div className="flex justify-end gap-2 mt-4">
-                    <Button
-                        variant="outline"
-                        onClick={() => setStatusDialogOpen(false)}
-                        disabled={isExecuting}
-                    >
+                    <Button variant="outline" onClick={() => setStatusDialogOpen(false)} disabled={isExecuting}>Cancel</Button>
+                    <Button onClick={() => { setStatusDialogOpen(false); setConfirmDialogOpen(true); }} disabled={isExecuting}>
+                        Continue
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+
+        {/* Import Confirmation Dialog */}
+        <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+            <DialogContent className="max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="text-destructive flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5" />
+                        Import Confirmation
+                    </DialogTitle>
+                    <DialogDescription>
+                        You are about to execute a destructive import operation. Please review the summary below.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4 py-4">
+                    <div className="rounded-lg border bg-muted/30 p-4 space-y-2 text-sm">
+                        <p><strong>{stats.selected}</strong> tenants selected for import.</p>
+                        <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+                            <li>Tenants to Create/Update: <strong>{Array.from(selectedTargets).filter(k => idResolutions[k] !== 'SKIP').length}</strong></li>
+                            <li>Tenants Skipped: <strong>{Array.from(selectedTargets).filter(k => idResolutions[k] === 'SKIP').length}</strong></li>
+                            <li>Receipts to Import: <strong>{stats.totalReceipts}</strong></li>
+                        </ul>
+                    </div>
+                    
+                    <Alert variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">
+                        <AlertDescription>
+                            This action will modify existing tenant data and cannot be undone except by backup restore.
+                        </AlertDescription>
+                    </Alert>
+                </div>
+
+                <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setConfirmDialogOpen(false)} disabled={isExecuting}>
                         Cancel
                     </Button>
-                    <Button onClick={executeImport} disabled={isExecuting}>
-                        {isExecuting ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Importing...
-                            </>
-                        ) : "Confirm Import"}
+                    <Button variant="destructive" onClick={executeImport} disabled={isExecuting}>
+                        {isExecuting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirm Import"}
                     </Button>
                 </div>
             </DialogContent>

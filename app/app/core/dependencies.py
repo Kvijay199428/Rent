@@ -1,9 +1,10 @@
-﻿from fastapi import Request
+from fastapi import Request
 from fastapi.templating import Jinja2Templates
 from app.core.config_service import config
 from app.core.paths import TEMPLATES_DIR
 from app.core.route_builder import RouteBuilder
 from app.core.routes_manifest import Names
+from app.core.routes_manifest_tenant import TenantNames
 
 
 def _normalize_base_path(path: str | None) -> str:
@@ -32,6 +33,7 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 templates.env.globals["config"] = config
 templates.env.globals["route"] = RouteBuilder.build
 templates.env.globals["Names"] = Names
+templates.env.globals["TenantNames"] = TenantNames
 templates.env.globals["sys"] = config.get("system", {})
 templates.env.globals["APP_BASE"] = app_base
 templates.env.globals["STATIC_URL"] = static_url

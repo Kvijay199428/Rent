@@ -1,25 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiPost, apiGet } from '@/hooks/useApi';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { Eye, EyeOff, Shield, AlertTriangle, ArrowLeft, KeyRound } from 'lucide-react';
 import { ROUTES } from '@/lib/routes';
 
-interface LoginResponse {
-  status: string;
-  message?: string;
-  username?: string;
-  admin_id?: number;
-}
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
+  const { login, verifyTotp } = useAuth();
   const [loginData, setLoginData] = useState({ username: '', password: '', totpToken: '', rememberMe: false });
   const [forgotData, setForgotData] = useState({ username: '', totpToken: '', newPassword: '', confirmPassword: '' });
   const [showPassword, setShowPassword] = useState(false);
@@ -37,46 +33,52 @@ export default function AdminLoginPage() {
       .then((data: any) => {
         if (data.setup_required) {
           setSetupRequired(true);
-          navigate('/setup');
+          navigate('/setup', { replace: true });
         }
       })
       .catch(() => {});
   }, [navigate]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
     setLoading(true);
 
     try {
       if (needsTOTP) {
-        // Step 2: Login with TOTP
-        const result = await apiPost(ROUTES.ADMINAPIAUTHLOGINTOTP, {
-          username: loginData.username,
-          password: loginData.password,
-          totp_token: loginData.totpToken,
-          remember_me: loginData.rememberMe,
-        });
+        const authenticated = await verifyTotp(
+          loginData.username,
+          loginData.password,
+          loginData.totpToken,
+          loginData.rememberMe,
+        );
 
-        if (result.status === 'success') {
-          navigate('/');
+        if (!authenticated) {
+          setError("Invalid TOTP code. Please try again.");
+          return;
         }
-      } else {
-        // Step 1: Initial login attempt
-        const result: LoginResponse = await apiPost(ROUTES.ADMINAPIAUTHLOGIN, {
-          username: loginData.username,
-          password: loginData.password,
-          remember_me: loginData.rememberMe,
-        });
 
-        if (result.status === 'totp_required') {
-          setNeedsTOTP(true);
-        } else if (result.status === 'success') {
-          navigate('/');
-        }
+        navigate("/dashboard", { replace: true });
+        return;
       }
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+
+      const result = await login(
+        loginData.username,
+        loginData.password,
+        loginData.rememberMe,
+      );
+
+      if (result === "totp_required") {
+        setNeedsTOTP(true);
+        return;
+      }
+
+      if (result === "success") {
+        navigate("/dashboard", { replace: true });
+        return;
+      }
+
+      setError("Invalid username or password.");
     } finally {
       setLoading(false);
     }

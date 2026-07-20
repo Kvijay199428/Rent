@@ -1,4 +1,4 @@
-﻿from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException
 from app.authentication.tenant.jwt import decode_tenant_access_token
 from app.authentication.tenant.sessions import get_tenant_session_db
 from app.authentication.common.principal import AuthPrincipal
@@ -40,6 +40,7 @@ def _raise_tenant_session_expired(request: Request, detail: str):
         headers={
             "X-Session-Expired": "1",
             "X-Redirect-Url": redirect_url,
+            "X-Clear-Cookies": "tenant",
         },
     )
 

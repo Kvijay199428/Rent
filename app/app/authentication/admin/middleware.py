@@ -1,4 +1,4 @@
-﻿from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException
 from app.authentication.admin.jwt import decode_admin_access_token
 from app.authentication.admin.sessions import get_admin_session_db
 from app.authentication.common.principal import AuthPrincipal
@@ -28,6 +28,7 @@ def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized")
         headers={
             "X-Session-Expired": "1",
             "X-Redirect-Url": logout_url,
+            "X-Clear-Cookies": "admin",
         },
     )
 

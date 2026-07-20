@@ -20,8 +20,8 @@ export default function History() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [previewBill, setPreviewBill] = useState<string | null>(null);
-  const [editBill, setEditBill] = useState<string | null>(null);
+  const [previewBill, setPreviewBill] = useState<{ billNo: string; tenantId: number } | null>(null);
+  const [editBill, setEditBill] = useState<{ billNo: string; tenantId: number } | null>(null);
   const [searchParams] = useSearchParams();
   const toast = useToast();
 
@@ -151,8 +151,8 @@ export default function History() {
         })
       )}
 
-      <PDFPreviewModal billNo={previewBill} onClose={() => setPreviewBill(null)} />
-      <EditBillModal billNo={editBill} onClose={() => setEditBill(null)} onSaved={loadReceipts} />
+      <PDFPreviewModal billNo={previewBill?.billNo || null} tenantId={previewBill?.tenantId || null} onClose={() => setPreviewBill(null)} />
+      <EditBillModal billNo={editBill?.billNo || null} tenantId={editBill?.tenantId || null} onClose={() => setEditBill(null)} onSaved={loadReceipts} />
     </div>
   );
 }

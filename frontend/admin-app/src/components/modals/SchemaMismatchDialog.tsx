@@ -10,14 +10,12 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
     AlertTriangle,
-    FileSpreadsheet,
     Download,
     X,
     CheckCircle2,
     XCircle,
     Sheet,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 // ─── Types ─────────────────────────────────────────────────────────
 

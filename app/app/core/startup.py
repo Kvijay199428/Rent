@@ -59,3 +59,12 @@ class StartupManager:
                     tags = getattr(route, 'tags', [])
                     print(f"{methods:<10} | {route.path:<40} | {name:<35} | {tags}")
             print("=" * 50)
+
+            # Purge expired tenant recovery snapshots on startup
+            try:
+                from app.services.tenant_recovery_service import purge_expired_tenant_recovery_snapshots
+                purged = purge_expired_tenant_recovery_snapshots()
+                if purged:
+                    print(f"[TenantRecovery] Purged {purged} expired snapshot(s) on startup.")
+            except Exception as e:
+                print(f"[TenantRecovery] Startup purge failed (non-critical): {e}")

@@ -4,6 +4,8 @@
 Auto-generated route manifest from shared/routes.json.
 Do not edit manually if possible. If you change routes.json, update this file.
 """
+from app.core.routes_manifest_tenant import TenantRoutes, TenantNames
+
 # Add this class to app/core/routes_manifest.py, before the Routes class
 
 class Paths:
@@ -70,13 +72,13 @@ class Routes:
     ADMINAPIBILLINGFILTER = "/admin/api/receipts/filter"
     ADMINAPIBILLINGMONTHS = "/admin/api/receipts/months"
     ADMINAPIBILLINGPREVIEW = "/admin/api/receipts/preview"
-    ADMINAPIBILLINGCREATE = "/admin/api/receipts/create"
-    ADMINAPIBILLINGGET = "/admin/api/receipts/{billNo}"
-    ADMINAPIBILLINGUPDATE = "/admin/api/receipts/{billNo}"
-    ADMINAPIBILLINGUPDATEPAYMENT = "/admin/api/receipts/{billNo}/payment-status"
-    ADMINAPIBILLINGARCHIVE = "/admin/api/receipts/{billNo}/archive"
-    ADMINAPIBILLINGRESTORE = "/admin/api/receipts/{billNo}/restore"
-    ADMINAPIBILLINGDELETE = "/admin/api/receipts/{billNo}"
+    ADMINAPIBILLINGCREATE = "/admin/api/tenants/{tenantId}/receipts"
+    ADMINAPIBILLINGGET = "/admin/api/tenants/{tenantId}/receipts/{billNo}"
+    ADMINAPIBILLINGUPDATE = "/admin/api/tenants/{tenantId}/receipts/{billNo}"
+    ADMINAPIBILLINGUPDATEPAYMENT = "/admin/api/tenants/{tenantId}/receipts/{billNo}/payment-status"
+    ADMINAPIBILLINGARCHIVE = "/admin/api/tenants/{tenantId}/receipts/{billNo}/archive"
+    ADMINAPIBILLINGRESTORE = "/admin/api/tenants/{tenantId}/receipts/{billNo}/restore"
+    ADMINAPIBILLINGDELETE = "/admin/api/tenants/{tenantId}/receipts/{billNo}"
     ADMINAPIBILLINGARCHIVEDATA = "/admin/api/archive-data"
 
     # Admin API: Tenants
@@ -85,23 +87,29 @@ class Routes:
     ADMINAPITENANTSGET = "/admin/api/tenants/{tenantId}"
     ADMINAPITENANTSUPDATE = "/admin/api/tenants/{tenantId}"
     ADMINAPITENANTSDELETE = "/admin/api/tenants/{tenantId}"
+    ADMINAPITENANTSRESTORE = "/admin/api/tenants/{tenantId}/restore"
     ADMINAPITENANTSCHANGEPIN = "/admin/api/tenants/{tenantId}/change-pin"
     ADMINAPITENANTSREVEALPIN = "/admin/api/tenants/{tenantId}/reveal-pin"
-    ADMINAPITENANTSRECEIPTS = "/admin/api/tenants/{tenantName}/receipts"
+    ADMINAPITENANTSRECEIPTS = "/admin/api/tenants/{tenantId}/receipts"
+
+    # Admin API: Tenant Recovery Snapshots
+    ADMINAPITENANTSNAPSHOTS = "/admin/api/tenant-recovery-snapshots"
+    ADMINAPITENANTSNAPSHOT_PREVIEW = "/admin/api/tenant-recovery-snapshots/{snapshotId}/preview"
+    ADMINAPITENANTSNAPSHOT_RESTORE = "/admin/api/tenant-recovery-snapshots/{snapshotId}/restore"
 
     # Admin API: Occupants
-    ADMINAPIOCCUPANTSLIST = "/admin/api/occupants"
-    ADMINAPIOCCUPANTSCREATE = "/admin/api/occupants"
+    ADMINAPIOCCUPANTSLIST = "/admin/api/occupants/{tenantId}"
+    ADMINAPIOCCUPANTSCREATE = "/admin/api/occupants/{tenantId}"
     ADMINAPIOCCUPANTSMARKINACTIVE = "/admin/api/occupants/{tenantId}/{occupantUuid}/inactive"
     ADMINAPIOCCUPANTSDELETE = "/admin/api/occupants/{tenantId}/{occupantUuid}"
-    ADMINAPIOCCUPANTSGETFILE = "/admin/api/occupants/file/{filename}"
+    ADMINAPIOCCUPANTSGETFILE = "/admin/api/occupants/{tenantId}/file/{filename}"
 
     # Admin API: Pdf
-    ADMINAPIPDFDOWNLOAD = "/admin/api/pdf/receipt/{billNo}"
-    ADMINAPIPDFVIEW = "/admin/api/pdf/receipt/{billNo}/view"
+    ADMINAPIPDFDOWNLOAD = "/admin/api/tenants/{tenantId}/receipts/{billNo}/pdf/download"
+    ADMINAPIPDFVIEW = "/admin/api/tenants/{tenantId}/receipts/{billNo}/pdf/view"
 
     # Admin API: Whatsapp
-    ADMINAPIWHATSAPPSENDSINGLE = "/admin/api/whatsapp/send-single/{billNo}"
+    ADMINAPIWHATSAPPSENDSINGLE = "/admin/api/tenants/{tenantId}/receipts/{billNo}/whatsapp"
 
     # Admin API: Sync
     ADMINAPISYNCEXPORTCSV = "/admin/api/export-csv"
@@ -124,27 +132,7 @@ class Routes:
     ADMINAPISETTINGSUPLOADSIGNATURE = "/admin/api/settings/upload-signature"
     ADMINAPISETTINGSDELETESIGNATURE = "/admin/api/settings/delete-signature"
 
-    # Tenant Pages
-    TENANTPAGEROOT = '/t/{viewToken}'
 
-    # Tenant API: Auth
-    TENANTAPIAUTHPUBLICKEY = "/api/auth/public-key"
-    TENANTAPIAUTHLOGIN = "/api/auth/login/{viewToken}"
-    TENANTAPIAUTHREFRESH = "/api/auth/refresh/{viewToken}"
-    TENANTAPIAUTHLOGOUT = "/api/auth/logout/{viewToken}"
-    TENANTAPIAUTHLOGOUTALL = "/api/auth/logout-all/{viewToken}"
-
-    # Tenant API: Profile
-    TENANTAPIPROFILEGET = "/api/{viewToken}"
-
-    # Tenant API: Kyc
-    TENANTAPIKYCUPLOAD = "/api/{viewToken}/kyc"
-    TENANTAPIKYCMARKINACTIVE = "/api/{viewToken}/kyc/{occupantUuid}/inactive"
-    TENANTAPIKYCDELETE = "/api/{viewToken}/kyc/{occupantUuid}"
-    TENANTAPIKYCGETFILE = "/api/{viewToken}/kyc/file/{filename}"
-
-    TENANTAPIPDFVIEW = "/t/api/{viewToken}/pdf/{billNo}/view"
-    TENANTAPIPDFDOWNLOAD = "/t/api/{viewToken}/pdf/{billNo}/download"
 
     # Static & Health
     STATICUPLOADS = "/static/uploads"
@@ -165,9 +153,6 @@ class Names:
     SETTINGSPAGE = "settings_page"
     ARCHIVEPAGE = "archive_page"
     BACKUPSPAGE = "backups_page"
-    TENANTPROFILEPAGE = "tenant_profile_page"
-    PUBLICTENANTPROFILEGET = "public_tenant_profile_get"
-    PUBLICTENANTPROFILEPOST = "public_tenant_profile_post"
     FAVICON = "favicon"
 
     # API - Backups
@@ -195,11 +180,7 @@ class Names:
     PDFDOWNLOAD = "download_pdf"
     PDFVIEW = "view_pdf"
 
-    # API - Public / KYC
-    PUBLICTENANTKYCUPLOAD = "public_tenant_kyc_upload"
-    PUBLICTENANTKYCMARKINACTIVE = "public_tenant_kyc_mark_inactive"
-    PUBLICTENANTKYCDELETE = "public_tenant_kyc_delete"
-    GETKYCFILE = "get_kyc_file"
+
 
     # API - Settings
     APIGETCONFIG = "api_get_config"
@@ -223,6 +204,7 @@ class Names:
     APIADDTENANT = "api_add_tenant"
     APIUPDATETENANT = "api_update_tenant"
     APIDELETETENANT = "api_delete_tenant"
+    APIRESTORETENANT = "api_restore_tenant"
 
     # API - Whatsapp
     SENDWHATSAPPSINGLE = "send_whatsapp_single"
@@ -249,20 +231,18 @@ class Names:
     CHANGETENANTPIN = "change_tenantPin"
     ADMINREVEALPIN = "admin_reveal_tenantPin"
 
-    # Tenant Auth
-    TENANTPUBLICKEY = "public_key"
-    TENANTLOGIN = "public_tenant_login"
-    TENANTLOGOUT = "auth_logout"
-    TENANTLOGOUTALL = "auth_logout_all"
-    TENANTREFRESH = "auth_refresh"
-    TENANTPDFVIEW = "tenant_pdf_view"
-    TENANTPDFDOWNLOAD = "tenant_pdf_download"
+    # API - Tenant Recovery Snapshots
+    APILISTRECOVERYSNAPSHOTS = "api_list_recovery_snapshots"
+    APIRECOVERYSNAPSHOT_PREVIEW = "api_recovery_snapshot_preview"
+    APIRECOVERYSNAPSHOT_RESTORE = "api_recovery_snapshot_restore"
+
 
     # API - Occupants
     APIGETOCCUPANTS = "api_get_occupants"
     APICREATEOCCUPANT = "api_create_occupant"
     APIMARKOCCUPANTINACTIVE = "api_mark_occupant_inactive"
     APIDELETEOCCUPANT = "api_delete_occupant"
+    APIGETOCCUPANTFILE = "api_get_occupant_file"
 
 
 class Templates:
@@ -276,7 +256,6 @@ class Templates:
     BACKUPS = "backups.html"
     ERROR = "error.html"
     TENANTPROFILE = "tenant_profile.html"
-    TENANTPUBLICPROFILE = "tenant_public_profile.html"
 
 
 class Prefixes:

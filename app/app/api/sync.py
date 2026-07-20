@@ -1,4 +1,6 @@
 # File: app/app/api/sync.py
+# POLICY: tenantId is the only identity key for tenant-related data.
+# tenantName is display-only and must never be used for joins, ownership, lookup, or mutation.
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 
@@ -16,6 +18,7 @@ import csv
 from typing import List
 import uvicorn
 import socket
+import uuid
 
 from app.services.tenant_service import load_tenants, add_tenant, update_tenant
 from app.services.billing_service import get_all_receipts
@@ -95,15 +98,16 @@ def _build_excel_workbook(tenants_list, receipts_list):
         ])
 
     for r in receipts_list:
-        t_name = r.get("Tenant", "")
-        t_id_str = tenantId_map.get(t_name, "UNKNOWN")
+        receipt_tid = int(r.get("TenantId", 0) or 0)
+        # Use stored TenantId as primary; fall back to name map only for legacy rows
+        t_id_str = f"T{str(receipt_tid).zfill(3)}" if receipt_tid else tenantId_map.get(r.get("Tenant", ""), "UNKNOWN")
         ws_receipts.append([
             r.get("Bill", ""), t_id_str, r.get("Month", ""), r.get("Date", ""),
-            float(r.get("Previous", 0)), float(r.get("Current", 0)), float(r.get("Units", 0)),
-            float(r.get("Rent", 0)), float(r.get("Water", 0)), float(r.get("Electricity", 0)),
-            float(r.get("Additional", 0)), float(r.get("tankWater", 0)),
-            float(r.get("MaintenanceCharge", 0)), float(r.get("previousArrears", 0)),
-            float(r.get("amountReceived", 0)), float(r.get("Total", 0)),
+            float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0), float(r.get("Units", 0) or 0),
+            float(r.get("Rent", 0) or 0), float(r.get("Water", 0) or 0), float(r.get("Electricity", 0) or 0),
+            float(r.get("Additional", 0) or 0), float(r.get("tankWater", 0) or 0),
+            float(r.get("MaintenanceCharge", 0) or 0), float(r.get("previousArrears", 0) or 0),
+            float(r.get("amountReceived", 0) or 0), float(r.get("Total", 0) or 0),
             r.get("paymentStatus", "PENDING"), r.get("Status", "ACTIVE")
         ])
 
@@ -116,9 +120,8 @@ async def export_receipts_csv(tenants_list: str = "all"):
     receipts = get_all_receipts()
 
     if tenants_list != "all":
-        selected_ids = [int(x) for x in tenants_list.split(",") if x.isdigit()]
-        selected_names = [t.name for t in tenants if t.id in selected_ids]
-        receipts = [r for r in receipts if r.get("Tenant") in selected_names]
+        selected_ids = {int(x) for x in tenants_list.split(",") if x.isdigit()}
+        receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) in selected_ids]
 
     stream = io.StringIO()
     if receipts:
@@ -141,9 +144,8 @@ async def export_full_zip(tenants_list: str = "all"):
     receipts = get_all_receipts()
 
     if tenants_list != "all":
-        selected_ids = [int(x) for x in tenants_list.split(",") if x.isdigit()]
-        selected_names = [t.name for t in tenants if t.id in selected_ids]
-        receipts = [r for r in receipts if r.get("Tenant") in selected_names]
+        selected_ids = {int(x) for x in tenants_list.split(",") if x.isdigit()}
+        receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) in selected_ids]
 
     date_str = datetime.datetime.now().strftime('%Y%m%d')
     zip_filename = f"tenant_data_{date_str}.zip"
@@ -369,66 +371,149 @@ def _format_tenant_id(num_id: int) -> str:
     return f"T{str(num_id).zfill(3)}"
 
 
-def _detect_tenant_id_conflicts(parsed_data: dict) -> dict:
+def _remap_bill_no(original_bill_no: str, old_tenant_id_str: str, new_tenant_id: int) -> str:
     """
-    Detect tenant ID conflicts between import data and existing system tenants.
+    Remap a receipt bill number from the old tenant prefix to a new one.
+    Example: 'T1-001' with old_tenant_id_str='T001' and new_tenant_id=2 → 'T2-001'
+    Falls back to the original value if the pattern doesn't match.
+    """
+    if not original_bill_no:
+        return original_bill_no
+    old_numeric = _extract_numeric_tenant_id(old_tenant_id_str)
+    old_prefix = f"T{old_numeric}-"
+    if original_bill_no.startswith(old_prefix):
+        seq_part = original_bill_no[len(old_prefix):]
+        return f"T{new_tenant_id}-{seq_part}"
+    return original_bill_no
+
+
+def _detect_import_conflicts(parsed_data: dict) -> dict:
+    """
+    Detect tenant and receipt conflicts between import data and existing system data.
     
     Returns a dict mapping target_key -> conflict_info for each conflict.
     """
+    from app.services.billing_service import get_all_receipts
     sys_tenants = load_tenants(include_archived=True)
+    sys_receipts = get_all_receipts()
+    
     sys_tenant_ids = {t.id for t in sys_tenants}
-    sys_tenant_names = {t.name.lower() for t in sys_tenants}
+    sys_tenant_names = {t.name.lower(): t for t in sys_tenants}
+    sys_tenant_phones = {t.phone.lower(): t for t in sys_tenants if t.phone}
+    sys_tenant_emails = {t.email.lower(): t for t in sys_tenants if getattr(t, 'email', '')}
+    sys_tenant_meters = {t.meterId.lower(): t for t in sys_tenants if getattr(t, 'meterId', '')}
+    
+    sys_receipt_bills = {r.get("Bill") for r in sys_receipts}
+    # Key by tenantId+month (ID-based, rename-safe) for duplicate month detection.
+    # Falls back to TenantId from receipt dict; name is NOT used for identity here.
+    sys_receipt_tenant_months = {
+        f"{int(r.get('TenantId', 0) or 0)}_{r.get('Month', '').lower()}"
+        for r in sys_receipts
+        if int(r.get('TenantId', 0) or 0) > 0
+    }
     
     conflicts = {}
     
     for t_id, t_data in parsed_data.items():
         p = t_data["profile"]
         t_name = p.get("tenantName", "").strip()
+        t_phone = p.get("Phone", "").strip()
+        t_email = p.get("Email", "").strip()
+        t_meter = p.get("meterId", "").strip()
         
-        # Extract numeric ID from format like T001
         numeric_id = _extract_numeric_tenant_id(t_id)
         
         conflict_info = {
-            "import_tenantId": t_id,
-            "import_name": t_name,
-            "numeric_id": numeric_id,
-            "conflict_type": None,
-            "existing_tenant": None,
-            "suggested_new_id": None
+            "importTenant": {
+                "tenantId": t_id,
+                "tenantName": t_name
+            },
+            "matches": [],
+            "receiptConflicts": []
         }
         
-        # Check if numeric ID already exists in system
+        # 1. Tenant ID match
         if numeric_id in sys_tenant_ids:
-            # Find the existing tenant with this ID
             existing = next((t for t in sys_tenants if t.id == numeric_id), None)
             if existing:
-                conflict_info["conflict_type"] = "id_exists"
-                conflict_info["existing_tenant"] = {
-                    "id": existing.id,
-                    "name": existing.name,
-                    "status": existing.status
-                }
-                # Suggest new ID
-                next_id = _get_next_available_tenant_id()
-                conflict_info["suggested_new_id"] = _format_tenant_id(next_id)
-        
-        # Also check if name exists (different ID but same name)
+                conflict_info["matches"].append({
+                    "type": "tenant_id",
+                    "existingTenantId": existing.id,
+                    "existingTenantName": existing.name
+                })
+                
+        # 2. Name match
         if t_name.lower() in sys_tenant_names:
-            existing = next((t for t in sys_tenants if t.name.lower() == t_name.lower()), None)
-            if existing and existing.id != numeric_id:
-                if conflict_info["conflict_type"] is None:
-                    conflict_info["conflict_type"] = "name_exists"
-                else:
-                    conflict_info["conflict_type"] = "both_exist"
-                conflict_info["existing_tenant_by_name"] = {
-                    "id": existing.id,
-                    "name": existing.name,
-                    "status": existing.status
-                }
-        
-        if conflict_info["conflict_type"] is not None:
-            conflicts[t_id] = conflict_info
-    
+            existing = sys_tenant_names[t_name.lower()]
+            conflict_info["matches"].append({
+                "type": "name",
+                "existingTenantId": existing.id,
+                "existingTenantName": existing.name
+            })
+            
+        # 3. Phone match
+        if t_phone and t_phone.lower() in sys_tenant_phones:
+            existing = sys_tenant_phones[t_phone.lower()]
+            conflict_info["matches"].append({
+                "type": "phone",
+                "existingTenantId": existing.id,
+                "existingTenantName": existing.name
+            })
+            
+        # 4. Email match
+        if t_email and t_email.lower() in sys_tenant_emails:
+            existing = sys_tenant_emails[t_email.lower()]
+            conflict_info["matches"].append({
+                "type": "email",
+                "existingTenantId": existing.id,
+                "existingTenantName": existing.name
+            })
+            
+        # 5. Meter ID match
+        if t_meter and t_meter.lower() in sys_tenant_meters:
+            existing = sys_tenant_meters[t_meter.lower()]
+            conflict_info["matches"].append({
+                "type": "meterId",
+                "existingTenantId": existing.id,
+                "existingTenantName": existing.name
+            })
+            
+        # Remove duplicate matches (same tenant matched multiple ways)
+        unique_matches = []
+        seen_match_keys = set()
+        for m in conflict_info["matches"]:
+            key = f"{m['type']}_{m['existingTenantId']}"
+            if key not in seen_match_keys:
+                seen_match_keys.add(key)
+                unique_matches.append(m)
+        conflict_info["matches"] = unique_matches
+
+        # 6. Receipt matches
+        for r in t_data.get("receipts", []):
+            billNo = str(r.get("BillNo", "")).strip()
+            month = _parse_month_date(str(r.get("Month", "")).strip())
+            
+            conflict_reason = None
+            if billNo and billNo in sys_receipt_bills:
+                conflict_reason = "billNo_exists"
+            elif month:
+                # Use tenant_id+month duplicate check (ID-based, rename-safe).
+                # The numeric_id here is the imported file's tenant ID; during
+                # execute it will be remapped to the resolved existingTenantId.
+                if f"{numeric_id}_{month.lower()}" in sys_receipt_tenant_months:
+                    conflict_reason = "tenant_month_exists"
+                
+            if conflict_reason:
+                conflict_info["receiptConflicts"].append({
+                    "billNo": billNo,
+                    "month": month,
+                    "reason": conflict_reason,
+                    "actionRequired": True
+                })
+                
+        if conflict_info["matches"] or conflict_info["receiptConflicts"]:
+            conflicts[f"{t_id}"] = conflict_info
+            
     return conflicts
 
 
@@ -483,7 +568,7 @@ async def import_preview_data(files: List[UploadFile] = File(...)):
         
         for filename, parsed_data in preview_data.items():
             # Detect tenant ID conflicts
-            conflicts = _detect_tenant_id_conflicts(parsed_data)
+            conflicts = _detect_import_conflicts(parsed_data)
             if conflicts:
                 all_conflicts[filename] = conflicts
             
@@ -497,7 +582,8 @@ async def import_preview_data(files: List[UploadFile] = File(...)):
             "files": preview_data,
             "conflicts": all_conflicts if all_conflicts else {},
             "encrypted_pins": all_encrypted_pins if all_encrypted_pins else {},
-            "requires_resolution": bool(all_conflicts or all_encrypted_pins)
+            "requires_resolution": bool(all_conflicts or all_encrypted_pins),
+            "predicted_next_tenant_id": _get_next_available_tenant_id()
         }
     except HTTPException:
         raise
@@ -578,22 +664,14 @@ async def import_execute_data(
     selectedTargets: Optional[str] = Form(None),
     targetstatuses: Optional[str] = Form(None),
     # ── NEW: Conflict resolution parameters ──
-    idresolutions: Optional[str] = Form(None),      # JSON: { "filename::t_id": "new_t_id", ... }
-    pinhandling: Optional[str] = Form("prompt"),    # "prompt" | "skip" | "assign_random"
-    pinresolutions: Optional[str] = Form(None),      # JSON: { "filename::t_id": "new_pin", ... }
+    idresolutions: Optional[str] = Form(None),
+    pinhandling: Optional[str] = Form("prompt"),
+    pinresolutions: Optional[str] = Form(None),
+    receiptstrategies: Optional[str] = Form(None), # JSON: { "filename::t_id": "SKIP" | "MERGE_RECEIPTS_ONLY" | "REPLACE_RECEIPTS", ... }
 ):
     """
-    Execute import with conflict resolution support.
-    
-    Parameters:
-    - idresolutions: JSON mapping of conflicting tenantIds to new tenantIds
-    - pinhandling: How to handle encrypted/suspicious PINs:
-        * "prompt" - Require manual resolution (default)
-        * "skip" - Skip PIN import (leave empty)
-        * "assign_random" - Auto-assign random 4-digit PINs
-    - pinresolutions: JSON mapping of tenantIds to new PINs (when pinhandling="prompt")
+    Execute import with conflict resolution support inside a single transaction.
     """
-    # Accept either casing
     targets = selectedtargets or selectedTargets or ""
     if not targets:
         raise HTTPException(status_code=400, detail="selectedtargets is required")
@@ -611,10 +689,6 @@ async def import_execute_data(
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON in targetstatuses.")
 
-    if not isinstance(status_overrides, dict):
-        raise HTTPException(status_code=400, detail="targetstatuses must be a JSON object.")
-
-    # Parse ID resolutions
     id_resolutions: Dict[str, str] = {}
     if idresolutions:
         try:
@@ -622,15 +696,20 @@ async def import_execute_data(
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON in idresolutions.")
     
-    # Parse PIN resolutions
     pin_resolutions: Dict[str, str] = {}
     if pinresolutions:
         try:
             pin_resolutions = json.loads(pinresolutions)
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON in pinresolutions.")
-    
-    # Validate pinhandling mode
+            
+    receipt_strategies: Dict[str, str] = {}
+    if receiptstrategies:
+        try:
+            receipt_strategies = json.loads(receiptstrategies)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON in receiptstrategies.")
+
     pin_handling_mode = (pinhandling or "prompt").strip().lower()
     if pin_handling_mode not in {"prompt", "skip", "assign_random"}:
         raise HTTPException(status_code=400, detail="Invalid pinhandling. Use 'prompt', 'skip', or 'assign_random'.")
@@ -638,334 +717,331 @@ async def import_execute_data(
     if not selected_list:
         raise HTTPException(status_code=400, detail="No tenants selected for import.")
 
-    sys_tenants = load_tenants()
-    sys_receipts = get_all_receipts()
-    
-    # Build quick lookup maps
-    sys_tenant_ids = {t.id for t in sys_tenants}
-    sys_tenant_names = {t.name.lower(): t for t in sys_tenants}
-
-    # Schedule backup BEFORE processing (non-blocking)
-    background_tasks.add_task(create_full_backup, tag="pre_import_excel")
-
-    # Track results for reporting
-    imported_tenants = []
-    imported_receipts = 0
-    skipped_targets = set(selected_list)  # Will remove matched ones
-    
-    # Track auto-assigned PINs for reporting (only when assign_random)
-    auto_assigned_pins = {}  # target_key -> pin (only for reporting, not stored)
-    
-    # Track unresolved conflicts for error reporting
-    unresolved_conflicts = []
-    unresolved_pins = []
-
-    def execute_import_for_file(file_bytes, filename):
-        nonlocal imported_receipts
-        parsed_data = parse_excel_bytes(file_bytes, filename)
-        
-        # First pass: detect conflicts and validate resolutions
-        conflicts = _detect_tenant_id_conflicts(parsed_data)
-        encrypted_pins = _detect_encrypted_pins(parsed_data)
-        
-        # Validate that all conflicts have resolutions
-        for t_id, conflict_info in conflicts.items():
-            target_key = f"{filename}::{t_id}"
-            if target_key not in selected_list:
-                continue  # Not selected, skip validation
-            
-            if target_key not in id_resolutions and conflict_info["conflict_type"] in ("id_exists", "both_exist"):
-                # Check if we're updating existing tenant (same name match)
-                t_name = conflict_info["import_name"]
-                existing_by_name = sys_tenant_names.get(t_name.lower())
-                if existing_by_name and existing_by_name.id == conflict_info["numeric_id"]:
-                    # Same name AND same ID - this is an update, not a conflict
-                    continue
-                unresolved_conflicts.append({
-                    "target": target_key,
-                    "type": conflict_info["conflict_type"],
-                    "existing": conflict_info.get("existing_tenant"),
-                    "suggested_id": conflict_info.get("suggested_new_id")
-                })
-        
-        # Validate that all encrypted PINs have resolutions when mode is "prompt"
-        if pin_handling_mode == "prompt":
-            for t_id, pin_info in encrypted_pins.items():
-                target_key = f"{filename}::{t_id}"
-                if target_key not in selected_list:
-                    continue
-                if target_key not in pin_resolutions:
-                    unresolved_pins.append({
-                        "target": target_key,
-                        "tenantName": pin_info["tenantName"],
-                        "reason": "encrypted_pin_detected"
-                    })
-        
-        # If there are unresolved conflicts, raise error with details
-        if unresolved_conflicts or unresolved_pins:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": "Import requires manual resolution.",
-                    "conflicts": unresolved_conflicts,
-                    "encrypted_pins": unresolved_pins,
-                    "hint": "Use idresolutions and pinresolutions parameters, or set pinhandling to 'skip' or 'assign_random'."
-                }
-            )
-        
-        # Second pass: execute import with resolutions applied
-        for t_id, t_data in parsed_data.items():
-            target_key = f"{filename}::{t_id}"
-            if target_key not in selected_list:
-                continue
-
-            skipped_targets.discard(target_key)  # Mark as processed
-
-            p = t_data["profile"]
-            t_name = p.get("tenantName", "").strip()
-            if not t_name:
-                continue
-            
-            # ── TENANT ID RESOLUTION ──
-            # Check if this tenantId has a resolution mapping
-            resolved_t_id = id_resolutions.get(target_key, t_id)
-            numeric_id = _extract_numeric_tenant_id(resolved_t_id)
-            
-            # Check if this is an update or new tenant
-            existing_by_name = sys_tenant_names.get(t_name.lower())
-            existing_by_id = next((t for t in sys_tenants if t.id == numeric_id), None)
-            
-            is_new = False
-            if existing_by_name:
-                # Update existing tenant by name
-                t = existing_by_name
-                # If ID resolution changed the ID, update it
-                if t.id != numeric_id and numeric_id not in sys_tenant_ids:
-                    t.id = numeric_id  # Only if new ID is available
-            elif existing_by_id:
-                # Update existing tenant by ID (name changed or new data)
-                t = existing_by_id
-            else:
-                # Create new tenant
-                t = Tenant(name=t_name, phone=p.get("Phone", ""), rent=0.0, water=0.0, electricityRate=0.0)
-                t.id = numeric_id if numeric_id > 0 else _get_next_available_tenant_id()
-                is_new = True
-
-            t.phone = p.get("Phone", t.phone)
-            t.email = p.get("Email", getattr(t, 'email', ''))
-            t.company = p.get("Company", getattr(t, 'company', ''))
-            t.address = p.get("Address", getattr(t, 'address', ''))
-            t.roomNumber = p.get("Room", getattr(t, 'roomNumber', ''))
-            t.meterId = p.get("meterId", getattr(t, "meterId", ""))
-
-            if not getattr(t, "viewToken", ""):
-                import uuid
-                t.viewToken = str(uuid.uuid4())
-
-            # ── PIN HANDLING ──
-            raw_pin = str(p.get("PIN") or "").strip()
-            plain_pin = None
-            pin_changed = False
-            hashed_pin = None
-            encrypted_pin = None
-            
-            if raw_pin:
-                # Check if PIN is encrypted
-                is_encrypted = _is_encrypted_pin(raw_pin)
-                
-                if is_encrypted:
-                    # Handle based on pinhandling mode
-                    if pin_handling_mode == "skip":
-                        # Skip PIN - leave existing or empty
-                        plain_pin = None
-                        pin_changed = False
-                    elif pin_handling_mode == "assign_random":
-                        # Auto-assign random PIN
-                        plain_pin = _generate_random_pin()
-                        auto_assigned_pins[target_key] = plain_pin  # For reporting only
-                        pin_changed = True
-                    elif pin_handling_mode == "prompt":
-                        # Use provided resolution
-                        plain_pin = pin_resolutions.get(target_key)
-                        if plain_pin:
-                            pin_changed = True
-                        else:
-                            # Should not reach here due to pre-validation, but safety fallback
-                            plain_pin = _generate_random_pin()
-                            auto_assigned_pins[target_key] = plain_pin
-                            pin_changed = True
-                else:
-                    # Plain PIN - validate and use directly
-                    plain_pin = raw_pin
-                    pin_changed = True
-            
-            # Validate and hash PIN if changed
-            if pin_changed and plain_pin:
-                try:
-                    validate_tenantPin(plain_pin)
-                    hashed_pin = hash_pin(plain_pin)
-                    encrypted_pin = encrypt_admin_view_pin(plain_pin)
-                    t.tenantPin = hashed_pin
-                except HTTPException as e:
-                    # Invalid PIN format - skip or auto-assign
-                    if pin_handling_mode == "assign_random":
-                        plain_pin = _generate_random_pin()
-                        auto_assigned_pins[target_key] = plain_pin
-                        validate_tenantPin(plain_pin)
-                        hashed_pin = hash_pin(plain_pin)
-                        encrypted_pin = encrypt_admin_view_pin(plain_pin)
-                        t.tenantPin = hashed_pin
-                    else:
-                        raise e
-
-            t.rent = float(p.get("Rent", t.rent) or 0.0)
-            t.water = float(p.get("Water", t.water) or 0.0)
-            t.electricityRate = float(p.get("electricityRate", t.electricityRate) or 0.0)
-            t.additionalPersonCharge = float(p.get("additionalPersonRate", getattr(t, 'additionalPersonCharge', 0.0)) or 0.0)
-            t.defaulttankWaterCharge = float(p.get("tankWater", getattr(t, 'defaulttankWaterCharge', 0.0)) or 0.0)
-            
-            excel_status = normalize_tenant_status(
-                p.get("Status"),
-                getattr(t, "status", "Active") if not is_new else "Active",
-            )
-            requested_status = status_overrides.get(target_key)
-            t.status = normalize_tenant_status(requested_status, excel_status)
-
-            if is_new:
-                tenantId = add_tenant(t)
-                t.id = tenantId
-                sys_tenants.append(t)
-                # Update lookup maps
-                sys_tenant_ids.add(tenantId)
-                sys_tenant_names[t.name.lower()] = t
-
-                if pin_changed and hashed_pin and encrypted_pin:
-                    now = datetime.datetime.utcnow().isoformat()
-                    with get_conn() as conn:
-                        conn.execute(
-                            """
-                            INSERT INTO tenantPin_history
-                            (tenantId, pin_hash, changed_at)
-                            VALUES (?, ?, ?)
-                            """,
-                            (tenantId, hashed_pin, now)
-                        )
-                        conn.execute(
-                            """
-                            INSERT OR REPLACE INTO tenantPin_admin_store
-                            (tenantId, encrypted_pin, updated_at)
-                            VALUES (?, ?, ?)
-                            """,
-                            (tenantId, encrypted_pin, now)
-                        )
-                        conn.commit()
-            else:
-                update_tenant(t)
-
-                if pin_changed and hashed_pin and encrypted_pin:
-                    now = datetime.datetime.utcnow().isoformat()
-                    with get_conn() as conn:
-                        conn.execute(
-                            """
-                            INSERT INTO tenantPin_history
-                            (tenantId, pin_hash, changed_at)
-                            VALUES (?, ?, ?)
-                            """,
-                            (t.id, hashed_pin, now)
-                        )
-                        conn.execute(
-                            """
-                            INSERT OR REPLACE INTO tenantPin_admin_store
-                            (tenantId, encrypted_pin, updated_at)
-                            VALUES (?, ?, ?)
-                            """,
-                            (t.id, encrypted_pin, now)
-                        )
-                        conn.commit()
-                    revoke_all_tenant_sessions(t.id)
-
-            imported_tenants.append({
-                "target": target_key,
-                "tenantId": t.id,
-                "tenantName": t.name,
-                "status": t.status,
-                "is_new": is_new,
-                "pin_handled": pin_changed,
-                "id_resolved": id_resolutions.get(target_key) is not None
-            })
-
-            for r in t_data["receipts"]:
-                billNo = r.get("BillNo", "").strip()
-                if not billNo:
-                    continue
-                sys_r = next((x for x in sys_receipts if x.get("Bill") == billNo), None)
-
-                # FIX #4, #5: Parse Excel dates to proper format
-                raw_date = r.get("Date", "")
-                raw_month = r.get("Month", "")
-
-                data = {
-                    "Bill": billNo,
-                    "Date": _parse_excel_date(raw_date),
-                    "Month": _parse_month_date(raw_month),
-                    "Tenant": t_name,
-                    "Previous": float(r.get("Previous", 0) or 0),
-                    "Current": float(r.get("Current", 0) or 0),
-                    "Units": float(r.get("Units", 0) or 0),
-                    "Rent": float(r.get("Rent", 0) or 0),
-                    "Additional": float(r.get("Additional", 0) or 0),
-                    "Water": float(r.get("Water", 0) or 0),
-                    "tankWater": float(r.get("tankWater", 0) or 0),
-                    "Electricity": float(r.get("Electricity", 0) or 0),
-                    "MaintenanceCharge": float(r.get("Maintenance", 0) or 0),
-                    "MaintenanceDesc": r.get("MaintenanceDesc", ""),
-                    "previousArrears": float(r.get("Arrears", 0) or 0),
-                    # FIX #7: Ensure amountReceived is float
-                    "amountReceived": float(r.get("amountReceived", 0) or 0),
-                    "Total": float(r.get("Total", 0) or 0),
-                    "paymentStatus": r.get("paymentStatus", "PENDING"),
-                    "Status": r.get("receiptStatus", "ACTIVE"),
-                    "Receipt_Version": 8,
-                    "Generated_By": "Import"
-                }
-                if sys_r:
-                    sys_r.update(data)
-                else:
-                    sys_receipts.append(data)
-                    imported_receipts += 1
-
-    # ── Process uploaded files ──
+    # Parse all files in memory first
+    parsed_files_data = {}
     temp_files_to_cleanup = []
-
+    
     try:
         for file in files:
             content = await file.read()
-
-            # Collect for cleanup
             temp_files_to_cleanup.append(file)
-
+            
             if file.filename.endswith(".zip"):
                 with zipfile.ZipFile(io.BytesIO(content)) as z:
                     for zip_info in z.infolist():
                         if zip_info.filename.endswith(".xlsx"):
                             with z.open(zip_info) as f:
-                                execute_import_for_file(f.read(), zip_info.filename)
-
+                                parsed_files_data[zip_info.filename] = parse_excel_bytes(f.read(), zip_info.filename)
             elif file.filename.endswith(".xlsx"):
-                execute_import_for_file(content, file.filename)
+                parsed_files_data[file.filename] = parse_excel_bytes(content, file.filename)
+    except Exception as e:
+        for tf in temp_files_to_cleanup:
+            try: await tf.close()
+            except: pass
+        raise HTTPException(status_code=400, detail=f"Failed to parse files: {str(e)}")
 
-        from app.services.billing_service import save_all_receipts
-        save_all_receipts(sys_receipts)
+    sys_tenants = load_tenants(include_archived=True)
+    sys_tenant_ids = {t.id for t in sys_tenants}
+    # ID-indexed for validation; NOT used for name-based ownership resolution.
+    sys_tenant_by_id = {t.id: t for t in sys_tenants}
 
-        # Build response message
+    # Detect conflicts across all files
+    unresolved_conflicts = []
+    unresolved_pins = []
+
+    for filename, parsed_data in parsed_files_data.items():
+        conflicts = _detect_import_conflicts(parsed_data)
+        encrypted_pins = _detect_encrypted_pins(parsed_data)
+        
+        for t_id, conflict_info in conflicts.items():
+            target_key = f"{filename}::{t_id}"
+            if target_key not in selected_list:
+                continue
+                
+            has_tenant_conflict = len(conflict_info.get("matches", [])) > 0
+            has_receipt_conflict = len(conflict_info.get("receiptConflicts", [])) > 0
+            
+            resolution_action = id_resolutions.get(target_key)
+            if has_tenant_conflict and resolution_action not in ("CREATE_NEW", "UPDATE_EXISTING", "SKIP", "MERGE_RECEIPTS_ONLY"):
+                unresolved_conflicts.append({
+                    "target": target_key,
+                    "tenantName": conflict_info["importTenant"]["tenantName"],
+                    "reason": "unresolved_tenant_conflict",
+                    "matches": conflict_info.get("matches")
+                })
+                continue
+                
+            receipt_action = receipt_strategies.get(target_key)
+            if has_receipt_conflict and receipt_action not in ("SKIP", "MERGE_RECEIPTS_ONLY", "REPLACE_RECEIPTS") and resolution_action != "SKIP":
+                unresolved_conflicts.append({
+                    "target": target_key,
+                    "tenantName": conflict_info["importTenant"]["tenantName"],
+                    "reason": "unresolved_receipt_conflict",
+                    "receiptConflicts": conflict_info.get("receiptConflicts")
+                })
+        
+        if pin_handling_mode == "prompt":
+            for t_id, pin_info in encrypted_pins.items():
+                target_key = f"{filename}::{t_id}"
+                if target_key not in selected_list:
+                    continue
+                if target_key not in pin_resolutions and id_resolutions.get(target_key) != "SKIP":
+                    unresolved_pins.append({
+                        "target": target_key,
+                        "tenantName": pin_info["tenantName"],
+                        "reason": "encrypted_pin_detected"
+                    })
+                    
+    if unresolved_conflicts or unresolved_pins:
+        for tf in temp_files_to_cleanup:
+            try: await tf.close()
+            except: pass
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Import requires manual resolution.",
+                "conflicts": unresolved_conflicts,
+                "encrypted_pins": unresolved_pins
+            }
+        )
+
+    # Pre-compute a target_key → existing_tenant_id map from conflict detector
+    # results (which already resolved tenants by ID, not by name). This map is
+    # the authoritative source for UPDATE_EXISTING and MERGE_RECEIPTS_ONLY.
+    existing_tenant_id_map: dict[str, int] = {}
+    for filename, parsed_data in parsed_files_data.items():
+        conflicts = _detect_import_conflicts(parsed_data)
+        for t_id, conflict_info in conflicts.items():
+            target_key = f"{filename}::{t_id}"
+            matches = conflict_info.get("matches", [])
+            # Pick the first match (the ID-match, if present, is always first).
+            if matches:
+                existing_tenant_id_map[target_key] = matches[0]["existingTenantId"]
+
+    # Schedule backup BEFORE processing
+    background_tasks.add_task(create_full_backup, tag="pre_import_excel")
+
+    imported_tenants = []
+    imported_receipts = 0
+    skipped_targets = set(selected_list)
+    auto_assigned_pins = {}
+    
+    admin_username = "Admin"
+    job_result = {"items": []}
+
+    try:
+        with get_conn() as conn:
+            # Start transaction explicitly
+            conn.execute("BEGIN")
+            
+            # Create import job record
+            job_cur = conn.execute(
+                "INSERT INTO import_jobs (created_at, created_by, filename, status, preview_json, resolution_json, result_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (datetime.datetime.utcnow().isoformat(), admin_username, ", ".join(parsed_files_data.keys()), "IN_PROGRESS", "{}", "{}", "{}")
+            )
+            job_id = job_cur.lastrowid
+            
+            for filename, parsed_data in parsed_files_data.items():
+                for t_id, t_data in parsed_data.items():
+                    target_key = f"{filename}::{t_id}"
+                    if target_key not in selected_list:
+                        continue
+                        
+                    skipped_targets.discard(target_key)
+                    action = id_resolutions.get(target_key, "CREATE_NEW")
+                    
+                    if action == "SKIP":
+                        conn.execute(
+                            "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, result) VALUES (?, ?, ?, ?, ?, ?)",
+                            (job_id, target_key, t_id, t_data["profile"].get("tenantName", ""), action, "SKIPPED")
+                        )
+                        continue
+
+                    p = t_data["profile"]
+                    t_name = p.get("tenantName", "").strip()
+                    if not t_name:
+                        continue
+
+                    # Resolve existing tenant by ID from pre-computed conflict map
+                    # (never by name). CREATE_NEW does not need this.
+                    existing_tid = existing_tenant_id_map.get(target_key)
+                    existing_t = sys_tenant_by_id.get(existing_tid) if existing_tid else None
+
+                    tenantId = None
+                    is_new = False
+
+                    if action == "CREATE_NEW":
+                        # Insert new tenant
+                        next_id = _get_next_available_tenant_id()
+                        while next_id in sys_tenant_ids:
+                            next_id += 1
+                        tenantId = next_id
+
+                        viewToken = str(uuid.uuid4())
+                        conn.execute('''
+                            INSERT INTO tenants (
+                                id, name, company, phone, email, address, roomnumber, occupation, notes, status,
+                                rent, water, electricityrate, previousmeter, additionalpersoncharge, securitydeposit,
+                                defaulttankWatercharge, meterid, viewToken, tenantpin, failed_attempts
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ''', (
+                            tenantId, t_name, p.get("Company", ""), p.get("Phone", ""), p.get("Email", ""),
+                            p.get("Address", ""), p.get("Room", ""), "", "", normalize_tenant_status(status_overrides.get(target_key), p.get("Status", "Active")),
+                            float(p.get("Rent", 0) or 0), float(p.get("Water", 0) or 0), float(p.get("electricityRate", 0) or 0),
+                            0, float(p.get("additionalPersonRate", 0) or 0), 0, float(p.get("tankWater", 0) or 0),
+                            p.get("meterId", ""), viewToken, "", 0
+                        ))
+                        sys_tenant_ids.add(tenantId)
+                        is_new = True
+
+                    elif action == "UPDATE_EXISTING" and existing_t:
+                        tenantId = existing_t.id
+                        conn.execute('''
+                            UPDATE tenants SET
+                                company=COALESCE(?, company), phone=COALESCE(?, phone), email=COALESCE(?, email),
+                                address=COALESCE(?, address), roomnumber=COALESCE(?, roomnumber), meterid=COALESCE(?, meterid),
+                                rent=COALESCE(?, rent), water=COALESCE(?, water), electricityrate=COALESCE(?, electricityrate),
+                                additionalpersoncharge=COALESCE(?, additionalpersoncharge), defaulttankWatercharge=COALESCE(?, defaulttankWatercharge),
+                                status=COALESCE(?, status)
+                            WHERE id=?
+                        ''', (
+                            p.get("Company"), p.get("Phone"), p.get("Email"), p.get("Address"), p.get("Room"), p.get("meterId"),
+                            float(p.get("Rent", 0) or 0) if p.get("Rent") else None,
+                            float(p.get("Water", 0) or 0) if p.get("Water") else None,
+                            float(p.get("electricityRate", 0) or 0) if p.get("electricityRate") else None,
+                            float(p.get("additionalPersonRate", 0) or 0) if p.get("additionalPersonRate") else None,
+                            float(p.get("tankWater", 0) or 0) if p.get("tankWater") else None,
+                            normalize_tenant_status(status_overrides.get(target_key), p.get("Status", "Active")),
+                            tenantId
+                        ))
+
+                    elif action == "MERGE_RECEIPTS_ONLY" and existing_t:
+                        tenantId = existing_t.id
+                        # Don't update tenant profile
+
+                    if not tenantId:
+                        continue  # Should not happen based on validation
+
+                    # ── PIN HANDLING ──
+                    if action in ("CREATE_NEW", "UPDATE_EXISTING"):
+                        raw_pin = str(p.get("PIN") or "").strip()
+                        plain_pin = None
+                        pin_changed = False
+                        hashed_pin = None
+                        encrypted_pin = None
+                        
+                        if raw_pin:
+                            if _is_encrypted_pin(raw_pin):
+                                if pin_handling_mode == "assign_random":
+                                    plain_pin = _generate_random_pin()
+                                    auto_assigned_pins[target_key] = plain_pin
+                                    pin_changed = True
+                                elif pin_handling_mode == "prompt":
+                                    plain_pin = pin_resolutions.get(target_key)
+                                    if plain_pin:
+                                        pin_changed = True
+                            else:
+                                plain_pin = raw_pin
+                                pin_changed = True
+                                
+                        if pin_changed and plain_pin:
+                            try:
+                                validate_tenantPin(plain_pin)
+                                hashed_pin = hash_pin(plain_pin)
+                                encrypted_pin = encrypt_admin_view_pin(plain_pin)
+                                
+                                conn.execute("UPDATE tenants SET tenantpin = ? WHERE id = ?", (hashed_pin, tenantId))
+                                now_iso = datetime.datetime.utcnow().isoformat()
+                                conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, hashed_pin, now_iso))
+                                conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now_iso))
+                                if not is_new:
+                                    conn.execute("DELETE FROM tenant_sessions WHERE tenantId = ?", (tenantId,))
+                            except HTTPException:
+                                pass # Invalid pin format
+                                
+                    # ── RECEIPTS ──
+                    rec_strategy = receipt_strategies.get(target_key, "MERGE_RECEIPTS_ONLY")
+                    if rec_strategy == "REPLACE_RECEIPTS":
+                        conn.execute("DELETE FROM receipts WHERE tenantId = ?", (tenantId,))
+                        
+                    if rec_strategy in ("MERGE_RECEIPTS_ONLY", "REPLACE_RECEIPTS"):
+                        for r in t_data.get("receipts", []):
+                            original_billNo = r.get("BillNo", "").strip()
+                            if not original_billNo: continue
+                            
+                            # Remap bill number prefix when tenant was created as new
+                            if action == "CREATE_NEW":
+                                billNo = _remap_bill_no(original_billNo, t_id, tenantId)
+                            else:
+                                billNo = original_billNo
+                            
+                            r_date = _parse_excel_date(r.get("Date", ""))
+                            r_month = _parse_month_date(r.get("Month", ""))
+                            
+                            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+                            
+                            if exists:
+                                if rec_strategy == "MERGE_RECEIPTS_ONLY":
+                                    conn.execute("""
+                                        UPDATE receipts SET
+                                            date=?, month=?, tenantId=?, tenant=?, previous=?, current=?, units=?, rent=?,
+                                            additional=?, water=?, tankWater=?, electricity=?, total=?, pdf=?,
+                                            rate=?, status=?, additionalpersonrate=?,
+                                            paymentstatus=?, maintenancecharge=?, maintenancedesc=?, previousarrears=?, amountreceived=?
+                                        WHERE billNo=?
+                                    """, (
+                                        r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
+                                        float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
+                                        float(r.get("Water", 0) or 0), float(r.get("tankWater", 0) or 0), float(r.get("Electricity", 0) or 0), 
+                                        float(r.get("Total", 0) or 0), "", float(r.get("Rate", 0) or 0), r.get("receiptStatus", "ACTIVE"), 
+                                        float(r.get("additionalPersonRate", 0) or 0), r.get("paymentStatus", "PENDING"), 
+                                        float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), 
+                                        float(r.get("amountReceived", 0) or 0), billNo
+                                    ))
+                                    imported_receipts += 1
+                            else:
+                                conn.execute("""
+                                    INSERT INTO receipts (
+                                        billNo, date, month, tenantId, tenant, previous, current, units, rent,
+                                        additional, water, tankWater, electricity, total, pdf,
+                                        tenantphone, tenantcompany, tenantaddress, rate, status,
+                                        additionalpersons, additionalpersonrate, receiptversion, generatedby, paymentstatus,
+                                        maintenancecharge, maintenancedesc, previousarrears, amountreceived
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """, (
+                                    billNo, r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
+                                    float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
+                                    float(r.get("Water", 0) or 0), float(r.get("tankWater", 0) or 0), float(r.get("Electricity", 0) or 0), 
+                                    float(r.get("Total", 0) or 0), "", "", "", "", float(r.get("Rate", 0) or 0), r.get("receiptStatus", "ACTIVE"),
+                                    0, float(r.get("additionalPersonRate", 0) or 0), 8, "Import", r.get("paymentStatus", "PENDING"),
+                                    float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), float(r.get("amountReceived", 0) or 0)
+                                ))
+                                imported_receipts += 1
+                                
+                    conn.execute(
+                        "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, existing_tenant_id, result) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        (job_id, target_key, t_id, t_name, action, existing_t.id if existing_t else None, "SUCCESS")
+                    )
+                    
+                    imported_tenants.append({
+                        "target": target_key,
+                        "tenantId": tenantId,
+                        "tenantName": t_name,
+                        "action": action
+                    })
+
+            # Mark job complete
+            conn.execute("UPDATE import_jobs SET status = ?, result_json = ? WHERE id = ?", ("COMPLETED", json.dumps({"tenants": len(imported_tenants), "receipts": imported_receipts}), job_id))
+            
+            # Commit the single transaction
+            conn.commit()
+
         msg_parts = [f"Import completed successfully."]
         msg_parts.append(f"Tenants: {len(imported_tenants)} processed.")
         msg_parts.append(f"Receipts: {imported_receipts} imported/updated.")
         
-        # Include auto-assigned PIN info if applicable
         if auto_assigned_pins and pin_handling_mode == "assign_random":
             msg_parts.append(f"Auto-assigned PINs for {len(auto_assigned_pins)} tenant(s).")
-
         if skipped_targets:
             msg_parts.append(f"Warning: {len(skipped_targets)} selected target(s) not found in files.")
 
@@ -977,53 +1053,54 @@ async def import_execute_data(
             "imported_tenants": imported_tenants,
             "unmatched_targets": list(skipped_targets) if skipped_targets else []
         }
-        
-        # Include auto-assigned PINs in response (for admin to communicate to tenants)
         if auto_assigned_pins:
-            response_data["auto_assigned_pins"] = [
-                {"target": k, "pin": v}
-                for k, v in auto_assigned_pins.items()
-            ]
+            response_data["auto_assigned_pins"] = [{"target": k, "pin": v} for k, v in auto_assigned_pins.items()]
         
         return response_data
-
-    except HTTPException:
-        raise
+        
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Import failed: {str(e)}")
-
+        # Implicit rollback occurs if an exception is raised within the context manager before commit()
+        raise HTTPException(status_code=400, detail=f"Import execution failed: {str(e)}")
+        
     finally:
-        # FIX #2: Cleanup all collected files, not just last loop variable
         for tf in temp_files_to_cleanup:
-            try:
-                await tf.close()
-            except Exception:
-                pass
-
+            try: await tf.close()
+            except: pass
             try:
                 temp_path = getattr(tf.file, "name", None)
                 if isinstance(temp_path, str) and os.path.isfile(temp_path):
                     os.remove(temp_path)
-            except Exception:
-                pass
+            except: pass
 
 
 @router.get(Routes.ADMINAPIBILLINGARCHIVEDATA)
 async def get_archive_data():
     tenants = load_tenants(include_archived=True)
-    archived_tenants = [tenant for tenant in tenants if tenant.status == "Archived"]
-    archived_names = {tenant.name for tenant in archived_tenants}
+    archivedtenants = [
+        tenant for tenant in tenants
+        if (getattr(tenant, "status", "") or "").strip().lower() == "archived"
+    ]
+    archivedtenantids = {int(tenant.id) for tenant in archivedtenants}
 
     receipts = get_all_receipts(include_archived_tenants=True)
-    archived_receipts = [
+    archivedreceipts = [
         receipt for receipt in receipts
-        if receipt.get("Status") == "ARCHIVED"
-        or receipt.get("Tenant") in archived_names
+        if str(receipt.get("Status", "") or "").strip().upper() == "ARCHIVED"
+        or int(receipt.get("TenantId", 0) or 0) in archivedtenantids
     ]
 
+    archivedreceipts.sort(
+        key=lambda r: (
+            int(r.get("TenantId", 0) or 0),
+            str(r.get("Date", "") or ""),
+            str(r.get("Bill", "") or ""),
+        ),
+        reverse=True,
+    )
+
     return {
-        "tenants": archived_tenants,
-        "receipts": archived_receipts,
+        "tenants": archivedtenants,
+        "receipts": archivedreceipts,
     }
 
 if __name__ == "__main__":

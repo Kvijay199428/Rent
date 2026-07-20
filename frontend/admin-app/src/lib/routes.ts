@@ -124,13 +124,13 @@ export const ROUTES = {
     get ADMINAPIBILLINGFILTER() { return api("admin", "billing", "filter"); },
     get ADMINAPIBILLINGMONTHS() { return api("admin", "billing", "months"); },
     get ADMINAPIBILLINGPREVIEW() { return api("admin", "billing", "preview"); },
-    get ADMINAPIBILLINGCREATE() { return api("admin", "billing", "create"); },
-    ADMINAPIBILLINGGET(billNo: string) { return api("admin", "billing", "get", { billNo }); },
-    ADMINAPIBILLINGUPDATE(billNo: string) { return api("admin", "billing", "update", { billNo }); },
-    ADMINAPIBILLINGUPDATEPAYMENT(billNo: string) { return api("admin", "billing", "updatePayment", { billNo }); },
-    ADMINAPIBILLINGARCHIVE(billNo: string) { return api("admin", "billing", "archive", { billNo }); },
-    ADMINAPIBILLINGRESTORE(billNo: string) { return api("admin", "billing", "restore", { billNo }); },
-    ADMINAPIBILLINGDELETE(billNo: string) { return api("admin", "billing", "delete", { billNo }); },
+    ADMINAPIBILLINGCREATE(tenantId: number) { return api("admin", "billing", "create", { tenantId }); },
+    ADMINAPIBILLINGGET(tenantId: number, billNo: string) { return api("admin", "billing", "get", { tenantId, billNo }); },
+    ADMINAPIBILLINGUPDATE(tenantId: number, billNo: string) { return api("admin", "billing", "update", { tenantId, billNo }); },
+    ADMINAPIBILLINGUPDATEPAYMENT(tenantId: number, billNo: string) { return api("admin", "billing", "updatePayment", { tenantId, billNo }); },
+    ADMINAPIBILLINGARCHIVE(tenantId: number, billNo: string) { return api("admin", "billing", "archive", { tenantId, billNo }); },
+    ADMINAPIBILLINGRESTORE(tenantId: number, billNo: string) { return api("admin", "billing", "restore", { tenantId, billNo }); },
+    ADMINAPIBILLINGDELETE(tenantId: number, billNo: string) { return api("admin", "billing", "delete", { tenantId, billNo }); },
     get ADMINAPIBILLINGARCHIVEDATA() { return api("admin", "billing", "archiveData"); },
 
     // Admin API: Tenants
@@ -139,23 +139,27 @@ export const ROUTES = {
     ADMINAPITENANTSGET(tenantId: number) { return api("admin", "tenants", "get", { tenantId }); },
     ADMINAPITENANTSUPDATE(tenantId: number) { return api("admin", "tenants", "update", { tenantId }); },
     ADMINAPITENANTSDELETE(tenantId: number) { return api("admin", "tenants", "delete", { tenantId }); },
+    ADMINAPITENANTSRESTORE(tenantId: number) { return `${manifest.basePath || ""}/admin/api/tenants/${tenantId}/restore`; },
     ADMINAPITENANTSCHANGEPIN(tenantId: number) { return api("admin", "tenants", "changePin", { tenantId }); },
     ADMINAPITENANTSREVEALPIN(tenantId: number) { return api("admin", "tenants", "revealPin", { tenantId }); },
-    ADMINAPITENANTSRECEIPTS(tenantName: string) { return api("admin", "tenants", "receipts", { tenantName }); },
+    ADMINAPITENANTSRECEIPTS(tenantId: number | string) { return api("admin", "tenants", "receipts", { tenantId }); },
+    get ADMINAPITENANTRECOVERYSNAPSHOTS() { return api("admin", "tenants", "recoverySnapshots"); },
+    ADMINAPITENANTSNAPSHOT_PREVIEW(snapshotId: string) { return api("admin", "tenants", "recoverySnapshotPreview", { snapshotId }); },
+    ADMINAPITENANTSNAPSHOT_RESTORE(snapshotId: string) { return api("admin", "tenants", "recoverySnapshotRestore", { snapshotId }); },
 
     // Admin API: Occupants
-    get ADMINAPIOCCUPANTSLIST() { return api("admin", "occupants", "list"); },
-    get ADMINAPIOCCUPANTSCREATE() { return api("admin", "occupants", "create"); },
+    ADMINAPIOCCUPANTSLIST(tenantId: number) { return api("admin", "occupants", "list", { tenantId }); },
+    ADMINAPIOCCUPANTSCREATE(tenantId: number) { return api("admin", "occupants", "create", { tenantId }); },
     ADMINAPIOCCUPANTSMARKINACTIVE(tenantId: number, occupantUuid: string) { return api("admin", "occupants", "markInactive", { tenantId, occupantUuid }); },
     ADMINAPIOCCUPANTSDELETE(tenantId: number, occupantUuid: string) { return api("admin", "occupants", "delete", { tenantId, occupantUuid }); },
-    ADMINAPIOCCUPANTSGETFILE(filename: string) { return api("admin", "occupants", "getFile", { filename }); },
+    ADMINAPIOCCUPANTSGETFILE(tenantId: number, filename: string) { return api("admin", "occupants", "getFile", { tenantId, filename }); },
 
     // Admin API: PDF
-    ADMINAPIPDFDOWNLOAD(billNo: string) { return api("admin", "pdf", "download", { billNo }); },
-    ADMINAPIPDFVIEW(billNo: string) { return api("admin", "pdf", "view", { billNo }); },
+    ADMINAPIPDFDOWNLOAD(tenantId: number, billNo: string) { return api("admin", "pdf", "download", { tenantId, billNo }); },
+    ADMINAPIPDFVIEW(tenantId: number, billNo: string) { return api("admin", "pdf", "view", { tenantId, billNo }); },
 
     // Admin API: WhatsApp
-    ADMINAPIWHATSAPPSENDSINGLE(billNo: string) { return api("admin", "whatsapp", "sendSingle", { billNo }); },
+    ADMINAPIWHATSAPPSENDSINGLE(tenantId: number, billNo: string) { return api("admin", "whatsapp", "sendSingle", { tenantId, billNo }); },
 
     // Admin API: Sync
     get ADMINAPISYNCEXPORTCSV() { return api("admin", "sync", "exportCsv"); },
@@ -179,7 +183,7 @@ export const ROUTES = {
     get ADMINAPISETTINGSDELETESIGNATURE() { return api("admin", "settings", "deleteSignature"); },
 
     // Tenant Pages
-    TENANTPAGEROOT(viewToken: string) { return page("tenant", "root", { viewToken }); },
+    TENANTPAGEROOT(tenantId: number | string, viewToken: string) { return page("tenant", "root", { tenantId, viewToken }); },
 
     // Tenant API: Auth
     get TENANTAPIAUTHPUBLICKEY() { return api("tenant", "auth", "publicKey"); },

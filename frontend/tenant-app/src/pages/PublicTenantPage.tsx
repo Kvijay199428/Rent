@@ -161,7 +161,7 @@ function TenantLockScreen({
 }
 
 export default function PublicTenantPage() {
-  const { viewToken } = useParams<{ viewToken: string }>()
+  const { tenantId, viewToken } = useParams<{ tenantId: string; viewToken: string }>()
   const [loginError, setLoginError] = useState('')
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
@@ -173,7 +173,7 @@ export default function PublicTenantPage() {
   } = useQuery<PortalResponse>({
     queryKey: ['tenant-profile', viewToken],
     queryFn: async () => {
-      const res = await apiFetch(TENANTROUTES.TENANTAPIPROFILEGET(viewToken || ''), {
+      const res = await apiFetch(TENANTROUTES.TENANTAPIPROFILEGET(tenantId || '', viewToken || ''), {
         credentials: 'include',
       })
 
@@ -201,7 +201,7 @@ export default function PublicTenantPage() {
     setIsLoggingIn(true)
 
     try {
-      const res = await apiFetch(TENANTROUTES.TENANTAPIAUTHLOGIN(viewToken), {
+      const res = await apiFetch(TENANTROUTES.TENANTAPIAUTHLOGIN(tenantId || '', viewToken), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -224,7 +224,7 @@ export default function PublicTenantPage() {
 
   const handleLogout = async () => {
     setLoginError('')
-    await apiFetch(TENANTROUTES.TENANTAPIAUTHLOGOUT(viewToken || ''), {
+    await apiFetch(TENANTROUTES.TENANTAPIAUTHLOGOUT(tenantId || '', viewToken || ''), {
       method: 'POST',
       credentials: 'include',
     })

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +16,7 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import type { Tenant } from '@/types';
 import BillsModal, { type TenantBill } from '@/components/modals/BillsModal';
+import OccupantsModal from '@/components/modals/OccupantsModal';
 import { exportExcel, downloadBlob } from '@/components/modals/ExportService';
 import {
   DropdownMenu,
@@ -24,6 +24,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Users,
   Plus,
@@ -37,6 +44,8 @@ import {
   MapPin,
   Gauge,
   Download,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -299,8 +308,7 @@ export default function Tenants() {
   const [showQrPinEditor, setShowQrPinEditor] = useState(false);
   const [newQrPin, setNewQrPin] = useState('');
   const [savingQrPin, setSavingQrPin] = useState(false);
-  const [occupantTenant, setOccupantTenant] = useState<Tenant | null>(null);
-  const [occupants, setOccupants] = useState<any[]>([]);
+  const [occupantsTenant, setOccupantsTenant] = useState<Tenant | null>(null);
 
   const [billsTenant, setBillsTenant] = useState<Tenant | null>(null);
   const [tenantBills, setTenantBills] = useState<TenantBill[]>([]);
@@ -309,15 +317,6 @@ export default function Tenants() {
 
   const toast = useToast();
 
-  const loadOccupants = async (tenantId: number) => {
-    try {
-      const data = await api.getOccupants(tenantId);
-      setOccupants(data ?? []);
-    } catch {
-      toast.error('Failed to load occupants');
-      setOccupants([]);
-    }
-  };
 
   const handleExportTenant = async (tenantId: number, name: string, format: 'xlsx' | 'csv' | 'zip') => {
     try {
@@ -367,16 +366,14 @@ export default function Tenants() {
     }
   };
 
-  const handleOpenOccupants = async (tenant: Tenant) => {
-    if (!tenant.id) return;
-    setOccupantTenant(tenant);
-    await loadOccupants(tenant.id);
+  const handleOpenOccupants = (tenant: Tenant) => {
+    setOccupantsTenant(tenant);
   };
 
   const loadTenantBills = async (tenant: Tenant) => {
     try {
       setBillsLoading(true);
-      const receipts = await api.getTenantReceipts(tenant.name);
+      const receipts = await api.getTenantReceipts(tenant.id as number);
       const active = (receipts ?? [])
         .filter((r: any) => r.Status !== 'ARCHIVED')
         .map((r: any) => ({
@@ -407,7 +404,7 @@ export default function Tenants() {
 
       for (const t of data) {
         try {
-          const receipts = await api.getTenantReceipts(t.name);
+          const receipts = await api.getTenantReceipts(t.id as number);
           const active = receipts.filter((r: any) => r.Status !== 'ARCHIVED');
           if (active.length > 0) {
             const latest = active[0];
@@ -528,6 +525,15 @@ export default function Tenants() {
                     onShowOccupants={() => handleOpenOccupants(tenant)}
                     onShowBills={() => loadTenantBills(tenant)}
                     onExport={(format) => tenant.id && handleExportTenant(tenant.id, tenant.name, format)}
+                    onStatusChange={async (newStatus) => {
+                      if (!tenant.id) return;
+                      try {
+                        await api.updateTenant(tenant.id, { ...tenant, status: newStatus });
+                        loadTenants();
+                      } catch {
+                        toast.error('Failed to update status');
+                      }
+                    }}
                   />
                 ))}
             </div>
@@ -599,7 +605,7 @@ export default function Tenants() {
 
                 <div className="mt-4 flex justify-center bg-white p-2">
                   <QRCode
-                    value={`${window.location.origin}/rent/t/${qrTenant.viewToken}`}
+                    value={`${window.location.origin}/rent/t/${qrTenant.id}/${qrTenant.viewToken}`}
                     size={200}
                     level="H"
                   />
@@ -695,82 +701,13 @@ export default function Tenants() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!occupantTenant} onOpenChange={() => setOccupantTenant(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Occupants - {occupantTenant?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {occupants.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No occupants found.</p>
-            ) : (
-              occupants.map((o) => (
-                <div key={o['Occupant UUID']} className="flex items-center justify-between border rounded p-3">
-                  <div>
-                    <div className="font-semibold">{o.name}</div>
-                    <div className="text-sm text-muted-foreground">{o.mobile || 'No phone'}</div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-500"
-                    onClick={async () => {
-                      if (!occupantTenant || !occupantTenant.id) return;
-                      try {
-                        await api.deleteOccupant(occupantTenant.id, o['Occupant UUID']);
-                        toast.success('Occupant deleted');
-                        loadOccupants(occupantTenant.id);
-                      } catch {
-                        toast.error('Failed to delete occupant');
-                      }
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              ))
-            )}
-
-            <div className="pt-4 border-t">
-              <h4 className="font-semibold mb-2">Upload New Occupant</h4>
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!occupantTenant || !occupantTenant.id) return;
-                  const form = new FormData(e.target as HTMLFormElement);
-                  try {
-                    await api.saveOccupant(occupantTenant.id, form);
-                    toast.success('Occupant uploaded');
-                    (e.target as HTMLFormElement).reset();
-                    loadOccupants(occupantTenant.id);
-                  } catch {
-                    toast.error('Failed to upload occupant');
-                  }
-                }}
-                className="space-y-3"
-              >
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Name</Label>
-                    <Input name="name" required size={1} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Mobile</Label>
-                    <Input name="mobile" size={1} />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Documents (PDF/JPG/PNG)</Label>
-                  <Input type="file" name="files" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" />
-                </div>
-                <Button type="submit" size="sm" className="w-full">
-                  Upload
-                </Button>
-              </form>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <OccupantsModal
+        tenant={occupantsTenant}
+        open={Boolean(occupantsTenant)}
+        onOpenChange={(open) => {
+          if (!open) setOccupantsTenant(null);
+        }}
+      />
 
       <BillsModal
         open={!!billsTenant}
@@ -781,6 +718,7 @@ export default function Tenants() {
             setSelectedBill(null);
           }
         }}
+        tenantId={billsTenant?.id ?? null}
         tenantname={billsTenant?.name}
         bills={tenantBills}
         loading={billsLoading}
@@ -799,6 +737,7 @@ function TenantCard({
   onShowOccupants,
   onShowBills,
   onExport,
+  onStatusChange,
 }: {
   tenant: Tenant;
   onEdit: () => void;
@@ -807,6 +746,7 @@ function TenantCard({
   onShowOccupants: () => void;
   onShowBills: () => void;
   onExport: (format: 'xlsx' | 'csv' | 'zip') => void;
+  onStatusChange: (newStatus: string) => void;
 }) {
   return (
     <Card className="overflow-hidden">
@@ -818,9 +758,31 @@ function TenantCard({
             </div>
             <div>
               <h3 className="font-semibold">{tenant.name}</h3>
-              <Badge variant={tenant.status === 'Active' ? 'default' : 'secondary'} className="text-xs mt-0.5">
-                {tenant.status}
-              </Badge>
+              {/* Inline status toggle */}
+              <div className="flex items-center gap-1 mt-1">
+                <button
+                  title="Set Active"
+                  onClick={(e) => { e.stopPropagation(); if (tenant.status !== 'Active') onStatusChange('Active'); }}
+                  className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
+                    tenant.status === 'Active'
+                      ? 'bg-green-100 text-green-700'
+                      : 'text-muted-foreground hover:bg-green-50 hover:text-green-700'
+                  }`}
+                >
+                  <CheckCircle size={11} /> Active
+                </button>
+                <button
+                  title="Set Inactive"
+                  onClick={(e) => { e.stopPropagation(); if (tenant.status !== 'Inactive') onStatusChange('Inactive'); }}
+                  className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
+                    tenant.status === 'Inactive'
+                      ? 'bg-slate-200 text-slate-700'
+                      : 'text-muted-foreground hover:bg-slate-100'
+                  }`}
+                >
+                  <XCircle size={11} /> Inactive
+                </button>
+              </div>
             </div>
           </div>
           <div className="flex gap-1">
@@ -893,7 +855,7 @@ function TenantCard({
             size="sm"
             className="w-full"
             disabled={!tenant.viewToken}
-            onClick={() => tenant.viewToken && window.open(`/rent/t/${tenant.viewToken}`, '_blank')}
+            onClick={() => tenant.viewToken && window.open(`/rent/t/${tenant.id}/${tenant.viewToken}`, '_blank')}
             title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Open public profile'}
           >
             Public Profile
@@ -918,7 +880,7 @@ function TenantCard({
             onClick={async () => {
               if (!tenant.viewToken || !tenant.id) return;
 
-              const url = `${window.location.origin}/rent/t/${tenant.viewToken}`;
+              const url = `${window.location.origin}/rent/t/${tenant.id}/${tenant.viewToken}`;
 
               let pin = '----';
               try {
@@ -953,6 +915,7 @@ function TenantCard({
             className="w-full"
             onClick={onShowOccupants}
           >
+            <Users className="mr-1 h-4 w-4" />
             Occupants
           </Button>
 
@@ -1071,7 +1034,18 @@ function TenantForm({
         </div>
         <div className="space-y-2">
           <Label>Status</Label>
-          <Input value={form.status} disabled className="bg-muted" />
+          <Select
+            value={form.status === "Inactive" ? "Inactive" : "Active"}
+            onValueChange={(status: string) => setForm({ ...form, status })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Active">ACTIVE</SelectItem>
+              <SelectItem value="Inactive">INACTIVE</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

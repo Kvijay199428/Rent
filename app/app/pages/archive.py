@@ -13,14 +13,19 @@ router = APIRouter()
 async def archive_page(request: Request):
     # Get archived tenants
     all_tenants = load_tenants(include_archived=True)
-    archived_tenants = [t for t in all_tenants if t.status == "Archived"]
-    archived_tenant_names = {t.name for t in archived_tenants}
-    
-    # Get receipts that are either ARCHIVED status OR belong to archived tenants
+    archived_tenants = [
+        t for t in all_tenants
+        if (t.status or "").strip().lower() == "archived"
+    ]
+    # ID-based set — never use tenant names for ownership/grouping
+    archived_tenant_ids = {int(t.id) for t in archived_tenants}
+
+    # Get receipts that are either ARCHIVED status OR belong to archived tenants (by ID)
     all_receipts = get_all_receipts(include_archived_tenants=True)
     archived_receipts = [
-        r for r in all_receipts 
-        if r.get("Status") == "ARCHIVED" or r.get("Tenant") in archived_tenant_names
+        r for r in all_receipts
+        if str(r.get("Status", "") or "").strip().upper() == "ARCHIVED"
+        or int(r.get("TenantId", 0) or 0) in archived_tenant_ids
     ]
     archived_receipts.reverse()
     

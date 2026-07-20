@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { TENANTROUTES } from "@/lib/routes";
 
 interface PdfPreviewModalProps {
+  tenantId: number | string;
   billNo: string;
   viewToken: string;
   open: boolean;
@@ -19,6 +20,7 @@ interface PdfPreviewModalProps {
 }
 
 export default function PdfPreviewModal({
+  tenantId,
   billNo,
   viewToken,
   open,
@@ -28,8 +30,8 @@ export default function PdfPreviewModal({
   const [pdfUrl, setPdfUrl] = useState<string>("");
   const [error, setError] = useState("");
 
-  const pdfViewUrl = TENANTROUTES.TENANTAPIPDFVIEW(viewToken, billNo);
-  const pdfDownloadUrl = TENANTROUTES.TENANTAPIPDFDOWNLOAD(viewToken, billNo);
+  const pdfViewUrl = TENANTROUTES.TENANTAPIPDFVIEW(tenantId, viewToken, billNo);
+  const pdfDownloadUrl = TENANTROUTES.TENANTAPIPDFDOWNLOAD(tenantId, viewToken, billNo);
 
   useEffect(() => {
     if (!open || !billNo || !viewToken) return;

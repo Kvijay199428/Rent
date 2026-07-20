@@ -15,7 +15,7 @@ async def tenants_page(request: Request):
     receipts = get_all_receipts(include_archived_tenants=False)
     
     for tenant in tenants:
-        active_receipts = [r for r in receipts if r["Tenant"] == tenant.name and r.get("Status") != "ARCHIVED"]
+        active_receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) == tenant.id and r.get("Status") != "ARCHIVED"]
         if active_receipts:
             latest = active_receipts[-1]
             try:

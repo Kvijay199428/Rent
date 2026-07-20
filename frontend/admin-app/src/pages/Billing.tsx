@@ -68,8 +68,8 @@ export default function Billing() {
 
     try {
       const [tRes, recRes] = await Promise.all([
-        api.getTenant(tenant.id),
-        api.getTenantReceipts(tenant.name),
+        api.getTenant(tenant.id as number),
+        api.getTenantReceipts(tenant.id as number),
       ]);
 
       setRent(tRes.rent || 0);
@@ -144,7 +144,7 @@ export default function Billing() {
 
     setSubmitting(true);
     try {
-      const res = await api.createBill({
+      const res = await api.createBill(tenant.id as number, {
         tenant: tenant.name,
         month: selectedMonth,
         current_reading: currentVal,
@@ -405,13 +405,13 @@ export default function Billing() {
             <p className="text-muted-foreground mt-1">Receipt #{generatedBill}</p>
           </div>
           <div className="space-y-2">
-            <Button variant="outline" className="w-full justify-start" onClick={() => generatedBill && window.open(api.getPDFViewUrl(generatedBill), '_blank')}>
+            <Button variant="outline" className="w-full justify-start" onClick={() => generatedBill && window.open(api.getPDFViewUrl(Number(selectedTenantId), generatedBill), '_blank')}>
               <FileText className="h-4 w-4 mr-2 text-primary" /> Preview Receipt
             </Button>
             <Button variant="outline" className="w-full justify-start" onClick={() => {
               if (!generatedBill) return;
               const a = document.createElement('a');
-              a.href = api.getPDFDownloadUrl(generatedBill);
+              a.href = api.getPDFDownloadUrl(Number(selectedTenantId), generatedBill);
               a.download = `Receipt_${generatedBill}.pdf`;
               a.click();
             }}>

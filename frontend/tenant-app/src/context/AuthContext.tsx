@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { tenantApi } from '@/lib/api';
+import { tenantApi, getTenantParams } from '@/lib/api';
 
 interface AuthContextType {
     isAuthenticated: boolean;
     isLoading: boolean;
     viewToken: string | null;
-    login: (viewToken: string, pin: string, rememberMe?: boolean) => Promise<void>;
+    tenantId: string | null;
+    login: (tenantId: string | number, viewToken: string, pin: string, rememberMe?: boolean) => Promise<void>;
     logout: () => Promise<void>;
     refreshToken: () => Promise<void>;
 }
@@ -16,19 +17,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [viewToken, setViewToken] = useState<string | null>(null);
+    const [tenantId, setTenantId] = useState<string | null>(null);
 
     // On mount: extract viewToken from URL and check existing session
     useEffect(() => {
-        const pathParts = window.location.pathname.split('/');
-        const tIndex = pathParts.indexOf('t');
-        const tokenFromUrl = tIndex !== -1 ? pathParts[tIndex + 1] : null;
+        const { tenantId: idFromUrl, viewToken: tokenFromUrl } = getTenantParams();
 
-        if (tokenFromUrl) {
+        if (tokenFromUrl && idFromUrl) {
             setViewToken(tokenFromUrl);
+            setTenantId(idFromUrl);
             localStorage.setItem('viewToken', tokenFromUrl);
+            localStorage.setItem('tenantId', idFromUrl);
 
             // Optionally verify session is still valid
-            tenantApi.profile.get(tokenFromUrl)
+            tenantApi.profile.get(idFromUrl, tokenFromUrl)
                 .then((data) => {
                     setIsAuthenticated(data.tenant?.unlocked ?? false);
                 })
@@ -41,24 +43,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, []);
 
-    const login = useCallback(async (token: string, pin: string, rememberMe = false) => {
-        await tenantApi.auth.login(token, pin, rememberMe);
+    const login = useCallback(async (tenantIdArg: string | number, token: string, pin: string, rememberMe = false) => {
+        await tenantApi.auth.login(tenantIdArg, token, pin, rememberMe);
         setViewToken(token);
+        setTenantId(String(tenantIdArg));
         setIsAuthenticated(true);
         localStorage.setItem('viewToken', token);
+        localStorage.setItem('tenantId', String(tenantIdArg));
     }, []);
 
     const logout = useCallback(async () => {
         try {
-            if (viewToken) {
+            if (viewToken && tenantId) {
                 await tenantApi.auth.logout();
             }
         } finally {
             setIsAuthenticated(false);
             setViewToken(null);
+            setTenantId(null);
             localStorage.removeItem('viewToken');
+            localStorage.removeItem('tenantId');
         }
-    }, [viewToken]);
+    }, [viewToken, tenantId]);
 
     const refreshToken = useCallback(async () => {
         // The viewToken is automatically extracted from URL in apiClient
@@ -70,6 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             isAuthenticated,
             isLoading,
             viewToken,
+            tenantId,
             login,
             logout,
             refreshToken

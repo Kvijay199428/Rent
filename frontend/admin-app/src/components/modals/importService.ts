@@ -46,6 +46,28 @@ export interface PreviewResponse {
       };
     };
   };
+  conflicts?: {
+    [filename: string]: {
+      [tenantId: string]: {
+        importTenant: { tenantId: string; tenantName: string };
+        matches: Array<{ type: string; existingTenantId: number; existingTenantName: string }>;
+        receiptConflicts: Array<{ billNo: string; month: string; reason: string; actionRequired: boolean }>;
+      };
+    };
+  };
+  encrypted_pins?: {
+    [filename: string]: {
+      [tenantId: string]: {
+        tenantId: string;
+        tenantName: string;
+        pin_value: string;
+        pin_length: number;
+        is_encrypted: boolean;
+      };
+    };
+  };
+  requires_resolution?: boolean;
+  predicted_next_tenant_id?: number;
 }
 
 /**
@@ -98,8 +120,12 @@ export async function importPreview(files: File[]): Promise<PreviewResponse> {
 export async function importExecute(
   files: File[],
   selectedTargets: string[],
-  targetStatuses: Record<string, string> = {}
-): Promise<{ status: string; message: string; tenants?: number; receipts?: number }> {
+  targetStatuses: Record<string, string> = {},
+  idResolutions?: Record<string, string>,
+  pinResolutions?: Record<string, string>,
+  pinHandling?: 'prompt' | 'skip' | 'assign_random',
+  receiptStrategies?: Record<string, string>
+): Promise<{ status: string; message: string; tenants?: number; receipts?: number; auto_assigned_pins?: any[] }> {
   const formData = new FormData();
 
   // Re-append the original files (required by backend)
@@ -109,6 +135,11 @@ export async function importExecute(
   // Backend: selectedtargets: str = Form(...)
   formData.append("selectedtargets", JSON.stringify(selectedTargets));
   formData.append("targetstatuses", JSON.stringify(targetStatuses));
+  
+  if (idResolutions) formData.append("idresolutions", JSON.stringify(idResolutions));
+  if (pinResolutions) formData.append("pinresolutions", JSON.stringify(pinResolutions));
+  if (pinHandling) formData.append("pinhandling", pinHandling);
+  if (receiptStrategies) formData.append("receiptstrategies", JSON.stringify(receiptStrategies));
 
   const response = await fetch(ROUTES.ADMINAPISYNCIMPORTEXECUTE, {
     method: "POST",
@@ -119,7 +150,7 @@ export async function importExecute(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `Import failed: ${response.status}`);
+    throw new Error(errorData.detail?.message || errorData.detail || `Import failed: ${response.status}`);
   }
 
   return response.json();

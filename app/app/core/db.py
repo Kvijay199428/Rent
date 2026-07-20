@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sqlite3
 from app.core.paths import DB_DIR
 
@@ -205,6 +205,8 @@ def init_db():
             occupantUuid TEXT PRIMARY KEY,
             name TEXT,
             mobile TEXT,
+            address TEXT,
+            residentSince TEXT,
             status TEXT NOT NULL DEFAULT 'Active',
             aadhaar_front TEXT,
             aadhaar_back TEXT,
@@ -222,5 +224,57 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
         CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
         CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
+        
+        -- 12. IMPORT AUDIT LOGS
+        CREATE TABLE IF NOT EXISTS import_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            filename TEXT NOT NULL,
+            status TEXT NOT NULL,
+            preview_json TEXT,
+            resolution_json TEXT,
+            result_json TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS import_job_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            import_job_id INTEGER NOT NULL,
+            target_key TEXT NOT NULL,
+            import_tenant_id TEXT,
+            import_tenant_name TEXT,
+            action TEXT NOT NULL,
+            existing_tenant_id INTEGER,
+            result TEXT NOT NULL,
+            message TEXT,
+            FOREIGN KEY (import_job_id) REFERENCES import_jobs(id) ON DELETE CASCADE
+        );
+
+        -- 13. TENANT RECOVERY SNAPSHOTS
+        -- Stores per-tenant recovery archives created before permanent deletion.
+        -- Only recoverable until expires_at; after that, status = PURGED.
+        CREATE TABLE IF NOT EXISTS tenant_recovery_snapshots (
+            id TEXT PRIMARY KEY,
+            tenant_id INTEGER NOT NULL,
+            tenant_name TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            deleted_by INTEGER,
+            status TEXT NOT NULL DEFAULT 'AVAILABLE',
+            archive_path TEXT NOT NULL,
+            sha256 TEXT NOT NULL,
+            metadata_json TEXT NOT NULL,
+            restored_at TEXT,
+            purged_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_tenant_recovery_expiry
+            ON tenant_recovery_snapshots(expires_at, status);
         """)
+
+        # Migrations for existing databases — safe to run multiple times
+        if not _column_exists(conn, "occupants", "address"):
+            conn.execute("ALTER TABLE occupants ADD COLUMN address TEXT")
+        if not _column_exists(conn, "occupants", "residentSince"):
+            conn.execute("ALTER TABLE occupants ADD COLUMN residentSince TEXT")
+
         conn.commit()

@@ -205,3 +205,30 @@ CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
 CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
 CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
 CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
+
+-- ============================================================
+-- 12. IMPORT AUDIT LOGS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS import_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    status TEXT NOT NULL,
+    preview_json TEXT,
+    resolution_json TEXT,
+    result_json TEXT
+);
+
+CREATE TABLE IF NOT EXISTS import_job_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    import_job_id INTEGER NOT NULL,
+    target_key TEXT NOT NULL,
+    import_tenant_id TEXT,
+    import_tenant_name TEXT,
+    action TEXT NOT NULL,
+    existing_tenant_id INTEGER,
+    result TEXT NOT NULL,
+    message TEXT,
+    FOREIGN KEY (import_job_id) REFERENCES import_jobs(id) ON DELETE CASCADE
+);

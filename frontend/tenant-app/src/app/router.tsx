@@ -3,7 +3,7 @@ import PublicTenantPage from '../pages/PublicTenantPage';
 
 export const router = createBrowserRouter([
   {
-    path: '/t/:viewToken',
+    path: '/:tenantId/:viewToken',
     element: <PublicTenantPage />
   },
 ], {

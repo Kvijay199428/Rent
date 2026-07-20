@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, RefreshCw, Search, FileText, AlertCircle, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ROUTES from '@/lib/routes';
 
 export type TenantBill = {
     Bill: string;
@@ -27,6 +28,7 @@ export type TenantBill = {
 type BillsModalProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    tenantId: number | null;
     tenantname?: string;
     bills: TenantBill[];
     loading?: boolean;
@@ -101,6 +103,7 @@ function getStatusBuckets(bills: TenantBill[]) {
 export default function BillsModal({
     open,
     onOpenChange,
+    tenantId,
     tenantname,
     bills,
     loading = false,
@@ -137,9 +140,8 @@ export default function BillsModal({
         }
     }, [selectedBill?.Bill, open, refreshKey]);
 
-    const basePath = window.location.pathname.startsWith('/rent') ? '/rent' : '';
-    const previewUrl = selectedBill
-        ? `${basePath}/admin/api/pdf/receipt/${selectedBill.Bill}/view?ts=${refreshKey}`
+    const previewUrl = selectedBill && tenantId
+        ? `${ROUTES.ADMINAPIPDFVIEW(tenantId, selectedBill.Bill)}?ts=${refreshKey}`
         : '';
 
     return (

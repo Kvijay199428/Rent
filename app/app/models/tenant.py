@@ -1,9 +1,9 @@
-﻿from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional
 
 class Tenant(BaseModel):
     id: Optional[int] = None
-    
+
     # General Info
     name: str
     company: Optional[str] = ""
@@ -22,19 +22,28 @@ class Tenant(BaseModel):
     electricityRate: float = 0.0
     previousMeter: float = 0.0
     additionalPersonCharge: float = 0.0
-    
+
     # Security Profile
     securityDeposit: float = 0.0
-    
+
     # Utilities
     meterId: Optional[str] = ""
-    
+
     # NEW: Secure access token for public QR profiles
     viewToken: Optional[str] = ""
-    
+
     # NEW: Security PIN for Tenant Portal
     tenantPin: Optional[str] = None
-    
+
     # NEW: Current arrears (balance due)
     arrears: float = 0.0
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def strip_name(cls, v):
+        """Strip whitespace from tenant name before assignment.
+        Prevents trailing-space variants from creating ghost duplicates
+        that collapse receipt ownership when names are compared by string."""
+        return str(v).strip() if v is not None else ""
+
 

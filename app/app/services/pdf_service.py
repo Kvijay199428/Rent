@@ -1,4 +1,4 @@
-﻿import os
+import os
 import io
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
@@ -44,9 +44,9 @@ def _safe_float(val, default=0.0):
 
 def generate_professional_pdf(data, landlord_config, output_path=None):
     # Live Tenant Sync Engine: Override PDF with the most current tenant attributes
-    tenants = load_tenants()
-    tenantName = data.get('Tenant', 'Unknown')
-    current_tenant = next((t for t in tenants if t.name == tenantName), None)
+    from app.services.tenant_service import get_tenant
+    tenantId = data.get('TenantId')
+    current_tenant = get_tenant(tenantId) if tenantId else None
     if current_tenant:
         data['Tenant_Phone'] = current_tenant.phone
         data['Tenant_Company'] = current_tenant.company

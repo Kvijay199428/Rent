@@ -12,9 +12,7 @@ import {
   AlertCircle,
   Users,
   Gauge,
-  Zap,
   PiggyBank,
-  Percent,
   Plus,
   Settings,
   Eye,
@@ -26,25 +24,26 @@ import {
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import PDFPreviewModal from '@/components/shared/PDFPreviewModal';
 import EditBillModal from '@/components/shared/EditBillModal';
+import DuePaymentsModal from '@/components/dashboard/DuePaymentsModal';
+import MeterReadingDetailsModal from '@/components/dashboard/MeterReadingDetailsModal';
 
 const statCards = [
-  { key: 'monthly_revenue', label: 'Monthly Revenue', icon: TrendingUp, color: 'bg-blue-500', prefix: '₹' },
+  { key: 'lifetime_revenue', label: 'Lifetime Revenue', icon: TrendingUp, color: 'bg-blue-500', prefix: '₹' },
   { key: 'prev_monthly_revenue', label: 'Prev Month Revenue', icon: TrendingDown, color: 'bg-gray-500', prefix: '₹' },
-  { key: 'paid_bills_count', label: 'Paid Bills', icon: Receipt, color: 'bg-cyan-500', suffix: ' Bills' },
-  { key: 'pending_payments_count', label: 'Due Payments', icon: AlertCircle, color: 'bg-red-500', suffix: ' Due' },
-  { key: 'pending_amount', label: 'Pending Amount', icon: AlertCircle, color: 'bg-red-600', prefix: '₹' },
+  { key: 'pending_payments_amount', label: 'Due Payments', icon: AlertCircle, color: 'bg-red-500' },
   { key: 'amount_collected', label: 'Amount Collected', icon: PiggyBank, color: 'bg-green-500', prefix: '₹' },
   { key: 'active_tenants', label: 'Active Tenants', icon: Users, color: 'bg-blue-600', suffix: ' Active' },
   { key: 'highest_meter_reading', label: 'Last Meter Reading', icon: Gauge, color: 'bg-amber-500', suffix: ' Units' },
-  { key: 'electricity_consumed', label: 'Electricity Consumed', icon: Zap, color: 'bg-amber-600', suffix: ' Units' },
-  { key: 'collection_rate', label: 'Collection Rate', icon: Percent, color: 'bg-green-600', suffix: '%' },
-];
+] as const;
 
 export default function Dashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [previewBill, setPreviewBill] = useState<string | null>(null);
-  const [editBill, setEditBill] = useState<string | null>(null);
+  const [previewBill, setPreviewBill] = useState<{ billNo: string; tenantId: number } | null>(null);
+  const [editBill, setEditBill] = useState<{ billNo: string; tenantId: number } | null>(null);
+  const [dueOpen, setDueOpen] = useState(false);
+  const [meterOpen, setMeterOpen] = useState(false);
+
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -65,11 +64,10 @@ export default function Dashboard() {
   }, []);
 
   const formatValue = (key: string, value: number) => {
-    if (key === 'collection_rate') return value.toFixed(0);
-    if (key.includes('revenue') || key.includes('amount') || key.includes('pending')) {
-      return '₹' + Math.round(value).toLocaleString('en-IN');
+    if (key.includes('revenue') || key.includes('amount') || key.includes('collected')) {
+      return Math.round(value).toLocaleString('en-IN');
     }
-    return value.toLocaleString('en-IN');
+    return Number(value || 0).toLocaleString('en-IN');
   };
 
   if (loading) {
@@ -88,11 +86,16 @@ export default function Dashboard() {
 
   const chartData = chartLabels.map((label, i) => ({
     label,
-    revenue: chartRevenue[i] || 0,
-    electricity: chartElectricity[i] || 0,
+    revenue: chartRevenue[i] ?? 0,
+    electricity: chartElectricity[i] ?? 0,
   }));
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
 
   return (
     <div className="space-y-6">
@@ -102,8 +105,8 @@ export default function Dashboard() {
           <h1 className="text-2xl font-bold">Dashboard</h1>
           <div className="text-sm text-muted-foreground mt-1">
             <span>Today is {today}</span>
-            <span className="mx-2">|</span>
-            <span>Billing Month: <span className="font-semibold text-primary">{stats.current_month}</span></span>
+            <span className="mx-2">•</span>
+            <span>Billing Month <span className="font-semibold text-primary">{stats.current_month}</span></span>
           </div>
         </div>
         <div className="flex gap-2">
@@ -117,30 +120,79 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         {statCards.map((card) => {
-          const value = stats[card.key as keyof DashboardStats] as number;
+          const value = Number(stats[card.key as keyof DashboardStats] ?? 0);
+          const isDueCard = card.key === 'pending_payments_amount';
+          const isMeterCard = card.key === 'highest_meter_reading';
+          const clickable =
+            (isDueCard && stats.pending_payments_count > 0) ||
+            (isMeterCard && !!stats.highest_meter_tenant_id);
+
+          const handleClick = () => {
+            if (isDueCard && stats.pending_payments_count > 0) setDueOpen(true);
+            if (isMeterCard && !!stats.highest_meter_tenant_id) setMeterOpen(true);
+          };
+
           return (
-            <Card key={card.key} className="overflow-hidden">
+            <Card
+              key={card.key}
+              className={`overflow-hidden ${clickable ? 'cursor-pointer hover:border-primary/40 hover:shadow-md transition-all' : ''}`}
+              onClick={clickable ? handleClick : undefined}
+              role={clickable ? 'button' : undefined}
+              tabIndex={clickable ? 0 : -1}
+              onKeyDown={(e) => {
+                if (!clickable) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleClick();
+                }
+              }}
+            >
               <CardContent className="p-4 relative">
                 <div className={`absolute top-3 right-3 w-8 h-8 ${card.color} rounded-lg flex items-center justify-center text-white opacity-90`}>
                   <card.icon size={16} />
                 </div>
-                <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider">{card.label}</p>
-                <p className="text-xl font-bold mt-1">
-                  {formatValue(card.key, value)}
-                  {card.suffix && <span className="text-sm font-normal text-muted-foreground">{card.suffix}</span>}
+
+                <p className="text-xs text-muted-foreground uppercase font-semibold tracking-wider">
+                  {card.label}
                 </p>
-                {card.key === 'paid_bills_count' && (
-                  <p className="text-xs text-muted-foreground mt-1">{stats.advance_bills_count} In Advance</p>
-                )}
-                {card.key === 'active_tenants' && (
-                  <p className="text-xs text-muted-foreground mt-1">{stats.inactive_tenants} Inactive</p>
-                )}
-                {card.key === 'prev_monthly_revenue' && (
-                  <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-secondary">
-                    {stats.revenue_change_str}
-                  </span>
+
+                {isDueCard ? (
+                  <>
+                    <p className="text-xl font-bold mt-1">
+                      ₹{formatValue(card.key, stats.pending_payments_amount)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {stats.pending_payments_count} tenants · {stats.pending_receipts_count} receipts
+                    </p>
+                    {stats.pending_payments_count > 0 && (
+                      <p className="text-xs text-primary mt-1">Click to review</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xl font-bold mt-1">
+                      {'prefix' in card ? card.prefix : ''}{formatValue(card.key, value)}
+                      {'suffix' in card && card.suffix ? (
+                        <span className="text-sm font-normal text-muted-foreground">{card.suffix}</span>
+                      ) : null}
+                    </p>
+
+                    {card.key === 'active_tenants' && (
+                      <p className="text-xs text-muted-foreground mt-1">{stats.inactive_tenants} Inactive</p>
+                    )}
+
+                    {card.key === 'prev_monthly_revenue' && (
+                      <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-secondary">
+                        {stats.revenue_change_str}
+                      </span>
+                    )}
+
+                    {card.key === 'highest_meter_reading' && stats.highest_meter_tenant_id > 0 && (
+                      <p className="text-xs text-primary mt-1">Click to inspect usage</p>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -181,7 +233,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Zap className="h-4 w-4 text-amber-500" /> Electricity Consumption
+              <Gauge className="h-4 w-4 text-amber-500" /> Electricity Consumption
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -207,7 +259,7 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Recent Bills */}
+      {/* Recent Bills + Activity */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <Card className="xl:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -224,7 +276,7 @@ export default function Dashboard() {
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground">S.No</th>
-                    <th className="text-left px-4 py-2 font-medium text-muted-foreground">Bill #</th>
+                    <th className="text-left px-4 py-2 font-medium text-muted-foreground">Bill</th>
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground">Tenant</th>
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground">Month</th>
                     <th className="text-left px-4 py-2 font-medium text-muted-foreground">Total</th>
@@ -244,10 +296,22 @@ export default function Dashboard() {
                       </td>
                     </tr>
                   )}
+
                   {(stats.recent_bills ?? []).map((b, i) => {
-                    const grandTotal = b.total + (b.previousArrears || 0);
-                    const amtRecv = b.amountReceived || 0;
-                    const balanceDue = grandTotal - amtRecv;
+                    const grandTotal = Number(b.total || 0) + Number(b.previousArrears || 0);
+                    const amtRecv = Number(b.amountReceived || 0);
+                    const balanceDue = Math.max(grandTotal - amtRecv, 0);
+                    const tenantId = Number(b.tenantId || 0);
+                    const billNo = String(b.billNo || '');
+                    const canAct = tenantId > 0 && !!billNo;
+
+                    const ensureValid = (action: string) => {
+                      if (!canAct) {
+                        toast.error(`Unable to ${action}: tenantId or billNo missing`);
+                        return false;
+                      }
+                      return true;
+                    };
 
                     const statusColors: Record<string, string> = {
                       PAID: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
@@ -257,19 +321,19 @@ export default function Dashboard() {
                     };
 
                     return (
-                      <tr key={b.billNo} className="border-b last:border-0 hover:bg-accent/50 transition-colors">
+                      <tr key={`${tenantId}-${billNo}-${i}`} className="border-b last:border-0 hover:bg-accent/50 transition-colors">
                         <td className="px-4 py-2 text-muted-foreground">{i + 1}</td>
                         <td className="px-4 py-2">
-                          <span className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">{b.billNo}</span>
+                          <span className="px-1.5 py-0.5 rounded bg-muted font-mono text-xs">{billNo}</span>
                         </td>
                         <td className="px-4 py-2 font-medium text-primary">{b.tenantName}</td>
                         <td className="px-4 py-2 text-muted-foreground">{b.month}</td>
                         <td className="px-4 py-2 font-bold">
-                          ₹{b.total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          ₹{Number(b.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-2">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[b.paymentStatus] || statusColors.PENDING}`}>
-                            {b.paymentStatus === 'PAID' ? <Check size={10} /> : <AlertCircle size={10} />}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[String(b.paymentStatus || 'PENDING').toUpperCase()] || statusColors.PENDING}`}>
+                            {String(b.paymentStatus || '').toUpperCase() === 'PAID' ? <Check size={10} /> : <AlertCircle size={10} />}
                             {b.paymentStatus}
                           </span>
                           <div className="text-xs text-muted-foreground mt-0.5">
@@ -283,27 +347,71 @@ export default function Dashboard() {
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex items-center justify-end gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setPreviewBill(b.billNo)} title="View">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={!canAct}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!ensureValid('preview receipt')) return;
+                                setPreviewBill({ billNo, tenantId });
+                              }}
+                              title="View"
+                            >
                               <Eye size={14} />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditBill(b.billNo)} title="Edit">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={!canAct}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!ensureValid('edit receipt')) return;
+                                setEditBill({ billNo, tenantId });
+                              }}
+                              title="Edit"
+                            >
                               <Pencil size={14} className="text-yellow-500" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
-                              const url = api.getPDFDownloadUrl(b.billNo);
-                              const a = document.createElement('a');
-                              a.href = url;
-                              a.download = `Receipt_${b.billNo}.pdf`;
-                              a.click();
-                            }} title="Download">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={!canAct}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!ensureValid('download receipt')) return;
+                                const url = api.getPDFDownloadUrl(tenantId, billNo);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `Receipt_${billNo}.pdf`;
+                                document.body.appendChild(a);
+                                a.click();
+                                a.remove();
+                              }}
+                              title="Download"
+                            >
                               <Download size={14} className="text-green-500" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={async () => {
-                              try {
-                                const data = await api.sendWhatsApp(b.billNo);
-                                if (data.url) window.open(data.url, '_blank');
-                              } catch { toast.error('Failed'); }
-                            }} title="WhatsApp">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={!canAct}
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!ensureValid('share on WhatsApp')) return;
+                                try {
+                                  const data = await api.sendWhatsApp(tenantId, billNo);
+                                  if (data.url) window.open(data.url, '_blank', 'noopener,noreferrer');
+                                } catch (err) {
+                                  toast.error(err instanceof Error ? err.message : 'Failed to generate WhatsApp link');
+                                }
+                              }}
+                              title="WhatsApp"
+                            >
                               <MessageCircle size={14} className="text-green-500" />
                             </Button>
                           </div>
@@ -345,8 +453,31 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <PDFPreviewModal billNo={previewBill} onClose={() => setPreviewBill(null)} />
-      <EditBillModal billNo={editBill} onClose={() => setEditBill(null)} onSaved={loadStats} />
+      <PDFPreviewModal
+        billNo={previewBill?.billNo ?? null}
+        tenantId={previewBill?.tenantId ?? null}
+        onClose={() => setPreviewBill(null)}
+      />
+
+      <EditBillModal
+        billNo={editBill?.billNo ?? null}
+        tenantId={editBill?.tenantId ?? null}
+        onClose={() => setEditBill(null)}
+        onSaved={loadStats}
+      />
+
+      <DuePaymentsModal
+        open={dueOpen}
+        onOpenChange={setDueOpen}
+        onChanged={loadStats}
+      />
+
+      <MeterReadingDetailsModal
+        open={meterOpen}
+        onOpenChange={setMeterOpen}
+        tenantId={stats.highest_meter_tenant_id || null}
+        billNo={stats.highest_meter_bill_no || null}
+      />
     </div>
   );
 }

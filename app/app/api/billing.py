@@ -86,17 +86,17 @@ async def api_billing_preview(
     )
 
 @router.get(Routes.ADMINAPIBILLINGGET, name=Names.APIGETSINGLEBILL)
-async def api_get_single_bill(billNo: str):
-    receipt = get_receipt(billNo)
+async def api_get_single_bill(tenantId: int, billNo: str):
+    receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
     return receipt
 
 @router.post(Routes.ADMINAPIBILLINGCREATE, name=Names.APICREATEBILL)
-async def api_create_bill(request: BillRequest, background_tasks: BackgroundTasks):
+async def api_create_bill(tenantId: int, request: BillRequest, background_tasks: BackgroundTasks):
     try:
         data = create_bill(
-            request.tenant,
+            tenantId,
             request.month,
             request.currentreading,
             request.additionalpersons,
@@ -117,34 +117,34 @@ async def api_create_bill(request: BillRequest, background_tasks: BackgroundTask
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# @router.post(Routes.ADMINAPIBILLINGUPDATE, name=Names.APIUPDATEBILL)
-# async def api_update_bill(billNo: str, request: BillRequest, background_tasks: BackgroundTasks):
-#     try:
-#         data = update_bill(
-#             billNo,
-#             request.tenant,
-#             request.month,
-#             request.currentreading,
-#             request.additionalpersons or 0,
-#             request.tankWater or 0.0,
-#             request.maintenancecharge or 0.0,
-#             request.maintenancedesc or "",
-#             request.previousarrears or 0.0,
-#             request.amountreceived,
-#             (request.paymentstatus or "PENDING").upper()
-#         )
-#         background_tasks.add_task(create_full_backup, tag="edit_bill")
-#         return {"status": "success", "data": data}
-#     except ValueError as e:
-#         msg = str(e)
-#         if "already exists" in msg.lower():
-#             raise HTTPException(status_code=409, detail=msg)
-#         raise HTTPException(status_code=400, detail=msg)
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail=str(e))
+@router.put(Routes.ADMINAPIBILLINGUPDATE, name=Names.APIUPDATEBILL)
+async def api_update_bill(tenantId: int, billNo: str, request: BillRequest, background_tasks: BackgroundTasks):
+    try:
+        data = update_bill(
+            tenantId,
+            billNo,
+            request.month,
+            request.currentreading,
+            request.additionalpersons or 0,
+            request.tankWater or 0.0,
+            request.maintenancecharge or 0.0,
+            request.maintenancedesc or "",
+            request.previousarrears or 0.0,
+            request.amountreceived,
+            (request.paymentstatus or "PENDING").upper()
+        )
+        background_tasks.add_task(create_full_backup, tag="edit_bill")
+        return {"status": "success", "data": data}
+    except ValueError as e:
+        msg = str(e)
+        if "already exists" in msg.lower():
+            raise HTTPException(status_code=409, detail=msg)
+        raise HTTPException(status_code=400, detail=msg)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.post(Routes.ADMINAPIBILLINGUPDATEPAYMENT, name=Names.APIUPDATEPAYMENT)
-async def api_update_payment(billNo: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
+async def api_update_payment(tenantId: int, billNo: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
     try:
         status = (data.paymentstatus or "").strip().upper()
         if status not in {"PAID", "PENDING", "PARTIAL", "ADVANCE"}:
@@ -154,7 +154,7 @@ async def api_update_payment(billNo: str, data: PaymentStatusUpdate, background_
         if amount is not None and amount < 0:
             raise HTTPException(status_code=400, detail="Amount received cannot be negative.")
 
-        update_paymentStatus(billNo, status, amount)
+        update_paymentStatus(tenantId, billNo, status, amount)
         background_tasks.add_task(create_full_backup, tag="paymentStatus")
         return {"status": "success"}
     except HTTPException:
@@ -163,27 +163,27 @@ async def api_update_payment(billNo: str, data: PaymentStatusUpdate, background_
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post(Routes.ADMINAPIBILLINGARCHIVE, name=Names.APIARCHIVEBILL)
-async def api_archive_bill(billNo: str, background_tasks: BackgroundTasks):
+async def api_archive_bill(tenantId: int, billNo: str, background_tasks: BackgroundTasks):
     try:
-        archive_bill(billNo)
+        archive_bill(tenantId, billNo)
         background_tasks.add_task(create_full_backup, tag="archive_bill")
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post(Routes.ADMINAPIBILLINGRESTORE, name=Names.APIRESTOREBILL)
-async def api_restore_bill(billNo: str, background_tasks: BackgroundTasks):
+async def api_restore_bill(tenantId: int, billNo: str, background_tasks: BackgroundTasks):
     try:
-        restore_bill(billNo)
+        restore_bill(tenantId, billNo)
         background_tasks.add_task(create_full_backup, tag="restore_bill")
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete(Routes.ADMINAPIBILLINGDELETE, name=Names.APIDELETEBILL)
-async def api_delete_bill(billNo: str, background_tasks: BackgroundTasks):
+async def api_delete_bill(tenantId: int, billNo: str, background_tasks: BackgroundTasks):
     try:
-        delete_bill(billNo)
+        delete_bill(tenantId, billNo)
         background_tasks.add_task(create_full_backup, tag="delete_bill")
         return {"status": "success"}
     except Exception as e:

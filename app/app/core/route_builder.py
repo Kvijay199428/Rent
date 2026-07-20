@@ -1,6 +1,7 @@
-﻿# from app.core.routes import Names
+# from app.core.routes import Names
 # AFTER:
 from app.core.routes_manifest import Names
+from app.core.routes_manifest_tenant import TenantNames
 
 class RouteBuilder:
     @staticmethod
@@ -8,12 +9,21 @@ class RouteBuilder:
         return request.url_for(name, **kwargs)
 
     @staticmethod
-    def pdf(request, billNo: str):
-        return request.url_for(Names.PDFVIEW, billNo=billNo)
+    def public_tenant_profile(request, tenantId: int, viewToken: str):
+        return request.url_for(
+            TenantNames.TENANTPROFILEGET,
+            tenantId=str(tenantId),
+            viewToken=viewToken,
+        )
 
     @staticmethod
-    def public_tenant(request, token: str):
-        return request.url_for(Names.PUBLICTENANTPROFILEGET, viewToken=token)
+    def tenant_pdf_view(request, tenantId: int, viewToken: str, billNo: str):
+        return request.url_for(
+            TenantNames.TENANTPDFVIEW,
+            tenantId=str(tenantId),
+            viewToken=viewToken,
+            billNo=billNo,
+        )
 
     @staticmethod
     def static(request, path: str):

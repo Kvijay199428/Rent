@@ -1,5 +1,10 @@
-import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant } from "@/types";
+import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult } from "@/types";
 import { ROUTES } from "@/lib/routes";
+
+export type ArchiveDataResponse = {
+  tenants: Tenant[];
+  receipts: Receipt[];
+};
 
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const res = await fetch(url, {
@@ -21,9 +26,24 @@ export const api = {
   // Dashboard
   getDashboardStats: async (): Promise<DashboardStats> => {
     const res = await fetchWithAuth(ROUTES.ADMINAPIDASHBOARDSTATS);
-    if (!res.ok) throw new Error("Failed to fetch dashboard stats");
-    const data = await res.json();
-    return data.stats || data;
+    if (!res.ok) throw new Error('Failed to fetch dashboard stats');
+    const raw = await res.json();
+    const data = raw.stats ?? raw;
+    return {
+      ...data,
+      recent_bills: Array.isArray(data.recent_bills)
+        ? data.recent_bills.map((b: any) => ({
+            billNo: b.billNo ?? b.BillNo ?? b.bill_no ?? '',
+            tenantName: b.tenantName ?? b.Tenant ?? '',
+            tenantId: Number(b.tenantId ?? b.TenantId ?? 0),
+            month: b.month ?? b.Month ?? '',
+            total: Number(b.total ?? b.Total ?? 0),
+            previousArrears: Number(b.previousArrears ?? b.previous_arrears ?? 0),
+            amountReceived: Number(b.amountReceived ?? b.amount_received ?? 0),
+            paymentStatus: b.paymentStatus ?? b.payment_status ?? 'PENDING',
+          }))
+        : [],
+    };
   },
 
   // Tenants
@@ -83,8 +103,8 @@ export const api = {
     return res.json();
   },
 
-  getTenantReceipts: async (tenantName: string): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSRECEIPTS(tenantName));
+  getTenantReceipts: async (tenantId: number): Promise<Receipt[]> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSRECEIPTS(tenantId));
     if (!res.ok) throw new Error("Failed to fetch tenant receipts");
     return res.json();
   },
@@ -102,21 +122,97 @@ export const api = {
     return res.json();
   },
 
+  // Returns both archived tenants and archived receipts — use this for the Archive page.
+  // Groups receipts by TenantId on the frontend to avoid name-based contamination.
+  getArchiveData: async (): Promise<ArchiveDataResponse> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVEDATA);
+    if (!res.ok) throw new Error("Failed to fetch archive data");
+    const data = await res.json();
+    return {
+      tenants: Array.isArray(data.tenants) ? data.tenants : [],
+      receipts: Array.isArray(data.receipts) ? data.receipts : [],
+    };
+  },
+
+  // Legacy: flat receipts only — prefer getArchiveData() for the Archive page.
   getArchivedReceipts: async (): Promise<Receipt[]> => {
     const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVEDATA);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     const data = await res.json();
-    return data.receipts;
+    return Array.isArray(data.receipts) ? data.receipts : [];
   },
 
-  getReceipt: async (billNo: string): Promise<Receipt> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGGET(billNo));
+  // Archive a tenant (marks tenant + all their receipts as Archived)
+  archiveTenant: async (tenantId: number): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(`${ROUTES.ADMINAPITENANTSDELETE(tenantId)}?action=archive`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error("Failed to archive tenant");
+    return res.json();
+  },
+
+  // Restore an archived tenant back to Active — uses dedicated POST endpoint.
+  // Must NOT use DELETE ?action=restore: archived tenants fail the delete route's pre-check.
+  restoreTenant: async (tenantId: number): Promise<{ status: string; action: string; data: unknown }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSRESTORE(tenantId), {
+      method: "POST",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as Record<string, string>).detail || "Failed to restore tenant");
+    }
+    return res.json();
+  },
+
+  // Permanently delete an archived tenant with synchronous recovery snapshot.
+  // Recovery is available until the admin-configured retention deadline.
+  permanentlyDeleteArchivedTenant: async (tenantId: number): Promise<PermanentDeleteResult> => {
+    const res = await fetchWithAuth(
+      `${ROUTES.ADMINAPITENANTSDELETE(tenantId)}?action=permanent-with-recovery`,
+      { method: "DELETE" }
+    );
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail ?? "Permanent deletion failed");
+    return data;
+  },
+
+  // List all tenant recovery snapshots (triggers expiry purge on backend first).
+  getTenantRecoverySnapshots: async (): Promise<{ status: string; snapshots: TenantRecoverySnapshot[] }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTRECOVERYSNAPSHOTS);
+    if (!res.ok) throw new Error("Failed to fetch recovery snapshots");
+    return res.json();
+  },
+
+  // Get conflict preview for a specific snapshot before restoring.
+  getTenantRecoverySnapshotPreview: async (snapshotId: string): Promise<SnapshotRestorePreview & { status: string }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSNAPSHOT_PREVIEW(snapshotId));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail ?? "Failed to load restore preview");
+    return data;
+  },
+
+  // Execute restore of a tenant from a recovery snapshot.
+  restoreTenantFromSnapshot: async (
+    snapshotId: string,
+    forceNewId: boolean = false
+  ): Promise<{ status: string; original_tenant_id: number; restored_tenant_id: number; id_changed: boolean }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSNAPSHOT_RESTORE(snapshotId), {
+      method: "POST",
+      body: JSON.stringify({ force_new_id: forceNewId }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail ?? "Restore from snapshot failed");
+    return data;
+  },
+
+  getReceipt: async (tenantId: number, billNo: string): Promise<Receipt> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGGET(tenantId, billNo));
     if (!res.ok) throw new Error("Failed to fetch receipt");
     return res.json();
   },
 
-  createBill: async (data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGCREATE, {
+  createBill: async (tenantId: number, data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGCREATE(tenantId), {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -125,9 +221,9 @@ export const api = {
     return result;
   },
 
-  updateBill: async (billNo: string, data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGUPDATE(billNo), {
-      method: "POST",
+  updateBill: async (tenantId: number, billNo: string, data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGUPDATE(tenantId, billNo), {
+      method: "PUT",
       body: JSON.stringify(data),
     });
     const result = await res.json();
@@ -135,8 +231,8 @@ export const api = {
     return result;
   },
 
-  updatePaymentStatus: async (billNo: string, data: PaymentStatusUpdate): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGUPDATEPAYMENT(billNo), {
+  updatePaymentStatus: async (tenantId: number, billNo: string, data: PaymentStatusUpdate): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGUPDATEPAYMENT(tenantId, billNo), {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -144,20 +240,20 @@ export const api = {
     return res.json();
   },
 
-  archiveBill: async (billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVE(billNo), { method: "POST" });
+  archiveBill: async (tenantId: number, billNo: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVE(tenantId, billNo), { method: "POST" });
     if (!res.ok) throw new Error("Failed to archive bill");
     return res.json();
   },
 
-  restoreBill: async (billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGRESTORE(billNo), { method: "POST" });
+  restoreBill: async (tenantId: number, billNo: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGRESTORE(tenantId, billNo), { method: "POST" });
     if (!res.ok) throw new Error("Failed to restore bill");
     return res.json();
   },
 
-  permanentlyDeleteBill: async (billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGDELETE(billNo), { method: "DELETE" });
+  permanentlyDeleteBill: async (tenantId: number, billNo: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGDELETE(tenantId, billNo), { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete bill");
     return res.json();
   },
@@ -262,12 +358,12 @@ export const api = {
   },
 
   // PDF
-  getPDFViewUrl: (billNo: string): string => ROUTES.ADMINAPIPDFVIEW(billNo),
-  getPDFDownloadUrl: (billNo: string): string => ROUTES.ADMINAPIPDFDOWNLOAD(billNo),
+  getPDFViewUrl: (tenantId: number, billNo: string): string => ROUTES.ADMINAPIPDFVIEW(tenantId, billNo),
+  getPDFDownloadUrl: (tenantId: number, billNo: string): string => ROUTES.ADMINAPIPDFDOWNLOAD(tenantId, billNo),
 
   // WhatsApp
-  sendWhatsApp: async (billNo: string): Promise<{ status: string; url: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIWHATSAPPSENDSINGLE(billNo));
+  sendWhatsApp: async (tenantId: number, billNo: string): Promise<{ status: string; url: string }> => {
+    const res = await fetchWithAuth(ROUTES.ADMINAPIWHATSAPPSENDSINGLE(tenantId, billNo));
     if (!res.ok) throw new Error("Failed to generate WhatsApp link");
     return res.json();
   },
@@ -293,22 +389,31 @@ export const api = {
 
   // Occupants
   getOccupants: async (tenantId: string | number): Promise<Occupant[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMINAPIOCCUPANTSLIST}?tenantId=${tenantId}`);
+    const res = await fetchWithAuth(ROUTES.ADMINAPIOCCUPANTSLIST(Number(tenantId)));
     if (!res.ok) throw new Error("Failed to fetch occupants");
     const data = await res.json();
     return data.occupants || [];
   },
 
-  saveOccupant: async (tenantId: string | number, data: FormData): Promise<{ status: string }> => {
-    const res = await fetch(`${ROUTES.ADMINAPIOCCUPANTSLIST}?tenantId=${tenantId}`, {
+  saveOccupant: async (tenantId: string | number, data: FormData): Promise<{ status: string; occupantUuid: string }> => {
+    const res = await fetch(ROUTES.ADMINAPIOCCUPANTSCREATE(Number(tenantId)), {
       method: "POST",
       body: data,
       credentials: "include",
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || "Failed to save occupant");
+      throw new Error((err as any).detail || "Failed to save occupant");
     }
+    return res.json();
+  },
+
+  markOccupantInactive: async (tenantId: string | number, occupantUuid: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(
+      ROUTES.ADMINAPIOCCUPANTSMARKINACTIVE(Number(tenantId), occupantUuid),
+      { method: "PUT" }
+    );
+    if (!res.ok) throw new Error("Failed to mark occupant inactive");
     return res.json();
   },
 
@@ -320,6 +425,10 @@ export const api = {
     if (!res.ok) throw new Error("Failed to delete occupant");
     return res.json();
   },
+
+  // Returns a direct URL — use as img src / iframe src so browser sends cookies automatically
+  getOccupantFileUrl: (tenantId: string | number, filename: string): string =>
+    ROUTES.ADMINAPIOCCUPANTSGETFILE(Number(tenantId), filename),
 
   // downloadTemplate: (): string => ROUTES.ADMINAPISYNCTEMPLATE,
 };

@@ -1,4 +1,4 @@
-﻿# // File: app\app\api\whatsapp.py
+# // File: app\app\api\whatsapp.py
 from fastapi import APIRouter, Request, HTTPException
 from urllib.parse import quote
 
@@ -12,14 +12,14 @@ import re
 router = APIRouter()
 
 @router.get(Routes.ADMINAPIWHATSAPPSENDSINGLE, name=Names.SENDWHATSAPPSINGLE)
-async def send_whatsapp_single(request: Request, billNo: str):
+async def send_whatsapp_single(request: Request, tenantId: int, billNo: str):
     billNo = billNo
-    receipt = get_receipt(billNo)
+    receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
 
-    tenants = load_tenants()
-    tenant = next((t for t in tenants if t.name == receipt.get("Tenant")), None)
+    from app.services.tenant_service import get_tenant
+    tenant = get_tenant(tenantId)
     if not tenant or not tenant.phone:
         raise HTTPException(status_code=400, detail="Tenant phone number not found")
 
