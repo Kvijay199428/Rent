@@ -1,10 +1,10 @@
-﻿# // File: app\app\api\backup.py
+# // File: app\app\api\backup.py
 from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
 from app.core.dependencies import templates, config
 from app.core.route_builder import RouteBuilder
 
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from typing import Optional
 from app.models.tenant import Tenant
@@ -29,42 +29,42 @@ from app.core.paths import BACKUPS_DIR
 router = APIRouter()
 
 
-@router.get(Routes.ADMINAPIBACKUPSLIST, name=Names.APIGETBACKUPS)
-async def api_get_backups():
+@router.get(Routes.LANDLORDAPIBACKUPSLIST, name=Names.APIGETBACKUPS)
+async def api_get_backups(landlordUuid: str):
     return get_all_backups()
 
-@router.post(Routes.ADMINAPIBACKUPSCREATEMANUAL, name=Names.APICREATEMANUALBACKUP)
-async def api_create_manual_backup(background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPIBACKUPSCREATEMANUAL, name=Names.APICREATEMANUALBACKUP)
+async def api_create_manual_backup(landlordUuid: str, background_tasks: BackgroundTasks):
     try:
         metadata = create_backup(type_="Manual", subtype="manual")
         return {"status": "success", "data": metadata}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete(Routes.ADMINAPIBACKUPSDELETE, name=Names.APIDELETEBACKUP)
-async def api_delete_backup(backupId: str):
+@router.delete(Routes.LANDLORDAPIBACKUPSDELETE, name=Names.APIDELETEBACKUP)
+async def api_delete_backup(landlordUuid: str, backupId: str):
     if delete_backup(backupId):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Backup not found")
 
-@router.get(Routes.ADMINAPIBACKUPSVERIFY, name=Names.APIVERIFYBACKUP)
-async def api_verify_backup(backupId: str):
+@router.get(Routes.LANDLORDAPIBACKUPSVERIFY, name=Names.APIVERIFYBACKUP)
+async def api_verify_backup(landlordUuid: str, backupId: str):
     try:
         verify_backup_integrity(backupId)
         return {"status": "success", "message": "Backup is fully intact and verified."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@router.post(Routes.ADMINAPIBACKUPSRESTORE, name=Names.APIRESTOREBACKUP)
-async def api_restore_backup(backupId: str):
+@router.post(Routes.LANDLORDAPIBACKUPSRESTORE, name=Names.APIRESTOREBACKUP)
+async def api_restore_backup(landlordUuid: str, backupId: str):
     try:
         restore_backup(backupId)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get(Routes.ADMINAPIBACKUPSDOWNLOAD, name=Names.APIDOWNLOADBACKUP)
-async def api_download_backup(backupId: str):
+@router.get(Routes.LANDLORDAPIBACKUPSDOWNLOAD, name=Names.APIDOWNLOADBACKUP)
+async def api_download_backup(landlordUuid: str, backupId: str):
     registry = get_all_backups()
     backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
     if not backup_meta:
@@ -76,8 +76,8 @@ async def api_download_backup(backupId: str):
         
     return FileResponse(abs_path, media_type='application/zip', filename=backup_meta["filename"])
 
-@router.get(Routes.ADMINAPIBACKUPSMETADATA, name=Names.APIDOWNLOADMETADATA)
-async def api_download_metadata(backupId: str):
+@router.get(Routes.LANDLORDAPIBACKUPSMETADATA, name=Names.APIDOWNLOADMETADATA)
+async def api_download_metadata(landlordUuid: str, backupId: str):
     registry = get_all_backups()
     backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
     if not backup_meta:

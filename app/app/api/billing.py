@@ -1,5 +1,5 @@
 # // File: app\app\api\billing.py
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
 from app.core.dependencies import templates, config
@@ -10,6 +10,14 @@ from app.models.tenant import Tenant
 from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
+
+
+async def _broadcast(channel: str, event: dict):
+    try:
+        from app.core.websocket_manager import sync_manager
+        await sync_manager.broadcast(channel, event)
+    except Exception:
+        pass
 
 from app.services.tenant_service import (
     load_tenants, add_tenant, update_tenant, delete_tenant,
@@ -25,8 +33,22 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
-@router.get(Routes.ADMINAPIBILLINGFILTER, name=Names.APIFILTERBILLS)
-async def api_filter_bills(status: str = "active"):
+def _require_active_tenant(tenantId: int):
+    """Block bill operations for tenants that are not Active."""
+    tenant = None
+    tenants = load_tenants(include_archived=True)
+    tenant = next((t for t in tenants if t.id == tenantId), None)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found.")
+    if (tenant.status or "").strip().lower() != "active":
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot generate or edit bills for a tenant with status '{tenant.status}'.",
+        )
+
+
+@router.get(Routes.LANDLORDAPIBILLINGFILTER, name=Names.APIFILTERBILLS)
+async def api_filter_bills(landlordUuid: str, status: str = "active"):
     receipts = get_all_receipts(include_archived_tenants=False)
     if status == "pending":
         filtered = [
@@ -48,12 +70,13 @@ async def api_filter_bills(status: str = "active"):
     filtered.reverse()
     return filtered
 
-@router.get(Routes.ADMINAPIBILLINGMONTHS, name=Names.APIBILLINGMONTHS)
-async def api_billing_months():
+@router.get(Routes.LANDLORDAPIBILLINGMONTHS, name=Names.APIBILLINGMONTHS)
+async def api_billing_months(landlordUuid: str):
     return get_billing_months()
 
-@router.get(Routes.ADMINAPIBILLINGPREVIEW, name=Names.APIBILLINGPREVIEW)
+@router.get(Routes.LANDLORDAPIBILLINGPREVIEW, name=Names.APIBILLINGPREVIEW)
 async def api_billing_preview(
+    landlordUuid: str,
     currentreading: float,
     additionalpersons: int,
     prevreading: float = 0.0,
@@ -85,15 +108,16 @@ async def api_billing_preview(
         addpersoncharge,
     )
 
-@router.get(Routes.ADMINAPIBILLINGGET, name=Names.APIGETSINGLEBILL)
-async def api_get_single_bill(tenantId: int, billNo: str):
+@router.get(Routes.LANDLORDAPIBILLINGGET, name=Names.APIGETSINGLEBILL)
+async def api_get_single_bill(landlordUuid: str, tenantId: int, billNo: str):
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
     return receipt
 
-@router.post(Routes.ADMINAPIBILLINGCREATE, name=Names.APICREATEBILL)
-async def api_create_bill(tenantId: int, request: BillRequest, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPIBILLINGCREATE, name=Names.APICREATEBILL)
+async def api_create_bill(landlordUuid: str, tenantId: int, request: BillRequest, background_tasks: BackgroundTasks):
+    _require_active_tenant(tenantId)
     try:
         data = create_bill(
             tenantId,
@@ -108,6 +132,7 @@ async def api_create_bill(tenantId: int, request: BillRequest, background_tasks:
             request.paymentstatus
         )
         background_tasks.add_task(create_full_backup, tag="create_bill")
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "RECEIPT_CREATED", "billNo": data.get("billNo", ""), "tenantId": tenantId})
         return {"status": "success", "data": data}
     except ValueError as e:
         msg = str(e)
@@ -117,8 +142,9 @@ async def api_create_bill(tenantId: int, request: BillRequest, background_tasks:
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.put(Routes.ADMINAPIBILLINGUPDATE, name=Names.APIUPDATEBILL)
-async def api_update_bill(tenantId: int, billNo: str, request: BillRequest, background_tasks: BackgroundTasks):
+@router.put(Routes.LANDLORDAPIBILLINGUPDATE, name=Names.APIUPDATEBILL)
+async def api_update_bill(landlordUuid: str, tenantId: int, billNo: str, request: BillRequest, background_tasks: BackgroundTasks):
+    _require_active_tenant(tenantId)
     try:
         data = update_bill(
             tenantId,
@@ -134,6 +160,7 @@ async def api_update_bill(tenantId: int, billNo: str, request: BillRequest, back
             (request.paymentstatus or "PENDING").upper()
         )
         background_tasks.add_task(create_full_backup, tag="edit_bill")
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "RECEIPT_UPDATED", "billNo": billNo, "tenantId": tenantId})
         return {"status": "success", "data": data}
     except ValueError as e:
         msg = str(e)
@@ -143,8 +170,8 @@ async def api_update_bill(tenantId: int, billNo: str, request: BillRequest, back
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post(Routes.ADMINAPIBILLINGUPDATEPAYMENT, name=Names.APIUPDATEPAYMENT)
-async def api_update_payment(tenantId: int, billNo: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPIBILLINGUPDATEPAYMENT, name=Names.APIUPDATEPAYMENT)
+async def api_update_payment(landlordUuid: str, tenantId: int, billNo: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
     try:
         status = (data.paymentstatus or "").strip().upper()
         if status not in {"PAID", "PENDING", "PARTIAL", "ADVANCE"}:
@@ -162,8 +189,8 @@ async def api_update_payment(tenantId: int, billNo: str, data: PaymentStatusUpda
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post(Routes.ADMINAPIBILLINGARCHIVE, name=Names.APIARCHIVEBILL)
-async def api_archive_bill(tenantId: int, billNo: str, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPIBILLINGARCHIVE, name=Names.APIARCHIVEBILL)
+async def api_archive_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks):
     try:
         archive_bill(tenantId, billNo)
         background_tasks.add_task(create_full_backup, tag="archive_bill")
@@ -171,8 +198,8 @@ async def api_archive_bill(tenantId: int, billNo: str, background_tasks: Backgro
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post(Routes.ADMINAPIBILLINGRESTORE, name=Names.APIRESTOREBILL)
-async def api_restore_bill(tenantId: int, billNo: str, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPIBILLINGRESTORE, name=Names.APIRESTOREBILL)
+async def api_restore_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks):
     try:
         restore_bill(tenantId, billNo)
         background_tasks.add_task(create_full_backup, tag="restore_bill")
@@ -180,11 +207,12 @@ async def api_restore_bill(tenantId: int, billNo: str, background_tasks: Backgro
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete(Routes.ADMINAPIBILLINGDELETE, name=Names.APIDELETEBILL)
-async def api_delete_bill(tenantId: int, billNo: str, background_tasks: BackgroundTasks):
+@router.delete(Routes.LANDLORDAPIBILLINGDELETE, name=Names.APIDELETEBILL)
+async def api_delete_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks):
     try:
         delete_bill(tenantId, billNo)
         background_tasks.add_task(create_full_backup, tag="delete_bill")
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "RECEIPT_DELETED", "billNo": billNo, "tenantId": tenantId})
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

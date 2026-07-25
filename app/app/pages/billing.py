@@ -2,14 +2,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
-from app.core.routes_manifest import Routes, Names, Templates
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names, LandlordTemplates as Templates
 
 from app.services.tenant_service import load_tenants
 from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMINPAGEBILLING, name=Names.BILLINGPAGE, response_class=HTMLResponse)
+@router.get(Routes.LANDLORDPAGEBILLING, name=Names.BILLINGPAGE, response_class=HTMLResponse)
 async def billing_page(request: Request):
     tenants = [t for t in load_tenants(include_archived=False) if t.status == "Active"]
     theme = getattr(request.state, "theme", "system")

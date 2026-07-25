@@ -68,6 +68,7 @@ def init_db():
             password_hash TEXT NOT NULL,
             totp_secret TEXT,
             email TEXT,
+            is_platform_admin INTEGER NOT NULL DEFAULT 0,
             created_at TEXT,
             updated_at TEXT
         );
@@ -113,7 +114,8 @@ def init_db():
             viewToken TEXT,
             tenantpin TEXT,
             failed_attempts INTEGER NOT NULL DEFAULT 0,
-            locked_until TEXT
+            locked_until TEXT,
+            status_changed_at TEXT
         );
 
         -- 5. TENANT PIN HISTORY
@@ -223,7 +225,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
         CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
         CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
-        CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
+        CREATE INDEX IF NOT EXISTS idx_occupants_tenant_id ON occupants(tenantId);
         
         -- 12. IMPORT AUDIT LOGS
         CREATE TABLE IF NOT EXISTS import_jobs (
@@ -276,5 +278,193 @@ def init_db():
             conn.execute("ALTER TABLE occupants ADD COLUMN address TEXT")
         if not _column_exists(conn, "occupants", "residentSince"):
             conn.execute("ALTER TABLE occupants ADD COLUMN residentSince TEXT")
+        if not _column_exists(conn, "tenants", "status_changed_at"):
+            conn.execute("ALTER TABLE tenants ADD COLUMN status_changed_at TEXT")
+        if not _column_exists(conn, "landlord_accounts", "totp_secret"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_secret TEXT")
+        if not _column_exists(conn, "landlord_accounts", "failed_attempts"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0")
+        if not _column_exists(conn, "landlord_accounts", "locked_until"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN locked_until TEXT")
+
+        # ── Landlord auth schema (Phase-2 migration) ──────────────────────────
+        # Safe to run multiple times — all statements are IF NOT EXISTS.
+        conn.executescript("""
+        -- 14. LANDLORD ACCOUNTS
+        CREATE TABLE IF NOT EXISTS landlord_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            landlord_uuid TEXT UNIQUE NOT NULL,
+            full_name TEXT NOT NULL,
+            email TEXT UNIQUE,
+            phone TEXT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'Active',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        -- 15. LANDLORD SESSIONS
+        CREATE TABLE IF NOT EXISTS landlord_sessions (
+            session_id TEXT PRIMARY KEY,
+            landlord_id INTEGER NOT NULL,
+            refresh_token_hash TEXT NOT NULL,
+            device_name TEXT,
+            browser TEXT,
+            os TEXT,
+            ip_address TEXT,
+            created_at TEXT NOT NULL,
+            last_activity TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            revoked_at TEXT,
+            remember_me INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'Active',
+            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+        );
+
+        -- 16. LANDLORD AUDIT LOGS
+        CREATE TABLE IF NOT EXISTS landlord_audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            landlord_id INTEGER,
+            action TEXT NOT NULL,
+            ip_address TEXT,
+            created_at TEXT NOT NULL,
+            meta_json TEXT,
+            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE SET NULL
+        );
+
+        -- Landlord indexes
+        CREATE INDEX IF NOT EXISTS idx_landlord_accounts_username
+            ON landlord_accounts(username);
+        CREATE INDEX IF NOT EXISTS idx_landlord_accounts_email
+            ON landlord_accounts(email);
+        CREATE INDEX IF NOT EXISTS idx_landlord_sessions_landlord_id
+            ON landlord_sessions(landlord_id);
+        CREATE INDEX IF NOT EXISTS idx_landlord_sessions_status
+            ON landlord_sessions(status);
+        CREATE INDEX IF NOT EXISTS idx_landlord_audit_logs_landlord_id
+            ON landlord_audit_logs(landlord_id);
+        CREATE INDEX IF NOT EXISTS idx_landlord_audit_logs_action
+            ON landlord_audit_logs(action);
+
+        -- 17. LANDLORD UI CONFIG (per-landlord theme storage)
+        CREATE TABLE IF NOT EXISTS landlord_ui_config (
+            landlorduuid TEXT PRIMARY KEY,
+            theme TEXT NOT NULL DEFAULT 'system',
+            updated_at TEXT NOT NULL
+        );
+
+        -- Keep legacy landlord proxy table for landlord-alias router
+        CREATE TABLE IF NOT EXISTS landlords (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER NOT NULL,
+            landlordUuid TEXT UNIQUE NOT NULL,
+            active INTEGER DEFAULT 1,
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_landlords_uuid ON landlords(landlordUuid);
+
+        -- Schema version bump
+        INSERT OR REPLACE INTO app_metadata(key, value) VALUES
+            ('auth_schema_version', '2'),
+            ('landlord_schema_version', '1');
+        """)
 
         conn.commit()
+
+        # ─── Migrations for existing databases ─────────────────────────
+        # Add is_platform_admin column if missing (for pre-existing DBs)
+        if not _column_exists(conn, "admins", "is_platform_admin"):
+            conn.execute(
+                "ALTER TABLE admins ADD COLUMN is_platform_admin INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
+
+        # ─── Multi-tenancy: Add landlord_id to core tables ──────────
+        if not _column_exists(conn, "tenants", "landlord_id"):
+            conn.execute("ALTER TABLE tenants ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
+            conn.commit()
+
+        if not _column_exists(conn, "receipts", "landlord_id"):
+            conn.execute("ALTER TABLE receipts ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
+            conn.commit()
+
+        if not _column_exists(conn, "occupants", "landlord_id"):
+            conn.execute("ALTER TABLE occupants ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
+            conn.commit()
+
+        # Indexes for landlord_id lookups
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenants_landlord_id ON tenants(landlord_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_receipts_landlord_id ON receipts(landlord_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_occupants_landlord_id ON occupants(landlord_id)")
+        conn.commit()
+
+        # Backfill: assign existing data to first landlord if unassigned
+        first_landlord = conn.execute("SELECT id FROM landlord_accounts ORDER BY id LIMIT 1").fetchone()
+        if first_landlord:
+            lid = first_landlord["id"]
+            conn.execute("UPDATE tenants SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
+            conn.execute("UPDATE receipts SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
+            conn.execute("UPDATE occupants SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
+            conn.commit()
+
+        # ─── Platform admin audit trail ──────────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS platform_admin_audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                target_type TEXT,
+                target_id INTEGER,
+                ip_address TEXT,
+                meta_json TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_audit_admin ON platform_admin_audit_logs(admin_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_audit_action ON platform_admin_audit_logs(action)")
+        conn.commit()
+
+        # ─── Landlord password-change enforcement columns ──────────
+        if not _column_exists(conn, "landlord_accounts", "requires_password_change"):
+            conn.execute(
+                "ALTER TABLE landlord_accounts ADD COLUMN requires_password_change INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "temp_password_created_at"):
+            conn.execute(
+                "ALTER TABLE landlord_accounts ADD COLUMN temp_password_created_at TEXT"
+            )
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "temp_password_consumed"):
+            conn.execute(
+                "ALTER TABLE landlord_accounts ADD COLUMN temp_password_consumed INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
+
+        # ─── Landlord password admin store (for platform admin reveal) ──
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS landlord_password_admin_store (
+                landlord_id INTEGER PRIMARY KEY,
+                encrypted_password TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+            )
+        """)
+        conn.commit()
+
+        # ─── Seed default platform admin ───────────────────────────────
+        # Ensure at least one platform admin exists (admin/admin)
+        from app.authentication.common.utils import hash_pin
+        has_platform_admin = conn.execute(
+            "SELECT 1 FROM admins WHERE is_platform_admin = 1 LIMIT 1"
+        ).fetchone()
+        if not has_platform_admin:
+            conn.execute(
+                """INSERT OR IGNORE INTO admins (username, password_hash, is_platform_admin, created_at)
+                   SELECT 'admin', ?, 1, datetime('now')
+                   WHERE NOT EXISTS (SELECT 1 FROM admins WHERE username = 'admin')""",
+                (hash_pin("admin"),),
+            )
+            conn.commit()

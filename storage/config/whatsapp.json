@@ -1,0 +1,18 @@
+{
+    "single_template": {
+        "label": "Single Receipt Message Template",
+        "readonly_by_default": true,
+        "allowed_variables": [
+            "{tenantName}",
+            "{month}",
+            "{billNo}",
+            "{total}",
+            "{currency}",
+            "{link}",
+            "{tenantPin}"
+        ],
+        "default_message": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenantPin}\n\nThank you!",
+        "message": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenantPin}\n\nThank you!"
+    },
+    "country_code": "91"
+}

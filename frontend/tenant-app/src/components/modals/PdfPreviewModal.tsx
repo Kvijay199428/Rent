@@ -9,20 +9,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { FileText, Download, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
-import { TENANTROUTES } from "@/lib/routes";
+import { tenantApi } from "@/lib/api";
 
 interface PdfPreviewModalProps {
-  tenantId: number | string;
   billNo: string;
-  viewToken: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export default function PdfPreviewModal({
-  tenantId,
   billNo,
-  viewToken,
   open,
   onOpenChange,
 }: PdfPreviewModalProps) {
@@ -30,11 +26,11 @@ export default function PdfPreviewModal({
   const [pdfUrl, setPdfUrl] = useState<string>("");
   const [error, setError] = useState("");
 
-  const pdfViewUrl = TENANTROUTES.TENANTAPIPDFVIEW(tenantId, viewToken, billNo);
-  const pdfDownloadUrl = TENANTROUTES.TENANTAPIPDFDOWNLOAD(tenantId, viewToken, billNo);
+  const pdfViewUrl = tenantApi.pdf.viewUrl(billNo);
+  const pdfDownloadUrl = tenantApi.pdf.downloadUrl(billNo);
 
   useEffect(() => {
-    if (!open || !billNo || !viewToken) return;
+    if (!open || !billNo) return;
 
     setLoading(true);
     setError("");
@@ -60,7 +56,7 @@ export default function PdfPreviewModal({
     return () => {
       if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     };
-  }, [open, billNo, viewToken]);
+  }, [open, billNo]);
 
   const handleDownload = async () => {
     try {

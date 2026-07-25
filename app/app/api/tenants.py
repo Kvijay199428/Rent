@@ -5,7 +5,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Red
 from app.core.dependencies import templates, config
 from app.core.route_builder import RouteBuilder
 
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from typing import Optional, List
 from app.models.tenant import Tenant
@@ -13,6 +13,15 @@ from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
 from pydantic import BaseModel
+
+
+async def _broadcast(channel: str, event: dict):
+    """Fire-and-forget broadcast helper."""
+    try:
+        from app.core.websocket_manager import sync_manager
+        await sync_manager.broadcast(channel, event)
+    except Exception:
+        pass
 
 
 from app.services.tenant_service import (
@@ -29,20 +38,20 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
-@router.get(Routes.ADMINAPITENANTSLIST, name=Names.APIGETTENANTS)
-async def api_get_tenants():
+@router.get(Routes.LANDLORDAPITENANTSLIST, name=Names.APIGETTENANTS)
+async def api_get_tenants(landlordUuid: str):
     return load_tenants(include_archived=False)
 
-@router.get(Routes.ADMINAPITENANTSUPDATE, name=Names.APIGETTENANT)
-async def api_get_tenant(tenantId: int):
+@router.get(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIGETTENANT)
+async def api_get_tenant(landlordUuid: str, tenantId: int):
     tenants = load_tenants()
     tenant = next((t for t in tenants if t.id == tenantId), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
 
-@router.get(Routes.ADMINAPITENANTSRECEIPTS, name=Names.APIGETTENANTRECEIPTS)
-async def api_get_tenant_receipts(tenantId: int):
+@router.get(Routes.LANDLORDAPITENANTSRECEIPTS, name=Names.APIGETTENANTRECEIPTS)
+async def api_get_tenant_receipts(landlordUuid: str, tenantId: int):
     # Use include_archived=True so admin can view receipts of archived tenants
     tenants = load_tenants(include_archived=True)
     tenant = next((t for t in tenants if t.id == tenantId), None)
@@ -55,8 +64,8 @@ async def api_get_tenant_receipts(tenantId: int):
     tenant_receipts.reverse()
     return tenant_receipts
 
-@router.post(Routes.ADMINAPITENANTSLIST, name=Names.APIADDTENANT)
-async def api_add_tenant(t: Tenant, request: Request, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPITENANTSLIST, name=Names.APIADDTENANT)
+async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, background_tasks: BackgroundTasks):
     from app.authentication.common.utils import hash_pin, validate_tenantPin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
     from app.core.db import get_conn
@@ -82,14 +91,16 @@ async def api_add_tenant(t: Tenant, request: Request, background_tasks: Backgrou
         conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, hashed_pin, now))
         conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now))
         conn.commit()
-    
+
     response_tenant = t.dict()
     response_tenant.pop("tenantPin", None)
-    
+
+    await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_CREATED", "tenantId": tenantId})
+
     return {"status": "success", "tenant": response_tenant}
 
-@router.put(Routes.ADMINAPITENANTSUPDATE, name=Names.APIUPDATETENANT)
-async def api_update_tenant(tenantId: int, t: Tenant, background_tasks: BackgroundTasks):
+@router.put(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIUPDATETENANT)
+async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, background_tasks: BackgroundTasks):
     t.id = tenantId
     background_tasks.add_task(create_full_backup, tag="update_tenant")
     
@@ -106,7 +117,9 @@ async def api_update_tenant(tenantId: int, t: Tenant, background_tasks: Backgrou
     
     response_tenant = t.dict()
     response_tenant.pop("tenantPin", None)
-    
+
+    await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_UPDATED", "tenantId": tenantId})
+
     return {"status": "success", "tenant": response_tenant}
 
 from pydantic import BaseModel
@@ -115,8 +128,8 @@ class ChangePinRequest(BaseModel):
     pin: str
     logout_all: bool = True
 
-@router.post(Routes.ADMINAPITENANTSCHANGEPIN, name=Names.CHANGETENANTPIN)
-async def api_change_tenantPin(tenantId: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPITENANTSCHANGEPIN, name=Names.CHANGETENANTPIN)
+async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
     from app.authentication.common.utils import hash_pin, validate_tenantPin, verify_pin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
     from app.authentication.tenant.sessions import revoke_all_tenant_sessions
@@ -160,8 +173,9 @@ async def api_change_tenantPin(tenantId: int, payload: ChangePinRequest, request
     
     return {"status": "success", "message": "PIN changed successfully."}
 
-@router.get(Routes.ADMINAPITENANTSREVEALPIN, name=Names.ADMINREVEALPIN)
+@router.get(Routes.LANDLORDAPITENANTSREVEALPIN, name=Names.LANDLORDREVEALPIN)
 async def admin_reveal_tenantPin(
+    landlordUuid: str,
     tenantId: int,  # CHANGED: tenantId → tenantId
 ):
     from app.authentication.common.pin_vault import decrypt_admin_view_pin
@@ -185,8 +199,9 @@ async def admin_reveal_tenantPin(
         "updated_at": row["updated_at"]
     }
 
-@router.delete(Routes.ADMINAPITENANTSUPDATE, name=Names.APIDELETETENANT)
+@router.delete(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIDELETETENANT)
 async def api_delete_tenant(
+    landlordUuid: str,
     tenantId: int,
     background_tasks: BackgroundTasks,
     action: str = "archive",
@@ -249,6 +264,7 @@ async def api_delete_tenant(
     try:
         background_tasks.add_task(create_full_backup, tag=f"{action}_tenant")
         result = delete_tenant(tenantId, action)
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_DELETED", "tenantId": tenantId})
         return {"status": "success", "action": action, "data": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -260,16 +276,16 @@ async def api_delete_tenant(
 
 # ── Tenant Recovery Snapshot Endpoints ───────────────────────────────────────
 
-@router.get(Routes.ADMINAPITENANTSNAPSHOTS, name=Names.APILISTRECOVERYSNAPSHOTS)
-async def api_list_recovery_snapshots():
+@router.get(Routes.LANDLORDAPITENANTSNAPSHOTS, name=Names.APILISTRECOVERYSNAPSHOTS)
+async def api_list_recovery_snapshots(landlordUuid: str):
     """List all tenant recovery snapshots (runs expiry purge first)."""
     from app.services.tenant_recovery_service import get_tenant_recovery_snapshots
     snapshots = get_tenant_recovery_snapshots()
     return {"status": "success", "snapshots": snapshots}
 
 
-@router.get(Routes.ADMINAPITENANTSNAPSHOT_PREVIEW, name=Names.APIRECOVERYSNAPSHOT_PREVIEW)
-async def api_recovery_snapshot_preview(snapshotId: str):
+@router.get(Routes.LANDLORDAPITENANTSNAPSHOT_PREVIEW, name=Names.APIRECOVERYSNAPSHOT_PREVIEW)
+async def api_recovery_snapshot_preview(landlordUuid: str, snapshotId: str):
     """Return a conflict preview for restoring a tenant recovery snapshot."""
     from app.services.tenant_recovery_service import get_snapshot_restore_preview
     try:
@@ -285,8 +301,8 @@ class RestoreSnapshotRequest(BaseModel):
     force_new_id: bool = False
 
 
-@router.post(Routes.ADMINAPITENANTSNAPSHOT_RESTORE, name=Names.APIRECOVERYSNAPSHOT_RESTORE)
-async def api_restore_recovery_snapshot(snapshotId: str, payload: RestoreSnapshotRequest = RestoreSnapshotRequest()):
+@router.post(Routes.LANDLORDAPITENANTSNAPSHOT_RESTORE, name=Names.APIRECOVERYSNAPSHOT_RESTORE)
+async def api_restore_recovery_snapshot(landlordUuid: str, snapshotId: str, payload: RestoreSnapshotRequest = RestoreSnapshotRequest()):
     """Restore a tenant from a recovery snapshot."""
     from app.services.tenant_recovery_service import restore_tenant_from_snapshot
     try:
@@ -298,8 +314,9 @@ async def api_restore_recovery_snapshot(snapshotId: str, payload: RestoreSnapsho
         raise HTTPException(status_code=500, detail=f"Restore failed: {e}")
 
 
-@router.post(Routes.ADMINAPITENANTSRESTORE, name=Names.APIRESTORETENANT)
+@router.post(Routes.LANDLORDAPITENANTSRESTORE, name=Names.APIRESTORETENANT)
 async def api_restore_tenant(
+    landlordUuid: str,
     tenantId: int,
     background_tasks: BackgroundTasks,
 ):
@@ -324,13 +341,14 @@ async def api_restore_tenant(
 from app.core.paths import KYC_DIR
 import mimetypes
 
-@router.get(Routes.ADMINAPIOCCUPANTSLIST, name=Names.APIGETOCCUPANTS)
-async def admin_get_occupants(tenantId: int):
+@router.get(Routes.LANDLORDAPIOCCUPANTSLIST, name=Names.APIGETOCCUPANTS)
+async def admin_get_occupants(landlordUuid: str, tenantId: int):
     occupants = get_occupants(tenantId)
     return {"occupants": occupants}
 
-@router.post(Routes.ADMINAPIOCCUPANTSCREATE, name=Names.APICREATEOCCUPANT)
+@router.post(Routes.LANDLORDAPIOCCUPANTSCREATE, name=Names.APICREATEOCCUPANT)
 async def admin_post_occupants(
+    landlordUuid: str,
     tenantId: int,
     name: str = Form(...),
     mobile: str = Form(""),
@@ -406,14 +424,14 @@ async def admin_post_occupants(
     save_occupant(tenantId, occ_data)
     return {"status": "success", "occupantUuid": occ_uuid}
 
-@router.put(Routes.ADMINAPIOCCUPANTSMARKINACTIVE, name=Names.APIMARKOCCUPANTINACTIVE)
-async def admin_tenant_kyc_mark_inactive(tenantId: int, occupantUuid: str):
+@router.put(Routes.LANDLORDAPIOCCUPANTSMARKINACTIVE, name=Names.APIMARKOCCUPANTINACTIVE)
+async def admin_tenant_kyc_mark_inactive(landlordUuid: str, tenantId: int, occupantUuid: str):
     from app.services.tenant_service import update_occupant_status
     update_occupant_status(occupantUuid, "Inactive")
     return {"status": "success"}
 
-@router.delete(Routes.ADMINAPIOCCUPANTSDELETE, name=Names.APIDELETEOCCUPANT)
-async def admin_tenant_kyc_delete(tenantId: int, occupantUuid: str):
+@router.delete(Routes.LANDLORDAPIOCCUPANTSDELETE, name=Names.APIDELETEOCCUPANT)
+async def admin_tenant_kyc_delete(landlordUuid: str, tenantId: int, occupantUuid: str):
     tenantId = tenantId
     occupantUuid = occupantUuid
     occupants = get_occupants(tenantId)
@@ -434,8 +452,8 @@ async def admin_tenant_kyc_delete(tenantId: int, occupantUuid: str):
     delete_occupant(occupantUuid)
     return {"status": "success"}
 
-@router.get(Routes.ADMINAPIOCCUPANTSGETFILE, name=Names.APIGETOCCUPANTFILE)
-async def admin_get_kyc_file(tenantId: int, filename: str):
+@router.get(Routes.LANDLORDAPIOCCUPANTSGETFILE, name=Names.APIGETOCCUPANTFILE)
+async def admin_get_kyc_file(landlordUuid: str, tenantId: int, filename: str):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")

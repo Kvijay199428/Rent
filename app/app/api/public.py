@@ -1,7 +1,7 @@
 # // File: app\app\api\public.py
 from fastapi import APIRouter, Request, Response, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 
-from app.core.routes_manifest import Names, Routes
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 from app.core.routes_manifest_tenant import TenantRoutes, TenantNames
 
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
@@ -11,6 +11,7 @@ from app.core.route_builder import RouteBuilder
 from typing import Optional
 from datetime import datetime
 from app.core.paths import KYC_DIR
+from app.core.config_service import config
 from app.models.tenant import Tenant
 from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json
@@ -34,7 +35,7 @@ router = APIRouter()
 
 from app.authentication.tenant.middleware import get_current_tenant
 
-# @router.get("/t/api/{viewToken}/profile", name=TenantNames.TENANTPROFILEGET)
+# Legacy route (no landlordUuid prefix)
 @router.get(TenantRoutes.TENANTAPIPROFILEGET, name=TenantNames.TENANTPROFILEGET)
 async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Request):
     tenants = load_tenants()
@@ -60,7 +61,8 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
         "id": tenant.id,
         "name": getattr(tenant, "name", ""),
         "viewToken": viewToken,
-        "unlocked": unlocked
+        "unlocked": unlocked,
+        "readOnly": tenant.status != "Active",
     }
     
     if unlocked:
@@ -93,9 +95,9 @@ async def get_public_key():
 from pydantic import BaseModel
 
 class EncryptedLoginRequest(BaseModel):
-    encryptedKey: str      # Base64-encoded RSA-encrypted AES key
-    encryptedData: str     # Base64-encoded AES-GCM encrypted payload
-    nonce: str             # Base64-encoded nonce
+    key: str        # Base64-encoded RSA-encrypted AES key
+    data: str       # Base64-encoded AES-GCM encrypted payload
+    nonce: str      # Base64-encoded nonce
 
 @router.post(TenantRoutes.TENANTAPIAUTHLOGIN, name=TenantNames.TENANTLOGIN)
 async def public_tenant_login(tenantId: int, viewToken: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
@@ -106,7 +108,7 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
 
     from app.encryption import decrypt_payload
     try:
-        decrypted = decrypt_payload(login_req.encryptedKey, login_req.encryptedData, login_req.nonce)
+        decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
         pin = decrypted.get("pin", "")
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted payload")
@@ -135,7 +137,8 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
         "tenant": {
             "id": tenant.id,
             "name": getattr(tenant, "name", ""),
-            "unlocked": True
+            "unlocked": True,
+            "readOnly": tenant.status != "Active",
         }
     }
 
@@ -209,6 +212,21 @@ async def public_tenant_kyc_upload(
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
 
+    if tenant.status != "Active":
+        raise HTTPException(status_code=403, detail="KYC uploads are not allowed for inactive tenants.")
+
+    # Enforce daily KYC upload cap
+    from app.core.db import get_conn
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    with get_conn() as conn:
+        today_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM occupants WHERE tenantId = ? AND DATE(uploaddate) = ?",
+            (tenant.id, today),
+        ).fetchone()["cnt"]
+    daily_limit = config.get("system", "security.kyc_daily_upload_limit", default=5)
+    if today_count >= daily_limit:
+        raise HTTPException(status_code=429, detail=f"Daily KYC upload limit of {daily_limit} reached. Try again tomorrow.")
+
     # Validate residentSince date if provided
     if residentSince:
         try:
@@ -275,6 +293,9 @@ async def public_tenant_kyc_mark_inactive(tenantId: int, viewToken: str, occupan
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid link.")
+
+    if tenant.status != "Active":
+        raise HTTPException(status_code=403, detail="KYC modifications are not allowed for inactive tenants.")
         
     from app.services.tenant_service import update_occupant_status
     update_occupant_status(occupantUuid, "Inactive")
@@ -286,6 +307,9 @@ async def public_tenant_kyc_delete(tenantId: int, viewToken: str, occupantUuid: 
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
+
+    if tenant.status != "Active":
+        raise HTTPException(status_code=403, detail="KYC deletions are not allowed for inactive tenants.")
 
     occupants = get_occupants(tenant.id)
     target = next((o for o in occupants if o.get("occupantUuid") == occupantUuid or o.get("Occupant UUID") == occupantUuid), None)

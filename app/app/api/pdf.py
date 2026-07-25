@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Red
 from app.core.dependencies import templates, config
 from app.core.route_builder import RouteBuilder
 
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from typing import Optional
 from app.models.tenant import Tenant
@@ -26,11 +26,11 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
-from app.authentication.admin.middleware import get_current_admin_api
+from app.authentication.landlord.middleware import get_current_landlord_api
 from datetime import datetime
 
-@router.get(Routes.ADMINAPIPDFDOWNLOAD, name=Names.PDFDOWNLOAD)
-async def download_pdf(tenantId: int, billNo: str, admin = Depends(get_current_admin_api)):
+@router.get(Routes.LANDLORDAPIPDFDOWNLOAD, name=Names.PDFDOWNLOAD)
+async def download_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord = Depends(get_current_landlord_api)):
     billNo = billNo
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
@@ -52,8 +52,8 @@ async def download_pdf(tenantId: int, billNo: str, admin = Depends(get_current_a
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
     return response
 
-@router.get(Routes.ADMINAPIPDFVIEW, name=Names.PDFVIEW)
-async def view_pdf(tenantId: int, billNo: str, admin = Depends(get_current_admin_api)):
+@router.get(Routes.LANDLORDAPIPDFVIEW, name=Names.PDFVIEW)
+async def view_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord = Depends(get_current_landlord_api)):
     billNo = billNo
     receipt = get_receipt(tenantId, billNo)
     if not receipt:

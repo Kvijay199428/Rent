@@ -38,6 +38,9 @@ class Tenant(BaseModel):
     # NEW: Current arrears (balance due)
     arrears: float = 0.0
 
+    # NEW: Timestamp of last status change (Active/Inactive/Archived)
+    statusChangedAt: Optional[str] = None
+
     @field_validator("name", mode="before")
     @classmethod
     def strip_name(cls, v):

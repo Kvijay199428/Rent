@@ -2,14 +2,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
-from app.core.routes_manifest import Routes, Names, Templates
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names, LandlordTemplates as Templates
 
 from app.services.tenant_service import load_tenants
 from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMINPAGEARCHIVE, name=Names.ARCHIVEPAGE, response_class=HTMLResponse)
+@router.get(Routes.LANDLORDPAGEARCHIVE, name=Names.ARCHIVEPAGE, response_class=HTMLResponse)
 async def archive_page(request: Request):
     # Get archived tenants
     all_tenants = load_tenants(include_archived=True)

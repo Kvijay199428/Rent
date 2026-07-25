@@ -1,0 +1,43 @@
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useAuth, AuthProvider } from "./contexts/AuthContext";
+import BroadcastBanner from "./components/BroadcastBanner";
+import LoadingScreen from "./components/LoadingScreen";
+import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashboardPage";
+import LandlordsPage from "./pages/LandlordsPage";
+import LandlordDetailPage from "./pages/LandlordDetailPage";
+import DataExplorerPage from "./pages/DataExplorerPage";
+import SettingsPage from "./pages/SettingsPage";
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { admin, loading } = useAuth();
+  if (loading) {
+    return <LoadingScreen isLoading={true} />;
+  }
+  if (!admin) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
+      <Route path="/landlords" element={<RequireAuth><LandlordsPage /></RequireAuth>} />
+      <Route path="/landlords/:id" element={<RequireAuth><LandlordDetailPage /></RequireAuth>} />
+      <Route path="/explorer" element={<RequireAuth><DataExplorerPage /></RequireAuth>} />
+      <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <BroadcastBanner />
+      <AppRoutes />
+    </AuthProvider>
+  );
+}

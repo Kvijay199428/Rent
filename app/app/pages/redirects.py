@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 router = APIRouter(tags=["Legacy Redirects"])
@@ -25,8 +25,5 @@ for path in legacy_paths:
     async def legacy_redirect_post(request: Request, path=path):
         return RedirectResponse(url=f"{request.scope.get('root_path', '')}/admin{path}", status_code=308)
 
-# Root redirect to /admin/
-@router.get("/", include_in_schema=False)
-async def legacy_root_redirect(request: Request):
-    return RedirectResponse(url=f"{request.scope.get('root_path', '')}/admin/", status_code=301)
-
+# NOTE: The root / redirect (/ → /admin/) has been removed.
+# GET / is now handled by app/pages/landing.py which serves the public landing page.

@@ -10,6 +10,7 @@ from datetime import datetime
 router = APIRouter()
 
 
+@router.get("/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view", include_in_schema=False)
 @router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)
 async def tenant_view_pdf(
     tenantId: int,
@@ -57,6 +58,7 @@ async def tenant_view_pdf(
     return response
 
 
+@router.get("/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download", include_in_schema=False)
 @router.get(TenantRoutes.TENANTAPIPDFDOWNLOAD, name=TenantNames.TENANTPDFDOWNLOAD)
 async def tenant_download_pdf(
     tenantId: int,

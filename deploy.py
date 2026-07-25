@@ -18,8 +18,11 @@ REMOTE_ZIP = "/home/vega/update.zip"
 REMOTE_DIR = "/home/vega/rent-app-20081"
 
 FRONTEND_DIRS = [
+    "frontend/platform-admin-app",
     "frontend/admin-app",
     "frontend/tenant-app",
+    "frontend/landlord-app",
+    "frontend/landing-app",
 ]
 
 EXCLUDE_DIRS = {
@@ -131,6 +134,7 @@ venv/
 node_modules/
 frontend/admin-app/node_modules/
 frontend/tenant-app/node_modules/
+frontend/landlord-app/node_modules/
 EOF""",
 
         # Remove Docker build cache
@@ -171,6 +175,7 @@ venv/
 node_modules/
 frontend/admin-app/node_modules/
 frontend/tenant-app/node_modules/
+frontend/landlord-app/node_modules/
 EOF""",
 
         # Rebuild images with latest code

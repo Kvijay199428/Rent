@@ -21,8 +21,6 @@ export interface Occupant {
 }
 
 export interface OccupantDocumentViewerProps {
-  tenantId: string | number;
-  viewToken: string;
   occupant: Occupant | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -53,8 +51,6 @@ function isPdf(filename: string) {
 }
 
 export function OccupantDocumentViewer({
-  tenantId,
-  viewToken,
   occupant,
   open,
   onOpenChange,
@@ -82,7 +78,7 @@ export function OccupantDocumentViewer({
   const documents = getDocumentItems(occupant);
 
   const documentUrl = selectedDocument
-    ? tenantApi.kyc.getFile(tenantId, viewToken, selectedDocument)
+    ? tenantApi.kyc.getFileUrl(selectedDocument)
     : undefined;
 
   return (

@@ -38,7 +38,8 @@ def load_tenants(include_archived: bool = False) -> List[Tenant]:
             securityDeposit=float(row["securitydeposit"]),
             meterId=row["meterid"],
             viewToken=row["viewToken"],
-            tenantPin=row["tenantpin"]
+            tenantPin=row["tenantpin"],
+            statusChangedAt=row["status_changed_at"] or None
         )
         tenants.append(t)
     return tenants
@@ -73,7 +74,8 @@ def get_tenant(tenantId: int) -> Optional[Tenant]:
         securityDeposit=float(row["securitydeposit"]),
         meterId=row["meterid"],
         viewToken=row["viewToken"],
-        tenantPin=row["tenantpin"]
+        tenantPin=row["tenantpin"],
+        statusChangedAt=row["status_changed_at"] or None
     )
 
 def get_tenant_by_name(name: str) -> Optional[Tenant]:
@@ -103,7 +105,8 @@ def get_tenant_by_name(name: str) -> Optional[Tenant]:
         securityDeposit=float(row["securitydeposit"]),
         meterId=row["meterid"],
         viewToken=row["viewToken"],
-        tenantPin=row["tenantpin"]
+        tenantPin=row["tenantpin"],
+        statusChangedAt=row["status_changed_at"] or None
     )
 
 def save_all_tenants(tenants_list: List[Tenant]):
@@ -145,19 +148,25 @@ def update_tenant(t: Tenant):
     tenantpin = t_dict.get("tenantPin") or ""
     
     with get_conn() as conn:
+        # Detect status change and record timestamp
+        if t.id is not None:
+            existing = conn.execute("SELECT status FROM tenants WHERE id = ?", (t.id,)).fetchone()
+            if existing and (existing["status"] or "").strip().lower() != (t.status or "").strip().lower():
+                t.statusChangedAt = datetime.utcnow().isoformat()
+
         conn.execute('''
             UPDATE tenants SET
                 name=?, company=?, phone=?, email=?, address=?, roomnumber=?, occupation=?,
                 notes=?, status=?, rent=?, water=?, electricityrate=?, previousmeter=?,
                 additionalpersoncharge=?, securitydeposit=?, defaulttankWatercharge=?,
-                meterid=?, viewToken=?, tenantpin=?
+                meterid=?, viewToken=?, tenantpin=?, status_changed_at=?
             WHERE id=?
         ''', (
             t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
             t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin,
-            t.id
+            t.statusChangedAt, t.id
         ))
         # Cascade identity/contact fields to all receipt rows for this tenant.
         # Only updates display-snapshot fields; historical billing values (rent, water,
@@ -203,6 +212,7 @@ def _tenant_row_to_dict(row) -> dict:
         "meterId": row["meterid"] or "",
         "viewToken": row["viewToken"] or "",
         "arrears": 0,
+        "statusChangedAt": row["status_changed_at"] or None,
     }
 
 
@@ -264,10 +274,11 @@ def delete_tenant(tenantId: int, action: str = "archive"):
 
         if action == "archive":
             archived_at = datetime.utcnow().strftime("%d %B %Y")
+            now_iso = datetime.utcnow().isoformat()
 
             conn.execute(
-                "UPDATE tenants SET status = ? WHERE id = ?",
-                ("Archived", tenantId),
+                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                ("Archived", now_iso, tenantId),
             )
             receipt_result = conn.execute(
                 """
@@ -301,9 +312,10 @@ def delete_tenant(tenantId: int, action: str = "archive"):
             }
 
         if action == "restore":
+            now_iso = datetime.utcnow().isoformat()
             updated_tenant = conn.execute(
-                "UPDATE tenants SET status = ? WHERE id = ?",
-                ("Active", tenantId),
+                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                ("Active", now_iso, tenantId),
             )
             if updated_tenant.rowcount == 0:
                 raise ValueError("Tenant not found.")
@@ -339,9 +351,10 @@ def delete_tenant(tenantId: int, action: str = "archive"):
             }
 
         if action == "inactive":
+            now_iso = datetime.utcnow().isoformat()
             conn.execute(
-                "UPDATE tenants SET status = ? WHERE id = ?",
-                ("Inactive", tenantId)
+                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                ("Inactive", now_iso, tenantId)
             )
             conn.commit()
             return {"tenantId": tenantId, "inactive": True, "archived": False, "restored": False}

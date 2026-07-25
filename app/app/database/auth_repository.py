@@ -108,14 +108,14 @@ def update_admin_password(admin_id: int, new_password_hash: str):
         )
         conn.commit()
 
-def get_totp_uri(username: str, totp_secret: str, issuer: str = "Rent Receipt System") -> str:
+def get_totp_uri(username: str, totp_secret: str, issuer: str = "PROPAURA") -> str:
     """Generate TOTP provisioning URI for QR code."""
     return pyotp.totp.TOTP(totp_secret).provisioning_uri(
         name=username,
         issuer_name=issuer
     )
 
-def generate_totp_qr_base64(username: str, totp_secret: str, issuer: str = "Rent Receipt System") -> str:
+def generate_totp_qr_base64(username: str, totp_secret: str, issuer: str = "PROPAURA") -> str:
     """Generate base64 encoded QR code for TOTP setup."""
     uri = get_totp_uri(username, totp_secret, issuer)
     qr = qrcode.make(uri)

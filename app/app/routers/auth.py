@@ -43,6 +43,7 @@ def _verify_tenant_viewToken(request: Request, viewToken: str) -> None:
         raise HTTPException(status_code=401, detail="Invalid access token")
 
 
+@router.post("/t/{tenantId}/{viewToken}/api/auth/login", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHLOGIN)
 async def auth_login(tenantId: int, viewToken: str, request: Request, response: Response, payload: LoginRequest):
     """Unchanged - login already receives viewToken via path"""
@@ -101,6 +102,7 @@ async def auth_login(tenantId: int, viewToken: str, request: Request, response: 
     return {"status": "success", "message": "Logged in successfully"}
 
 
+@router.post("/t/{tenantId}/{viewToken}/api/auth/refresh", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHREFRESH)
 async def auth_refresh(
     tenantId: int = Path(...),
@@ -142,6 +144,7 @@ async def auth_refresh(
     return {"status": "success", "message": "Tokens refreshed silently"}
 
 
+@router.post("/t/{tenantId}/{viewToken}/api/auth/logout", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHLOGOUT)
 async def auth_logout(
     tenantId: int = Path(...),
@@ -167,6 +170,7 @@ async def auth_logout(
     return {"status": "success"}
 
 
+@router.post("/t/{tenantId}/{viewToken}/api/auth/logout-all", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHLOGOUTALL)
 async def auth_logout_all(
     tenantId: int = Path(...),

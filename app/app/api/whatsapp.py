@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Request, HTTPException
 from urllib.parse import quote
 
-from app.core.routes_manifest import Names, Routes
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from app.core.dependencies import config
 from app.services.tenant_service import load_tenants
@@ -11,8 +11,8 @@ import re
 
 router = APIRouter()
 
-@router.get(Routes.ADMINAPIWHATSAPPSENDSINGLE, name=Names.SENDWHATSAPPSINGLE)
-async def send_whatsapp_single(request: Request, tenantId: int, billNo: str):
+@router.get(Routes.LANDLORDAPIWHATSAPPSENDSINGLE, name=Names.SENDWHATSAPPSINGLE)
+async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: int, billNo: str):
     billNo = billNo
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
@@ -46,8 +46,13 @@ async def send_whatsapp_single(request: Request, tenantId: int, billNo: str):
         tenant.viewToken = token
         update_tenant(tenant)
 
-    base_url = str(request.base_url).rstrip("/")
-    link = f"{base_url}/t/{token}"
+    header_uuid = request.headers.get("x-landlord-uuid")
+    if header_uuid:
+        landlordUuid = header_uuid
+    if not landlordUuid:
+        raise HTTPException(status_code=400, detail="Missing landlord context in request")
+        
+    link = str(request.url_for("serve_tenant_app", landlordUuid=landlordUuid, tenantId=tenant.id, viewToken=token))
     grandTotal = float(receipt.get("Total", 0)) + float(receipt.get("previousArrears", 0))
 
     tenant_portal_pin = "(Unavailable)"

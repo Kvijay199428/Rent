@@ -8,16 +8,12 @@ import { Loader2 } from "lucide-react";
 import { tenantApi } from "@/lib/api";
 
 export interface OccupantKycUploadDialogProps {
-  tenantId: string | number;
-  viewToken: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
 }
 
 export function OccupantKycUploadDialog({
-  tenantId,
-  viewToken,
   open,
   onOpenChange,
   onSuccess,
@@ -62,7 +58,7 @@ export function OccupantKycUploadDialog({
 
     setSubmitting(true);
     try {
-      await tenantApi.kyc.upload(tenantId, viewToken, data);
+      await tenantApi.kyc.upload(data);
       toast.success("Occupant uploaded");
       onSuccess();
       onOpenChange(false);

@@ -1,39 +1,48 @@
-﻿from fastapi import Response, Request
+from fastapi import Response, Request
+
+def get_admin_cookie_path(request: Request | None = None) -> str:
+    if request is None:
+        return "/admin"
+
+    rootpath = (request.scope.get("root_path") or request.scope.get("rootpath") or "").rstrip("/")
+    path = request.url.path.rstrip("/")
+
+    if path.startswith("/platform-admin"):
+        return "/platform-admin"
+
+    if rootpath and rootpath != "/":
+        return rootpath
+
+    parts = [p for p in path.split("/") if p]
+    if parts and parts[0] not in {"admin", "platform-admin", "api", "static"}:
+        return f"/{parts[0]}"
+
+    return "/admin"
 
 def set_admin_auth_cookies(response: Response, access_token: str, refresh_token: str, remember_me: bool, request: Request = None):
+    cookie_path = get_admin_cookie_path(request)
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
-    
-    root_path = request.scope.get("root_path", "") if request else ""
-    cookie_path = f"{root_path}/admin"
-    if not cookie_path.startswith("/"):
-        cookie_path = "/" + cookie_path
-    
+
     response.set_cookie(
         key="admin_access_token",
         value=access_token,
         httponly=True,
-        secure=True, 
-        samesite="Lax",
+        secure=True,
+        samesite="lax",
         path=cookie_path,
-        max_age=15 * 60
+        max_age=15 * 60,
     )
-    
     response.set_cookie(
         key="admin_refresh_token",
         value=refresh_token,
         httponly=True,
         secure=True,
-        samesite="Strict",
+        samesite="strict",
         path=cookie_path,
-        max_age=max_age_refresh
+        max_age=max_age_refresh,
     )
 
 def clear_admin_auth_cookies(response: Response, request: Request = None):
-    root_path = request.scope.get("root_path", "") if request else ""
-    cookie_path = f"{root_path}/admin"
-    if not cookie_path.startswith("/"):
-        cookie_path = "/" + cookie_path
-        
-    response.delete_cookie(key="admin_access_token", path=cookie_path, httponly=True, secure=True, samesite="Lax")
-    response.delete_cookie(key="admin_refresh_token", path=cookie_path, httponly=True, secure=True, samesite="Strict")
-
+    cookie_path = get_admin_cookie_path(request)
+    response.delete_cookie(key="admin_access_token", path=cookie_path, httponly=True, secure=True, samesite="lax")
+    response.delete_cookie(key="admin_refresh_token", path=cookie_path, httponly=True, secure=True, samesite="strict")

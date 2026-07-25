@@ -67,22 +67,42 @@ app = FastAPI(title=APP_INFO["name"], version=APP_INFO["version"])
 # Initialize Storage, Config, DB, Migrations, Static mounts, Middlewares, and Events
 StartupManager.initialize(app)
 
-# Register all modular routers
-register_all_routers(app)
-
+# Serve static asset mounts BEFORE routers so catch-all routes don't shadow them
 # Serve Admin React App
 admin_assets_path = "frontend/admin-app/dist/assets"
 if os.path.isdir(admin_assets_path):
     app.mount("/admin/assets", StaticFiles(directory=admin_assets_path), name="admin_assets")
+
+# Serve Platform Admin React App
+platform_admin_assets = "frontend/platform-admin-app/dist/assets"
+if os.path.isdir(platform_admin_assets):
+    app.mount("/platform-admin/assets", StaticFiles(directory=platform_admin_assets), name="platform_admin_assets")
 
 # Serve Tenant React App
 tenant_assets_path = "frontend/tenant-app/dist/assets"
 if os.path.isdir(tenant_assets_path):
     app.mount("/t/assets", StaticFiles(directory=tenant_assets_path), name="tenant_assets")
 
-# Register SPA catch-all routes LAST so they don't shadow API routes
-from app.pages.spa import router as spa_router
-app.include_router(spa_router)
+# Serve Landlord React App
+landlord_assets_path = "frontend/landlord-app/dist/assets"
+if os.path.isdir(landlord_assets_path):
+    app.mount("/landlord/assets", StaticFiles(directory=landlord_assets_path), name="landlord_assets")
+
+# Serve Landing React App
+landing_assets = "frontend/landing-app/dist/assets"
+if os.path.isdir(landing_assets):
+    app.mount("/assets", StaticFiles(directory=landing_assets), name="landing_assets")
+
+# Favicon for landing page
+from fastapi.responses import FileResponse
+FAVICON_PATH = "frontend/landing-app/dist/favicon.svg"
+
+@app.get("/favicon.svg")
+async def favicon():
+    return FileResponse(FAVICON_PATH)
+
+# Register all modular routers (now includes SPA catch-all before landlord alias)
+register_all_routers(app)
 
 # Add proxy middleware — must be added AFTER routes so it sits outermost in the stack
 app.add_middleware(ProxyContextMiddleware)  # type: ignore[arg-type]

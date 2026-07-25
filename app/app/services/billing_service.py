@@ -429,7 +429,7 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     elif amountReceived is None:
         amountReceived = 0.0
         
-    pdf_filename = old_receipt.get("pdf", f"{billNo}_{tenantName.replace(' ', '_')}_{month.replace(' ', '_')}.pdf")
+    pdf_filename = old_receipt.get("pdf") or f"{billNo}_{tenantName.replace(' ', '_')}_{month.replace(' ', '_')}.pdf"
     pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
     updated_dict = {

@@ -47,7 +47,7 @@ class StartupManager:
         @app.on_event("startup")
         async def startup_event():
             print("=" * 50)
-            print("  Rent Receipt System Initialization Complete")
+            print("  PROPAURA Initialization Complete")
             print("=" * 50)
             print("Registered Routes:")
             print(f"{'METHOD':<10} | {'PATH':<40} | {'NAME':<35} | {'TAGS'}")

@@ -1,6 +1,6 @@
 """
 FINAL PRODUCTION DATABASE SCHEMA
-Rent Receipt System v3.0.0
+PROPAURA v3.0.0
 Generated: 2026-07-11
 
 This is the single source of truth for the complete database schema.
@@ -51,6 +51,7 @@ def init_production_db():
         password_hash TEXT NOT NULL,
         totp_secret TEXT,
         email TEXT,
+        is_platform_admin INTEGER NOT NULL DEFAULT 0,
         created_at TEXT,
         updated_at TEXT
     );
@@ -241,6 +242,17 @@ def init_production_db():
     CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
     CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
     CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
+    """)
+
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS landlords (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        admin_id INTEGER NOT NULL,
+        landlordUuid TEXT UNIQUE NOT NULL,
+        active INTEGER DEFAULT 1,
+        FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_landlords_uuid ON landlords(landlordUuid);
     """)
 
     conn.commit()

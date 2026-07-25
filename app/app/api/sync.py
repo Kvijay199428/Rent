@@ -4,7 +4,7 @@
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 
-from app.core.routes_manifest import Names, Routes
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from fastapi.responses import StreamingResponse, FileResponse
 from app.core.dependencies import config
@@ -114,8 +114,8 @@ def _build_excel_workbook(tenants_list, receipts_list):
     return wb
 
 
-@router.get(Routes.ADMINAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
-async def export_receipts_csv(tenants_list: str = "all"):
+@router.get(Routes.LANDLORDAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
+async def export_receipts_csv(landlordUuid: str, tenants_list: str = "all"):
     tenants = load_tenants()
     receipts = get_all_receipts()
 
@@ -138,8 +138,8 @@ async def export_receipts_csv(tenants_list: str = "all"):
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
-@router.get(Routes.ADMINAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
-async def export_full_zip(tenants_list: str = "all"):
+@router.get(Routes.LANDLORDAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
+async def export_full_zip(landlordUuid: str, tenants_list: str = "all"):
     tenants = load_tenants()
     receipts = get_all_receipts()
 
@@ -187,8 +187,8 @@ async def export_full_zip(tenants_list: str = "all"):
     response.headers["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
     return response
 
-@router.get(Routes.ADMINAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
-async def download_excel_template():
+@router.get(Routes.LANDLORDAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
+async def download_excel_template(landlordUuid: str):
     wb = openpyxl.Workbook()
     ws_profile = wb.active
     ws_profile.title = "Tenant_Profile"
@@ -216,10 +216,15 @@ async def download_excel_template():
     response.headers["Content-Disposition"] = 'attachment; filename="Rent_Data_Template.xlsx"'
     return response
 
-@router.get(Routes.ADMINAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
-async def export_excel_data(format: str):
+@router.get(Routes.LANDLORDAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
+async def export_excel_data(landlordUuid: str, format: str = "xlsx", tenants_list: str = "all"):
     tenants = load_tenants()
     receipts = get_all_receipts()
+
+    if tenants_list != "all":
+        selected_ids = {int(x) for x in tenants_list.split(",") if x.isdigit()}
+        receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) in selected_ids]
+        tenants = [t for t in tenants if t.id in selected_ids]
 
     # Build workbook entirely in RAM
     wb = _build_excel_workbook(tenants, receipts)
@@ -545,8 +550,8 @@ def _detect_encrypted_pins(parsed_data: dict) -> dict:
 # ENHANCED PREVIEW ENDPOINT (with conflict & encrypted PIN detection)
 # ============================================================================
 
-@router.post(Routes.ADMINAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
-async def import_preview_data(files: List[UploadFile] = File(...)):
+@router.post(Routes.LANDLORDAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
+async def import_preview_data(landlordUuid: str, files: List[UploadFile] = File(...)):
     preview_data = {}
     try:
         for file in files:
@@ -656,8 +661,9 @@ def normalize_tenant_status(value: str | None, default: str = "Active") -> str:
 # ENHANCED EXECUTE IMPORT ENDPOINT
 # ============================================================================
 
-@router.post(Routes.ADMINAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
+@router.post(Routes.LANDLORDAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
 async def import_execute_data(
+    landlordUuid: str,
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     selectedtargets: Optional[str] = Form(None),
@@ -1073,8 +1079,8 @@ async def import_execute_data(
             except: pass
 
 
-@router.get(Routes.ADMINAPIBILLINGARCHIVEDATA)
-async def get_archive_data():
+@router.get(Routes.LANDLORDAPIBILLINGARCHIVEDATA)
+async def get_archive_data(landlordUuid: str):
     tenants = load_tenants(include_archived=True)
     archivedtenants = [
         tenant for tenant in tenants
@@ -1140,7 +1146,7 @@ if __name__ == "__main__":
 # from typing import Optional
 # from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 
-# from app.core.routes_manifest import Names, Routes
+# from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 # from fastapi.responses import StreamingResponse, FileResponse
 # from app.core.dependencies import config
@@ -1248,7 +1254,7 @@ if __name__ == "__main__":
 #     return wb
 
 
-# @router.get(Routes.ADMINAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
+# @router.get(Routes.LANDLORDAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
 # async def export_receipts_csv(tenants_list: str = "all"):
 #     tenants = load_tenants()
 #     receipts = get_all_receipts()
@@ -1273,7 +1279,7 @@ if __name__ == "__main__":
 #     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
 #     return response
 
-# @router.get(Routes.ADMINAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
+# @router.get(Routes.LANDLORDAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
 # async def export_full_zip(tenants_list: str = "all"):
 #     tenants = load_tenants()
 #     receipts = get_all_receipts()
@@ -1323,7 +1329,7 @@ if __name__ == "__main__":
 #     response.headers["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
 #     return response
 
-# @router.get(Routes.ADMINAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
+# @router.get(Routes.LANDLORDAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
 # async def download_excel_template():
 #     wb = openpyxl.Workbook()
 #     ws_profile = wb.active
@@ -1352,7 +1358,7 @@ if __name__ == "__main__":
 #     response.headers["Content-Disposition"] = 'attachment; filename="Rent_Data_Template.xlsx"'
 #     return response
 
-# # @router.get(Routes.ADMINAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
+# # @router.get(Routes.LANDLORDAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
 # # async def export_excel_data(format: str):
 # #     tenants = load_tenants()
 # #     receipts = get_all_receipts()
@@ -1388,7 +1394,7 @@ if __name__ == "__main__":
 # #         return response
 
 # #     raise HTTPException(status_code=400, detail="Unsupported format. Use 'xlsx' or 'zip'.")
-# @router.get(Routes.ADMINAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
+# @router.get(Routes.LANDLORDAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
 # async def export_excel_data(format: str):
 #     tenants = load_tenants()
 #     receipts = get_all_receipts()
@@ -1473,7 +1479,7 @@ if __name__ == "__main__":
 
 #     return tenants_dict
 
-# @router.post(Routes.ADMINAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
+# @router.post(Routes.LANDLORDAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
 # async def import_preview_data(files: List[UploadFile] = File(...)):
 #     preview_data = {}
 #     try:
@@ -1556,7 +1562,7 @@ if __name__ == "__main__":
 #     candidate = str(value or "").strip().title()
 #     return candidate if candidate in VALID_TENANT_STATUSES else default
 
-# @router.post(Routes.ADMINAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
+# @router.post(Routes.LANDLORDAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
 # async def import_execute_data(
 #     background_tasks: BackgroundTasks,
 #     files: List[UploadFile] = File(...),
@@ -1816,7 +1822,7 @@ if __name__ == "__main__":
 #                 pass
 
 
-# @router.get(Routes.ADMINAPIBILLINGARCHIVEDATA)
+# @router.get(Routes.LANDLORDAPIBILLINGARCHIVEDATA)
 # async def get_archive_data():
 #     tenants = load_tenants(include_archived=True)
 #     archived_tenants = [tenant for tenant in tenants if tenant.status == "Archived"]

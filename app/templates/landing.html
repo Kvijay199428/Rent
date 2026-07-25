@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ theme | default('system') }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rent Management — Welcome</title>
+  <meta name="description" content="Rent Management System — Landlord portal and Platform Admin login." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0d0f17;
+      --surface:     #141720;
+      --card:        #1c2030;
+      --border:      rgba(255,255,255,0.07);
+      --text:        #e8eaf0;
+      --muted:       #7a7f99;
+      --accent:      #6c63ff;
+      --accent-glow: rgba(108,99,255,0.35);
+      --green:       #22c55e;
+      --green-glow:  rgba(34,197,94,0.30);
+      --radius:      16px;
+      --transition:  0.22s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    @media (prefers-color-scheme: light) {
+      [data-theme="system"] {
+        --bg:      #f0f2f8;
+        --surface: #ffffff;
+        --card:    #ffffff;
+        --border:  rgba(0,0,0,0.08);
+        --text:    #111827;
+        --muted:   #6b7280;
+      }
+    }
+    [data-theme="light"] {
+      --bg:      #f0f2f8;
+      --surface: #ffffff;
+      --card:    #ffffff;
+      --border:  rgba(0,0,0,0.08);
+      --text:    #111827;
+      --muted:   #6b7280;
+    }
+
+    html, body {
+      min-height: 100vh;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── Background grid ─────────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(108,99,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(108,99,255,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Glow orbs ────────────────────────────────────────────────────────── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.45;
+    }
+    .orb-1 { width: 520px; height: 520px; top: -160px; left: -120px; background: radial-gradient(circle, var(--accent) 0%, transparent 70%); }
+    .orb-2 { width: 400px; height: 400px; bottom: -100px; right: -80px; background: radial-gradient(circle, var(--green) 0%, transparent 70%); }
+
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 40px 20px;
+      gap: 48px;
+    }
+
+    /* ── Hero ─────────────────────────────────────────────────────────────── */
+    .hero {
+      text-align: center;
+      max-width: 560px;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(108,99,255,0.12);
+      border: 1px solid rgba(108,99,255,0.3);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .hero-badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.8); }
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      background: linear-gradient(135deg, var(--text) 0%, var(--muted) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+    }
+    .hero p {
+      font-size: 1rem;
+      color: var(--muted);
+      max-width: 420px;
+      margin: 0 auto;
+    }
+
+    /* ── Cards ────────────────────────────────────────────────────────────── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      width: 100%;
+      max-width: 860px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+      cursor: default;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity var(--transition);
+      pointer-events: none;
+    }
+    .card:hover { transform: translateY(-4px); }
+
+    .card.landlord { --card-accent: var(--accent); --card-glow: var(--accent-glow); }
+    .card.admin    { --card-accent: var(--green);  --card-glow: var(--green-glow);  }
+
+    .card:hover { border-color: var(--card-accent); box-shadow: 0 16px 48px var(--card-glow), 0 0 0 1px var(--card-accent); }
+    .card::after { background: radial-gradient(circle at top left, var(--card-glow), transparent 60%); }
+    .card:hover::after { opacity: 1; }
+
+    .card-icon {
+      width: 52px; height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .card.landlord .card-icon { background: rgba(108,99,255,0.1); border-color: rgba(108,99,255,0.3); }
+    .card.admin    .card-icon { background: rgba(34,197,94,0.1);  border-color: rgba(34,197,94,0.3);  }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+    .card-desc {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.55;
+      flex: 1;
+    }
+
+    .card-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary-purple {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+    .btn-primary-purple:hover {
+      background: #7c73ff;
+      box-shadow: 0 6px 24px var(--accent-glow);
+    }
+
+    .btn-secondary-purple {
+      background: rgba(108,99,255,0.1);
+      color: var(--accent);
+      border: 1px solid rgba(108,99,255,0.25);
+    }
+    .btn-secondary-purple:hover {
+      background: rgba(108,99,255,0.18);
+      border-color: rgba(108,99,255,0.45);
+    }
+
+    .btn-primary-green {
+      background: var(--green);
+      color: #fff;
+      box-shadow: 0 4px 16px var(--green-glow);
+    }
+    .btn-primary-green:hover {
+      background: #16a34a;
+      box-shadow: 0 6px 24px var(--green-glow);
+    }
+
+    /* ── Divider ──────────────────────────────────────────────────────────── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Footer ───────────────────────────────────────────────────────────── */
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.01em;
+    }
+    .footer a { color: var(--muted); text-decoration: none; }
+    .footer a:hover { color: var(--text); }
+
+    /* ── Responsive ───────────────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .cards { grid-template-columns: 1fr; }
+      .card  { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+
+  <main class="page" role="main">
+
+    <!-- Hero -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-badge" aria-label="Application status">Rent Management System</div>
+      <h1 id="hero-title">Welcome Back</h1>
+      <p>Choose how you'd like to access the platform below.</p>
+    </section>
+
+    <!-- Role selection cards -->
+    <div class="cards" role="list">
+
+      <!-- Landlord card -->
+      <article class="card landlord" role="listitem">
+        <div class="card-icon" aria-hidden="true">🏠</div>
+        <div>
+          <div class="card-title">Landlord Portal</div>
+          <p class="card-desc">
+            Manage your properties, tenants, and rental receipts. New here? Create a free landlord account.
+          </p>
+        </div>
+        <div class="card-actions">
+          <a id="btn-landlord-login" href="landlord/login" class="btn btn-primary-purple" role="button">
+            <span>🔑</span> Landlord Login
+          </a>
+          <div class="divider">or</div>
+          <a id="btn-landlord-signup" href="landlord/signup" class="btn btn-secondary-purple" role="button">
+            <span>✨</span> Create Landlord Account
+          </a>
+        </div>
+      </article>
+
+      <!-- Admin card -->
+      <article class="card admin" role="listitem">
+        <div class="card-icon" aria-hidden="true">🛡️</div>
+        <div>
+          <div class="card-title">Platform Admin</div>
+          <p class="card-desc">
+            System administration, global settings, and platform-wide oversight. Restricted access only.
+          </p>
+        </div>
+        <div class="card-actions">
+          <a id="btn-admin-login" href="admin/login" class="btn btn-primary-green" role="button">
+            <span>🔐</span> Platform Admin Login
+          </a>
+        </div>
+      </article>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+      <p>Rent Management System &mdash; Secure &amp; Private</p>
+    </footer>
+
+  </main>
+</body>
+</html>

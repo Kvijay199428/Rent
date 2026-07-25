@@ -1,12 +1,12 @@
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
-from app.core.routes_manifest import Routes, Names, Templates
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names, LandlordTemplates as Templates
 
 router = APIRouter()
 
-@router.get(Routes.ADMINPAGESETTINGS, name=Names.SETTINGSPAGE, response_class=HTMLResponse)
+@router.get(Routes.LANDLORDPAGESETTINGS, name=Names.SETTINGSPAGE, response_class=HTMLResponse)
 async def settings_page(request: Request):
     billing_conf = config.get("billing", {})
     landlord_conf = config.get("landlord", {})

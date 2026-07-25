@@ -5,7 +5,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/rent/t/',  // CRITICAL: Must match server mount point
+  base: '/rent/t/',  // Assets served through /rent/ nginx proxy → /t/assets/ mount
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

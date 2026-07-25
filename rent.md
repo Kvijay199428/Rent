@@ -1,17 +1,17 @@
 ```python
 // File: app\app\api\__init__.py
-﻿
+
 ```
 
 ```python
 // File: app\app\api\backup.py
-﻿# // File: app\app\api\backup.py
+# // File: app\app\api\backup.py
 from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
 from app.core.dependencies import templates, config
 from app.core.route_builder import RouteBuilder
 
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from typing import Optional
 from app.models.tenant import Tenant
@@ -36,42 +36,42 @@ from app.core.paths import BACKUPS_DIR
 router = APIRouter()
 
 
-@router.get(Routes.ADMINAPIBACKUPSLIST, name=Names.APIGETBACKUPS)
-async def api_get_backups():
+@router.get(Routes.LANDLORDAPIBACKUPSLIST, name=Names.APIGETBACKUPS)
+async def api_get_backups(landlordUuid: str):
     return get_all_backups()
 
-@router.post(Routes.ADMINAPIBACKUPSCREATEMANUAL, name=Names.APICREATEMANUALBACKUP)
-async def api_create_manual_backup(background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPIBACKUPSCREATEMANUAL, name=Names.APICREATEMANUALBACKUP)
+async def api_create_manual_backup(landlordUuid: str, background_tasks: BackgroundTasks):
     try:
         metadata = create_backup(type_="Manual", subtype="manual")
         return {"status": "success", "data": metadata}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete(Routes.ADMINAPIBACKUPSDELETE, name=Names.APIDELETEBACKUP)
-async def api_delete_backup(backupId: str):
+@router.delete(Routes.LANDLORDAPIBACKUPSDELETE, name=Names.APIDELETEBACKUP)
+async def api_delete_backup(landlordUuid: str, backupId: str):
     if delete_backup(backupId):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Backup not found")
 
-@router.get(Routes.ADMINAPIBACKUPSVERIFY, name=Names.APIVERIFYBACKUP)
-async def api_verify_backup(backupId: str):
+@router.get(Routes.LANDLORDAPIBACKUPSVERIFY, name=Names.APIVERIFYBACKUP)
+async def api_verify_backup(landlordUuid: str, backupId: str):
     try:
         verify_backup_integrity(backupId)
         return {"status": "success", "message": "Backup is fully intact and verified."}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-@router.post(Routes.ADMINAPIBACKUPSRESTORE, name=Names.APIRESTOREBACKUP)
-async def api_restore_backup(backupId: str):
+@router.post(Routes.LANDLORDAPIBACKUPSRESTORE, name=Names.APIRESTOREBACKUP)
+async def api_restore_backup(landlordUuid: str, backupId: str):
     try:
         restore_backup(backupId)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.get(Routes.ADMINAPIBACKUPSDOWNLOAD, name=Names.APIDOWNLOADBACKUP)
-async def api_download_backup(backupId: str):
+@router.get(Routes.LANDLORDAPIBACKUPSDOWNLOAD, name=Names.APIDOWNLOADBACKUP)
+async def api_download_backup(landlordUuid: str, backupId: str):
     registry = get_all_backups()
     backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
     if not backup_meta:
@@ -83,8 +83,8 @@ async def api_download_backup(backupId: str):
         
     return FileResponse(abs_path, media_type='application/zip', filename=backup_meta["filename"])
 
-@router.get(Routes.ADMINAPIBACKUPSMETADATA, name=Names.APIDOWNLOADMETADATA)
-async def api_download_metadata(backupId: str):
+@router.get(Routes.LANDLORDAPIBACKUPSMETADATA, name=Names.APIDOWNLOADMETADATA)
+async def api_download_metadata(landlordUuid: str, backupId: str):
     registry = get_all_backups()
     backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
     if not backup_meta:
@@ -96,7 +96,7 @@ async def api_download_metadata(backupId: str):
 ```python
 // File: app\app\api\billing.py
 # // File: app\app\api\billing.py
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 from fastapi import APIRouter, Request, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
 from app.core.dependencies import templates, config
@@ -107,6 +107,14 @@ from app.models.tenant import Tenant
 from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
+
+
+async def _broadcast(channel: str, event: dict):
+    try:
+        from app.core.websocket_manager import sync_manager
+        await sync_manager.broadcast(channel, event)
+    except Exception:
+        pass
 
 from app.services.tenant_service import (
     load_tenants, add_tenant, update_tenant, delete_tenant,
@@ -122,8 +130,22 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
-@router.get(Routes.ADMINAPIBILLINGFILTER, name=Names.APIFILTERBILLS)
-async def api_filter_bills(status: str = "active"):
+def _require_active_tenant(tenantId: int):
+    """Block bill operations for tenants that are not Active."""
+    tenant = None
+    tenants = load_tenants(include_archived=True)
+    tenant = next((t for t in tenants if t.id == tenantId), None)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found.")
+    if (tenant.status or "").strip().lower() != "active":
+        raise HTTPException(
+            status_code=403,
+            detail=f"Cannot generate or edit bills for a tenant with status '{tenant.status}'.",
+        )
+
+
+@router.get(Routes.LANDLORDAPIBILLINGFILTER, name=Names.APIFILTERBILLS)
+async def api_filter_bills(landlordUuid: str, status: str = "active"):
     receipts = get_all_receipts(include_archived_tenants=False)
     if status == "pending":
         filtered = [
@@ -145,12 +167,13 @@ async def api_filter_bills(status: str = "active"):
     filtered.reverse()
     return filtered
 
-@router.get(Routes.ADMINAPIBILLINGMONTHS, name=Names.APIBILLINGMONTHS)
-async def api_billing_months():
+@router.get(Routes.LANDLORDAPIBILLINGMONTHS, name=Names.APIBILLINGMONTHS)
+async def api_billing_months(landlordUuid: str):
     return get_billing_months()
 
-@router.get(Routes.ADMINAPIBILLINGPREVIEW, name=Names.APIBILLINGPREVIEW)
+@router.get(Routes.LANDLORDAPIBILLINGPREVIEW, name=Names.APIBILLINGPREVIEW)
 async def api_billing_preview(
+    landlordUuid: str,
     currentreading: float,
     additionalpersons: int,
     prevreading: float = 0.0,
@@ -182,15 +205,16 @@ async def api_billing_preview(
         addpersoncharge,
     )
 
-@router.get(Routes.ADMINAPIBILLINGGET, name=Names.APIGETSINGLEBILL)
-async def api_get_single_bill(tenantId: int, billNo: str):
+@router.get(Routes.LANDLORDAPIBILLINGGET, name=Names.APIGETSINGLEBILL)
+async def api_get_single_bill(landlordUuid: str, tenantId: int, billNo: str):
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
     return receipt
 
-@router.post(Routes.ADMINAPIBILLINGCREATE, name=Names.APICREATEBILL)
-async def api_create_bill(tenantId: int, request: BillRequest, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPIBILLINGCREATE, name=Names.APICREATEBILL)
+async def api_create_bill(landlordUuid: str, tenantId: int, request: BillRequest, background_tasks: BackgroundTasks):
+    _require_active_tenant(tenantId)
     try:
         data = create_bill(
             tenantId,
@@ -205,6 +229,7 @@ async def api_create_bill(tenantId: int, request: BillRequest, background_tasks:
             request.paymentstatus
         )
         background_tasks.add_task(create_full_backup, tag="create_bill")
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "RECEIPT_CREATED", "billNo": data.get("billNo", ""), "tenantId": tenantId})
         return {"status": "success", "data": data}
     except ValueError as e:
         msg = str(e)
@@ -214,8 +239,9 @@ async def api_create_bill(tenantId: int, request: BillRequest, background_tasks:
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.put(Routes.ADMINAPIBILLINGUPDATE, name=Names.APIUPDATEBILL)
-async def api_update_bill(tenantId: int, billNo: str, request: BillRequest, background_tasks: BackgroundTasks):
+@router.put(Routes.LANDLORDAPIBILLINGUPDATE, name=Names.APIUPDATEBILL)
+async def api_update_bill(landlordUuid: str, tenantId: int, billNo: str, request: BillRequest, background_tasks: BackgroundTasks):
+    _require_active_tenant(tenantId)
     try:
         data = update_bill(
             tenantId,
@@ -231,6 +257,7 @@ async def api_update_bill(tenantId: int, billNo: str, request: BillRequest, back
             (request.paymentstatus or "PENDING").upper()
         )
         background_tasks.add_task(create_full_backup, tag="edit_bill")
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "RECEIPT_UPDATED", "billNo": billNo, "tenantId": tenantId})
         return {"status": "success", "data": data}
     except ValueError as e:
         msg = str(e)
@@ -240,8 +267,8 @@ async def api_update_bill(tenantId: int, billNo: str, request: BillRequest, back
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post(Routes.ADMINAPIBILLINGUPDATEPAYMENT, name=Names.APIUPDATEPAYMENT)
-async def api_update_payment(tenantId: int, billNo: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPIBILLINGUPDATEPAYMENT, name=Names.APIUPDATEPAYMENT)
+async def api_update_payment(landlordUuid: str, tenantId: int, billNo: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
     try:
         status = (data.paymentstatus or "").strip().upper()
         if status not in {"PAID", "PENDING", "PARTIAL", "ADVANCE"}:
@@ -259,8 +286,8 @@ async def api_update_payment(tenantId: int, billNo: str, data: PaymentStatusUpda
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post(Routes.ADMINAPIBILLINGARCHIVE, name=Names.APIARCHIVEBILL)
-async def api_archive_bill(tenantId: int, billNo: str, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPIBILLINGARCHIVE, name=Names.APIARCHIVEBILL)
+async def api_archive_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks):
     try:
         archive_bill(tenantId, billNo)
         background_tasks.add_task(create_full_backup, tag="archive_bill")
@@ -268,8 +295,8 @@ async def api_archive_bill(tenantId: int, billNo: str, background_tasks: Backgro
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post(Routes.ADMINAPIBILLINGRESTORE, name=Names.APIRESTOREBILL)
-async def api_restore_bill(tenantId: int, billNo: str, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPIBILLINGRESTORE, name=Names.APIRESTOREBILL)
+async def api_restore_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks):
     try:
         restore_bill(tenantId, billNo)
         background_tasks.add_task(create_full_backup, tag="restore_bill")
@@ -277,11 +304,12 @@ async def api_restore_bill(tenantId: int, billNo: str, background_tasks: Backgro
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.delete(Routes.ADMINAPIBILLINGDELETE, name=Names.APIDELETEBILL)
-async def api_delete_bill(tenantId: int, billNo: str, background_tasks: BackgroundTasks):
+@router.delete(Routes.LANDLORDAPIBILLINGDELETE, name=Names.APIDELETEBILL)
+async def api_delete_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks):
     try:
         delete_bill(tenantId, billNo)
         background_tasks.add_task(create_full_backup, tag="delete_bill")
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "RECEIPT_DELETED", "billNo": billNo, "tenantId": tenantId})
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -289,16 +317,16 @@ async def api_delete_bill(tenantId: int, billNo: str, background_tasks: Backgrou
 
 ```python
 // File: app\app\api\dashboard.py
-﻿# File: app\app\api\dashboard.py
+# File: app\app\api\dashboard.py
 from fastapi import APIRouter
 from app.services.billing_service import get_dashboard_stats
 
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 router = APIRouter(tags=["Dashboard API"])
 
-@router.get(Routes.ADMINAPIDASHBOARDSTATS, name=Names.HEALTHCHECK)
-async def dashboard_api():
+@router.get(Routes.LANDLORDAPIDASHBOARDSTATS, name="api_dashboard_stats")
+async def dashboard_api(landlordUuid: str):
     """Returns dashboard statistics as JSON."""
     stats = get_dashboard_stats()
     return {"stats": stats}
@@ -306,7 +334,7 @@ async def dashboard_api():
 
 ```python
 // File: app\app\api\health.py
-﻿from fastapi import APIRouter
+from fastapi import APIRouter
 from app.core.routes_manifest import Names
 
 from app.core.routes_manifest import Routes
@@ -341,7 +369,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Red
 from app.core.dependencies import templates, config
 from app.core.route_builder import RouteBuilder
 
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from typing import Optional
 from app.models.tenant import Tenant
@@ -363,11 +391,11 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
-from app.authentication.admin.middleware import get_current_admin_api
+from app.authentication.landlord.middleware import get_current_landlord_api
 from datetime import datetime
 
-@router.get(Routes.ADMINAPIPDFDOWNLOAD, name=Names.PDFDOWNLOAD)
-async def download_pdf(tenantId: int, billNo: str, admin = Depends(get_current_admin_api)):
+@router.get(Routes.LANDLORDAPIPDFDOWNLOAD, name=Names.PDFDOWNLOAD)
+async def download_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord = Depends(get_current_landlord_api)):
     billNo = billNo
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
@@ -389,8 +417,8 @@ async def download_pdf(tenantId: int, billNo: str, admin = Depends(get_current_a
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
     return response
 
-@router.get(Routes.ADMINAPIPDFVIEW, name=Names.PDFVIEW)
-async def view_pdf(tenantId: int, billNo: str, admin = Depends(get_current_admin_api)):
+@router.get(Routes.LANDLORDAPIPDFVIEW, name=Names.PDFVIEW)
+async def view_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord = Depends(get_current_landlord_api)):
     billNo = billNo
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
@@ -421,7 +449,7 @@ async def view_pdf(tenantId: int, billNo: str, admin = Depends(get_current_admin
 # // File: app\app\api\public.py
 from fastapi import APIRouter, Request, Response, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 
-from app.core.routes_manifest import Names, Routes
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 from app.core.routes_manifest_tenant import TenantRoutes, TenantNames
 
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse, FileResponse
@@ -431,6 +459,7 @@ from app.core.route_builder import RouteBuilder
 from typing import Optional
 from datetime import datetime
 from app.core.paths import KYC_DIR
+from app.core.config_service import config
 from app.models.tenant import Tenant
 from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json
@@ -454,7 +483,7 @@ router = APIRouter()
 
 from app.authentication.tenant.middleware import get_current_tenant
 
-# @router.get("/t/api/{viewToken}/profile", name=TenantNames.TENANTPROFILEGET)
+# Legacy route (no landlordUuid prefix)
 @router.get(TenantRoutes.TENANTAPIPROFILEGET, name=TenantNames.TENANTPROFILEGET)
 async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Request):
     tenants = load_tenants()
@@ -480,7 +509,8 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
         "id": tenant.id,
         "name": getattr(tenant, "name", ""),
         "viewToken": viewToken,
-        "unlocked": unlocked
+        "unlocked": unlocked,
+        "readOnly": tenant.status != "Active",
     }
     
     if unlocked:
@@ -513,9 +543,9 @@ async def get_public_key():
 from pydantic import BaseModel
 
 class EncryptedLoginRequest(BaseModel):
-    encryptedKey: str      # Base64-encoded RSA-encrypted AES key
-    encryptedData: str     # Base64-encoded AES-GCM encrypted payload
-    nonce: str             # Base64-encoded nonce
+    key: str        # Base64-encoded RSA-encrypted AES key
+    data: str       # Base64-encoded AES-GCM encrypted payload
+    nonce: str      # Base64-encoded nonce
 
 @router.post(TenantRoutes.TENANTAPIAUTHLOGIN, name=TenantNames.TENANTLOGIN)
 async def public_tenant_login(tenantId: int, viewToken: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
@@ -526,7 +556,7 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
 
     from app.encryption import decrypt_payload
     try:
-        decrypted = decrypt_payload(login_req.encryptedKey, login_req.encryptedData, login_req.nonce)
+        decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
         pin = decrypted.get("pin", "")
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted payload")
@@ -555,7 +585,8 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
         "tenant": {
             "id": tenant.id,
             "name": getattr(tenant, "name", ""),
-            "unlocked": True
+            "unlocked": True,
+            "readOnly": tenant.status != "Active",
         }
     }
 
@@ -611,29 +642,66 @@ async def tenant_download_pdf(tenantId: int, viewToken: str, billNo: str, princi
 
 @router.post(TenantRoutes.TENANTAPIKYCUPLOAD, name=TenantNames.TENANTKYCUPLOAD)
 async def public_tenant_kyc_upload(
-    tenantId: int, 
-    viewToken: str, 
-    name: str = Form(...), 
-    mobile: str = Form(...),
-    aadhaar_front: Optional[UploadFile] = File(None),
-    aadhaar_back: Optional[UploadFile] = File(None),
-    aadhaar_combined: Optional[UploadFile] = File(None),
-    emp_front: Optional[UploadFile] = File(None),
-    emp_back: Optional[UploadFile] = File(None),
+    tenantId: int,
+    viewToken: str,
+    name: str = Form(...),
+    mobile: str = Form(""),
+    address: str = Form(""),
+    residentSince: str = Form(""),
+    aadhaarfront: Optional[UploadFile] = File(None),
+    aadhaarback: Optional[UploadFile] = File(None),
+    aadhaarcombined: Optional[UploadFile] = File(None),
+    empfront: Optional[UploadFile] = File(None),
+    empback: Optional[UploadFile] = File(None),
     principal = Depends(get_current_tenant)
 ):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
-        
-    if not aadhaar_combined and not (aadhaar_front and aadhaar_back):
-        raise HTTPException(status_code=400, detail="Please upload either a Combined Aadhaar file, or both Front and Back files.")
-        
+
+    if tenant.status != "Active":
+        raise HTTPException(status_code=403, detail="KYC uploads are not allowed for inactive tenants.")
+
+    # Enforce daily KYC upload cap
+    from app.core.db import get_conn
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    with get_conn() as conn:
+        today_count = conn.execute(
+            "SELECT COUNT(*) as cnt FROM occupants WHERE tenantId = ? AND DATE(uploaddate) = ?",
+            (tenant.id, today),
+        ).fetchone()["cnt"]
+    daily_limit = config.get("system", "security.kyc_daily_upload_limit", default=5)
+    if today_count >= daily_limit:
+        raise HTTPException(status_code=429, detail=f"Daily KYC upload limit of {daily_limit} reached. Try again tomorrow.")
+
+    # Validate residentSince date if provided
+    if residentSince:
+        try:
+            from datetime import date
+            parsed_date = date.fromisoformat(residentSince)
+            if parsed_date > date.today():
+                raise HTTPException(status_code=400, detail="Residing-since date cannot be in the future.")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Residing-since date must use YYYY-MM-DD format.")
+
+    # Need either combined OR both front+back (check filename to exclude empty browser inputs)
+    has_combined = bool(aadhaarcombined and aadhaarcombined.filename)
+    has_both = bool(
+        (aadhaarfront and aadhaarfront.filename) and
+        (aadhaarback and aadhaarback.filename)
+    )
+    if not has_combined and not has_both:
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload either a Combined Aadhaar file, or both Front and Back files."
+        )
+
     occupantUuid = str(uuid.uuid4())
-    
+
     async def save_kyc_img(file_obj: UploadFile, side: str):
-        if not file_obj or not file_obj.filename: return ""
+        if not file_obj or not file_obj.filename:
+            return ""
         ext = file_obj.filename.split('.')[-1] if '.' in file_obj.filename else 'jpg'
         filename = f"{tenant.id}_{occupantUuid}_{side}.{ext}"
         os.makedirs(KYC_DIR, exist_ok=True)
@@ -642,17 +710,19 @@ async def public_tenant_kyc_upload(
             f.write(await file_obj.read())
         return filename
 
-    af_path = await save_kyc_img(aadhaar_front, "aadhaar_front") if aadhaar_front else ""
-    ab_path = await save_kyc_img(aadhaar_back, "aadhaar_back") if aadhaar_back else ""
-    ac_path = await save_kyc_img(aadhaar_combined, "aadhaar_combined") if aadhaar_combined else ""
-    ef_path = await save_kyc_img(emp_front, "emp_front") if emp_front else ""
-    eb_path = await save_kyc_img(emp_back, "emp_back") if emp_back else ""
-        
+    af_path = await save_kyc_img(aadhaarfront, "aadhaar_front") if has_both else ""
+    ab_path = await save_kyc_img(aadhaarback, "aadhaar_back") if has_both else ""
+    ac_path = await save_kyc_img(aadhaarcombined, "aadhaar_combined") if has_combined else ""
+    ef_path = await save_kyc_img(empfront, "emp_front") if (empfront and empfront.filename) else ""
+    eb_path = await save_kyc_img(empback, "emp_back") if (empback and empback.filename) else ""
+
     now = datetime.now()
     save_occupant(tenant.id, {
         "uuid": occupantUuid,
-        "name": name,
-        "mobile": mobile,
+        "name": name.strip(),
+        "mobile": mobile.strip(),
+        "address": address.strip(),
+        "residentSince": residentSince,
         "status": "Active",
         "aadhaar_front": af_path,
         "aadhaar_back": ab_path,
@@ -660,9 +730,9 @@ async def public_tenant_kyc_upload(
         "emp_front": ef_path,
         "emp_back": eb_path,
         "uploaddate": now.strftime("%Y-%m-%dT%H:%M:%S"),
-        "uploadmonth": now.strftime("%B %Y")
+        "uploadmonth": now.strftime("%B %Y"),
     })
-    
+
     return {"status": "success", "message": "KYC uploaded successfully"}
 
 @router.put(TenantRoutes.TENANTAPIKYCMARKINACTIVE, name=TenantNames.TENANTKYCMARKINACTIVE)
@@ -671,6 +741,9 @@ async def public_tenant_kyc_mark_inactive(tenantId: int, viewToken: str, occupan
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid link.")
+
+    if tenant.status != "Active":
+        raise HTTPException(status_code=403, detail="KYC modifications are not allowed for inactive tenants.")
         
     from app.services.tenant_service import update_occupant_status
     update_occupant_status(occupantUuid, "Inactive")
@@ -682,12 +755,15 @@ async def public_tenant_kyc_delete(tenantId: int, viewToken: str, occupantUuid: 
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
-        
+
+    if tenant.status != "Active":
+        raise HTTPException(status_code=403, detail="KYC deletions are not allowed for inactive tenants.")
+
     occupants = get_occupants(tenant.id)
-    target = next((o for o in occupants if o.get("Occupant UUID") == occupantUuid), None)
-    
+    target = next((o for o in occupants if o.get("occupantUuid") == occupantUuid or o.get("Occupant UUID") == occupantUuid), None)
+
     if target:
-        doc_keys = ["Aadhaar Front", "Aadhaar Back", "Aadhaar Combined", "Emp Front", "Emp Back"]
+        doc_keys = ["aadhaarfront", "aadhaarback", "aadhaarcombined", "empfront", "empback"]
         for key in doc_keys:
             filename = target.get(key)
             if filename:
@@ -726,32 +802,36 @@ async def tenant_public_get_kyc_file(tenantId: int, viewToken: str, filename: st
 
 ```python
 // File: app\app\api\settings.py
-﻿# // File: app\app\api\settings.py
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks
+# // File: app\app\api\settings.py
+from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
 
-from app.core.routes_manifest import Names, Routes
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from pydantic import BaseModel
 import os
+import datetime
 
 from app.core.config_service import config
+from app.core.db import get_conn
 from app.services.signature_service import save_signature, delete_signature
 from app.services.backup_service import create_full_backup
+from app.authentication.landlord.middleware import get_current_landlord_api
 
 router = APIRouter(tags=["Settings"])
 
-@router.get(Routes.ADMINAPICONFIGGET, name=Names.APIGETCONFIG)
-async def api_get_config():
+@router.get(Routes.LANDLORDAPICONFIGGET, name=Names.APIGETCONFIG)
+async def api_get_config(landlordUuid: str, principal=Depends(get_current_landlord_api)):
     return {
         "landlord": config.get("landlord", {}),
         "billing": config.get("billing", {}),
         "ui": config.get("ui", {}),
         "backup": config.get("backup", {}),
-        "whatsapp": config.get("whatsapp", {})
+        "whatsapp": config.get("whatsapp", {}),
+        "system": config.get("system", {})
     }
 
-@router.post(Routes.ADMINAPISETTINGSUPLOADSIGNATURE, name=Names.APIUPLOADSIGNATURE)
-async def api_upload_signature(file: UploadFile = File(...)):
+@router.post(Routes.LANDLORDAPISETTINGSUPLOADSIGNATURE, name=Names.APIUPLOADSIGNATURE)
+async def api_upload_signature(landlordUuid: str, file: UploadFile = File(...), principal=Depends(get_current_landlord_api)):
     sys_conf = config.get("system", {})
     max_mb = config.get("system.limits.max_upload_size_mb", 2)
     max_bytes = max_mb * 1024 * 1024
@@ -768,8 +848,8 @@ async def api_upload_signature(file: UploadFile = File(...)):
 
     return {"status": "success", "path": filename}
 
-@router.delete(Routes.ADMINAPISETTINGSDELETESIGNATURE, name=Names.APIDELETESIGNATURE)
-async def api_delete_signature():
+@router.delete(Routes.LANDLORDAPISETTINGSDELETESIGNATURE, name=Names.APIDELETESIGNATURE)
+async def api_delete_signature(landlordUuid: str, principal=Depends(get_current_landlord_api)):
     delete_signature()
     config.save("landlord", {"signature_image": ""})
     return {"status": "success"}
@@ -779,9 +859,10 @@ class ConfigUpdateModel(BaseModel):
     billing: dict
     whatsapp: dict = {}
     backup: dict = {}
+    system: dict | None = None
 
-@router.post(Routes.ADMINAPICONFIGUPDATE, name=Names.UPDATECONFIG)
-async def update_config(data: ConfigUpdateModel, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPICONFIGUPDATE, name=Names.UPDATECONFIG)
+async def update_config(landlordUuid: str, data: ConfigUpdateModel, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api)):
     background_tasks.add_task(create_full_backup, tag="settings_change")
 
     config.save("landlord", data.landlord)
@@ -793,12 +874,49 @@ async def update_config(data: ConfigUpdateModel, background_tasks: BackgroundTas
     if data.backup:
         config.save("backup", data.backup)
 
+    if data.system:
+        config.save("system", data.system)
+
     return {"status": "success"}
 
-@router.post(Routes.ADMINAPICONFIGTHEME, name=Names.UPDATETHEME)
-async def update_theme(data: dict):
+
+# ── Per-landlord theme storage ────────────────────────────────────────────────
+
+def _load_landlord_theme(landlord_uuid: str) -> str:
+    """Load theme preference for a specific landlord."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT theme FROM landlord_ui_config WHERE landlorduuid = ?",
+            (landlord_uuid,),
+        ).fetchone()
+    return row["theme"] if row else "system"
+
+
+def _save_landlord_theme(landlord_uuid: str, theme: str) -> None:
+    """Save theme preference for a specific landlord (upsert)."""
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO landlord_ui_config (landlorduuid, theme, updated_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(landlorduuid) DO UPDATE SET theme = ?, updated_at = ?""",
+            (landlord_uuid, theme, now, theme, now),
+        )
+        conn.commit()
+
+
+@router.get(Routes.LANDLORDAPICONFIGTHEMEGET, name="landlord_get_theme")
+async def get_theme(landlordUuid: str, principal=Depends(get_current_landlord_api)):
+    """Return the theme preference for the authenticated landlord."""
+    theme = _load_landlord_theme(landlordUuid)
+    return {"status": "success", "theme": theme}
+
+
+@router.post(Routes.LANDLORDAPICONFIGTHEME, name=Names.UPDATETHEME)
+async def update_theme(landlordUuid: str, data: dict, principal=Depends(get_current_landlord_api)):
+    """Save the theme preference for the authenticated landlord."""
     theme = data.get("theme", "system")
-    config.save("ui", {"theme": theme})
+    _save_landlord_theme(landlordUuid, theme)
     return {"status": "success", "theme": theme, "effective_theme": theme}
 ```
 
@@ -810,7 +928,7 @@ async def update_theme(data: dict):
 from typing import Optional
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 
-from app.core.routes_manifest import Names, Routes
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from fastapi.responses import StreamingResponse, FileResponse
 from app.core.dependencies import config
@@ -920,8 +1038,8 @@ def _build_excel_workbook(tenants_list, receipts_list):
     return wb
 
 
-@router.get(Routes.ADMINAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
-async def export_receipts_csv(tenants_list: str = "all"):
+@router.get(Routes.LANDLORDAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
+async def export_receipts_csv(landlordUuid: str, tenants_list: str = "all"):
     tenants = load_tenants()
     receipts = get_all_receipts()
 
@@ -944,8 +1062,8 @@ async def export_receipts_csv(tenants_list: str = "all"):
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     return response
 
-@router.get(Routes.ADMINAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
-async def export_full_zip(tenants_list: str = "all"):
+@router.get(Routes.LANDLORDAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
+async def export_full_zip(landlordUuid: str, tenants_list: str = "all"):
     tenants = load_tenants()
     receipts = get_all_receipts()
 
@@ -993,8 +1111,8 @@ async def export_full_zip(tenants_list: str = "all"):
     response.headers["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
     return response
 
-@router.get(Routes.ADMINAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
-async def download_excel_template():
+@router.get(Routes.LANDLORDAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
+async def download_excel_template(landlordUuid: str):
     wb = openpyxl.Workbook()
     ws_profile = wb.active
     ws_profile.title = "Tenant_Profile"
@@ -1022,10 +1140,15 @@ async def download_excel_template():
     response.headers["Content-Disposition"] = 'attachment; filename="Rent_Data_Template.xlsx"'
     return response
 
-@router.get(Routes.ADMINAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
-async def export_excel_data(format: str):
+@router.get(Routes.LANDLORDAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
+async def export_excel_data(landlordUuid: str, format: str = "xlsx", tenants_list: str = "all"):
     tenants = load_tenants()
     receipts = get_all_receipts()
+
+    if tenants_list != "all":
+        selected_ids = {int(x) for x in tenants_list.split(",") if x.isdigit()}
+        receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) in selected_ids]
+        tenants = [t for t in tenants if t.id in selected_ids]
 
     # Build workbook entirely in RAM
     wb = _build_excel_workbook(tenants, receipts)
@@ -1351,8 +1474,8 @@ def _detect_encrypted_pins(parsed_data: dict) -> dict:
 # ENHANCED PREVIEW ENDPOINT (with conflict & encrypted PIN detection)
 # ============================================================================
 
-@router.post(Routes.ADMINAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
-async def import_preview_data(files: List[UploadFile] = File(...)):
+@router.post(Routes.LANDLORDAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
+async def import_preview_data(landlordUuid: str, files: List[UploadFile] = File(...)):
     preview_data = {}
     try:
         for file in files:
@@ -1462,8 +1585,9 @@ def normalize_tenant_status(value: str | None, default: str = "Active") -> str:
 # ENHANCED EXECUTE IMPORT ENDPOINT
 # ============================================================================
 
-@router.post(Routes.ADMINAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
+@router.post(Routes.LANDLORDAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
 async def import_execute_data(
+    landlordUuid: str,
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     selectedtargets: Optional[str] = Form(None),
@@ -1879,8 +2003,8 @@ async def import_execute_data(
             except: pass
 
 
-@router.get(Routes.ADMINAPIBILLINGARCHIVEDATA)
-async def get_archive_data():
+@router.get(Routes.LANDLORDAPIBILLINGARCHIVEDATA)
+async def get_archive_data(landlordUuid: str):
     tenants = load_tenants(include_archived=True)
     archivedtenants = [
         tenant for tenant in tenants
@@ -1946,7 +2070,7 @@ if __name__ == "__main__":
 # from typing import Optional
 # from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
 
-# from app.core.routes_manifest import Names, Routes
+# from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 # from fastapi.responses import StreamingResponse, FileResponse
 # from app.core.dependencies import config
@@ -2054,7 +2178,7 @@ if __name__ == "__main__":
 #     return wb
 
 
-# @router.get(Routes.ADMINAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
+# @router.get(Routes.LANDLORDAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
 # async def export_receipts_csv(tenants_list: str = "all"):
 #     tenants = load_tenants()
 #     receipts = get_all_receipts()
@@ -2079,7 +2203,7 @@ if __name__ == "__main__":
 #     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
 #     return response
 
-# @router.get(Routes.ADMINAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
+# @router.get(Routes.LANDLORDAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
 # async def export_full_zip(tenants_list: str = "all"):
 #     tenants = load_tenants()
 #     receipts = get_all_receipts()
@@ -2129,7 +2253,7 @@ if __name__ == "__main__":
 #     response.headers["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
 #     return response
 
-# @router.get(Routes.ADMINAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
+# @router.get(Routes.LANDLORDAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
 # async def download_excel_template():
 #     wb = openpyxl.Workbook()
 #     ws_profile = wb.active
@@ -2158,7 +2282,7 @@ if __name__ == "__main__":
 #     response.headers["Content-Disposition"] = 'attachment; filename="Rent_Data_Template.xlsx"'
 #     return response
 
-# # @router.get(Routes.ADMINAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
+# # @router.get(Routes.LANDLORDAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
 # # async def export_excel_data(format: str):
 # #     tenants = load_tenants()
 # #     receipts = get_all_receipts()
@@ -2194,7 +2318,7 @@ if __name__ == "__main__":
 # #         return response
 
 # #     raise HTTPException(status_code=400, detail="Unsupported format. Use 'xlsx' or 'zip'.")
-# @router.get(Routes.ADMINAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
+# @router.get(Routes.LANDLORDAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
 # async def export_excel_data(format: str):
 #     tenants = load_tenants()
 #     receipts = get_all_receipts()
@@ -2279,7 +2403,7 @@ if __name__ == "__main__":
 
 #     return tenants_dict
 
-# @router.post(Routes.ADMINAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
+# @router.post(Routes.LANDLORDAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
 # async def import_preview_data(files: List[UploadFile] = File(...)):
 #     preview_data = {}
 #     try:
@@ -2362,7 +2486,7 @@ if __name__ == "__main__":
 #     candidate = str(value or "").strip().title()
 #     return candidate if candidate in VALID_TENANT_STATUSES else default
 
-# @router.post(Routes.ADMINAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
+# @router.post(Routes.LANDLORDAPISYNCIMPORTEXECUTE, name=Names.IMPORTEXECUTEDATA)
 # async def import_execute_data(
 #     background_tasks: BackgroundTasks,
 #     files: List[UploadFile] = File(...),
@@ -2622,7 +2746,7 @@ if __name__ == "__main__":
 #                 pass
 
 
-# @router.get(Routes.ADMINAPIBILLINGARCHIVEDATA)
+# @router.get(Routes.LANDLORDAPIBILLINGARCHIVEDATA)
 # async def get_archive_data():
 #     tenants = load_tenants(include_archived=True)
 #     archived_tenants = [tenant for tenant in tenants if tenant.status == "Archived"]
@@ -2675,6 +2799,66 @@ if __name__ == "__main__":
 ```
 
 ```python
+// File: app\app\api\sync_ws.py
+"""
+app/api/sync_ws.py
+
+WebSocket endpoint for real-time sync across all frontend apps.
+Clients subscribe to a channel and receive events when data changes.
+"""
+
+import logging
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
+from app.core.websocket_manager import sync_manager
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+@router.websocket("/ws/sync")
+async def sync_websocket(
+    websocket: WebSocket,
+    channel: str = Query(...),
+):
+    """
+    WebSocket endpoint for real-time sync.
+    
+    Query params:
+      channel: The channel to subscribe to (e.g., "landlord:123", "platform_admin", "global")
+    
+    Events received:
+      { type: "TOTP_STATE_CHANGED", enabled: bool }
+      { type: "PASSWORD_RESET", landlordId: int }
+      { type: "TENANT_CREATED", tenantId: int }
+      { type: "TENANT_UPDATED", tenantId: int }
+      { type: "TENANT_DELETED", tenantId: int }
+      { type: "RECEIPT_CREATED", billNo: str, tenantId: int }
+      { type: "RECEIPT_UPDATED", billNo: str, tenantId: int }
+      { type: "KYC_UPLOADED", occupantUuid: str }
+      { type: "SETTINGS_UPDATED", domain: str }
+    """
+    # Validate channel format
+    allowed_prefixes = ("landlord:", "tenant:", "platform_admin", "global")
+    if not any(channel.startswith(p) for p in allowed_prefixes):
+        await websocket.close(code=4003, reason="Invalid channel")
+        return
+
+    await sync_manager.connect(websocket, channel)
+    try:
+        while True:
+            # Keep connection alive; client may send pings
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text('{"type":"pong"}')
+    except WebSocketDisconnect:
+        sync_manager.disconnect(websocket, channel)
+    except Exception as e:
+        logger.error(f"WS error on channel={channel}: {e}")
+        sync_manager.disconnect(websocket, channel)
+```
+
+```python
 // File: app\app\api\tenant_pdf.py
 # File: app/app/api/tenant_pdf.py
 from fastapi import APIRouter, Request, HTTPException, Depends
@@ -2688,6 +2872,7 @@ from datetime import datetime
 router = APIRouter()
 
 
+@router.get("/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view", include_in_schema=False)
 @router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)
 async def tenant_view_pdf(
     tenantId: int,
@@ -2735,6 +2920,7 @@ async def tenant_view_pdf(
     return response
 
 
+@router.get("/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download", include_in_schema=False)
 @router.get(TenantRoutes.TENANTAPIPDFDOWNLOAD, name=TenantNames.TENANTPDFDOWNLOAD)
 async def tenant_download_pdf(
     tenantId: int,
@@ -2788,7 +2974,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, Red
 from app.core.dependencies import templates, config
 from app.core.route_builder import RouteBuilder
 
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from typing import Optional, List
 from app.models.tenant import Tenant
@@ -2796,6 +2982,15 @@ from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json, datetime
 import shutil, logging
 from pydantic import BaseModel
+
+
+async def _broadcast(channel: str, event: dict):
+    """Fire-and-forget broadcast helper."""
+    try:
+        from app.core.websocket_manager import sync_manager
+        await sync_manager.broadcast(channel, event)
+    except Exception:
+        pass
 
 
 from app.services.tenant_service import (
@@ -2812,20 +3007,20 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
-@router.get(Routes.ADMINAPITENANTSLIST, name=Names.APIGETTENANTS)
-async def api_get_tenants():
+@router.get(Routes.LANDLORDAPITENANTSLIST, name=Names.APIGETTENANTS)
+async def api_get_tenants(landlordUuid: str):
     return load_tenants(include_archived=False)
 
-@router.get(Routes.ADMINAPITENANTSUPDATE, name=Names.APIGETTENANT)
-async def api_get_tenant(tenantId: int):
+@router.get(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIGETTENANT)
+async def api_get_tenant(landlordUuid: str, tenantId: int):
     tenants = load_tenants()
     tenant = next((t for t in tenants if t.id == tenantId), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
 
-@router.get(Routes.ADMINAPITENANTSRECEIPTS, name=Names.APIGETTENANTRECEIPTS)
-async def api_get_tenant_receipts(tenantId: int):
+@router.get(Routes.LANDLORDAPITENANTSRECEIPTS, name=Names.APIGETTENANTRECEIPTS)
+async def api_get_tenant_receipts(landlordUuid: str, tenantId: int):
     # Use include_archived=True so admin can view receipts of archived tenants
     tenants = load_tenants(include_archived=True)
     tenant = next((t for t in tenants if t.id == tenantId), None)
@@ -2838,8 +3033,8 @@ async def api_get_tenant_receipts(tenantId: int):
     tenant_receipts.reverse()
     return tenant_receipts
 
-@router.post(Routes.ADMINAPITENANTSLIST, name=Names.APIADDTENANT)
-async def api_add_tenant(t: Tenant, request: Request, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPITENANTSLIST, name=Names.APIADDTENANT)
+async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, background_tasks: BackgroundTasks):
     from app.authentication.common.utils import hash_pin, validate_tenantPin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
     from app.core.db import get_conn
@@ -2865,14 +3060,16 @@ async def api_add_tenant(t: Tenant, request: Request, background_tasks: Backgrou
         conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, hashed_pin, now))
         conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now))
         conn.commit()
-    
+
     response_tenant = t.dict()
     response_tenant.pop("tenantPin", None)
-    
+
+    await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_CREATED", "tenantId": tenantId})
+
     return {"status": "success", "tenant": response_tenant}
 
-@router.put(Routes.ADMINAPITENANTSUPDATE, name=Names.APIUPDATETENANT)
-async def api_update_tenant(tenantId: int, t: Tenant, background_tasks: BackgroundTasks):
+@router.put(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIUPDATETENANT)
+async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, background_tasks: BackgroundTasks):
     t.id = tenantId
     background_tasks.add_task(create_full_backup, tag="update_tenant")
     
@@ -2889,7 +3086,9 @@ async def api_update_tenant(tenantId: int, t: Tenant, background_tasks: Backgrou
     
     response_tenant = t.dict()
     response_tenant.pop("tenantPin", None)
-    
+
+    await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_UPDATED", "tenantId": tenantId})
+
     return {"status": "success", "tenant": response_tenant}
 
 from pydantic import BaseModel
@@ -2898,8 +3097,8 @@ class ChangePinRequest(BaseModel):
     pin: str
     logout_all: bool = True
 
-@router.post(Routes.ADMINAPITENANTSCHANGEPIN, name=Names.CHANGETENANTPIN)
-async def api_change_tenantPin(tenantId: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
+@router.post(Routes.LANDLORDAPITENANTSCHANGEPIN, name=Names.CHANGETENANTPIN)
+async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
     from app.authentication.common.utils import hash_pin, validate_tenantPin, verify_pin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
     from app.authentication.tenant.sessions import revoke_all_tenant_sessions
@@ -2943,8 +3142,9 @@ async def api_change_tenantPin(tenantId: int, payload: ChangePinRequest, request
     
     return {"status": "success", "message": "PIN changed successfully."}
 
-@router.get(Routes.ADMINAPITENANTSREVEALPIN, name=Names.ADMINREVEALPIN)
+@router.get(Routes.LANDLORDAPITENANTSREVEALPIN, name=Names.LANDLORDREVEALPIN)
 async def admin_reveal_tenantPin(
+    landlordUuid: str,
     tenantId: int,  # CHANGED: tenantId → tenantId
 ):
     from app.authentication.common.pin_vault import decrypt_admin_view_pin
@@ -2968,8 +3168,9 @@ async def admin_reveal_tenantPin(
         "updated_at": row["updated_at"]
     }
 
-@router.delete(Routes.ADMINAPITENANTSUPDATE, name=Names.APIDELETETENANT)
+@router.delete(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIDELETETENANT)
 async def api_delete_tenant(
+    landlordUuid: str,
     tenantId: int,
     background_tasks: BackgroundTasks,
     action: str = "archive",
@@ -3032,6 +3233,7 @@ async def api_delete_tenant(
     try:
         background_tasks.add_task(create_full_backup, tag=f"{action}_tenant")
         result = delete_tenant(tenantId, action)
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_DELETED", "tenantId": tenantId})
         return {"status": "success", "action": action, "data": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -3043,16 +3245,16 @@ async def api_delete_tenant(
 
 # ── Tenant Recovery Snapshot Endpoints ───────────────────────────────────────
 
-@router.get(Routes.ADMINAPITENANTSNAPSHOTS, name=Names.APILISTRECOVERYSNAPSHOTS)
-async def api_list_recovery_snapshots():
+@router.get(Routes.LANDLORDAPITENANTSNAPSHOTS, name=Names.APILISTRECOVERYSNAPSHOTS)
+async def api_list_recovery_snapshots(landlordUuid: str):
     """List all tenant recovery snapshots (runs expiry purge first)."""
     from app.services.tenant_recovery_service import get_tenant_recovery_snapshots
     snapshots = get_tenant_recovery_snapshots()
     return {"status": "success", "snapshots": snapshots}
 
 
-@router.get(Routes.ADMINAPITENANTSNAPSHOT_PREVIEW, name=Names.APIRECOVERYSNAPSHOT_PREVIEW)
-async def api_recovery_snapshot_preview(snapshotId: str):
+@router.get(Routes.LANDLORDAPITENANTSNAPSHOT_PREVIEW, name=Names.APIRECOVERYSNAPSHOT_PREVIEW)
+async def api_recovery_snapshot_preview(landlordUuid: str, snapshotId: str):
     """Return a conflict preview for restoring a tenant recovery snapshot."""
     from app.services.tenant_recovery_service import get_snapshot_restore_preview
     try:
@@ -3068,8 +3270,8 @@ class RestoreSnapshotRequest(BaseModel):
     force_new_id: bool = False
 
 
-@router.post(Routes.ADMINAPITENANTSNAPSHOT_RESTORE, name=Names.APIRECOVERYSNAPSHOT_RESTORE)
-async def api_restore_recovery_snapshot(snapshotId: str, payload: RestoreSnapshotRequest = RestoreSnapshotRequest()):
+@router.post(Routes.LANDLORDAPITENANTSNAPSHOT_RESTORE, name=Names.APIRECOVERYSNAPSHOT_RESTORE)
+async def api_restore_recovery_snapshot(landlordUuid: str, snapshotId: str, payload: RestoreSnapshotRequest = RestoreSnapshotRequest()):
     """Restore a tenant from a recovery snapshot."""
     from app.services.tenant_recovery_service import restore_tenant_from_snapshot
     try:
@@ -3081,8 +3283,9 @@ async def api_restore_recovery_snapshot(snapshotId: str, payload: RestoreSnapsho
         raise HTTPException(status_code=500, detail=f"Restore failed: {e}")
 
 
-@router.post(Routes.ADMINAPITENANTSRESTORE, name=Names.APIRESTORETENANT)
+@router.post(Routes.LANDLORDAPITENANTSRESTORE, name=Names.APIRESTORETENANT)
 async def api_restore_tenant(
+    landlordUuid: str,
     tenantId: int,
     background_tasks: BackgroundTasks,
 ):
@@ -3107,68 +3310,104 @@ async def api_restore_tenant(
 from app.core.paths import KYC_DIR
 import mimetypes
 
-@router.get(Routes.ADMINAPIOCCUPANTSLIST, name=Names.APIGETOCCUPANTS)
-async def admin_get_occupants(tenantId: int):
+@router.get(Routes.LANDLORDAPIOCCUPANTSLIST, name=Names.APIGETOCCUPANTS)
+async def admin_get_occupants(landlordUuid: str, tenantId: int):
     occupants = get_occupants(tenantId)
-    # Map occupantUuid to "Occupant UUID" for frontend compatibility
-    for o in occupants:
-        if "occupantUuid" in o and "Occupant UUID" not in o:
-            o["Occupant UUID"] = o["occupantUuid"]
     return {"occupants": occupants}
 
-@router.post(Routes.ADMINAPIOCCUPANTSCREATE, name=Names.APICREATEOCCUPANT)
+@router.post(Routes.LANDLORDAPIOCCUPANTSCREATE, name=Names.APICREATEOCCUPANT)
 async def admin_post_occupants(
+    landlordUuid: str,
     tenantId: int,
     name: str = Form(...),
     mobile: str = Form(""),
-    files: List[UploadFile] = File(None)
+    address: str = Form(""),
+    residentSince: str = Form(""),
+    aadhaarfront: Optional[UploadFile] = File(None),
+    aadhaarback: Optional[UploadFile] = File(None),
+    aadhaarcombined: Optional[UploadFile] = File(None),
+    empfront: Optional[UploadFile] = File(None),
+    empback: Optional[UploadFile] = File(None),
 ):
     import uuid
     from app.core.paths import KYC_DIR
     import os
     import shutil
-    
+
+    # Validate Aadhaar: need combined OR both front+back
+    has_combined = aadhaarcombined and aadhaarcombined.filename
+    has_both = (aadhaarfront and aadhaarfront.filename) and (aadhaarback and aadhaarback.filename)
+    if not has_combined and not has_both:
+        raise HTTPException(
+            status_code=400,
+            detail="Upload one combined Aadhaar document, or both front and back.",
+        )
+
+    # Validate residentSince date if provided
+    if residentSince:
+        try:
+            from datetime import date
+            parsed = date.fromisoformat(residentSince)
+            if parsed > date.today():
+                raise HTTPException(status_code=400, detail="Residing since date cannot be in the future.")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid residentSince date format. Use YYYY-MM-DD.")
+
     occ_uuid = str(uuid.uuid4())
-    doc_urls = {}
-    
-    if files:
-        for file in files:
-            if file.filename:
-                # Basic saving logic for occupant files
-                ext = file.filename.split(".")[-1] if "." in file.filename else ""
-                safe_name = f"{occ_uuid}_{file.filename}"
-                file_path = os.path.join(KYC_DIR, safe_name)
-                with open(file_path, "wb") as buffer:
-                    shutil.copyfileobj(file.file, buffer)
-                # Assign to first available slot just for simplicity, or aadhaar_combined
-                if not doc_urls.get("aadhaar_combined"):
-                    doc_urls["aadhaar_combined"] = safe_name
-                
+    prefix = f"{tenantId}_{occ_uuid}"
+    doc_urls: dict = {}
+
+    async def _save(upload: UploadFile, field: str):
+        if not upload or not upload.filename:
+            return
+        ext = os.path.splitext(upload.filename)[-1].lower()
+        safe_name = f"{prefix}_{field}{ext}"
+        file_path = os.path.join(KYC_DIR, safe_name)
+        with open(file_path, "wb") as buf:
+            shutil.copyfileobj(upload.file, buf)
+        doc_urls[field] = safe_name
+
+    await _save(aadhaarcombined, "aadhaar_combined")
+    await _save(aadhaarfront,    "aadhaar_front")
+    await _save(aadhaarback,     "aadhaar_back")
+    await _save(empfront,        "emp_front")
+    await _save(empback,         "emp_back")
+
+    from datetime import datetime
+    now = datetime.utcnow()
     occ_data = {
-        "occupantUuid": occ_uuid,
-        "name": name,
-        "mobile": mobile,
-        "status": "Active",
-        "aadhaar_combined": doc_urls.get("aadhaar_combined", "")
+        "occupantUuid":    occ_uuid,
+        "name":            name,
+        "mobile":          mobile,
+        "address":         address,
+        "residentSince":   residentSince,
+        "status":          "Active",
+        "aadhaar_combined": doc_urls.get("aadhaar_combined", ""),
+        "aadhaar_front":   doc_urls.get("aadhaar_front", ""),
+        "aadhaar_back":    doc_urls.get("aadhaar_back", ""),
+        "emp_front":       doc_urls.get("emp_front", ""),
+        "emp_back":        doc_urls.get("emp_back", ""),
+        "uploaddate":      now.strftime("%d %b %Y"),
+        "uploadmonth":     now.strftime("%B %Y"),
     }
     save_occupant(tenantId, occ_data)
     return {"status": "success", "occupantUuid": occ_uuid}
 
-@router.put(Routes.ADMINAPIOCCUPANTSMARKINACTIVE, name=Names.APIMARKOCCUPANTINACTIVE)
-async def admin_tenant_kyc_mark_inactive(tenantId: int, occupantUuid: str):
+@router.put(Routes.LANDLORDAPIOCCUPANTSMARKINACTIVE, name=Names.APIMARKOCCUPANTINACTIVE)
+async def admin_tenant_kyc_mark_inactive(landlordUuid: str, tenantId: int, occupantUuid: str):
     from app.services.tenant_service import update_occupant_status
     update_occupant_status(occupantUuid, "Inactive")
     return {"status": "success"}
 
-@router.delete(Routes.ADMINAPIOCCUPANTSDELETE, name=Names.APIDELETEOCCUPANT)
-async def admin_tenant_kyc_delete(tenantId: int, occupantUuid: str):
+@router.delete(Routes.LANDLORDAPIOCCUPANTSDELETE, name=Names.APIDELETEOCCUPANT)
+async def admin_tenant_kyc_delete(landlordUuid: str, tenantId: int, occupantUuid: str):
     tenantId = tenantId
     occupantUuid = occupantUuid
     occupants = get_occupants(tenantId)
-    target = next((o for o in occupants if o.get("Occupant UUID") == occupantUuid), None)
-    
+    target = next((o for o in occupants if o.get("occupantUuid") == occupantUuid or o.get("Occupant UUID") == occupantUuid), None)
+
     if target:
-        doc_keys = ["Aadhaar Front", "Aadhaar Back", "Aadhaar Combined", "Emp Front", "Emp Back"]
+        doc_keys = ["aadhaarfront", "aadhaarback", "aadhaarcombined", "empfront", "empback"]
         for key in doc_keys:
             filename = target.get(key)
             if filename:
@@ -3178,12 +3417,12 @@ async def admin_tenant_kyc_delete(tenantId: int, occupantUuid: str):
                         os.remove(file_path)
                     except Exception:
                         pass
-            
+
     delete_occupant(occupantUuid)
     return {"status": "success"}
 
-@router.get(Routes.ADMINAPIOCCUPANTSGETFILE, name=Names.APIGETOCCUPANTFILE)
-async def admin_get_kyc_file(filename: str):
+@router.get(Routes.LANDLORDAPIOCCUPANTSGETFILE, name=Names.APIGETOCCUPANTFILE)
+async def admin_get_kyc_file(landlordUuid: str, tenantId: int, filename: str):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -3208,7 +3447,7 @@ async def admin_get_kyc_file(filename: str):
 from fastapi import APIRouter, Request, HTTPException
 from urllib.parse import quote
 
-from app.core.routes_manifest import Names, Routes
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from app.core.dependencies import config
 from app.services.tenant_service import load_tenants
@@ -3217,8 +3456,8 @@ import re
 
 router = APIRouter()
 
-@router.get(Routes.ADMINAPIWHATSAPPSENDSINGLE, name=Names.SENDWHATSAPPSINGLE)
-async def send_whatsapp_single(request: Request, tenantId: int, billNo: str):
+@router.get(Routes.LANDLORDAPIWHATSAPPSENDSINGLE, name=Names.SENDWHATSAPPSINGLE)
+async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: int, billNo: str):
     billNo = billNo
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
@@ -3252,8 +3491,13 @@ async def send_whatsapp_single(request: Request, tenantId: int, billNo: str):
         tenant.viewToken = token
         update_tenant(tenant)
 
-    base_url = str(request.base_url).rstrip("/")
-    link = f"{base_url}/t/{token}"
+    header_uuid = request.headers.get("x-landlord-uuid")
+    if header_uuid:
+        landlordUuid = header_uuid
+    if not landlordUuid:
+        raise HTTPException(status_code=400, detail="Missing landlord context in request")
+        
+    link = str(request.url_for("serve_tenant_app", landlordUuid=landlordUuid, tenantId=tenant.id, viewToken=token))
     grandTotal = float(receipt.get("Total", 0)) + float(receipt.get("previousArrears", 0))
 
     tenant_portal_pin = "(Unavailable)"
@@ -3291,44 +3535,54 @@ async def send_whatsapp_single(request: Request, tenantId: int, billNo: str):
 
 ```python
 // File: app\app\authentication\admin\cookies.py
-﻿from fastapi import Response, Request
+from fastapi import Response, Request
+
+def get_admin_cookie_path(request: Request | None = None) -> str:
+    if request is None:
+        return "/admin"
+
+    rootpath = (request.scope.get("root_path") or request.scope.get("rootpath") or "").rstrip("/")
+    path = request.url.path.rstrip("/")
+
+    if path.startswith("/platform-admin"):
+        return "/platform-admin"
+
+    if rootpath and rootpath != "/":
+        return rootpath
+
+    parts = [p for p in path.split("/") if p]
+    if parts and parts[0] not in {"admin", "platform-admin", "api", "static"}:
+        return f"/{parts[0]}"
+
+    return "/admin"
 
 def set_admin_auth_cookies(response: Response, access_token: str, refresh_token: str, remember_me: bool, request: Request = None):
+    cookie_path = get_admin_cookie_path(request)
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
-    
-    root_path = request.scope.get("root_path", "") if request else ""
-    cookie_path = f"{root_path}/admin"
-    if not cookie_path.startswith("/"):
-        cookie_path = "/" + cookie_path
-    
+
     response.set_cookie(
         key="admin_access_token",
         value=access_token,
         httponly=True,
-        secure=True, 
-        samesite="Lax",
+        secure=True,
+        samesite="lax",
         path=cookie_path,
-        max_age=15 * 60
+        max_age=15 * 60,
     )
-    
     response.set_cookie(
         key="admin_refresh_token",
         value=refresh_token,
         httponly=True,
         secure=True,
-        samesite="Strict",
+        samesite="strict",
         path=cookie_path,
-        max_age=max_age_refresh
+        max_age=max_age_refresh,
     )
 
 def clear_admin_auth_cookies(response: Response, request: Request = None):
-    root_path = request.scope.get("root_path", "") if request else ""
-    cookie_path = f"{root_path}/admin"
-    if not cookie_path.startswith("/"):
-        cookie_path = "/" + cookie_path
-        
-    response.delete_cookie(key="admin_access_token", path=cookie_path, httponly=True, secure=True, samesite="Lax")
-    response.delete_cookie(key="admin_refresh_token", path=cookie_path, httponly=True, secure=True, samesite="Strict")
+    cookie_path = get_admin_cookie_path(request)
+    response.delete_cookie(key="admin_access_token", path=cookie_path, httponly=True, secure=True, samesite="lax")
+    response.delete_cookie(key="admin_refresh_token", path=cookie_path, httponly=True, secure=True, samesite="strict")
 ```
 
 ```python
@@ -3552,7 +3806,7 @@ def decrypt_admin_view_pin(ciphertext: str) -> str:
 
 ```python
 // File: app\app\authentication\common\principal.py
-﻿from dataclasses import dataclass
+from dataclasses import dataclass
 from typing import Optional
 
 @dataclass
@@ -3561,8 +3815,16 @@ class AuthPrincipal:
     role: str
     id: int
     session_id: str
+
     tenantId: Optional[int] = None
     admin_id: Optional[int] = None
+    landlord_id: Optional[int] = None
+
+    # Landlord-specific profile fields (populated by landlord middleware)
+    landlord_uuid: Optional[str] = None
+    username: Optional[str] = None
+    fullname: Optional[str] = None
+    email: Optional[str] = None
 ```
 
 ```python
@@ -3596,6 +3858,519 @@ def validate_tenantPin(pin: str) -> str:
 ```
 
 ```python
+// File: app\app\authentication\landlord\__init__.py
+# authentication/landlord/__init__.py
+```
+
+```python
+// File: app\app\authentication\landlord\cookies.py
+"""
+app/authentication/landlord/cookies.py
+
+Set and clear landlord-specific auth cookies.
+Cookie names and path are deliberately separate from admin and tenant cookies
+to prevent any cross-role contamination.
+
+Cookie names : landlord_access_token / landlord_refresh_token
+Cookie path  : {root_path}/landlord   (e.g. /rent/landlord)
+"""
+from fastapi import Request, Response
+
+
+def _get_landlord_cookie_path(request: Request | None = None) -> str:
+    """Resolve the cookie path as root_path + /landlord."""
+    if request is None:
+        return "/landlord"
+    root = (
+        request.scope.get("root_path")
+        or request.scope.get("rootpath")
+        or ""
+    ).rstrip("/")
+    return f"{root}/landlord" if root else "/landlord"
+
+
+def set_landlord_auth_cookies(
+    response: Response,
+    access_token: str,
+    refresh_cookie: str,
+    remember_me: bool,
+    request: Request | None = None,
+) -> None:
+    """Attach landlord access + refresh cookies to *response*."""
+    cookie_path = _get_landlord_cookie_path(request)
+    max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
+
+    response.set_cookie(
+        key="landlord_access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path=cookie_path,
+        max_age=15 * 60,
+    )
+    response.set_cookie(
+        key="landlord_refresh_token",
+        value=refresh_cookie,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        path=cookie_path,
+        max_age=max_age_refresh,
+    )
+
+
+def clear_landlord_auth_cookies(
+    response: Response,
+    request: Request | None = None,
+) -> None:
+    """Remove landlord auth cookies from the browser."""
+    cookie_path = _get_landlord_cookie_path(request)
+    response.delete_cookie(
+        key="landlord_access_token",
+        path=cookie_path,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
+    response.delete_cookie(
+        key="landlord_refresh_token",
+        path=cookie_path,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+    )
+```
+
+```python
+// File: app\app\authentication\landlord\jwt.py
+"""
+app/authentication/landlord/jwt.py
+
+Create and decode landlord access tokens.
+JWT payload carries role='landlord' so it can never be confused with
+admin or tenant tokens.
+"""
+import os
+from datetime import datetime, timedelta
+
+from jose import jwt
+
+LANDLORD_JWT_SECRET = os.environ.get(
+    "LANDLORD_JWT_SECRET", "REPLACE_WITH_LANDLORD_SECURE_RANDOM_KEY"
+)
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+
+
+def create_landlord_access_token(landlord_id: int, session_id: str) -> str:
+    """Return a signed JWT for the given landlord + session."""
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {
+        "sub": str(landlord_id),
+        "landlord_id": landlord_id,
+        "sid": session_id,
+        "role": "landlord",
+        "type": "access",
+        "ver": 1,
+        "iat": datetime.utcnow(),
+        "exp": expire,
+    }
+    return jwt.encode(payload, LANDLORD_JWT_SECRET, algorithm=ALGORITHM)
+
+
+def decode_landlord_access_token(token: str) -> dict:
+    """Decode and verify a landlord JWT, raising jose.JWTError on failure."""
+    return jwt.decode(token, LANDLORD_JWT_SECRET, algorithms=[ALGORITHM])
+```
+
+```python
+// File: app\app\authentication\landlord\middleware.py
+"""
+app/authentication/landlord/middleware.py
+
+FastAPI dependency functions for landlord-protected routes.
+
+get_current_landlord_page  — for HTML page routes; redirects to landlord login on failure.
+get_current_landlord_api   — for API routes; returns HTTP 401 on failure.
+                             Also enforces UUID path matching for /landlord/{landlordUuid}/api/* routes.
+get_current_landlord_api_strict — like get_current_landlord_api but also blocks
+                             access when the landlord has requires_password_change set.
+"""
+from fastapi import HTTPException, Request
+
+from app.authentication.common.principal import AuthPrincipal
+from app.authentication.landlord.jwt import decode_landlord_access_token
+from app.authentication.landlord.sessions import get_landlord_session_db
+from app.database.landlord_repository import get_landlord_by_id
+
+
+def _is_browser_navigation(request: Request) -> bool:
+    sec_fetch_mode = (request.headers.get("sec-fetch-mode") or "").lower()
+    sec_fetch_dest = (request.headers.get("sec-fetch-dest") or "").lower()
+    accept = (request.headers.get("accept") or "").lower()
+
+    if sec_fetch_mode == "navigate":
+        return True
+    if sec_fetch_dest in {"document", "iframe"}:
+        return True
+    if "text/html" in accept or "application/pdf" in accept:
+        return True
+    return False
+
+
+def _landlord_login_url(request: Request) -> str:
+    try:
+        return str(request.url_for("landlordloginpage"))
+    except Exception:
+        root = (request.scope.get("root_path") or "").rstrip("/")
+        return f"{root}/landlord/login"
+
+
+def _build_principal(payload: dict, session_id: str, auth_type: str) -> AuthPrincipal:
+    """Build an AuthPrincipal, eagerly loading landlord profile fields from the DB."""
+    landlord_id = int(payload.get("landlord_id") or payload.get("sub"))
+    landlord = get_landlord_by_id(landlord_id)
+
+    landlord_uuid = landlord["landlord_uuid"] if landlord else None
+    username = landlord["username"] if landlord else None
+    fullname = landlord["full_name"] if landlord else None
+    email = landlord["email"] if landlord else None
+
+    return AuthPrincipal(
+        authentication_type=auth_type,
+        role="landlord",
+        id=landlord_id,
+        session_id=session_id,
+        landlord_id=landlord_id,
+        landlord_uuid=landlord_uuid,
+        username=username,
+        fullname=fullname,
+        email=email,
+    )
+
+
+async def get_current_landlord_page(request: Request) -> AuthPrincipal:
+    """
+    Dependency for landlord-protected *page* routes.
+    Redirects to landlord login page on any auth failure.
+    """
+    token = request.cookies.get("landlord_access_token")
+    if not token:
+        raise HTTPException(
+            status_code=303,
+            headers={"Location": _landlord_login_url(request)},
+        )
+
+    try:
+        payload = decode_landlord_access_token(token)
+        if payload.get("role") != "landlord":
+            raise HTTPException(
+                status_code=303,
+                headers={"Location": _landlord_login_url(request)},
+            )
+
+        session_id = payload.get("sid")
+        session = get_landlord_session_db(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=303,
+                headers={"Location": _landlord_login_url(request)},
+            )
+
+        return _build_principal(payload, session_id, "landlord_page")
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=303,
+            headers={"Location": _landlord_login_url(request)},
+        )
+
+
+async def get_current_landlord_api(request: Request) -> AuthPrincipal:
+    """
+    Dependency for landlord-protected *API* routes.
+    Returns HTTP 401 on any auth failure.
+    Enforces UUID path matching: if the route contains {landlordUuid},
+    the authenticated landlord's UUID must match the path UUID.
+    """
+    token = request.cookies.get("landlord_access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    try:
+        payload = decode_landlord_access_token(token)
+        if payload.get("role") != "landlord":
+            raise HTTPException(status_code=403, detail="Forbidden: Landlord access required")
+
+        session_id = payload.get("sid")
+        session = get_landlord_session_db(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=401,
+                detail="Session expired or revoked",
+                headers={"X-Session-Expired": "1"},
+            )
+
+        principal = _build_principal(payload, session_id, "landlord_api")
+
+        # Enforce UUID path matching for /landlord/{landlordUuid}/api/* routes
+        path_uuid = request.path_params.get("landlordUuid")
+        if path_uuid and principal.landlord_uuid != path_uuid:
+            raise HTTPException(status_code=403, detail="Forbidden: UUID mismatch")
+
+        return principal
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=401, detail="Unauthorized: Token expired or invalid")
+
+
+async def get_current_landlord_api_strict(request: Request) -> AuthPrincipal:
+    """
+    Stricter variant of get_current_landlord_api.
+    In addition to normal auth checks, it blocks access when the landlord
+    has requires_password_change = 1, returning HTTP 403 with a special header.
+    Only the change-password endpoint itself is exempted (checked via path).
+    """
+    principal = await get_current_landlord_api(request)
+
+    # Exempt the change-password endpoint itself
+    path = request.url.path
+    if path.endswith("/api/auth/change-password"):
+        return principal
+
+    from app.core.db import get_conn as _get_conn
+    with _get_conn() as conn:
+        row = conn.execute(
+            "SELECT requires_password_change FROM landlord_accounts WHERE id = ?",
+            (principal.landlord_id,),
+        ).fetchone()
+
+    if row and row["requires_password_change"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Password change required. Please update your password to continue.",
+            headers={"X-Password-Change-Required": "1"},
+        )
+
+    return principal
+```
+
+```python
+// File: app\app\authentication\landlord\sessions.py
+"""
+app/authentication/landlord/sessions.py
+
+Create, fetch, and revoke landlord sessions stored in landlord_sessions.
+Mirrors the admin sessions pattern exactly.
+"""
+import uuid
+import secrets
+from datetime import datetime, timedelta
+
+from app.core.db import get_conn
+from app.authentication.common.utils import hash_pin
+
+
+def create_landlord_session(landlord_id: int, request, remember_me: bool):
+    """
+    Persist a new landlord session and return (session_id, raw_refresh_token).
+    The raw refresh token is returned once and never stored in plaintext.
+    """
+    refresh_token = secrets.token_urlsafe(64)
+    refresh_hash = hash_pin(refresh_token)
+
+    session_id = str(uuid.uuid4())
+    days = 180 if remember_me else 1
+    expires_at = (datetime.utcnow() + timedelta(days=days)).isoformat()
+
+    user_agent = request.headers.get("User-Agent", "Unknown")
+    ip = request.client.host if request.client else "Unknown"
+    now = datetime.utcnow().isoformat()
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO landlord_sessions (
+                session_id, landlord_id, refresh_token_hash,
+                device_name, browser, os, ip_address,
+                created_at, last_activity, expires_at, remember_me
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                session_id, landlord_id, refresh_hash,
+                "Unknown", user_agent, "Unknown", ip,
+                now, now, expires_at, int(remember_me),
+            ),
+        )
+        conn.commit()
+
+    return session_id, refresh_token
+
+
+def get_landlord_session_db(session_id: str):
+    """Return the active landlord session row, or None if not found / revoked."""
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM landlord_sessions WHERE session_id = ? AND status = 'Active'",
+            (session_id,),
+        ).fetchone()
+
+
+def revoke_landlord_session_db(session_id: str) -> None:
+    """Mark a landlord session as Revoked."""
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE landlord_sessions SET status = 'Revoked', revoked_at = ? WHERE session_id = ?",
+            (now, session_id),
+        )
+        conn.commit()
+
+
+def revoke_all_landlord_sessions(landlord_id: int) -> None:
+    """Revoke every active session for a landlord (e.g. on password change)."""
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            UPDATE landlord_sessions
+            SET status = 'Revoked', revoked_at = ?
+            WHERE landlord_id = ? AND status = 'Active'
+            """,
+            (now, landlord_id),
+        )
+        conn.commit()
+```
+
+```python
+// File: app\app\authentication\platform\__init__.py
+"""
+app/authentication/platform/__init__.py
+"""
+```
+
+```python
+// File: app\app\authentication\platform\cookies.py
+"""
+app/authentication/platform/cookies.py
+Cookie helpers scoped to /platform-admin for the platform super-admin role.
+"""
+from fastapi import Response, Request, HTTPException
+
+def get_platform_cookie_path(request: Request | None = None) -> str:
+    if request is None:
+        return "/platform-admin"
+    root = (request.scope.get("root_path") or "").rstrip("/")
+    return f"{root}/platform-admin" if root else "/platform-admin"
+
+def set_platform_auth_cookies(
+    response: Response,
+    access_token: str,
+    refresh_token: str,
+    remember_me: bool,
+    request: Request | None = None,
+) -> None:
+    cookie_path = get_platform_cookie_path(request)
+    max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
+
+    response.set_cookie(
+        key="platform_access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+        path=cookie_path,
+        max_age=30 * 60,
+    )
+    response.set_cookie(
+        key="platform_refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+        path=cookie_path,
+        max_age=max_age_refresh,
+    )
+
+
+def clear_platform_auth_cookies(
+    response: Response,
+    request: Request | None = None,
+) -> None:
+    cookie_path = get_platform_cookie_path(request)
+    
+    response.delete_cookie(
+        key="platform_access_token",
+        path=cookie_path,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
+    response.delete_cookie(
+        key="platform_refresh_token",
+        path=cookie_path,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+    )
+
+
+def get_platform_token(request: Request) -> str:
+    token = request.cookies.get("platform_access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return token
+```
+
+```python
+// File: app\app\authentication\platform\jwt.py
+"""
+app/authentication/platform/jwt.py
+Separate JWT layer for the platform admin (super-admin) role.
+Uses a distinct secret and role='platform_admin' so it cannot
+be confused with landlord-admin or tenant tokens.
+"""
+import os
+from jose import jwt, JWTError
+from datetime import datetime, timedelta
+from fastapi import HTTPException
+
+PLATFORM_JWT_SECRET = os.environ.get(
+    "PLATFORM_JWT_SECRET", "REPLACE_WITH_PLATFORM_SECURE_RANDOM_KEY"
+)
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+
+def create_platform_access_token(admin_id: int, session_id: str) -> str:
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    payload = {
+        "sub": str(admin_id),
+        "admin_id": admin_id,
+        "sid": session_id,
+        "role": "platform_admin",
+        "type": "access",
+        "ver": 1,
+        "iat": datetime.utcnow(),
+        "exp": expire,
+    }
+    return jwt.encode(payload, PLATFORM_JWT_SECRET, algorithm=ALGORITHM)
+
+
+def decode_platform_access_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, PLATFORM_JWT_SECRET, algorithms=[ALGORITHM])
+        if payload.get("role") != "platform_admin":
+            raise JWTError("wrong role")
+        return payload
+    except JWTError as exc:
+        raise HTTPException(status_code=401, detail="Invalid platform token") from exc
+```
+
+```python
 // File: app\app\authentication\tenant\__init__.py
 ﻿
 ```
@@ -3604,48 +4379,67 @@ def validate_tenantPin(pin: str) -> str:
 // File: app\app\authentication\tenant\cookies.py
 from fastapi import Response, Request
 
+def _tenant_cookie_paths(request: Request | None):
+    if request is None:
+        access_path = "/"
+        refresh_path = "/api/auth"
+        return access_path, refresh_path
+
+    rootpath = (request.scope.get("root_path") or "").rstrip("/")
+
+    params = request.path_params or {}
+    landlordUuid = params.get("landlordUuid")
+    tenant_id = params.get("tenantId")
+    view_token = params.get("viewToken")
+
+    # Canonical: /{landlordUuid}/t/{tenantId}/{viewToken}
+    if landlordUuid and tenant_id and view_token:
+        base = f"{rootpath}/{landlordUuid}/t/{tenant_id}/{view_token}".rstrip("/")
+        return base, f"{base}/api/auth"
+    access_path = rootpath if rootpath else "/"
+    refresh_path = f"{rootpath}/api/auth" if rootpath else "/api/auth"
+    return access_path, refresh_path
+
 def set_tenant_auth_cookies(response: Response, access_token: str, refresh_token: str, remember_me: bool, request: Request = None):
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
-    
-    root_path = request.scope.get("root_path", "") if request else ""
-    access_path = root_path if root_path else "/"
-    if not access_path.endswith("/"):
-        access_path = access_path + "/"
-    
-    refresh_path = f"{root_path}/api/auth"
-    if not refresh_path.startswith("/"): refresh_path = "/" + refresh_path
-    
+    access_path, refresh_path = _tenant_cookie_paths(request)
+
     response.set_cookie(
         key="tenant_access_token",
         value=access_token,
         httponly=True,
-        secure=True, 
-        samesite="Lax",
+        secure=True,
+        samesite="lax",
         path=access_path,
-        max_age=15 * 60
+        max_age=15 * 60,
     )
-    
     response.set_cookie(
         key="tenant_refresh_token",
         value=refresh_token,
         httponly=True,
         secure=True,
-        samesite="Strict",
+        samesite="strict",
         path=refresh_path,
-        max_age=max_age_refresh
+        max_age=max_age_refresh,
     )
 
 def clear_tenant_auth_cookies(response: Response, request: Request = None):
-    root_path = request.scope.get("root_path", "") if request else ""
-    access_path = root_path if root_path else "/"
-    if not access_path.endswith("/"):
-        access_path = access_path + "/"
-    
-    refresh_path = f"{root_path}/api/auth"
-    if not refresh_path.startswith("/"): refresh_path = "/" + refresh_path
-    
-    response.delete_cookie(key="tenant_access_token", path=access_path, httponly=True, secure=True, samesite="Lax")
-    response.delete_cookie(key="tenant_refresh_token", path=refresh_path, httponly=True, secure=True, samesite="Strict")
+    access_path, refresh_path = _tenant_cookie_paths(request)
+
+    response.delete_cookie(
+        key="tenant_access_token",
+        path=access_path,
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
+    response.delete_cookie(
+        key="tenant_refresh_token",
+        path=refresh_path,
+        httponly=True,
+        secure=True,
+        samesite="strict",
+    )
 ```
 
 ```python
@@ -3854,6 +4648,17 @@ DEFAULT_CONFIGS = {
             "default_message": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenantPin}\n\nThank you!",
             "message": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenantPin}\n\nThank you!"
         },
+        "landlord_password_reset": {
+            "label": "Landlord Password Reset Template",
+            "readonly_by_default": False,
+            "allowed_variables": [
+                "{landlordName}",
+                "{username}",
+                "{tempPassword}"
+            ],
+            "default_message": "Hello {landlordName},\n\nYour account password has been reset by an administrator.\n\n*Username:* {username}\n*Temporary Password:* {tempPassword}\n\nPlease log in and change your password immediately.\n\nThank you!",
+            "message": "Hello {landlordName},\n\nYour account password has been reset by an administrator.\n\n*Username:* {username}\n*Temporary Password:* {tempPassword}\n\nPlease log in and change your password immediately.\n\nThank you!"
+        },
         "country_code": "91"
     },
     "ui": {
@@ -3901,6 +4706,11 @@ DEFAULT_CONFIGS = {
         }
     },
     "system": {
+        "security": {
+            "tenantPinlength": 4,
+            "adminTotpRequired": True,
+            "kyc_daily_upload_limit": 5,
+        },
         "server": {
             "host": "0.0.0.0",
             "port": 20081,
@@ -4175,6 +4985,7 @@ def init_db():
             password_hash TEXT NOT NULL,
             totp_secret TEXT,
             email TEXT,
+            is_platform_admin INTEGER NOT NULL DEFAULT 0,
             created_at TEXT,
             updated_at TEXT
         );
@@ -4220,7 +5031,8 @@ def init_db():
             viewToken TEXT,
             tenantpin TEXT,
             failed_attempts INTEGER NOT NULL DEFAULT 0,
-            locked_until TEXT
+            locked_until TEXT,
+            status_changed_at TEXT
         );
 
         -- 5. TENANT PIN HISTORY
@@ -4312,6 +5124,8 @@ def init_db():
             occupantUuid TEXT PRIMARY KEY,
             name TEXT,
             mobile TEXT,
+            address TEXT,
+            residentSince TEXT,
             status TEXT NOT NULL DEFAULT 'Active',
             aadhaar_front TEXT,
             aadhaar_back TEXT,
@@ -4328,7 +5142,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
         CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
         CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
-        CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
+        CREATE INDEX IF NOT EXISTS idx_occupants_tenant_id ON occupants(tenantId);
         
         -- 12. IMPORT AUDIT LOGS
         CREATE TABLE IF NOT EXISTS import_jobs (
@@ -4375,7 +5189,202 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_tenant_recovery_expiry
             ON tenant_recovery_snapshots(expires_at, status);
         """)
+
+        # Migrations for existing databases — safe to run multiple times
+        if not _column_exists(conn, "occupants", "address"):
+            conn.execute("ALTER TABLE occupants ADD COLUMN address TEXT")
+        if not _column_exists(conn, "occupants", "residentSince"):
+            conn.execute("ALTER TABLE occupants ADD COLUMN residentSince TEXT")
+        if not _column_exists(conn, "tenants", "status_changed_at"):
+            conn.execute("ALTER TABLE tenants ADD COLUMN status_changed_at TEXT")
+        if not _column_exists(conn, "landlord_accounts", "totp_secret"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_secret TEXT")
+        if not _column_exists(conn, "landlord_accounts", "failed_attempts"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0")
+        if not _column_exists(conn, "landlord_accounts", "locked_until"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN locked_until TEXT")
+
+        # ── Landlord auth schema (Phase-2 migration) ──────────────────────────
+        # Safe to run multiple times — all statements are IF NOT EXISTS.
+        conn.executescript("""
+        -- 14. LANDLORD ACCOUNTS
+        CREATE TABLE IF NOT EXISTS landlord_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            landlord_uuid TEXT UNIQUE NOT NULL,
+            full_name TEXT NOT NULL,
+            email TEXT UNIQUE,
+            phone TEXT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'Active',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        -- 15. LANDLORD SESSIONS
+        CREATE TABLE IF NOT EXISTS landlord_sessions (
+            session_id TEXT PRIMARY KEY,
+            landlord_id INTEGER NOT NULL,
+            refresh_token_hash TEXT NOT NULL,
+            device_name TEXT,
+            browser TEXT,
+            os TEXT,
+            ip_address TEXT,
+            created_at TEXT NOT NULL,
+            last_activity TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            revoked_at TEXT,
+            remember_me INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'Active',
+            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+        );
+
+        -- 16. LANDLORD AUDIT LOGS
+        CREATE TABLE IF NOT EXISTS landlord_audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            landlord_id INTEGER,
+            action TEXT NOT NULL,
+            ip_address TEXT,
+            created_at TEXT NOT NULL,
+            meta_json TEXT,
+            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE SET NULL
+        );
+
+        -- Landlord indexes
+        CREATE INDEX IF NOT EXISTS idx_landlord_accounts_username
+            ON landlord_accounts(username);
+        CREATE INDEX IF NOT EXISTS idx_landlord_accounts_email
+            ON landlord_accounts(email);
+        CREATE INDEX IF NOT EXISTS idx_landlord_sessions_landlord_id
+            ON landlord_sessions(landlord_id);
+        CREATE INDEX IF NOT EXISTS idx_landlord_sessions_status
+            ON landlord_sessions(status);
+        CREATE INDEX IF NOT EXISTS idx_landlord_audit_logs_landlord_id
+            ON landlord_audit_logs(landlord_id);
+        CREATE INDEX IF NOT EXISTS idx_landlord_audit_logs_action
+            ON landlord_audit_logs(action);
+
+        -- 17. LANDLORD UI CONFIG (per-landlord theme storage)
+        CREATE TABLE IF NOT EXISTS landlord_ui_config (
+            landlorduuid TEXT PRIMARY KEY,
+            theme TEXT NOT NULL DEFAULT 'system',
+            updated_at TEXT NOT NULL
+        );
+
+        -- Keep legacy landlord proxy table for landlord-alias router
+        CREATE TABLE IF NOT EXISTS landlords (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER NOT NULL,
+            landlordUuid TEXT UNIQUE NOT NULL,
+            active INTEGER DEFAULT 1,
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_landlords_uuid ON landlords(landlordUuid);
+
+        -- Schema version bump
+        INSERT OR REPLACE INTO app_metadata(key, value) VALUES
+            ('auth_schema_version', '2'),
+            ('landlord_schema_version', '1');
+        """)
+
         conn.commit()
+
+        # ─── Migrations for existing databases ─────────────────────────
+        # Add is_platform_admin column if missing (for pre-existing DBs)
+        if not _column_exists(conn, "admins", "is_platform_admin"):
+            conn.execute(
+                "ALTER TABLE admins ADD COLUMN is_platform_admin INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
+
+        # ─── Multi-tenancy: Add landlord_id to core tables ──────────
+        if not _column_exists(conn, "tenants", "landlord_id"):
+            conn.execute("ALTER TABLE tenants ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
+            conn.commit()
+
+        if not _column_exists(conn, "receipts", "landlord_id"):
+            conn.execute("ALTER TABLE receipts ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
+            conn.commit()
+
+        if not _column_exists(conn, "occupants", "landlord_id"):
+            conn.execute("ALTER TABLE occupants ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
+            conn.commit()
+
+        # Indexes for landlord_id lookups
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenants_landlord_id ON tenants(landlord_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_receipts_landlord_id ON receipts(landlord_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_occupants_landlord_id ON occupants(landlord_id)")
+        conn.commit()
+
+        # Backfill: assign existing data to first landlord if unassigned
+        first_landlord = conn.execute("SELECT id FROM landlord_accounts ORDER BY id LIMIT 1").fetchone()
+        if first_landlord:
+            lid = first_landlord["id"]
+            conn.execute("UPDATE tenants SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
+            conn.execute("UPDATE receipts SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
+            conn.execute("UPDATE occupants SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
+            conn.commit()
+
+        # ─── Platform admin audit trail ──────────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS platform_admin_audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                target_type TEXT,
+                target_id INTEGER,
+                ip_address TEXT,
+                meta_json TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_audit_admin ON platform_admin_audit_logs(admin_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_audit_action ON platform_admin_audit_logs(action)")
+        conn.commit()
+
+        # ─── Landlord password-change enforcement columns ──────────
+        if not _column_exists(conn, "landlord_accounts", "requires_password_change"):
+            conn.execute(
+                "ALTER TABLE landlord_accounts ADD COLUMN requires_password_change INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "temp_password_created_at"):
+            conn.execute(
+                "ALTER TABLE landlord_accounts ADD COLUMN temp_password_created_at TEXT"
+            )
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "temp_password_consumed"):
+            conn.execute(
+                "ALTER TABLE landlord_accounts ADD COLUMN temp_password_consumed INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
+
+        # ─── Landlord password admin store (for platform admin reveal) ──
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS landlord_password_admin_store (
+                landlord_id INTEGER PRIMARY KEY,
+                encrypted_password TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+            )
+        """)
+        conn.commit()
+
+        # ─── Seed default platform admin ───────────────────────────────
+        # Ensure at least one platform admin exists (admin/admin)
+        from app.authentication.common.utils import hash_pin
+        has_platform_admin = conn.execute(
+            "SELECT 1 FROM admins WHERE is_platform_admin = 1 LIMIT 1"
+        ).fetchone()
+        if not has_platform_admin:
+            conn.execute(
+                """INSERT OR IGNORE INTO admins (username, password_hash, is_platform_admin, created_at)
+                   SELECT 'admin', ?, 1, datetime('now')
+                   WHERE NOT EXISTS (SELECT 1 FROM admins WHERE username = 'admin')""",
+                (hash_pin("admin"),),
+            )
+            conn.commit()
 ```
 
 ```python
@@ -4387,6 +5396,8 @@ from app.core.paths import TEMPLATES_DIR
 from app.core.route_builder import RouteBuilder
 from app.core.routes_manifest import Names
 from app.core.routes_manifest_tenant import TenantNames
+from app.core.routes_manifest_landlord import LandlordNames
+from app.core.routes_manifest_platform_admin import PlatformAdminNames
 
 
 def _normalize_base_path(path: str | None) -> str:
@@ -4416,6 +5427,8 @@ templates.env.globals["config"] = config
 templates.env.globals["route"] = RouteBuilder.build
 templates.env.globals["Names"] = Names
 templates.env.globals["TenantNames"] = TenantNames
+templates.env.globals["LandlordNames"] = LandlordNames
+templates.env.globals["PlatformAdminNames"] = PlatformAdminNames
 templates.env.globals["sys"] = config.get("system", {})
 templates.env.globals["APP_BASE"] = app_base
 templates.env.globals["STATIC_URL"] = static_url
@@ -4456,10 +5469,10 @@ def ensure_storage_dirs():
 
 ```python
 // File: app\app\core\route_builder.py
-# from app.core.routes import Names
-# AFTER:
 from app.core.routes_manifest import Names
 from app.core.routes_manifest_tenant import TenantNames
+from app.core.routes_manifest_landlord import LandlordNames
+from app.core.routes_manifest_platform_admin import PlatformAdminNames
 
 class RouteBuilder:
     @staticmethod
@@ -4467,17 +5480,19 @@ class RouteBuilder:
         return request.url_for(name, **kwargs)
 
     @staticmethod
-    def public_tenant_profile(request, tenantId: int, viewToken: str):
+    def public_tenant_profile(request, landlordUuid: str, tenantId: int, viewToken: str):
         return request.url_for(
             TenantNames.TENANTPROFILEGET,
+            landlordUuid=landlordUuid,
             tenantId=str(tenantId),
             viewToken=viewToken,
         )
 
     @staticmethod
-    def tenant_pdf_view(request, tenantId: int, viewToken: str, billNo: str):
+    def tenant_pdf_view(request, landlordUuid: str, tenantId: int, viewToken: str, billNo: str):
         return request.url_for(
             TenantNames.TENANTPDFVIEW,
+            landlordUuid=landlordUuid,
             tenantId=str(tenantId),
             viewToken=viewToken,
             billNo=billNo,
@@ -4490,7 +5505,7 @@ class RouteBuilder:
 
 ```python
 // File: app\app\core\router_registry.py
-﻿from fastapi import FastAPI
+from fastapi import FastAPI
 
 # API Routers
 from app.api.billing import router as billing_api_router
@@ -4500,12 +5515,17 @@ from app.api.backup import router as backup_api_router
 from app.api.pdf import router as pdf_api_router
 from app.api.whatsapp import router as whatsapp_api_router
 from app.api.sync import router as sync_api_router
+from app.api.sync_ws import router as sync_ws_router
 from app.api.public import router as public_api_router
 from app.api.health import router as health_api_router
 from app.api.dashboard import router as dashboard_api_router
 from app.routers.auth import router as auth_api_router
 from app.routers.admin_auth import router as admin_auth_router
 from app.api.tenant_pdf import router as tenant_pdf_api_router
+
+from app.routers.landlord_routes import router as landlord_alias_router
+from app.routers.platform_admin import router as platform_admin_router
+from app.routers.landlordauth import router as landlordauth_router  # Landlord auth
 
 # Page Routers
 from app.pages.dashboard import router as dashboard_page_router
@@ -4516,10 +5536,12 @@ from app.pages.settings import router as settings_page_router
 from app.pages.tenants import router as tenants_page_router
 from app.pages.backups import router as backups_page_router
 from app.pages.redirects import router as redirects_router
+from app.pages.landing import router as landing_page_router  # Public landing page
+from app.pages.spa import router as spa_router  # SPA catch-all (admin/landlord/tenant)
 from app.pages.errors import register_exception_handlers
 
 from fastapi import Depends
-from app.authentication.admin.middleware import get_current_admin_page, get_current_admin_api
+from app.authentication.landlord.middleware import get_current_landlord_page, get_current_landlord_api, get_current_landlord_api_strict
 
 PROTECTED_PAGE_ROUTERS = [
     dashboard_page_router,
@@ -4543,7 +5565,8 @@ PROTECTED_API_ROUTERS = [
 ]
 
 PUBLIC_PAGE_ROUTERS = [
-    redirects_router
+    redirects_router,
+    landing_page_router,  # Serves GET / as public landing page
 ]
 
 PUBLIC_API_ROUTERS = [
@@ -4551,29 +5574,57 @@ PUBLIC_API_ROUTERS = [
     health_api_router,
     auth_api_router,
     tenant_pdf_api_router
-    
 ]
 
 ADMIN_AUTH_ROUTERS = [
     admin_auth_router
 ]
 
+# Landlord auth endpoints are public (no dependency) — they issue their own cookies
+LANDLORD_AUTH_ROUTERS = [
+    landlordauth_router,
+]
+
 def register_all_routers(app: FastAPI):
-    page_admin_deps = [Depends(get_current_admin_page)]
-    api_admin_deps = [Depends(get_current_admin_api)]
-    
-    for router in PROTECTED_PAGE_ROUTERS:
-        app.include_router(router, prefix="/admin", dependencies=page_admin_deps)
-        
+    page_landlord_deps = [Depends(get_current_landlord_page)]
+    api_landlord_deps = [Depends(get_current_landlord_api_strict)]
+
+    # NOTE: Landlord page routers (PROTECTED_PAGE_ROUTERS) are NOT registered.
+    # The landlord React SPA handles all page routes via the SPA catch-all.
+    # Only the SPA catch-all and API routers are active for landlord.
+
+    # 1. Protected API routers (landlord API auth — these register at
+    #    /landlord/{landlordUuid}/api/* paths, so they MUST come before
+    #    the SPA catch-all which also matches /landlord/{path:path})
     for router in PROTECTED_API_ROUTERS:
-        app.include_router(router, prefix="", dependencies=api_admin_deps)
-        
+        app.include_router(router, dependencies=api_landlord_deps)
+
+    # 2. Admin auth routes
     for router in ADMIN_AUTH_ROUTERS:
         app.include_router(router, prefix="")
-        
+
+    # 3. Landlord auth — no dependency required; handles its own auth checks internally
+    for router in LANDLORD_AUTH_ROUTERS:
+        app.include_router(router, prefix="")
+
+    # 4. Public routes
     for router in PUBLIC_PAGE_ROUTERS + PUBLIC_API_ROUTERS:
         app.include_router(router)
-        
+
+    # 5. Platform admin
+    app.include_router(platform_admin_router)
+
+    # 6. WebSocket sync (no auth dependency — channel-based access control)
+    app.include_router(sync_ws_router)
+
+    # 7. SPA catch-all routes: AFTER landlord API routes so they don't shadow
+    #    /landlord/{landlordUuid}/api/* paths. The SPA handler returns 404
+    #    for paths starting with "api/" so they fall through to landlords.
+    app.include_router(spa_router)
+
+    # 8. Landlord alias catch-all: /{landlordUuid}/... (registered last)
+    app.include_router(landlord_alias_router)
+
     register_exception_handlers(app)
 ```
 
@@ -4585,9 +5636,6 @@ def register_all_routers(app: FastAPI):
 Auto-generated route manifest from shared/routes.json.
 Do not edit manually if possible. If you change routes.json, update this file.
 """
-from app.core.routes_manifest_tenant import TenantRoutes, TenantNames
-
-# Add this class to app/core/routes_manifest.py, before the Routes class
 
 class Paths:
     """Legacy path constants. Use Routes class for new code."""
@@ -4603,119 +5651,10 @@ class Paths:
 
 class Routes:
     BASEPATH = "/rent"
-
     HEALTHCHECK = "/health"
+    PUBLICLANDING = "/"
 
-    # Admin Pages
-    ADMINPAGEROOT = "/admin/"
-    ADMINPAGEHOME = "/admin/home"
-    ADMINPAGELOGIN = "/admin/login"
-    ADMINPAGELOGOUT = "/admin/logout"
-    ADMINPAGEDASHBOARD = "/admin/dashboard"
-    ADMINPAGEBILLING = "/admin/billing"
-    ADMINPAGEHISTORY = "/admin/history"
-    ADMINPAGETENANTS = "/admin/tenants"
-    ADMINPAGESETTINGS = "/admin/settings"
-    ADMINPAGEARCHIVE = "/admin/archive"
-    ADMINPAGEBACKUPS = "/admin/backups"
-    ADMINPAGECATCHALL = "/admin/*"
-    ADMINPAGETENANTPROFILE = "/admin/tenant/{tenantId}"
-
-    # Admin API: Setup
-    ADMINAPISETUPREQUIRED = "/admin/api/setup/required"
-    ADMINAPISETUPCREATE = "/admin/api/setup/create"
-
-    # Admin API: Auth
-    ADMINAPIAUTHPUBLICKEY = "/admin/api/auth/public-key"
-    ADMINAPIAUTHLOGIN = "/admin/api/login"
-    ADMINAPIAUTHLOGINTOTP = "/admin/api/login/totp"
-    ADMINAPIAUTHREFRESH = "/admin/api/refresh"
-    ADMINAPIAUTHLOGOUT = "/admin/api/logout/json"
-    ADMINAPIAUTHME = "/admin/api/me"
-
-    # Admin API: Totp
-    ADMINAPITOTPQR = "/admin/api/totp/qr"
-    ADMINAPITOTPREGENERATE = "/admin/api/totp/regenerate"
-
-    # Admin API: Password
-    ADMINAPIPASSWORDFORGOTVERIFY = "/admin/api/forgot-password/verify"
-    ADMINAPIPASSWORDFORGOTRESET = "/admin/api/forgot-password/reset"
-
-    # Admin API: Dashboard
-    ADMINAPIDASHBOARDSTATS = "/admin/api/dashboard"
-
-    # Admin API: Config
-    ADMINAPICONFIGGET = "/admin/api/config"
-    ADMINAPICONFIGUPDATE = "/admin/api/config/update"
-    ADMINAPICONFIGTHEME = "/admin/api/ui/theme"
-
-    # Admin API: Billing
-    ADMINAPIBILLINGFILTER = "/admin/api/receipts/filter"
-    ADMINAPIBILLINGMONTHS = "/admin/api/receipts/months"
-    ADMINAPIBILLINGPREVIEW = "/admin/api/receipts/preview"
-    ADMINAPIBILLINGCREATE = "/admin/api/tenants/{tenantId}/receipts"
-    ADMINAPIBILLINGGET = "/admin/api/tenants/{tenantId}/receipts/{billNo}"
-    ADMINAPIBILLINGUPDATE = "/admin/api/tenants/{tenantId}/receipts/{billNo}"
-    ADMINAPIBILLINGUPDATEPAYMENT = "/admin/api/tenants/{tenantId}/receipts/{billNo}/payment-status"
-    ADMINAPIBILLINGARCHIVE = "/admin/api/tenants/{tenantId}/receipts/{billNo}/archive"
-    ADMINAPIBILLINGRESTORE = "/admin/api/tenants/{tenantId}/receipts/{billNo}/restore"
-    ADMINAPIBILLINGDELETE = "/admin/api/tenants/{tenantId}/receipts/{billNo}"
-    ADMINAPIBILLINGARCHIVEDATA = "/admin/api/archive-data"
-
-    # Admin API: Tenants
-    ADMINAPITENANTSLIST = "/admin/api/tenants"
-    ADMINAPITENANTSCREATE = "/admin/api/tenants"
-    ADMINAPITENANTSGET = "/admin/api/tenants/{tenantId}"
-    ADMINAPITENANTSUPDATE = "/admin/api/tenants/{tenantId}"
-    ADMINAPITENANTSDELETE = "/admin/api/tenants/{tenantId}"
-    ADMINAPITENANTSRESTORE = "/admin/api/tenants/{tenantId}/restore"
-    ADMINAPITENANTSCHANGEPIN = "/admin/api/tenants/{tenantId}/change-pin"
-    ADMINAPITENANTSREVEALPIN = "/admin/api/tenants/{tenantId}/reveal-pin"
-    ADMINAPITENANTSRECEIPTS = "/admin/api/tenants/{tenantId}/receipts"
-
-    # Admin API: Tenant Recovery Snapshots
-    ADMINAPITENANTSNAPSHOTS = "/admin/api/tenant-recovery-snapshots"
-    ADMINAPITENANTSNAPSHOT_PREVIEW = "/admin/api/tenant-recovery-snapshots/{snapshotId}/preview"
-    ADMINAPITENANTSNAPSHOT_RESTORE = "/admin/api/tenant-recovery-snapshots/{snapshotId}/restore"
-
-    # Admin API: Occupants
-    ADMINAPIOCCUPANTSLIST = "/admin/api/occupants/{tenantId}"
-    ADMINAPIOCCUPANTSCREATE = "/admin/api/occupants/{tenantId}"
-    ADMINAPIOCCUPANTSMARKINACTIVE = "/admin/api/occupants/{tenantId}/{occupantUuid}/inactive"
-    ADMINAPIOCCUPANTSDELETE = "/admin/api/occupants/{tenantId}/{occupantUuid}"
-    ADMINAPIOCCUPANTSGETFILE = "/admin/api/occupants/{tenantId}/file/{filename}"
-
-    # Admin API: Pdf
-    ADMINAPIPDFDOWNLOAD = "/admin/api/tenants/{tenantId}/receipts/{billNo}/pdf/download"
-    ADMINAPIPDFVIEW = "/admin/api/tenants/{tenantId}/receipts/{billNo}/pdf/view"
-
-    # Admin API: Whatsapp
-    ADMINAPIWHATSAPPSENDSINGLE = "/admin/api/tenants/{tenantId}/receipts/{billNo}/whatsapp"
-
-    # Admin API: Sync
-    ADMINAPISYNCEXPORTCSV = "/admin/api/export-csv"
-    ADMINAPISYNCEXPORTZIP = "/admin/api/export-zip"
-    ADMINAPISYNCEXPORTEXCEL = "/admin/api/export-excel"
-    ADMINAPISYNCTEMPLATE = "/admin/api/import-template"
-    ADMINAPISYNCIMPORTPREVIEW = "/admin/api/import-preview"
-    ADMINAPISYNCIMPORTEXECUTE = "/admin/api/import-execute"
-
-    # Admin API: Backups
-    ADMINAPIBACKUPSLIST = "/admin/api/backups"
-    ADMINAPIBACKUPSCREATEMANUAL = "/admin/api/backups/manual"
-    ADMINAPIBACKUPSDELETE = "/admin/api/backups/{backupId}"
-    ADMINAPIBACKUPSVERIFY = "/admin/api/backups/{backupId}/verify"
-    ADMINAPIBACKUPSRESTORE = "/admin/api/backups/{backupId}/restore"
-    ADMINAPIBACKUPSDOWNLOAD = "/admin/api/backups/{backupId}/download"
-    ADMINAPIBACKUPSMETADATA = "/admin/api/backups/{backupId}/metadata"
-
-    # Admin API: Settings
-    ADMINAPISETTINGSUPLOADSIGNATURE = "/admin/api/settings/upload-signature"
-    ADMINAPISETTINGSDELETESIGNATURE = "/admin/api/settings/delete-signature"
-
-
-
-    # Static & Health
+    # Static
     STATICUPLOADS = "/static/uploads"
     STATICSTATIC = "/static"
     STATICADMINASSETS = "/admin/assets"
@@ -4725,6 +5664,164 @@ class Routes:
 
 class Names:
     """Route names for use with request.url_for() and FastAPI name= parameter."""
+    # Public
+    PUBLICLANDING = "publiclanding"
+    HEALTHCHECK = "health_check"
+    FAVICON = "favicon"
+
+
+class Templates:
+    """Jinja2 template filenames."""
+    ERROR = "error.html"
+
+
+class Prefixes:
+    """URL path prefixes."""
+    API = "/api"
+    STATIC = "/static"
+    UPLOADS = "/static/uploads"
+```
+
+```python
+// File: app\app\core\routes_manifest_landlord.py
+# app/core/routes_manifest_landlord.py
+
+class LandlordRoutes:
+    # Landlord Pages
+    LANDLORDPAGEROOT = "/landlord"
+    LANDLORDPAGEHOME = "/landlord/home"
+    LANDLORDPAGELOGIN = "/landlord/login"
+    LANDLORDPAGESIGNUP = "/landlord/signup"
+    LANDLORDPAGELOGOUT = "/landlord/logout"
+    LANDLORDPAGEDASHBOARD = "/landlord/dashboard"
+    LANDLORDPAGEBILLING = "/landlord/billing"
+    LANDLORDPAGEHISTORY = "/landlord/history"
+    LANDLORDPAGETENANTS = "/landlord/tenants"
+    LANDLORDPAGESETTINGS = "/landlord/settings"
+    LANDLORDPAGEARCHIVE = "/landlord/archive"
+    LANDLORDPAGEBACKUPS = "/landlord/backups"
+    LANDLORDPAGECATCHALL = "/landlord/*"
+    LANDLORDPAGETENANTPROFILE = "/landlord/tenant/{tenantId}"
+
+    # Landlord Auth API (from existing Landlord Auth routes)
+    LANDLORDAPIAUTHCHECKUSERNAME = "/landlord/api/auth/check-username"
+    LANDLORDAPIAUTHCHECKEMAIL = "/landlord/api/auth/check-email"
+    LANDLORDAPIAUTHSIGNUP = "/landlord/api/auth/signup"
+    LANDLORDAPIAUTHLOGIN = "/landlord/api/auth/login"
+    LANDLORDAPIAUTHREFRESH = "/landlord/api/auth/refresh"
+    LANDLORDAPIAUTHLOGOUT = "/landlord/api/auth/logout"
+    LANDLORDAPIAUTHME = "/landlord/api/auth/me"
+    LANDLORDAPIAUTHCHANGEPASSWORD = "/landlord/api/auth/change-password"
+
+    # Landlord API: Setup
+    LANDLORDAPISETUPREQUIRED = "/landlord/api/setup/required"
+    LANDLORDAPISETUPCREATE = "/landlord/api/setup/create"
+
+    # Landlord API: Auth (legacy equivalents, mostly obsolete but kept if referenced)
+    LANDLORDAPIAUTHPUBLICKEY = "/landlord/api/auth/public-key"
+    LANDLORDAPIAUTHLOGINTOTP = "/landlord/api/login/totp"
+    LANDLORDAPIAUTHLOGOUTJSON = "/landlord/api/logout/json"
+
+    # Landlord API: Totp
+    LANDLORDAPITOTPQR = "/landlord/{landlordUuid}/api/totp/qr"
+    LANDLORDAPITOTPREGENERATE = "/landlord/{landlordUuid}/api/totp/regenerate"
+
+    # Landlord API: Password
+    LANDLORDAPIPASSWORDFORGOTVERIFY = "/landlord/api/forgot-password/verify"
+    LANDLORDAPIPASSWORDFORGOTRESET = "/landlord/api/forgot-password/reset"
+
+    # Landlord API: Dashboard
+    LANDLORDAPIDASHBOARDSTATS = "/landlord/{landlordUuid}/api/dashboard"
+
+    # Landlord API: Config
+    LANDLORDAPICONFIGGET = "/landlord/{landlordUuid}/api/config"
+    LANDLORDAPICONFIGUPDATE = "/landlord/{landlordUuid}/api/config/update"
+    LANDLORDAPICONFIGTHEMEGET = "/landlord/{landlordUuid}/api/ui/theme"
+    LANDLORDAPICONFIGTHEME = "/landlord/{landlordUuid}/api/ui/theme"
+
+    # Landlord API: Billing
+    LANDLORDAPIBILLINGFILTER = "/landlord/{landlordUuid}/api/receipts/filter"
+    LANDLORDAPIBILLINGMONTHS = "/landlord/{landlordUuid}/api/receipts/months"
+    LANDLORDAPIBILLINGPREVIEW = "/landlord/{landlordUuid}/api/receipts/preview"
+    LANDLORDAPIBILLINGCREATE = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts"
+    LANDLORDAPIBILLINGGET = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}"
+    LANDLORDAPIBILLINGUPDATE = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}"
+    LANDLORDAPIBILLINGUPDATEPAYMENT = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/payment-status"
+    LANDLORDAPIBILLINGARCHIVE = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/archive"
+    LANDLORDAPIBILLINGRESTORE = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/restore"
+    LANDLORDAPIBILLINGDELETE = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}"
+    LANDLORDAPIBILLINGARCHIVEDATA = "/landlord/{landlordUuid}/api/archive-data"
+
+    # Landlord API: Tenants
+    LANDLORDAPITENANTSLIST = "/landlord/{landlordUuid}/api/tenants"
+    LANDLORDAPITENANTSCREATE = "/landlord/{landlordUuid}/api/tenants"
+    LANDLORDAPITENANTSGET = "/landlord/{landlordUuid}/api/tenants/{tenantId}"
+    LANDLORDAPITENANTSUPDATE = "/landlord/{landlordUuid}/api/tenants/{tenantId}"
+    LANDLORDAPITENANTSDELETE = "/landlord/{landlordUuid}/api/tenants/{tenantId}"
+    LANDLORDAPITENANTSRESTORE = "/landlord/{landlordUuid}/api/tenants/{tenantId}/restore"
+    LANDLORDAPITENANTSCHANGEPIN = "/landlord/{landlordUuid}/api/tenants/{tenantId}/change-pin"
+    LANDLORDAPITENANTSREVEALPIN = "/landlord/{landlordUuid}/api/tenants/{tenantId}/reveal-pin"
+    LANDLORDAPITENANTSRECEIPTS = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts"
+
+    # Landlord API: Tenant Recovery Snapshots
+    LANDLORDAPITENANTSNAPSHOTS = "/landlord/{landlordUuid}/api/tenant-recovery-snapshots"
+    LANDLORDAPITENANTSNAPSHOT_PREVIEW = "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/preview"
+    LANDLORDAPITENANTSNAPSHOT_RESTORE = "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/restore"
+
+    # Landlord API: Occupants
+    LANDLORDAPIOCCUPANTSLIST = "/landlord/{landlordUuid}/api/occupants/{tenantId}"
+    LANDLORDAPIOCCUPANTSCREATE = "/landlord/{landlordUuid}/api/occupants/{tenantId}"
+    LANDLORDAPIOCCUPANTSMARKINACTIVE = "/landlord/{landlordUuid}/api/occupants/{tenantId}/{occupantUuid}/inactive"
+    LANDLORDAPIOCCUPANTSDELETE = "/landlord/{landlordUuid}/api/occupants/{tenantId}/{occupantUuid}"
+    LANDLORDAPIOCCUPANTSGETFILE = "/landlord/{landlordUuid}/api/occupants/{tenantId}/file/{filename}"
+
+    # Landlord API: Pdf
+    LANDLORDAPIPDFDOWNLOAD = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/pdf/download"
+    LANDLORDAPIPDFVIEW = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/pdf/view"
+
+    # Landlord API: Whatsapp
+    LANDLORDAPIWHATSAPPSENDSINGLE = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/whatsapp"
+
+    # Landlord API: Sync
+    LANDLORDAPISYNCEXPORTCSV = "/landlord/{landlordUuid}/api/export-csv"
+    LANDLORDAPISYNCEXPORTZIP = "/landlord/{landlordUuid}/api/export-zip"
+    LANDLORDAPISYNCEXPORTEXCEL = "/landlord/{landlordUuid}/api/export-excel"
+    LANDLORDAPISYNCTEMPLATE = "/landlord/{landlordUuid}/api/import-template"
+    LANDLORDAPISYNCIMPORTPREVIEW = "/landlord/{landlordUuid}/api/import-preview"
+    LANDLORDAPISYNCIMPORTEXECUTE = "/landlord/{landlordUuid}/api/import-execute"
+
+    # Landlord API: Backups
+    LANDLORDAPIBACKUPSLIST = "/landlord/{landlordUuid}/api/backups"
+    LANDLORDAPIBACKUPSCREATEMANUAL = "/landlord/{landlordUuid}/api/backups/manual"
+    LANDLORDAPIBACKUPSDELETE = "/landlord/{landlordUuid}/api/backups/{backupId}"
+    LANDLORDAPIBACKUPSVERIFY = "/landlord/{landlordUuid}/api/backups/{backupId}/verify"
+    LANDLORDAPIBACKUPSRESTORE = "/landlord/{landlordUuid}/api/backups/{backupId}/restore"
+    LANDLORDAPIBACKUPSDOWNLOAD = "/landlord/{landlordUuid}/api/backups/{backupId}/download"
+    LANDLORDAPIBACKUPSMETADATA = "/landlord/{landlordUuid}/api/backups/{backupId}/metadata"
+
+    # Landlord API: Settings
+    LANDLORDAPISETTINGSUPLOADSIGNATURE = "/landlord/{landlordUuid}/api/settings/upload-signature"
+    LANDLORDAPISETTINGSDELETESIGNATURE = "/landlord/{landlordUuid}/api/settings/delete-signature"
+
+
+class LandlordNames:
+    """Route names for use with request.url_for() and FastAPI name= parameter."""
+
+    # Landlord Pages
+    LANDLORDLOGINPAGE = "landlordloginpage"
+    LANDLORDSIGNUPPAGE = "landlordsignuppage"
+    LANDLORDDASHBOARDPAGE = "landlorddashboardpage"
+    LANDLORDLOGOUTPAGE = "landlordlogoutpage"
+
+    # Landlord Auth API
+    LANDLORDCHECKUSERNAME = "landlordcheckusername"
+    LANDLORDCHECKEMAIL = "landlordcheckemail"
+    LANDLORDSIGNUP = "landlordsignup"
+    LANDLORDLOGIN = "landlordlogin"
+    LANDLORDREFRESH = "landlordrefresh"
+    LANDLORDLOGOUT = "landlordlogout"
+    LANDLORDME = "landlordme"
+    LANDLORDCHANGEPASSWORD = "landlordchangepassword"
 
     # Pages
     HOME = "home_page"
@@ -4734,7 +5831,6 @@ class Names:
     SETTINGSPAGE = "settings_page"
     ARCHIVEPAGE = "archive_page"
     BACKUPSPAGE = "backups_page"
-    FAVICON = "favicon"
 
     # API - Backups
     APIGETBACKUPS = "api_get_backups"
@@ -4760,8 +5856,6 @@ class Names:
     # API - PDF
     PDFDOWNLOAD = "download_pdf"
     PDFVIEW = "view_pdf"
-
-
 
     # API - Settings
     APIGETCONFIG = "api_get_config"
@@ -4791,32 +5885,10 @@ class Names:
     SENDWHATSAPPSINGLE = "send_whatsapp_single"
     SENDWHATSAPPBULK = "send_whatsapp_bulk"
 
-    # API - Health
-    HEALTHCHECK = "health_check"
-
-    # Auth
-    ADMINLOGIN = "adminloginpost"
-    ADMINLOGINTOTP = "admin_login_totp"
-    ADMINLOGOUT = "ADMINLOGOUT"
-    ADMINLOGOUTJSON = "ADMINLOGOUTJSON"
-    ADMINREFRESH = "admin_refresh"
-    ADMINME = "ADMINME"
-    ADMINSETUPREQUIRED = "admin_setup_required"
-    ADMINSETUPCREATE = "admin_setup_create"
-    ADMINTOTPQR = "admin_totp_qr"
-    ADMINTOTPREGENERATE = "admin_totp_regenerate"
-    ADMINFORGOTVERIFY = "admin_forgot_password_verify"
-    ADMINFORGOTRESET = "admin_forgot_password_reset"
-    ADMINPUBLICKEY = "admin_public_key"
-
-    CHANGETENANTPIN = "change_tenantPin"
-    ADMINREVEALPIN = "admin_reveal_tenantPin"
-
     # API - Tenant Recovery Snapshots
     APILISTRECOVERYSNAPSHOTS = "api_list_recovery_snapshots"
     APIRECOVERYSNAPSHOT_PREVIEW = "api_recovery_snapshot_preview"
     APIRECOVERYSNAPSHOT_RESTORE = "api_recovery_snapshot_restore"
-
 
     # API - Occupants
     APIGETOCCUPANTS = "api_get_occupants"
@@ -4825,8 +5897,23 @@ class Names:
     APIDELETEOCCUPANT = "api_delete_occupant"
     APIGETOCCUPANTFILE = "api_get_occupant_file"
 
+    # Auth Names (from old ADMIN prefixed)
+    LANDLORDLOGINPOST = "landlordloginpost"
+    LANDLORDLOGINTOTP = "landlord_login_totp"
+    LANDLORDLOGOUTJSON = "LANDLORDLOGOUTJSON"
+    LANDLORDSETUPREQUIRED = "landlord_setup_required"
+    LANDLORDSETUPCREATE = "landlord_setup_create"
+    LANDLORDTOTPQR = "landlord_totp_qr"
+    LANDLORDTOTPREGENERATE = "landlord_totp_regenerate"
+    LANDLORDFORGOTVERIFY = "landlord_forgot_password_verify"
+    LANDLORDFORGOTRESET = "landlord_forgot_password_reset"
+    LANDLORDPUBLICKEY = "landlord_public_key"
 
-class Templates:
+    CHANGETENANTPIN = "change_tenantPin"
+    LANDLORDREVEALPIN = "landlord_reveal_tenantPin"
+
+
+class LandlordTemplates:
     """Jinja2 template filenames."""
     DASHBOARD = "dashboard.html"
     BILLING = "billing.html"
@@ -4837,13 +5924,78 @@ class Templates:
     BACKUPS = "backups.html"
     ERROR = "error.html"
     TENANTPROFILE = "tenant_profile.html"
+```
+
+```python
+// File: app\app\core\routes_manifest_platform_admin.py
+# app/core/routes_manifest_platform_admin.py
+
+class PlatformAdminRoutes:
+    PLATFORMADMINROOT = "/platform-admin"
+    
+    # Auth
+    PLATFORMADMINAPIAUTHLOGIN = "/platform-admin/api/auth/login"
+    PLATFORMADMINAPIAUTHLOGINTOTP = "/platform-admin/api/auth/login-totp"
+    PLATFORMADMINAPIAUTHREFRESH = "/platform-admin/api/auth/refresh"
+    PLATFORMADMINAPIAUTHLOGOUT = "/platform-admin/api/auth/logout"
+    PLATFORMADMINAPIAUTHME = "/platform-admin/api/auth/me"
+    
+    PLATFORMADMINAPISETUPREQUIRED = "/platform-admin/api/auth/setup-required"
+    PLATFORMADMINAPISETUPCREATE = "/platform-admin/api/auth/setup-create"
+    
+    PLATFORMADMINAPIPASSWORDFORGOTVERIFY = "/platform-admin/api/auth/password/forgot-verify"
+    PLATFORMADMINAPIPASSWORDFORGOTRESET = "/platform-admin/api/auth/password/forgot-reset"
+    
+    PLATFORMADMINAPITOTPQR = "/platform-admin/api/auth/totp-qr"
+    PLATFORMADMINAPITOTPREGENERATE = "/platform-admin/api/auth/totp-regenerate"
+    
+    PLATFORMADMINAPIAUTHPUBLICKEY = "/platform-admin/api/auth/public-key"
+    
+    PLATFORMADMINPAGELOGOUT = "/platform-admin/logout"
+    
+    # Stats
+    PLATFORMADMINAPISTATS = "/platform-admin/api/stats"
+    
+    # Landlords
+    PLATFORMADMINAPILANDLORDS = "/platform-admin/api/landlords"
+    PLATFORMADMINAPILANDLORDS_ID = "/platform-admin/api/landlords/{landlord_id}"
+    
+    # Admins
+    PLATFORMADMINAPIADMINS = "/platform-admin/api/admins"
 
 
-class Prefixes:
-    """URL path prefixes."""
-    API = "/api"
-    STATIC = "/static"
-    UPLOADS = "/static/uploads"
+class PlatformAdminNames:
+    PLATFORMADMINROOT = "platform_admin_root"
+    
+    # Auth
+    PLATFORMADMINLOGIN = "platform_admin_login"
+    PLATFORMADMINLOGINTOTP = "platform_admin_login_totp"
+    PLATFORMADMINREFRESH = "platform_admin_refresh"
+    PLATFORMADMINLOGOUT = "platform_admin_logout"
+    PLATFORMADMINLOGOUTJSON = "platform_admin_logout_json"
+    PLATFORMADMINME = "platform_admin_me"
+    
+    PLATFORMADMINSETUPREQUIRED = "platform_admin_setup_required"
+    PLATFORMADMINSETUPCREATE = "platform_admin_setup_create"
+    
+    PLATFORMADMINFORGOTVERIFY = "platform_admin_forgot_verify"
+    PLATFORMADMINFORGOTRESET = "platform_admin_forgot_reset"
+    
+    PLATFORMADMINTOTPQR = "platform_admin_totp_qr"
+    PLATFORMADMINTOTPREGENERATE = "platform_admin_totp_regenerate"
+    
+    PLATFORMADMINPUBLICKEY = "platform_admin_public_key"
+    
+    # Stats
+    PLATFORMADMINSTATS = "platform_admin_stats"
+    
+    # Landlords
+    PLATFORMADMINLANDLORDS = "platform_admin_landlords"
+    PLATFORMADMINLANDLORDSUPDATE = "platform_admin_landlords_update"
+    PLATFORMADMINLANDLORDSDELETE = "platform_admin_landlords_delete"
+    
+    # Admins
+    PLATFORMADMINADMINS = "platform_admin_admins"
 ```
 
 ```python
@@ -4851,27 +6003,28 @@ class Prefixes:
 # app/app/core/routes_manifest_tenant.py
 
 class TenantRoutes:
-    TENANTPAGEROOT = "/t/{tenantId}/{viewToken}"
+    TENANTPAGEROOT = "/{landlordUuid}/t/{tenantId}/{viewToken}"
 
-    # Tenant API: Auth
-    TENANTAPIAUTHPUBLICKEY = "/t/api/auth/public-key"
-    TENANTAPIAUTHLOGIN = "/t/api/{tenantId}/{viewToken}/auth/login"
-    TENANTAPIAUTHREFRESH = "/t/api/{tenantId}/{viewToken}/auth/refresh"
-    TENANTAPIAUTHLOGOUT = "/t/api/{tenantId}/{viewToken}/auth/logout"
-    TENANTAPIAUTHLOGOUTALL = "/t/api/{tenantId}/{viewToken}/auth/logout-all"
+    # Tenant API: Auth — paths follow /{landlordUuid}/t/{tenantId}/{viewToken}/api/...
+    TENANTAPIAUTHPUBLICKEY = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/public-key"
+    TENANTAPIAUTHLOGIN = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/login"
+    TENANTAPIAUTHREFRESH = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/refresh"
+    TENANTAPIAUTHLOGOUT = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout"
+    TENANTAPIAUTHLOGOUTALL = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout-all"
 
     # Tenant API: Profile
-    TENANTAPIPROFILEGET = "/t/api/{tenantId}/{viewToken}/profile"
+    TENANTAPIPROFILEGET = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/profile"
 
     # Tenant API: KYC
-    TENANTAPIKYCUPLOAD = "/t/api/{tenantId}/{viewToken}/kyc"
-    TENANTAPIKYCMARKINACTIVE = "/t/api/{tenantId}/{viewToken}/kyc/{occupantUuid}/inactive"
-    TENANTAPIKYCDELETE = "/t/api/{tenantId}/{viewToken}/kyc/{occupantUuid}"
-    TENANTAPIKYCGETFILE = "/t/api/{tenantId}/{viewToken}/kyc/file/{filename}"
+    TENANTAPIKYCUPLOAD = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc"
+    TENANTAPIKYCMARKINACTIVE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive"
+    TENANTAPIKYCDELETE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}"
+    TENANTAPIKYCGETFILE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/file/{filename}"
 
     # Tenant API: PDF
-    TENANTAPIPDFVIEW = "/t/api/{tenantId}/{viewToken}/pdf/{billNo}/view"
-    TENANTAPIPDFDOWNLOAD = "/t/api/{tenantId}/{viewToken}/pdf/{billNo}/download"
+    TENANTAPIPDFVIEW = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view"
+    TENANTAPIPDFDOWNLOAD = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
+
 
 
 class TenantNames:
@@ -4969,6 +6122,82 @@ class StartupManager:
                     print(f"[TenantRecovery] Purged {purged} expired snapshot(s) on startup.")
             except Exception as e:
                 print(f"[TenantRecovery] Startup purge failed (non-critical): {e}")
+```
+
+```python
+// File: app\app\core\websocket_manager.py
+"""
+app/core/websocket_manager.py
+
+WebSocket connection manager for real-time sync across all frontend apps.
+Supports per-channel subscriptions with automatic cleanup on disconnect.
+"""
+
+import json
+import logging
+from typing import Dict, List, Set
+from fastapi import WebSocket
+
+logger = logging.getLogger(__name__)
+
+
+class ConnectionManager:
+    """Manages WebSocket connections organized by channel."""
+
+    def __init__(self):
+        self._channels: Dict[str, List[WebSocket]] = {}
+
+    async def connect(self, websocket: WebSocket, channel: str):
+        """Accept a WebSocket connection and add it to a channel."""
+        await websocket.accept()
+        if channel not in self._channels:
+            self._channels[channel] = []
+        self._channels[channel].append(websocket)
+        logger.info(f"WS connect: channel={channel}, total={len(self._channels[channel])}")
+
+    def disconnect(self, websocket: WebSocket, channel: str):
+        """Remove a WebSocket connection from a channel."""
+        if channel in self._channels:
+            self._channels[channel] = [ws for ws in self._channels[channel] if ws != websocket]
+            if not self._channels[channel]:
+                del self._channels[channel]
+            else:
+                logger.info(f"WS disconnect: channel={channel}, remaining={len(self._channels[channel])}")
+
+    async def broadcast(self, channel: str, event: dict):
+        """Send an event to all connections in a channel."""
+        if channel not in self._channels:
+            return
+
+        message = json.dumps(event)
+        dead: List[WebSocket] = []
+
+        for ws in self._channels[channel]:
+            try:
+                await ws.send_text(message)
+            except Exception:
+                dead.append(ws)
+
+        # Clean up dead connections
+        for ws in dead:
+            self.disconnect(ws, channel)
+
+    async def broadcast_all(self, event: dict):
+        """Send an event to all connections across all channels."""
+        for channel in list(self._channels.keys()):
+            await self.broadcast(channel, event)
+
+    def get_channel_count(self, channel: str) -> int:
+        """Return the number of active connections in a channel."""
+        return len(self._channels.get(channel, []))
+
+    def get_total_count(self) -> int:
+        """Return the total number of active connections."""
+        return sum(len(ws_list) for ws_list in self._channels.values())
+
+
+# Global singleton
+sync_manager = ConnectionManager()
 ```
 
 ```python
@@ -5174,6 +6403,7 @@ def init_production_db():
         password_hash TEXT NOT NULL,
         totp_secret TEXT,
         email TEXT,
+        is_platform_admin INTEGER NOT NULL DEFAULT 0,
         created_at TEXT,
         updated_at TEXT
     );
@@ -5366,6 +6596,17 @@ def init_production_db():
     CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
     """)
 
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS landlords (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        admin_id INTEGER NOT NULL,
+        landlordUuid TEXT UNIQUE NOT NULL,
+        active INTEGER DEFAULT 1,
+        FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_landlords_uuid ON landlords(landlordUuid);
+    """)
+
     conn.commit()
     conn.close()
     print("[OK] Production database initialized successfully.")
@@ -5413,6 +6654,7 @@ CREATE TABLE IF NOT EXISTS admins (
     password_hash TEXT NOT NULL,
     totp_secret TEXT,
     email TEXT,
+    is_platform_admin INTEGER NOT NULL DEFAULT 0,
     created_at TEXT,
     updated_at TEXT
 );
@@ -5612,6 +6854,251 @@ CREATE TABLE IF NOT EXISTS import_job_items (
     message TEXT,
     FOREIGN KEY (import_job_id) REFERENCES import_jobs(id) ON DELETE CASCADE
 );
+
+-- ============================================================
+-- 10. LANDLORDS (Tenant-to-Admin Mapping)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS landlords (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_id INTEGER NOT NULL,
+    landlordUuid TEXT UNIQUE NOT NULL,
+    active INTEGER DEFAULT 1,
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_landlords_uuid ON landlords(landlordUuid);
+```
+
+```python
+// File: app\app\database\landlord_repository.py
+"""
+app/database/landlord_repository.py
+
+Pure SQL helper functions for the landlord_accounts, landlord_sessions,
+and landlord_audit_logs tables.  No business logic lives here — callers
+are responsible for validation, hashing, and UUID generation.
+"""
+import base64
+import io
+from datetime import datetime
+
+import pyotp
+import qrcode
+
+from app.core.db import get_conn
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Landlord account helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+def get_landlord_by_username(username: str):
+    """Return a single row from landlord_accounts matching *username*, or None."""
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM landlord_accounts WHERE username = ?",
+            (username,),
+        ).fetchone()
+
+
+def get_landlord_by_email(email: str):
+    """Return a single row from landlord_accounts matching *email*, or None."""
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM landlord_accounts WHERE email = ?",
+            (email,),
+        ).fetchone()
+
+
+def get_landlord_by_id(landlord_id: int):
+    """Return a single row from landlord_accounts matching *landlord_id*, or None."""
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM landlord_accounts WHERE id = ?",
+            (landlord_id,),
+        ).fetchone()
+
+
+def username_exists(username: str) -> bool:
+    """Return True if *username* is already taken in landlord_accounts."""
+    return get_landlord_by_username(username) is not None
+
+
+def create_landlord(
+    full_name: str,
+    email: str | None,
+    phone: str | None,
+    username: str,
+    password_hash: str,
+    landlord_uuid: str,
+):
+    """
+    Insert a new landlord account and return the created row.
+
+    Raises sqlite3.IntegrityError on unique-constraint violations (username / email).
+    """
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO landlord_accounts (
+                landlord_uuid, full_name, email, phone, username,
+                password_hash, status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?)
+            """,
+            (landlord_uuid, full_name, email, phone, username, password_hash, now, now),
+        )
+        conn.commit()
+        return conn.execute(
+            "SELECT * FROM landlord_accounts WHERE id = ?",
+            (cur.lastrowid,),
+        ).fetchone()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Audit log helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+def create_landlord_audit_log(
+    landlord_id: int | None,
+    action: str,
+    ip_address: str | None = None,
+    meta_json: str | None = None,
+):
+    """Append a row to landlord_audit_logs."""
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO landlord_audit_logs (landlord_id, action, ip_address, created_at, meta_json)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (landlord_id, action, ip_address, now, meta_json),
+        )
+        conn.commit()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TOTP helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+def get_landlord_by_uuid(landlord_uuid: str):
+    """Return a single row from landlord_accounts matching *landlord_uuid*, or None."""
+    with get_conn() as conn:
+        return conn.execute(
+            "SELECT * FROM landlord_accounts WHERE landlord_uuid = ?",
+            (landlord_uuid,),
+        ).fetchone()
+
+
+def get_landlord_totp_secret(landlord_id: int):
+    """Return the totp_secret for the given landlord, or None."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT totp_secret FROM landlord_accounts WHERE id = ?",
+            (landlord_id,),
+        ).fetchone()
+        return row["totp_secret"] if row else None
+
+
+def update_landlord_totp_secret(landlord_id: int, secret: str):
+    """Set the totp_secret for the given landlord."""
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE landlord_accounts SET totp_secret = ?, updated_at = ? WHERE id = ?",
+            (secret, now, landlord_id),
+        )
+        conn.commit()
+
+
+def get_totp_uri(username: str, totp_secret: str, issuer: str = "Rent Receipt System") -> str:
+    """Generate TOTP provisioning URI for QR code."""
+    return pyotp.totp.TOTP(totp_secret).provisioning_uri(
+        name=username,
+        issuer_name=issuer,
+    )
+
+
+def generate_totp_qr_base64(username: str, totp_secret: str, issuer: str = "Rent Receipt System") -> str:
+    """Generate base64-encoded QR code for TOTP setup."""
+    uri = get_totp_uri(username, totp_secret, issuer)
+    qr = qrcode.make(uri)
+    buffer = io.BytesIO()
+    qr.save(buffer)
+    buffer.seek(0)
+    return base64.b64encode(buffer.read()).decode()
+
+
+def verify_totp(totp_secret: str, token: str) -> bool:
+    """Verify a TOTP token against the secret."""
+    if not totp_secret or not token:
+        return False
+    totp = pyotp.TOTP(totp_secret)
+    return totp.verify(token, valid_window=1)
+
+
+def regenerate_landlord_totp_secret(landlord_id: int) -> str:
+    """Generate a new TOTP secret, update the DB, and return it."""
+    new_secret = pyotp.random_base32()
+    update_landlord_totp_secret(landlord_id, new_secret)
+    return new_secret
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Rate limiting helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_MINUTES = 15
+
+
+def is_landlord_locked_out(landlord) -> bool:
+    """Check if the landlord account is currently locked out."""
+    if not landlord["locked_until"]:
+        return False
+    try:
+        locked_until = datetime.fromisoformat(landlord["locked_until"])
+        return datetime.utcnow() < locked_until
+    except (ValueError, TypeError):
+        return False
+
+
+def record_landlord_failed_attempt(landlord_id: int):
+    """Increment failed_attempts and lock if threshold reached."""
+    now = datetime.utcnow()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT failed_attempts FROM landlord_accounts WHERE id = ?",
+            (landlord_id,),
+        ).fetchone()
+        attempts = (row["failed_attempts"] or 0) + 1
+
+        if attempts >= MAX_FAILED_ATTEMPTS:
+            locked_until = now.replace(
+                minute=now.minute + LOCKOUT_MINUTES
+            )
+            conn.execute(
+                "UPDATE landlord_accounts SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE id = ?",
+                (attempts, locked_until.isoformat(), now.isoformat(), landlord_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE landlord_accounts SET failed_attempts = ?, updated_at = ? WHERE id = ?",
+                (attempts, now.isoformat(), landlord_id),
+            )
+        conn.commit()
+
+
+def reset_landlord_failed_attempts(landlord_id: int):
+    """Reset failed attempts and lock on successful login."""
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE landlord_accounts SET failed_attempts = 0, locked_until = NULL, updated_at = ? WHERE id = ?",
+            (now, landlord_id),
+        )
+        conn.commit()
 ```
 
 ```
@@ -5775,22 +7262,42 @@ app = FastAPI(title=APP_INFO["name"], version=APP_INFO["version"])
 # Initialize Storage, Config, DB, Migrations, Static mounts, Middlewares, and Events
 StartupManager.initialize(app)
 
-# Register all modular routers
-register_all_routers(app)
-
+# Serve static asset mounts BEFORE routers so catch-all routes don't shadow them
 # Serve Admin React App
 admin_assets_path = "frontend/admin-app/dist/assets"
 if os.path.isdir(admin_assets_path):
     app.mount("/admin/assets", StaticFiles(directory=admin_assets_path), name="admin_assets")
+
+# Serve Platform Admin React App
+platform_admin_assets = "frontend/platform-admin-app/dist/assets"
+if os.path.isdir(platform_admin_assets):
+    app.mount("/platform-admin/assets", StaticFiles(directory=platform_admin_assets), name="platform_admin_assets")
 
 # Serve Tenant React App
 tenant_assets_path = "frontend/tenant-app/dist/assets"
 if os.path.isdir(tenant_assets_path):
     app.mount("/t/assets", StaticFiles(directory=tenant_assets_path), name="tenant_assets")
 
-# Register SPA catch-all routes LAST so they don't shadow API routes
-from app.pages.spa import router as spa_router
-app.include_router(spa_router)
+# Serve Landlord React App
+landlord_assets_path = "frontend/landlord-app/dist/assets"
+if os.path.isdir(landlord_assets_path):
+    app.mount("/landlord/assets", StaticFiles(directory=landlord_assets_path), name="landlord_assets")
+
+# Serve Landing React App
+landing_assets = "frontend/landing-app/dist/assets"
+if os.path.isdir(landing_assets):
+    app.mount("/assets", StaticFiles(directory=landing_assets), name="landing_assets")
+
+# Favicon for landing page
+from fastapi.responses import FileResponse
+FAVICON_PATH = "frontend/landing-app/dist/favicon.svg"
+
+@app.get("/favicon.svg")
+async def favicon():
+    return FileResponse(FAVICON_PATH)
+
+# Register all modular routers (now includes SPA catch-all before landlord alias)
+register_all_routers(app)
 
 # Add proxy middleware — must be added AFTER routes so it sits outermost in the stack
 app.add_middleware(ProxyContextMiddleware)  # type: ignore[arg-type]
@@ -5833,6 +7340,46 @@ class DeviceSession(BaseModel):
     ip_address: str
     last_activity: str
     status: str
+```
+
+```python
+// File: app\app\models\landlord.py
+"""
+app/models/landlord.py
+
+Pydantic request / response models for the landlord authentication endpoints.
+"""
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
+
+class LandlordSignupRequest(BaseModel):
+    fullName: str = Field(min_length=2, max_length=120)
+    email: Optional[str] = Field(default=None, max_length=254)
+    phone: Optional[str] = Field(default=None, max_length=20)
+    username: str = Field(min_length=3, max_length=40)
+    password: str = Field(min_length=8, max_length=128)
+    confirmPassword: str = Field(min_length=8, max_length=128)
+
+
+class LandlordLoginRequest(BaseModel):
+    username: str
+    password: str
+    rememberMe: bool = False
+
+
+class LandlordLoginWithTotpRequest(BaseModel):
+    username: str
+    password: str
+    totpToken: str
+    rememberMe: bool = False
+
+
+class UsernameCheckResponse(BaseModel):
+    username: str
+    available: bool
+    suggestions: List[str] = []
 ```
 
 ```python
@@ -5962,6 +7509,9 @@ class Tenant(BaseModel):
     # NEW: Current arrears (balance due)
     arrears: float = 0.0
 
+    # NEW: Timestamp of last status change (Active/Inactive/Archived)
+    statusChangedAt: Optional[str] = None
+
     @field_validator("name", mode="before")
     @classmethod
     def strip_name(cls, v):
@@ -5973,7 +7523,7 @@ class Tenant(BaseModel):
 
 ```python
 // File: app\app\pages\__init__.py
-﻿
+
 ```
 
 ```python
@@ -5982,14 +7532,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
-from app.core.routes_manifest import Routes, Names, Templates
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names, LandlordTemplates as Templates
 
 from app.services.tenant_service import load_tenants
 from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMINPAGEARCHIVE, name=Names.ARCHIVEPAGE, response_class=HTMLResponse)
+@router.get(Routes.LANDLORDPAGEARCHIVE, name=Names.ARCHIVEPAGE, response_class=HTMLResponse)
 async def archive_page(request: Request):
     # Get archived tenants
     all_tenants = load_tenants(include_archived=True)
@@ -6022,15 +7572,15 @@ async def archive_page(request: Request):
 
 ```python
 // File: app\app\pages\backups.py
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
-from app.core.routes_manifest import Routes, Names, Templates
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names, LandlordTemplates as Templates
 
 router = APIRouter()
 
-@router.get(Routes.ADMINPAGEBACKUPS, name=Names.BACKUPSPAGE, response_class=HTMLResponse)
+@router.get(Routes.LANDLORDPAGEBACKUPS, name=Names.BACKUPSPAGE, response_class=HTMLResponse)
 async def backups_page(request: Request):
     theme = getattr(request.state, "theme", "system")
     return templates.TemplateResponse(
@@ -6047,14 +7597,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
-from app.core.routes_manifest import Routes, Names, Templates
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names, LandlordTemplates as Templates
 
 from app.services.tenant_service import load_tenants
 from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMINPAGEBILLING, name=Names.BILLINGPAGE, response_class=HTMLResponse)
+@router.get(Routes.LANDLORDPAGEBILLING, name=Names.BILLINGPAGE, response_class=HTMLResponse)
 async def billing_page(request: Request):
     tenants = [t for t in load_tenants(include_archived=False) if t.status == "Active"]
     theme = getattr(request.state, "theme", "system")
@@ -6075,17 +7625,17 @@ async def billing_page(request: Request):
 
 ```python
 // File: app\app\pages\dashboard.py
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
-from app.core.routes_manifest import Routes, Names, Templates
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names, LandlordTemplates as Templates
 
 from app.services.billing_service import get_dashboard_stats
 
 router = APIRouter()
 
-@router.get(Routes.ADMINPAGEROOT, name=Names.HOME, response_class=HTMLResponse)
+@router.get(Routes.LANDLORDPAGEROOT, name=Names.HOME, response_class=HTMLResponse)
 async def dashboard(request: Request):
     stats = get_dashboard_stats()
     theme = getattr(request.state, "theme", "system")
@@ -6165,13 +7715,13 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
-from app.core.routes_manifest import Routes, Names, Templates
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names, LandlordTemplates as Templates
 
 from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMINPAGEHISTORY, name=Names.HISTORYPAGE, response_class=HTMLResponse)
+@router.get(Routes.LANDLORDPAGEHISTORY, name=Names.HISTORYPAGE, response_class=HTMLResponse)
 async def history_page(request: Request):
     receipts = get_all_receipts(include_archived_tenants=False)
     active_receipts = [r for r in receipts if r.get("Status", "ACTIVE") == "ACTIVE"]
@@ -6187,8 +7737,34 @@ async def history_page(request: Request):
 ```
 
 ```python
+// File: app\app\pages\landing.py
+"""
+app/pages/landing.py
+
+Public landing page at GET /.
+Renders landing.html with role-selection buttons:
+  - Landlord Login / Signup
+  - Platform Admin Login
+
+This router replaces the old root 301 redirect in redirects.py.
+"""
+from fastapi import APIRouter, Request
+from fastapi.responses import FileResponse
+
+from app.core.routes_manifest import Names, Routes
+
+router = APIRouter(tags=["Public"])
+
+
+@router.get(Routes.PUBLICLANDING, name=Names.PUBLICLANDING)
+async def public_landing(request: Request):
+    """Serve the public landing page for the Rent app."""
+    return FileResponse("frontend/landing-app/dist/index.html")
+```
+
+```python
 // File: app\app\pages\redirects.py
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 router = APIRouter(tags=["Legacy Redirects"])
@@ -6215,23 +7791,21 @@ for path in legacy_paths:
     async def legacy_redirect_post(request: Request, path=path):
         return RedirectResponse(url=f"{request.scope.get('root_path', '')}/admin{path}", status_code=308)
 
-# Root redirect to /admin/
-@router.get("/", include_in_schema=False)
-async def legacy_root_redirect(request: Request):
-    return RedirectResponse(url=f"{request.scope.get('root_path', '')}/admin/", status_code=301)
+# NOTE: The root / redirect (/ → /admin/) has been removed.
+# GET / is now handled by app/pages/landing.py which serves the public landing page.
 ```
 
 ```python
 // File: app\app\pages\settings.py
-﻿from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
-from app.core.routes_manifest import Routes, Names, Templates
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names, LandlordTemplates as Templates
 
 router = APIRouter()
 
-@router.get(Routes.ADMINPAGESETTINGS, name=Names.SETTINGSPAGE, response_class=HTMLResponse)
+@router.get(Routes.LANDLORDPAGESETTINGS, name=Names.SETTINGSPAGE, response_class=HTMLResponse)
 async def settings_page(request: Request):
     billing_conf = config.get("billing", {})
     landlord_conf = config.get("landlord", {})
@@ -6254,22 +7828,94 @@ async def settings_page(request: Request):
 
 ```python
 // File: app\app\pages\spa.py
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+import os
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse, RedirectResponse
+
+TENANT_ASSETS_DIR = "frontend/tenant-app/dist/assets"
 
 router = APIRouter()
 
 @router.get("/admin")
+async def admin_root_redirect(request: Request):
+    url = request.url
+    if not url.path.endswith("/"):
+        return RedirectResponse(url=str(url.replace(path=url.path + "/")), status_code=307)
+    return FileResponse("frontend/admin-app/dist/index.html")
+
+
 @router.get("/admin/{path:path}")
 async def serve_admin_app(path: str = ""):
     if path.startswith("api/"):
         raise HTTPException(status_code=404, detail="API route not found")
     return FileResponse("frontend/admin-app/dist/index.html")
 
-@router.get("/t")
-@router.get("/t/{path:path}")
-async def serve_tenant_app(path: str = ""):
-    if path.startswith("api/"):
+
+@router.get("/landlord")
+async def landlord_root_redirect(request: Request):
+    url = request.url
+    if not url.path.endswith("/"):
+        return RedirectResponse(url=str(url.replace(path=url.path + "/")), status_code=307)
+    return await serve_landlord_app(request, path="")
+
+
+@router.get("/landlord/{path:path}")
+async def serve_landlord_app(request: Request, path: str = ""):
+    if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # Reject UUID-prefixed API paths — these should be handled by API routers,
+    # not served as the SPA index.html fallback.
+    parts = [p for p in path.split("/") if p]
+    if len(parts) >= 2 and len(parts[0]) >= 10 and parts[1] == "api":
+        raise HTTPException(status_code=404, detail="API route not found")
+
+    # Resolver: when hitting /landlord with no path, check session and redirect
+    if not path:
+        try:
+            token = request.cookies.get("landlord_access_token")
+            if token:
+                from app.authentication.landlord.jwt import decode_landlord_access_token
+                from app.authentication.landlord.sessions import get_landlord_session_db
+                from app.database.landlord_repository import get_landlord_by_id
+
+                payload = decode_landlord_access_token(token)
+                if payload.get("role") == "landlord":
+                    session_id = payload.get("sid")
+                    session = get_landlord_session_db(session_id)
+                    if session:
+                        landlord_id = int(payload.get("landlord_id") or payload.get("sub"))
+                        landlord = get_landlord_by_id(landlord_id)
+                        if landlord:
+                            uuid = landlord["landlord_uuid"]
+                            root = (request.scope.get("root_path") or "").rstrip("/")
+                            return RedirectResponse(
+                                url=f"{root}/landlord/{uuid}/dashboard",
+                                status_code=307,
+                            )
+        except Exception:
+            pass
+
+        # Not authenticated -- redirect to login
+        root = (request.scope.get("root_path") or "").rstrip("/")
+        return RedirectResponse(url=f"{root}/landlord/login", status_code=307)
+
+    return FileResponse("frontend/landlord-app/dist/index.html")
+
+@router.get("/{landlordUuid}/t/{tenantId}/{viewToken}/assets/{asset_path:path}", include_in_schema=False)
+async def serve_tenant_assets(landlordUuid: str, tenantId: int, viewToken: str, asset_path: str):
+    safe = os.path.normpath(asset_path).lstrip("/")
+    if safe.startswith(".."):
+        raise HTTPException(status_code=404, detail="Not found")
+    fpath = os.path.join(TENANT_ASSETS_DIR, safe)
+    if os.path.isfile(fpath):
+        return FileResponse(fpath)
+    raise HTTPException(status_code=404, detail="Asset not found")
+
+@router.get("/{landlordUuid}/t/{tenantId}/{viewToken}", name="serve_tenant_app", include_in_schema=False)
+@router.get("/{landlordUuid}/t/{tenantId}/{viewToken}/{path:path}", name="serve_tenant_app_path", include_in_schema=False)
+async def serve_tenant_app(landlordUuid: str, tenantId: int, viewToken: str, path: str = ""):
+    if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
         raise HTTPException(status_code=404, detail="API route not found")
     return FileResponse("frontend/tenant-app/dist/index.html")
 ```
@@ -6280,14 +7926,14 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 from app.core.dependencies import templates, config
 
-from app.core.routes_manifest import Routes, Names, Templates
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names, LandlordTemplates as Templates
 
 from app.services.tenant_service import load_tenants
 from app.services.billing_service import get_all_receipts
 
 router = APIRouter()
 
-@router.get(Routes.ADMINPAGETENANTS, name=Names.TENANTSPAGE, response_class=HTMLResponse)
+@router.get(Routes.LANDLORDPAGETENANTS, name=Names.TENANTSPAGE, response_class=HTMLResponse)
 async def tenants_page(request: Request):
     tenants = load_tenants(include_archived=False)
     receipts = get_all_receipts(include_archived_tenants=False)
@@ -6324,7 +7970,7 @@ async def tenants_page(request: Request):
 from fastapi import datastructures
 from fastapi import APIRouter, Depends, Request, Response, Form, HTTPException
 
-from app.core.routes_manifest import Routes, Names
+from app.core.routes_manifest_platform_admin import PlatformAdminRoutes as Routes, PlatformAdminNames as Names
 
 from pydantic import BaseModel
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -6340,6 +7986,7 @@ from app.database.auth_repository import (
     regenerate_totp_secret
 )
 from app.encryption import decrypt_payload
+from app.core.config_service import config
 
 # router = APIRouter(tags=["Admin Authentication"])
 router = APIRouter()
@@ -6347,15 +7994,15 @@ router = APIRouter()
 # ─── Request Models ────────────────────────────────────────────────
 
 class EncryptedPayload(BaseModel):
-    encryptedKey: str
-    encryptedData: str
+    key: str
+    data: str
     nonce: str
     remember_me: bool = False
 
 
 # ─── Setup & User Creation ───────────────────────────────────────────
 
-@router.get(Routes.ADMINAPISETUPREQUIRED, name=Names.ADMINSETUPREQUIRED)
+@router.get(Routes.PLATFORMADMINAPISETUPREQUIRED, name=Names.PLATFORMADMINSETUPREQUIRED)
 async def check_setup_required():
     """Check if admin setup is required (no admin exists yet)."""
     return {
@@ -6363,14 +8010,14 @@ async def check_setup_required():
         "message": "No admin user found. Please create an admin account to continue." if not admin_exists() else "Admin account exists."
     }
 
-@router.post(Routes.ADMINAPISETUPCREATE, name=Names.ADMINSETUPCREATE)
+@router.post(Routes.PLATFORMADMINAPISETUPCREATE, name=Names.PLATFORMADMINSETUPCREATE)
 async def create_first_admin(req: EncryptedPayload):
     """Create the first admin user (only works when no admins exist)."""
     if admin_exists():
         raise HTTPException(status_code=403, detail="Admin user already exists. Use the settings page to manage admins.")
     
     try:
-        decrypted = decrypt_payload(req.encryptedKey, req.encryptedData, req.nonce)
+        decrypted = decrypt_payload(req.key, req.data, req.nonce)
         username = decrypted.get("username", "").strip()
         password = decrypted.get("password", "")
         confirm_password = decrypted.get("confirm_password", "")
@@ -6408,91 +8055,13 @@ async def create_first_admin(req: EncryptedPayload):
         }
     }
 
-# ─── Login Flow ────────────────────────────────────────────────────
-
-@router.post(Routes.ADMINAPIAUTHLOGIN, name=Names.ADMINLOGIN)
-async def admin_login(request: Request, login_req: EncryptedPayload):
-    """Standard admin login (requires TOTP if configured)."""
-    try:
-        decrypted = decrypt_payload(login_req.encryptedKey, login_req.encryptedData, login_req.nonce)
-        username = decrypted.get("username", "")
-        password = decrypted.get("password", "")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid encrypted payload")
-
-    admin = get_admin_by_username(username)
-    
-    if not admin or not verify_pin(password, admin["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid username or password.")
-    
-    # If TOTP is configured, require it
-    if admin["totp_secret"]:
-        return {
-            "status": "totp_required",
-            "message": "TOTP verification required.",
-            "username": username
-        }
-    
-    # No TOTP - proceed with login (fallback for legacy or initial setup)
-    session_id, refresh_token = create_admin_session(admin['id'], request, login_req.remember_me)
-    access_token = create_admin_access_token(admin['id'], session_id)
-    
-    cookie_val = f"{session_id}:{refresh_token}"
-    
-    response = JSONResponse({
-        "status": "success",
-        "message": "Login successful",
-        "admin_id": admin['id'],
-        "username": admin['username']
-    })
-    set_admin_auth_cookies(response, access_token, cookie_val, login_req.remember_me, request)
-    
-    return response
-
-@router.post(Routes.ADMINAPIAUTHLOGINTOTP, name=Names.ADMINLOGINTOTP)
-async def admin_login_with_totp(request: Request, login_req: EncryptedPayload):
-    """Complete login with TOTP verification."""
-    try:
-        decrypted = decrypt_payload(login_req.encryptedKey, login_req.encryptedData, login_req.nonce)
-        username = decrypted.get("username", "")
-        password = decrypted.get("password", "")
-        totp_token = decrypted.get("totp_token", "")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid encrypted payload")
-
-    admin = get_admin_by_username(username)
-    
-    if not admin or not verify_pin(password, admin["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid username or password.")
-    
-    if not admin["totp_secret"]:
-        raise HTTPException(status_code=400, detail="TOTP not configured for this account.")
-    
-    if not verify_totp(admin["totp_secret"], totp_token):
-        raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
-    
-    session_id, refresh_token = create_admin_session(admin['id'], request, login_req.remember_me)
-    access_token = create_admin_access_token(admin['id'], session_id)
-    
-    cookie_val = f"{session_id}:{refresh_token}"
-    
-    response = JSONResponse({
-        "status": "success",
-        "message": "Login successful",
-        "admin_id": admin['id'],
-        "username": admin['username']
-    })
-    set_admin_auth_cookies(response, access_token, cookie_val, login_req.remember_me, request)
-    
-    return response
-
 # ─── Forgot Password ───────────────────────────────────────────────
 
-@router.post(Routes.ADMINAPIPASSWORDFORGOTVERIFY, name=Names.ADMINFORGOTVERIFY)
+@router.post(Routes.PLATFORMADMINAPIPASSWORDFORGOTVERIFY, name=Names.PLATFORMADMINFORGOTVERIFY)
 async def verify_forgot_password(req: EncryptedPayload):
     """Verify username and TOTP for password reset."""
     try:
-        decrypted = decrypt_payload(req.encryptedKey, req.encryptedData, req.nonce)
+        decrypted = decrypt_payload(req.key, req.data, req.nonce)
         username = decrypted.get("username", "").strip()
         totp_token = decrypted.get("totp_token", "").strip()
     except Exception:
@@ -6517,11 +8086,11 @@ async def verify_forgot_password(req: EncryptedPayload):
         "username": username
     }
 
-@router.post(Routes.ADMINAPIPASSWORDFORGOTRESET, name=Names.ADMINFORGOTRESET)
+@router.post(Routes.PLATFORMADMINAPIPASSWORDFORGOTRESET, name=Names.PLATFORMADMINFORGOTRESET)
 async def reset_password(req: EncryptedPayload):
     """Reset password after TOTP verification."""
     try:
-        decrypted = decrypt_payload(req.encryptedKey, req.encryptedData, req.nonce)
+        decrypted = decrypt_payload(req.key, req.data, req.nonce)
         username = decrypted.get("username", "")
         totp_token = decrypted.get("totp_token", "")
         new_password = decrypted.get("new_password", "")
@@ -6554,93 +8123,12 @@ async def reset_password(req: EncryptedPayload):
         "message": "Password reset successfully. Please login with your new password."
     }
 
-# ─── Refresh Token ─────────────────────────────────────────────────
-
-@router.post(Routes.ADMINAPIAUTHREFRESH)
-async def admin_refresh(request: Request, response: Response):
-    """Admin Refresh Token Rotation Flow"""
-    refresh_token = request.cookies.get("admin_refresh_token")
-    if not refresh_token:
-        raise HTTPException(status_code=401, detail="No refresh token")
-        
-    parts = refresh_token.split(":")
-    if len(parts) != 2:
-        raise HTTPException(status_code=401, detail="Malformed refresh token")
-    
-    session_id, token_secret = parts[0], parts[1]
-    
-    session = get_admin_session_db(session_id)
-    if not session or not verify_pin(token_secret, session["refresh_token_hash"]):
-        revoke_admin_session_db(session_id)
-        clear_admin_auth_cookies(response, request)
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
-        
-    revoke_admin_session_db(session_id) 
-    
-    new_session_id, new_refresh_token = create_admin_session(session["admin_id"], request, remember_me=True)
-    new_access_token = create_admin_access_token(session["admin_id"], new_session_id)
-    
-    new_cookie_val = f"{new_session_id}:{new_refresh_token}"
-    set_admin_auth_cookies(response, new_access_token, new_cookie_val, remember_me=True, request=request)
-    
-    return {"status": "success", "message": "Admin tokens refreshed silently"}
-
-# ─── Logout ────────────────────────────────────────────────────────
-
-@router.get(Routes.ADMINPAGELOGOUT, name=Names.ADMINLOGOUT)
-async def ADMINLOGOUT(request: Request):
-    """Logs the admin out and clears cookies"""
-    token = request.cookies.get("admin_access_token")
-    if token:
-        try:
-            from app.authentication.admin.jwt import decode_admin_access_token
-            payload = decode_admin_access_token(token)
-            revoke_admin_session_db(payload.get("sid"))
-        except Exception:
-            pass
-            
-    root_path = request.scope.get("root_path", "")
-    login_url = f"{root_path}/admin/login"
-    response = RedirectResponse(url=login_url, status_code=303)
-    clear_admin_auth_cookies(response, request)
-    return response
-
-@router.post(Routes.ADMINAPIAUTHLOGOUT, name=Names.ADMINLOGOUTJSON)
-async def ADMINLOGOUTJSON(request: Request, response: Response):
-    """Logs the admin out via JSON request"""
-    token = request.cookies.get("admin_access_token")
-    if token:
-        try:
-            from app.authentication.admin.jwt import decode_admin_access_token
-            payload = decode_admin_access_token(token)
-            revoke_admin_session_db(payload.get("sid"))
-        except Exception:
-            pass
-            
-    clear_admin_auth_cookies(response, request)
-    return {"status": "success"}
-
 # ─── Current User & TOTP Management ──────────────────────────────────
 
 from app.authentication.admin.middleware import get_current_admin_api
-from app.core.routes_manifest import Routes
 
-@router.get(Routes.ADMINAPIAUTHME, name=Names.ADMINME)
-async def ADMINME(admin: dict = Depends(get_current_admin_api)):
-    """Returns the current admin session info"""
-    admin_data = get_admin_by_id(admin.id)
-    if not admin_data:
-        raise HTTPException(status_code=404, detail="Admin not found")
-    
-    return {
-        "admin": {
-            "id": admin_data["id"],
-            "username": admin_data["username"],
-            "email": admin_data["email"] or ""
-        }
-    }
 
-@router.get(Routes.ADMINAPITOTPQR, name=Names.ADMINTOTPQR)
+@router.get(Routes.PLATFORMADMINAPITOTPQR, name=Names.PLATFORMADMINTOTPQR)
 async def get_totp_qr(admin: dict = Depends(get_current_admin_api)):
     """Get TOTP QR code and secret for current admin."""
     admin_data = get_admin_by_id(admin.id)
@@ -6658,7 +8146,7 @@ async def get_totp_qr(admin: dict = Depends(get_current_admin_api)):
         }
     }
 
-@router.post(Routes.ADMINAPITOTPREGENERATE, name=Names.ADMINTOTPREGENERATE)
+@router.post(Routes.PLATFORMADMINAPITOTPREGENERATE, name=Names.PLATFORMADMINTOTPREGENERATE)
 async def regenerate_totp(req: EncryptedPayload, admin: dict = Depends(get_current_admin_api)):
     """Regenerate TOTP secret (requires password confirmation)."""
     admin_data = get_admin_by_id(admin.id)
@@ -6666,7 +8154,7 @@ async def regenerate_totp(req: EncryptedPayload, admin: dict = Depends(get_curre
         raise HTTPException(status_code=404, detail="Admin not found")
     
     try:
-        decrypted = decrypt_payload(req.encryptedKey, req.encryptedData, req.nonce)
+        decrypted = decrypt_payload(req.key, req.data, req.nonce)
         password = decrypted.get("password", "")
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted payload")
@@ -6689,7 +8177,7 @@ async def regenerate_totp(req: EncryptedPayload, admin: dict = Depends(get_curre
 
 # ─── Public Key for Encryption ─────────────────────────────────────
 
-@router.get(Routes.ADMINAPIAUTHPUBLICKEY, name=Names.ADMINPUBLICKEY)
+@router.get(Routes.PLATFORMADMINAPIAUTHPUBLICKEY, name=Names.PLATFORMADMINPUBLICKEY)
 async def admin_public_key():
     from app.encryption import get_public_key_pem
     return {"publicKey": get_public_key_pem()}
@@ -6742,6 +8230,7 @@ def _verify_tenant_viewToken(request: Request, viewToken: str) -> None:
         raise HTTPException(status_code=401, detail="Invalid access token")
 
 
+@router.post("/t/{tenantId}/{viewToken}/api/auth/login", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHLOGIN)
 async def auth_login(tenantId: int, viewToken: str, request: Request, response: Response, payload: LoginRequest):
     """Unchanged - login already receives viewToken via path"""
@@ -6800,6 +8289,7 @@ async def auth_login(tenantId: int, viewToken: str, request: Request, response: 
     return {"status": "success", "message": "Logged in successfully"}
 
 
+@router.post("/t/{tenantId}/{viewToken}/api/auth/refresh", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHREFRESH)
 async def auth_refresh(
     tenantId: int = Path(...),
@@ -6841,6 +8331,7 @@ async def auth_refresh(
     return {"status": "success", "message": "Tokens refreshed silently"}
 
 
+@router.post("/t/{tenantId}/{viewToken}/api/auth/logout", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHLOGOUT)
 async def auth_logout(
     tenantId: int = Path(...),
@@ -6866,6 +8357,7 @@ async def auth_logout(
     return {"status": "success"}
 
 
+@router.post("/t/{tenantId}/{viewToken}/api/auth/logout-all", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHLOGOUTALL)
 async def auth_logout_all(
     tenantId: int = Path(...),
@@ -6992,6 +8484,1947 @@ async def auth_logout_all(
 # async def auth_logout_all(principal = Depends(get_current_tenant)):
 #     revoke_all_tenant_sessions(principal.id)
 #     return {"status": "success", "message": "All devices logged out"}
+```
+
+```python
+// File: app\app\routers\landlord_routes.py
+from __future__ import annotations
+
+import re
+import secrets
+from typing import Iterable
+
+import httpx
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import Response
+
+router = APIRouter(tags=["Landlord Route Alias"])
+
+LANDLORD_ID_LENGTH = 16
+LANDLORD_ID_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyz"
+LANDLORD_ID_RE = re.compile(r"^[0-9a-z]{16}$")
+
+RESERVED_LANDLORD_IDS = {
+    "landlord",
+    "platform-admin",
+    "api",
+    "static",
+    "landlordassets",
+    "tassets",
+    "t",
+    "health",
+    "favicon.ico",
+    "robots.txt",
+    "assets",
+}
+
+
+def generate_landlordUuid(size: int = LANDLORD_ID_LENGTH) -> str:
+    if size < 10:
+        raise ValueError("landlord uuid size must be at least 10")
+    return "".join(secrets.choice(LANDLORD_ID_ALPHABET) for _ in range(size))
+
+
+def is_valid_landlordUuid(value: str) -> bool:
+    return bool(LANDLORD_ID_RE.fullmatch(value))
+
+
+def validate_landlordUuid(value: str) -> None:
+    if not value:
+        raise HTTPException(status_code=404, detail="Missing landlord uuid")
+    if value in RESERVED_LANDLORD_IDS:
+        raise HTTPException(status_code=404, detail="Reserved landlord uuid")
+    if not is_valid_landlordUuid(value):
+        raise HTTPException(status_code=404, detail="Invalid landlord uuid format")
+
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        row = conn.execute("SELECT id FROM landlords WHERE landlordUuid = ? AND active = 1", (value,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Landlord not found or inactive")
+
+
+def external_base(landlordUuid: str) -> str:
+    return f"/{landlordUuid}"
+
+
+def internal_landlord_path(path: str | None) -> str:
+    clean = (path or "").strip("/")
+    return "/landlord" if not clean else f"/landlord/{clean}"
+
+
+def internal_asset_path(path: str | None) -> str:
+    clean = (path or "").lstrip("/")
+    return "/landlord/assets" if not clean else f"/landlord/assets/{clean}"
+
+
+def rewrite_location(location: str, landlordUuid: str) -> str:
+    ext = external_base(landlordUuid)
+    rewrites = [
+        (f"{ext}/landlord/", f"{ext}/"),
+        (f"{ext}/landlord", ext),
+        ("/landlord/", f"{ext}/"),
+        ("/landlord", ext),
+    ]
+    result = location
+    for old, new in rewrites:
+        if result == old or result.startswith(old):
+            result = new + result[len(old):]
+    return result
+
+
+def rewrite_set_cookie(cookie_value: str, landlordUuid: str) -> str:
+    ext = external_base(landlordUuid)
+    rewrites = [
+        (f"Path={ext}/landlord/", f"Path={ext}/"),
+        (f"Path={ext}/landlord", f"Path={ext}"),
+        ("Path=/landlord/", f"Path={ext}/"),
+        ("Path=/landlord", f"Path={ext}"),
+    ]
+    result = cookie_value
+    for old, new in rewrites:
+        result = result.replace(old, new)
+    return result
+
+
+def filtered_headers(request: Request, landlordUuid: str) -> list[tuple[str, str]]:
+    blocked = {"host", "content-length"}
+    headers: list[tuple[str, str]] = []
+    for key, value in request.headers.multi_items():
+        if key.lower() in blocked:
+            continue
+        headers.append((key, value))
+    headers.append(("x-forwarded-prefix", external_base(landlordUuid)))
+    headers.append(("x-landlord-uuid", landlordUuid))
+    headers.append(("x-landlord-alias", "1"))
+    return headers
+
+
+async def proxy_to_internal(
+    request: Request,
+    landlordUuid: str,
+    target_path: str,
+) -> Response:
+    body = await request.body()
+    headers = filtered_headers(request, landlordUuid)
+
+    transport = httpx.ASGITransport(app=request.app)
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://landlord-alias.internal",
+        follow_redirects=False,
+    ) as client:
+        upstream = await client.request(
+            method=request.method,
+            url=target_path,
+            params=request.query_params,
+            content=body,
+            headers=headers,
+        )
+
+    response = Response(
+        content=upstream.content,
+        status_code=upstream.status_code,
+    )
+
+    excluded = {
+        "content-length",
+        "transfer-encoding",
+        "connection",
+        "keep-alive",
+        "server",
+        "date",
+    }
+
+    for key, value in upstream.headers.multi_items():
+        lower = key.lower()
+        if lower in excluded:
+            continue
+        if lower == "location":
+            value = rewrite_location(value, landlordUuid)
+        elif lower == "set-cookie":
+            value = rewrite_set_cookie(value, landlordUuid)
+        response.headers.append(key, value)
+
+    return response
+
+
+LANDLORD_METHODS: list[str] = [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+    "HEAD",
+]
+
+ASSET_METHODS: list[str] = ["GET", "HEAD"]
+
+
+@router.api_route(
+    "/{landlordUuid}/assets/{asset_path:path}",
+    methods=ASSET_METHODS,
+    include_in_schema=False,
+)
+async def landlord_asset_alias(
+    landlordUuid: str,
+    asset_path: str,
+    request: Request,
+) -> Response:
+    validate_landlordUuid(landlordUuid)
+    return await proxy_to_internal(
+        request=request,
+        landlordUuid=landlordUuid,
+        target_path=internal_asset_path(asset_path),
+    )
+
+
+@router.api_route(
+    "/{landlordUuid}",
+    methods=LANDLORD_METHODS,
+    include_in_schema=False,
+)
+@router.api_route(
+    "/{landlordUuid}/{path:path}",
+    methods=LANDLORD_METHODS,
+    include_in_schema=False,
+)
+async def landlord_admin_alias(
+    landlordUuid: str,
+    request: Request,
+    path: str = "",
+) -> Response:
+    validate_landlordUuid(landlordUuid)
+
+    normalized = (path or "").strip("/")
+
+    if normalized.startswith("assets/"):
+        return await proxy_to_internal(
+            request=request,
+            landlordUuid=landlordUuid,
+            target_path=internal_asset_path(normalized[len("assets/"):]),
+        )
+
+    return await proxy_to_internal(
+        request=request,
+        landlordUuid=landlordUuid,
+        target_path=internal_landlord_path(normalized),
+    )
+```
+
+```python
+// File: app\app\routers\landlordauth.py
+"""
+app/routers/landlordauth.py
+
+Public landlord authentication endpoints:
+  GET  /landlord/api/auth/check-username   — username availability + suggestions
+  POST /landlord/api/auth/signup           — create landlord account
+  POST /landlord/api/auth/login            — authenticate + set cookies
+  POST /landlord/api/login/totp            — complete login with TOTP verification
+  POST /landlord/api/auth/logout           — clear cookies + revoke session
+  GET  /landlord/api/auth/me               — return current landlord identity
+
+Protected landlord TOTP management endpoints:
+  GET  /landlord/{landlordUuid}/api/totp/qr         — get TOTP QR code
+  POST /landlord/{landlordUuid}/api/totp/regenerate  — regenerate TOTP secret
+"""
+import json
+import re
+import uuid
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
+
+from app.authentication.common.utils import hash_pin, verify_pin
+from app.authentication.landlord.cookies import (
+    clear_landlord_auth_cookies,
+    set_landlord_auth_cookies,
+)
+from app.authentication.landlord.jwt import create_landlord_access_token
+from app.authentication.landlord.middleware import get_current_landlord_api
+from app.authentication.landlord.sessions import (
+    create_landlord_session,
+    revoke_landlord_session_db,
+)
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
+from app.database.landlord_repository import (
+    create_landlord,
+    create_landlord_audit_log,
+    get_landlord_by_email,
+    get_landlord_by_username,
+    get_landlord_by_uuid,
+    get_landlord_totp_secret,
+    update_landlord_totp_secret,
+    generate_totp_qr_base64,
+    get_totp_uri,
+    verify_totp,
+    regenerate_landlord_totp_secret,
+    username_exists,
+    is_landlord_locked_out,
+    record_landlord_failed_attempt,
+    reset_landlord_failed_attempts,
+)
+from app.models.landlord import LandlordLoginRequest, LandlordLoginWithTotpRequest, LandlordSignupRequest
+from app.core.config_service import config
+from app.core.db import get_conn
+
+router = APIRouter(tags=["Landlord Authentication"])
+
+# ── Username rules ─────────────────────────────────────────────────────────────
+
+RESERVED = {
+    "admin", "root", "api", "login", "signup", "tenant",
+    "landlord", "support", "system", "platform", "superuser",
+}
+
+
+def normalize_username(username: str) -> str:
+    """Lowercase, strip whitespace, remove any char that is not [a-z0-9_]."""
+    username = username.strip().lower()
+    username = re.sub(r"[^a-z0-9_]", "", username)
+    return username
+
+
+def suggest_usernames(base: str) -> list[str]:
+    """Generate 3–5 available username alternatives for *base*."""
+    base = normalize_username(base) or "user"
+    candidates = [
+        f"{base}91",
+        f"{base}123",
+        f"{base}_01",
+        f"{base}_91",
+        f"{base}2026",
+        f"{base}786",
+    ]
+    result = []
+    for candidate in candidates:
+        if candidate not in RESERVED and not username_exists(candidate):
+            result.append(candidate)
+        if len(result) >= 5:
+            break
+    return result
+
+
+# ── Endpoints ──────────────────────────────────────────────────────────────────
+
+@router.get(Routes.LANDLORDAPIAUTHPUBLICKEY, name=Names.LANDLORDPUBLICKEY)
+async def landlord_public_key():
+    from app.encryption import get_public_key_pem
+    return {"publicKey": get_public_key_pem()}
+
+
+@router.get(Routes.LANDLORDAPIAUTHCHECKUSERNAME, name=Names.LANDLORDCHECKUSERNAME)
+async def check_username(username: str):
+    """
+    Return whether *username* is available and, if not, suggest alternatives.
+    Response: { username, available, suggestions[] }
+    """
+    normalized = normalize_username(username)
+    if len(normalized) < 3:
+        return {"username": normalized, "available": False, "suggestions": []}
+
+    available = normalized not in RESERVED and not username_exists(normalized)
+    return {
+        "username": normalized,
+        "available": available,
+        "suggestions": [] if available else suggest_usernames(normalized),
+    }
+
+
+@router.get(Routes.LANDLORDAPIAUTHCHECKEMAIL, name=Names.LANDLORDCHECKEMAIL)
+async def check_email(email: str):
+    """Return whether *email* is available."""
+    email_clean = email.strip().lower()
+    if "@" not in email_clean or "." not in email_clean.split("@")[-1]:
+        return {"email": email_clean, "available": False, "error": "Invalid email format"}
+    available = get_landlord_by_email(email_clean) is None
+    return {"email": email_clean, "available": available, "error": None}
+
+
+@router.post(Routes.LANDLORDAPIAUTHSIGNUP, name=Names.LANDLORDSIGNUP)
+async def landlord_signup(request: Request, payload: LandlordSignupRequest):
+    """
+    Create a new landlord account.
+    Validates: username format, password match, uniqueness of username + email.
+    Returns: { status, landlord: { id, landlordUuid, username, fullName } }
+    """
+    username = normalize_username(payload.username)
+
+    # ── Input validation ──
+    if len(username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters.")
+    if username in RESERVED:
+        raise HTTPException(status_code=400, detail="Username is reserved.")
+    if payload.password != payload.confirmPassword:
+        raise HTTPException(status_code=400, detail="Passwords do not match.")
+
+    # ── Unified uniqueness checks ──
+    conflicts = []
+
+    if username in RESERVED:
+        conflicts.append({
+            "field": "username",
+            "code": "RESERVED",
+            "message": "Username is reserved.",
+            "suggestions": suggest_usernames(username),
+        })
+    elif username_exists(username):
+        conflicts.append({
+            "field": "username",
+            "code": "USERNAME_TAKEN",
+            "message": "Username is already registered.",
+            "suggestions": suggest_usernames(username),
+        })
+
+    if payload.email and get_landlord_by_email(payload.email.strip().lower()):
+        conflicts.append({
+            "field": "email",
+            "code": "EMAIL_TAKEN",
+            "message": "Email is already registered.",
+        })
+
+    if conflicts:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "CONFLICTS", "message": "Some fields need attention.", "conflicts": conflicts},
+        )
+
+    # ── Create account ──
+    landlord_uuid = str(uuid.uuid4())
+    password_hash = hash_pin(payload.password)
+
+    landlord = create_landlord(
+        full_name=payload.fullName.strip(),
+        email=payload.email.strip().lower() if payload.email else None,
+        phone=payload.phone.strip() if payload.phone else None,
+        username=username,
+        password_hash=password_hash,
+        landlord_uuid=landlord_uuid,
+    )
+
+    # Store encrypted password in admin vault (for platform admin reveal)
+    from app.authentication.common.pin_vault import encrypt_admin_view_pin
+    from app.core.db import get_conn as _get_conn
+    encrypted_pw = encrypt_admin_view_pin(payload.password)
+    now_iso = datetime.utcnow().isoformat()
+    with _get_conn() as vault_conn:
+        vault_conn.execute(
+            """INSERT OR REPLACE INTO landlord_password_admin_store
+               (landlord_id, encrypted_password, updated_at) VALUES (?, ?, ?)""",
+            (landlord["id"], encrypted_pw, now_iso),
+        )
+        vault_conn.commit()
+
+    create_landlord_audit_log(
+        landlord["id"],
+        "signup_success",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"username": username}),
+    )
+
+    return {
+        "status": "success",
+        "landlord": {
+            "id": landlord["id"],
+            "landlordUuid": landlord["landlord_uuid"],
+            "username": landlord["username"],
+            "fullName": landlord["full_name"],
+        },
+    }
+
+
+@router.post(Routes.LANDLORDAPIAUTHLOGIN, name=Names.LANDLORDLOGIN)
+async def landlord_login(
+    request: Request, response: Response, payload: LandlordLoginRequest
+):
+    """
+    Authenticate a landlord and issue access + refresh cookies.
+    Returns: { status, landlord: { id, landlordUuid, username, fullName } }
+    If TOTP is required and configured, returns { status: "totp_required" } instead.
+    """
+    username = normalize_username(payload.username)
+    landlord = get_landlord_by_username(username)
+
+    if not landlord:
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+    if is_landlord_locked_out(landlord):
+        create_landlord_audit_log(
+            landlord["id"],
+            "login_locked_out",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"username": username}),
+        )
+        raise HTTPException(status_code=429, detail="Account locked. Try again later.")
+
+    if not verify_pin(payload.password, landlord["password_hash"]):
+        record_landlord_failed_attempt(landlord["id"])
+        create_landlord_audit_log(
+            landlord["id"],
+            "login_failed",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"username": username}),
+        )
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+    # Check if TOTP is required for login
+    require_totp = config.get("system", {}).get("security", {}).get("adminTotpRequired", True)
+    if require_totp and landlord["totp_secret"]:
+        return {
+            "status": "totp_required",
+            "message": "TOTP verification required.",
+            "username": username,
+        }
+
+    # Check if password change is required (admin reset)
+    if landlord["requires_password_change"]:
+        if landlord.get("temp_password_consumed"):
+            create_landlord_audit_log(
+                landlord["id"],
+                "temp_password_reuse_blocked",
+                ip_address=request.client.host if request.client else None,
+                meta_json=json.dumps({"username": username}),
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="This temporary password has already been used. Contact your administrator to reset it again.",
+            )
+
+        # Mark temp password as consumed on first use
+        now = datetime.utcnow().isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = ?",
+                (landlord["id"],),
+            )
+            conn.commit()
+
+        reset_landlord_failed_attempts(landlord["id"])
+        session_id, refresh_token = create_landlord_session(
+            landlord["id"], request, payload.rememberMe
+        )
+        access_token = create_landlord_access_token(landlord["id"], session_id)
+        cookie_value = f"{session_id}:{refresh_token}"
+        set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
+
+        create_landlord_audit_log(
+            landlord["id"],
+            "login_forced_password_change",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"username": username}),
+        )
+
+        return {
+            "status": "password_change_required",
+            "message": "You must change your password before continuing.",
+            "username": username,
+            "landlordUuid": landlord["landlord_uuid"],
+        }
+
+    reset_landlord_failed_attempts(landlord["id"])
+    session_id, refresh_token = create_landlord_session(
+        landlord["id"], request, payload.rememberMe
+    )
+    access_token = create_landlord_access_token(landlord["id"], session_id)
+    cookie_value = f"{session_id}:{refresh_token}"
+
+    set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
+
+    create_landlord_audit_log(
+        landlord["id"],
+        "login_success",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"username": username}),
+    )
+
+    return {
+        "status": "success",
+        "landlord": {
+            "id": landlord["id"],
+            "landlordUuid": landlord["landlord_uuid"],
+            "username": landlord["username"],
+            "fullName": landlord["full_name"],
+        },
+    }
+
+
+@router.post(Routes.LANDLORDAPIAUTHLOGOUT, name=Names.LANDLORDLOGOUT)
+async def landlord_logout(request: Request, response: Response):
+    """
+    Clear landlord cookies and revoke the active session.
+    """
+    clear_landlord_auth_cookies(response, request)
+    token = request.cookies.get("landlord_refresh_token")
+    if token and ":" in token:
+        session_id = token.split(":", 1)[0]
+        revoke_landlord_session_db(session_id)
+    return {"status": "success"}
+
+
+@router.get(Routes.LANDLORDAPIAUTHME, name=Names.LANDLORDME)
+async def landlord_me(principal=Depends(get_current_landlord_api)):
+    """
+    Return the identity of the currently authenticated landlord.
+    Requires a valid landlord_access_token cookie.
+    Returns TOTP state and password change flag so frontend can sync state.
+    """
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT totp_secret, requires_password_change FROM landlord_accounts WHERE id = ?",
+            (principal.landlord_id,),
+        ).fetchone()
+
+    return {
+        "status": "success",
+        "landlord": {
+            "id": principal.landlord_id,
+            "landlordUuid": principal.landlord_uuid,
+            "username": principal.username,
+            "fullName": principal.fullname,
+            "email": principal.email,
+            "hasTotp": bool(row and row["totp_secret"]),
+            "requiresPasswordChange": bool(row and row["requires_password_change"]),
+        },
+    }
+
+
+# ─── TOTP Login ────────────────────────────────────────────────────
+
+@router.post(Routes.LANDLORDAPIAUTHLOGINTOTP, name=Names.LANDLORDLOGINTOTP)
+async def landlord_login_with_totp(
+    request: Request, response: Response, payload: LandlordLoginWithTotpRequest
+):
+    """
+    Complete landlord login with TOTP verification.
+    Re-verifies username + password, then validates the TOTP code.
+    """
+    username = normalize_username(payload.username)
+    landlord = get_landlord_by_username(username)
+
+    if not landlord:
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+    if is_landlord_locked_out(landlord):
+        create_landlord_audit_log(
+            landlord["id"],
+            "login_locked_out",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"username": username}),
+        )
+        raise HTTPException(status_code=429, detail="Account locked. Try again later.")
+
+    if not verify_pin(payload.password, landlord["password_hash"]):
+        record_landlord_failed_attempt(landlord["id"])
+        create_landlord_audit_log(
+            landlord["id"],
+            "login_failed",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"username": username}),
+        )
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+
+    if not landlord["totp_secret"]:
+        raise HTTPException(status_code=400, detail="TOTP not configured for this account.")
+
+    if not verify_totp(landlord["totp_secret"], payload.totpToken):
+        record_landlord_failed_attempt(landlord["id"])
+        create_landlord_audit_log(
+            landlord["id"],
+            "totp_failed",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"username": username}),
+        )
+        raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
+
+    reset_landlord_failed_attempts(landlord["id"])
+
+    # Check if password change is required (admin reset)
+    if landlord["requires_password_change"]:
+        if landlord.get("temp_password_consumed"):
+            create_landlord_audit_log(
+                landlord["id"],
+                "temp_password_reuse_blocked",
+                ip_address=request.client.host if request.client else None,
+                meta_json=json.dumps({"username": username}),
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="This temporary password has already been used. Contact your administrator to reset it again.",
+            )
+
+        now = datetime.utcnow().isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = ?",
+                (landlord["id"],),
+            )
+            conn.commit()
+
+        session_id, refresh_token = create_landlord_session(
+            landlord["id"], request, payload.rememberMe
+        )
+        access_token = create_landlord_access_token(landlord["id"], session_id)
+        cookie_value = f"{session_id}:{refresh_token}"
+        set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
+
+        create_landlord_audit_log(
+            landlord["id"],
+            "login_forced_password_change",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"username": username}),
+        )
+
+        return {
+            "status": "password_change_required",
+            "message": "You must change your password before continuing.",
+            "username": username,
+            "landlordUuid": landlord["landlord_uuid"],
+        }
+
+    session_id, refresh_token = create_landlord_session(
+        landlord["id"], request, payload.rememberMe
+    )
+    access_token = create_landlord_access_token(landlord["id"], session_id)
+    cookie_value = f"{session_id}:{refresh_token}"
+
+    set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
+
+    create_landlord_audit_log(
+        landlord["id"],
+        "login_success",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"username": username}),
+    )
+
+    return {
+        "status": "success",
+        "landlord": {
+            "id": landlord["id"],
+            "landlordUuid": landlord["landlord_uuid"],
+            "username": landlord["username"],
+            "fullName": landlord["full_name"],
+        },
+    }
+
+
+# ─── TOTP Management (protected) ───────────────────────────────────
+
+@router.post(Routes.LANDLORDAPIAUTHCHANGEPASSWORD, name="landlordchangepassword")
+async def landlord_change_password(
+    request: Request,
+    payload: dict,
+):
+    """
+    Change landlord password. Used during forced password reset flow.
+    Requires current password + new password + confirm password.
+    Accepts encrypted (key/data/nonce) or plain JSON payload.
+    """
+    from app.authentication.common.pin_vault import encrypt_admin_view_pin
+    from app.encryption import decrypt_payload
+
+    # Handle encrypted payload from frontend apiPost
+    if "key" in payload and "data" in payload and "nonce" in payload:
+        try:
+            decrypted = decrypt_payload(payload["key"], payload["data"], payload["nonce"])
+            current_password = decrypted.get("currentPassword", "")
+            new_password = decrypted.get("newPassword", "")
+            confirm_password = decrypted.get("confirmPassword", "")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid encrypted payload")
+    else:
+        current_password = payload.get("currentPassword", "")
+        new_password = payload.get("newPassword", "")
+        confirm_password = payload.get("confirmPassword", "")
+
+    if not current_password or not new_password or not confirm_password:
+        raise HTTPException(status_code=400, detail="All fields are required.")
+    if new_password != confirm_password:
+        raise HTTPException(status_code=400, detail="New passwords do not match.")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+    if current_password == new_password:
+        raise HTTPException(status_code=400, detail="New password must be different from current password.")
+
+    # Extract landlord from token
+    token = request.cookies.get("landlord_access_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    from app.authentication.landlord.jwt import decode_landlord_access_token
+    payload_token = decode_landlord_access_token(token)
+    landlord_id = int(payload_token.get("landlord_id") or payload_token.get("sub"))
+
+    with get_conn() as conn:
+        landlord = conn.execute(
+            "SELECT id, landlord_uuid, password_hash FROM landlord_accounts WHERE id = ?",
+            (landlord_id,),
+        ).fetchone()
+        if not landlord:
+            raise HTTPException(status_code=404, detail="Landlord not found.")
+
+    if not verify_pin(current_password, landlord["password_hash"]):
+        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+
+    new_hash = hash_pin(new_password)
+    encrypted_pw = encrypt_admin_view_pin(new_password)
+    now = datetime.utcnow().isoformat()
+
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE landlord_accounts
+               SET password_hash = ?,
+                   requires_password_change = 0,
+                   temp_password_created_at = NULL,
+                   temp_password_consumed = 0,
+                   updated_at = ?
+               WHERE id = ?""",
+            (new_hash, now, landlord_id),
+        )
+        conn.execute(
+            """INSERT OR REPLACE INTO landlord_password_admin_store
+               (landlord_id, encrypted_password, updated_at) VALUES (?, ?, ?)""",
+            (landlord_id, encrypted_pw, now),
+        )
+        # Check if landlord has TOTP configured
+        row = conn.execute(
+            "SELECT totp_secret FROM landlord_accounts WHERE id = ?",
+            (landlord_id,),
+        ).fetchone()
+        conn.commit()
+
+    create_landlord_audit_log(
+        landlord_id,
+        "password_changed",
+        ip_address=request.client.host if request.client else None,
+    )
+
+    # Return TOTP data if configured, so frontend can show QR dialog
+    if row and row["totp_secret"]:
+        qr_base64 = generate_totp_qr_base64(landlord["username"] if landlord else "", row["totp_secret"])
+        return {
+            "status": "success",
+            "message": "Password updated successfully.",
+            "next_step": "totp_review",
+            "totp": {
+                "secret": row["totp_secret"],
+                "qr_code_base64": qr_base64,
+                "provisioning_uri": get_totp_uri(landlord["username"] if landlord else "", row["totp_secret"]),
+            },
+        }
+
+    return {"status": "success", "message": "Password updated successfully."}
+
+
+@router.get(Routes.LANDLORDAPITOTPQR, name=Names.LANDLORDTOTPQR)
+async def landlord_totp_qr(
+    landlordUuid: str,
+    principal=Depends(get_current_landlord_api),
+):
+    """
+    Get TOTP QR code and secret for the authenticated landlord.
+    Auto-generates a secret on first access.
+    """
+    landlord = get_landlord_by_uuid(landlordUuid)
+    if not landlord:
+        raise HTTPException(status_code=404, detail="Landlord not found.")
+
+    # Auto-generate TOTP secret on first access
+    if not landlord["totp_secret"]:
+        new_secret = regenerate_landlord_totp_secret(landlord["id"])
+        landlord = get_landlord_by_uuid(landlordUuid)
+    else:
+        new_secret = landlord["totp_secret"]
+
+    qr_base64 = generate_totp_qr_base64(landlord["username"], new_secret)
+
+    return {
+        "status": "success",
+        "totp": {
+            "secret": new_secret,
+            "qr_code_base64": qr_base64,
+            "provisioning_uri": get_totp_uri(landlord["username"], new_secret),
+        },
+    }
+
+
+@router.post(Routes.LANDLORDAPITOTPREGENERATE, name=Names.LANDLORDTOTPREGENERATE)
+async def landlord_totp_regenerate(
+    landlordUuid: str,
+    principal=Depends(get_current_landlord_api),
+):
+    """
+    Regenerate TOTP secret for the authenticated landlord.
+    Returns a new QR code and secret.
+    """
+    landlord = get_landlord_by_uuid(landlordUuid)
+    if not landlord:
+        raise HTTPException(status_code=404, detail="Landlord not found.")
+
+    new_secret = regenerate_landlord_totp_secret(landlord["id"])
+    qr_base64 = generate_totp_qr_base64(landlord["username"], new_secret)
+
+    return {
+        "status": "success",
+        "message": "TOTP secret regenerated successfully. Update your authenticator app!",
+        "totp": {
+            "secret": new_secret,
+            "qr_code_base64": qr_base64,
+            "provisioning_uri": get_totp_uri(landlord["username"], new_secret),
+        },
+    }
+```
+
+```python
+// File: app\app\routers\platform_admin.py
+"""
+app/routers/platform_admin.py
+Platform super-admin router — serves the SPA and exposes:
+  POST   /platform-admin/api/auth/login
+  POST   /platform-admin/api/auth/refresh
+  POST   /platform-admin/api/auth/logout
+  GET    /platform-admin/api/landlords
+  POST   /platform-admin/api/landlords
+  PATCH  /platform-admin/api/landlords/{landlord_id}
+  GET    /platform-admin/api/stats
+"""
+from __future__ import annotations
+
+import os
+import secrets
+import string
+from datetime import datetime
+
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from pydantic import BaseModel
+
+from app.core.db import get_conn
+from app.authentication.platform.jwt import (
+    create_platform_access_token,
+    decode_platform_access_token,
+)
+from app.authentication.platform.cookies import (
+    set_platform_auth_cookies,
+    clear_platform_auth_cookies,
+    get_platform_token,
+)
+from app.authentication.common.utils import verify_pin, hash_pin
+from app.database.auth_repository import (
+    get_admin_by_username,
+    get_admin_by_id,
+    verify_totp,
+    generate_totp_qr_base64,
+    get_totp_uri,
+    regenerate_totp_secret,
+)
+from app.routers.landlord_routes import (
+    generate_landlordUuid,
+    is_valid_landlordUuid,
+)
+
+router = APIRouter(prefix="/platform-admin", tags=["Platform Admin"])
+
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+def _dist_index() -> str:
+    return os.path.join("frontend", "platform-admin-app", "dist", "index.html")
+
+
+async def _serve_platform_admin_spa():
+    index_file = _dist_index()
+    if not os.path.exists(index_file):
+        raise HTTPException(
+            status_code=503,
+            detail="Platform admin frontend build not found. Run: npm run build inside frontend/platform-admin-app",
+        )
+    return FileResponse(index_file)
+
+
+def _get_platform_admin(request: Request) -> dict:
+    """Decode the platform access cookie and return the admin row."""
+    token = get_platform_token(request)
+    payload = decode_platform_access_token(token)
+    admin_id = int(payload["admin_id"])
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, username, email, is_platform_admin FROM admins WHERE id = ?", (admin_id,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="Platform admin not found")
+    if not row["is_platform_admin"]:
+        raise HTTPException(status_code=403, detail="Platform admin access required")
+    return dict(row)
+
+
+def _create_session_token(admin_id: int) -> tuple[str, str]:
+    """Return (session_id, access_token)."""
+    session_id = secrets.token_hex(16)
+    access_token = create_platform_access_token(admin_id, session_id)
+    return session_id, access_token
+
+
+def _make_refresh_token() -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(64))
+
+
+# ─── Request / Response models ────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+    remember_me: bool = False
+
+
+class CreateLandlordRequest(BaseModel):
+    admin_id: int
+    landlordUuid: str | None = None   # auto-generated when omitted
+
+
+class PatchLandlordRequest(BaseModel):
+    active: bool
+
+
+# ─── Auth endpoints ───────────────────────────────────────────────────────────
+
+@router.post("/api/auth/login")
+async def platform_login(body: LoginRequest, request: Request, response: Response):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, username, password_hash, totp_secret, is_platform_admin FROM admins WHERE username = ?",
+            (body.username,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not verify_pin(body.password, row["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not row["is_platform_admin"]:
+        raise HTTPException(status_code=403, detail="Platform admin access required")
+
+    # TOTP gate: if TOTP is configured, require it before issuing tokens
+    if row["totp_secret"]:
+        return {
+            "status": "totp_required",
+            "message": "TOTP verification required.",
+            "username": body.username,
+        }
+
+    session_id, access_token = _create_session_token(row["id"])
+    refresh_token = _make_refresh_token()
+    refresh_hash = hash_pin(refresh_token)
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO admin_sessions
+            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now', ?), ?, 'Active')
+            """,
+            (
+                session_id,
+                row["id"],
+                refresh_hash,
+                "Platform Admin",
+                request.headers.get("User-Agent", "Unknown"),
+                "Unknown",
+                request.client.host if request.client else "Unknown",
+                "+180 days" if body.remember_me else "+1 day",
+                1 if body.remember_me else 0,
+            ),
+        )
+        conn.commit()
+
+    set_platform_auth_cookies(response, access_token, f"{session_id}.{refresh_token}", body.remember_me, request)
+    return {"status": "ok", "username": row["username"]}
+
+
+class TotpVerifyRequest(BaseModel):
+    username: str
+    password: str
+    totpToken: str
+    remember_me: bool = False
+
+
+@router.post("/api/auth/login-totp")
+async def platform_login_totp(body: TotpVerifyRequest, request: Request, response: Response):
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, username, password_hash, totp_secret, is_platform_admin FROM admins WHERE username = ?",
+            (body.username,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not verify_pin(body.password, row["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not row["is_platform_admin"]:
+        raise HTTPException(status_code=403, detail="Platform admin access required")
+    if not row["totp_secret"]:
+        raise HTTPException(status_code=400, detail="TOTP not configured for this account")
+    if not verify_totp(row["totp_secret"], body.totpToken):
+        raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
+
+    session_id, access_token = _create_session_token(row["id"])
+    refresh_token = _make_refresh_token()
+    refresh_hash = hash_pin(refresh_token)
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO admin_sessions
+            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now', ?), ?, 'Active')
+            """,
+            (
+                session_id,
+                row["id"],
+                refresh_hash,
+                "Platform Admin",
+                request.headers.get("User-Agent", "Unknown"),
+                "Unknown",
+                request.client.host if request.client else "Unknown",
+                "+180 days" if body.remember_me else "+1 day",
+                1 if body.remember_me else 0,
+            ),
+        )
+        conn.commit()
+
+    set_platform_auth_cookies(response, access_token, f"{session_id}.{refresh_token}", body.remember_me, request)
+    return {"status": "ok", "username": row["username"]}
+
+
+@router.post("/api/auth/refresh")
+async def platform_refresh(request: Request, response: Response):
+    refresh_token = request.cookies.get("platform_refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+
+    parts = refresh_token.split(".", 1)
+    if len(parts) != 2:
+        clear_platform_auth_cookies(response, request)
+        raise HTTPException(status_code=401, detail="Malformed refresh token")
+
+    session_id, raw_token = parts
+
+    with get_conn() as conn:
+        session = conn.execute(
+            "SELECT * FROM admin_sessions WHERE session_id = ? AND status = 'Active'",
+            (session_id,),
+        ).fetchone()
+
+        if not session or not verify_pin(raw_token, session["refresh_token_hash"]):
+            if session:
+                conn.execute(
+                    "UPDATE admin_sessions SET status = 'Revoked', revoked_at = datetime('now') WHERE session_id = ?",
+                    (session_id,),
+                )
+                conn.commit()
+            clear_platform_auth_cookies(response, request)
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+        conn.execute(
+            "UPDATE admin_sessions SET status = 'Revoked', revoked_at = datetime('now') WHERE session_id = ?",
+            (session_id,),
+        )
+
+        new_session_id, new_access_token = _create_session_token(session["admin_id"])
+        new_refresh_token = _make_refresh_token()
+        new_refresh_hash = hash_pin(new_refresh_token)
+
+        conn.execute(
+            """
+            INSERT INTO admin_sessions
+            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now', '+180 days'), ?, 'Active')
+            """,
+            (
+                new_session_id,
+                session["admin_id"],
+                new_refresh_hash,
+                session["device_name"],
+                session["browser"],
+                session["os"],
+                session["ip_address"],
+                session["remember_me"],
+            ),
+        )
+        conn.commit()
+
+    set_platform_auth_cookies(response, new_access_token, f"{new_session_id}.{new_refresh_token}", True, request)
+    return {"status": "ok"}
+
+
+@router.post("/api/auth/logout")
+async def platform_logout(request: Request, response: Response):
+    token = get_platform_token(request)
+    payload = decode_platform_access_token(token)
+    session_id = payload.get("sid")
+
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE admin_sessions SET status = 'Revoked', revoked_at = datetime('now') WHERE session_id = ?",
+            (session_id,),
+        )
+        conn.commit()
+
+    clear_platform_auth_cookies(response, request)
+    return {"status": "ok"}
+
+
+@router.get("/api/auth/me")
+async def platform_me(request: Request):
+    admin = _get_platform_admin(request)
+    return {"id": admin["id"], "username": admin["username"], "email": admin["email"]}
+
+
+@router.get("/api/auth/totp-qr")
+async def platform_totp_qr(request: Request):
+    admin = _get_platform_admin(request)
+    admin_data = get_admin_by_id(admin["id"])
+    if not admin_data:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    if not admin_data["totp_secret"]:
+        new_secret = regenerate_totp_secret(admin["id"])
+        admin_data = get_admin_by_id(admin["id"])
+    qr_base64 = generate_totp_qr_base64(admin_data["username"], admin_data["totp_secret"])
+    return {
+        "qr_code_base64": qr_base64,
+        "secret": admin_data["totp_secret"],
+        "provisioning_uri": get_totp_uri(admin_data["username"], admin_data["totp_secret"]),
+    }
+
+
+class TotpRegenerateRequest(BaseModel):
+    current_password: str
+
+
+@router.post("/api/auth/totp-regenerate")
+async def platform_totp_regenerate(body: TotpRegenerateRequest, request: Request):
+    admin = _get_platform_admin(request)
+    admin_data = get_admin_by_id(admin["id"])
+    if not admin_data:
+        raise HTTPException(status_code=404, detail="Admin not found")
+    if not verify_pin(body.current_password, admin_data["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid password")
+    new_secret = regenerate_totp_secret(admin["id"])
+    qr_base64 = generate_totp_qr_base64(admin_data["username"], new_secret)
+    return {
+        "status": "success",
+        "message": "TOTP secret regenerated. Update your authenticator app!",
+        "qr_code_base64": qr_base64,
+        "secret": new_secret,
+        "provisioning_uri": get_totp_uri(admin_data["username"], new_secret),
+    }
+
+
+# ─── Settings & Profile ─────────────────────────────────────────────────────
+
+@router.get("/api/settings/profile")
+async def get_profile(request: Request):
+    admin = _get_platform_admin(request)
+    return {
+        "id": admin["id"],
+        "username": admin["username"],
+        "email": admin["email"],
+        "is_platform_admin": bool(admin["is_platform_admin"]),
+        "has_totp": bool(admin.get("totp_secret")),
+        "created_at": admin.get("created_at"),
+        "updated_at": admin.get("updated_at"),
+    }
+
+
+class UpdateProfileRequest(BaseModel):
+    username: str | None = None
+    email: str | None = None
+
+
+@router.put("/api/settings/profile")
+async def update_profile(request: Request, body: UpdateProfileRequest):
+    admin = _get_platform_admin(request)
+    updates = []
+    params = []
+    if body.username:
+        existing = get_admin_by_username(body.username)
+        if existing and existing["id"] != admin["id"]:
+            raise HTTPException(status_code=409, detail="Username already taken")
+        updates.append("username = ?")
+        params.append(body.username)
+    if body.email is not None:
+        updates.append("email = ?")
+        params.append(body.email)
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    params.append(datetime.utcnow().isoformat())
+    params.append(admin["id"])
+    with get_conn() as conn:
+        conn.execute(
+            f"UPDATE admins SET {', '.join(updates)}, updated_at = ? WHERE id = ?",
+            tuple(params),
+        )
+        conn.commit()
+    return {"status": "success"}
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
+
+
+@router.post("/api/settings/change-password")
+async def change_password(request: Request, body: ChangePasswordRequest):
+    admin = _get_platform_admin(request)
+    admin_data = get_admin_by_id(admin["id"])
+    if not verify_pin(body.current_password, admin_data["password_hash"]):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+    if body.new_password != body.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+    if len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    new_hash = hash_pin(body.new_password)
+    from app.database.auth_repository import update_admin_password
+    update_admin_password(admin["id"], new_hash)
+    return {"status": "success", "message": "Password updated successfully"}
+
+
+# ─── Stats ────────────────────────────────────────────────────────────────────
+
+@router.get("/api/stats")
+async def platform_stats(request: Request):
+    _get_platform_admin(request)
+    with get_conn() as conn:
+        total_landlords = conn.execute("SELECT COUNT(*) FROM landlord_accounts").fetchone()[0]
+        active_landlords = conn.execute(
+            "SELECT COUNT(*) FROM landlord_accounts WHERE status = 'Active'"
+        ).fetchone()[0]
+        total_admins = conn.execute("SELECT COUNT(*) FROM admins").fetchone()[0]
+        total_tenants = conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
+    return {
+        "total_landlords": total_landlords,
+        "active_landlords": active_landlords,
+        "total_admins": total_admins,
+        "total_tenants": total_tenants,
+    }
+
+
+# ─── Landlord Discovery (auto-detect from landlord_accounts) ───────────────
+
+@router.get("/api/landlords")
+async def list_landlords(
+    request: Request,
+    search: str | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    _get_platform_admin(request)
+    query = """
+        SELECT
+            la.id, la.landlord_uuid, la.full_name, la.email, la.phone,
+            la.username, la.status, la.created_at, la.updated_at,
+            (la.totp_secret IS NOT NULL) as has_totp,
+            la.failed_attempts, la.locked_until,
+            la.requires_password_change,
+            (SELECT COUNT(*) FROM tenants WHERE landlord_id = la.id) as tenant_count,
+            (SELECT COUNT(*) FROM receipts WHERE landlord_id = la.id) as receipt_count,
+            (SELECT COUNT(*) FROM occupants WHERE landlord_id = la.id) as kyc_count
+        FROM landlord_accounts la
+        WHERE 1=1
+    """
+    params: list = []
+    if search:
+        query += " AND (la.username LIKE ? OR la.full_name LIKE ? OR la.email LIKE ?)"
+        params.extend([f"%{search}%"] * 3)
+    if status:
+        query += " AND la.status = ?"
+        params.append(status)
+    query += " ORDER BY la.created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    with get_conn() as conn:
+        rows = conn.execute(query, tuple(params)).fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.get("/api/landlords/{landlord_id}/details")
+async def get_landlord_details(landlord_id: int, request: Request):
+    _get_platform_admin(request)
+    with get_conn() as conn:
+        landlord = conn.execute(
+            "SELECT * FROM landlord_accounts WHERE id = ?", (landlord_id,)
+        ).fetchone()
+        if not landlord:
+            raise HTTPException(status_code=404, detail="Landlord not found")
+        stats = conn.execute(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM tenants WHERE landlord_id = ?) as tenants,
+                (SELECT COUNT(*) FROM receipts WHERE landlord_id = ?) as receipts,
+                (SELECT COUNT(*) FROM occupants WHERE landlord_id = ?) as kyc,
+                (SELECT COALESCE(SUM(total), 0) FROM receipts WHERE landlord_id = ? AND paymentstatus = 'PENDING') as pending_revenue
+            """,
+            (landlord_id, landlord_id, landlord_id, landlord_id),
+        ).fetchone()
+    return {
+        "landlord": {k: v for k, v in dict(landlord).items() if k != "password_hash" and k != "totp_secret"},
+        "has_password": True,
+        "has_totp": bool(landlord["totp_secret"]),
+        "requires_password_change": bool(landlord["requires_password_change"]),
+        "stats": dict(stats),
+    }
+
+
+@router.get("/api/landlords/{landlord_id}/creator-info")
+async def get_landlord_creator_info(landlord_id: int, request: Request):
+    _get_platform_admin(request)
+    with get_conn() as conn:
+        landlord = conn.execute(
+            "SELECT id, username, full_name, created_at FROM landlord_accounts WHERE id = ?",
+            (landlord_id,),
+        ).fetchone()
+        if not landlord:
+            raise HTTPException(status_code=404, detail="Landlord not found")
+        import json
+        audit = conn.execute(
+            """
+            SELECT ip_address, created_at, meta_json
+            FROM landlord_audit_logs
+            WHERE landlord_id = ? AND action = 'signup_success'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (landlord_id,),
+        ).fetchone()
+        last_login = conn.execute(
+            """
+            SELECT created_at, ip_address
+            FROM landlord_audit_logs
+            WHERE landlord_id = ? AND action = 'login_success'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (landlord_id,),
+        ).fetchone()
+    meta = {}
+    if audit and audit["meta_json"]:
+        try:
+            meta = json.loads(audit["meta_json"])
+        except Exception:
+            pass
+    return {
+        "landlord_id": landlord["id"],
+        "username": landlord["username"],
+        "full_name": landlord["full_name"],
+        "self_registered": True,
+        "created_at": landlord["created_at"],
+        "signup_details": {
+            "ip_address": audit["ip_address"] if audit else None,
+            "timestamp": audit["created_at"] if audit else None,
+            "user_agent": meta.get("user_agent"),
+        },
+        "last_login": {
+            "timestamp": last_login["created_at"] if last_login else None,
+            "ip_address": last_login["ip_address"] if last_login else None,
+        },
+    }
+
+
+# ─── Data Previewer ─────────────────────────────────────────────────────────
+
+@router.get("/api/preview/tenants")
+async def preview_tenants(
+    request: Request,
+    search: str | None = None,
+    landlord_id: int | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    _get_platform_admin(request)
+    query = """
+        SELECT
+            t.id, t.name, t.phone, t.email, t.roomnumber as unit, t.status,
+            t.landlord_id, t.rent as rent_amount, t.securitydeposit as deposit,
+            t.tenantpin, t.failed_attempts, t.locked_until,
+            la.full_name AS landlord_name, la.username AS landlord_username
+        FROM tenants t
+        LEFT JOIN landlord_accounts la ON t.landlord_id = la.id
+        WHERE 1=1
+    """
+    params: list = []
+    if search:
+        query += " AND (t.name LIKE ? OR t.phone LIKE ? OR t.email LIKE ? OR t.roomnumber LIKE ?)"
+        params.extend([f"%{search}%"] * 4)
+    if landlord_id:
+        query += " AND t.landlord_id = ?"
+        params.append(landlord_id)
+    if status:
+        query += " AND t.status = ?"
+        params.append(status)
+    query += " ORDER BY t.id DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    with get_conn() as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM tenants" + (" WHERE landlord_id = ?" if landlord_id else ""),
+            (landlord_id,) if landlord_id else (),
+        ).fetchone()[0]
+        rows = conn.execute(query, tuple(params)).fetchall()
+    return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/api/preview/receipts")
+async def preview_receipts(
+    request: Request,
+    search: str | None = None,
+    landlord_id: int | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    _get_platform_admin(request)
+    query = """
+        SELECT
+            r.billNo as id, r.total, r.paymentstatus, r.date as issued_at, r.month,
+            r.rent, r.water, r.electricity, r.total as amount,
+            r.landlord_id,
+            la.full_name AS landlord_name,
+            t.name AS tenant_name, t.roomnumber AS tenant_unit
+        FROM receipts r
+        LEFT JOIN landlord_accounts la ON r.landlord_id = la.id
+        LEFT JOIN tenants t ON r.tenantId = t.id
+        WHERE 1=1
+    """
+    params: list = []
+    if search:
+        query += " AND (t.name LIKE ? OR t.roomnumber LIKE ? OR r.billNo LIKE ?)"
+        params.extend([f"%{search}%"] * 3)
+    if landlord_id:
+        query += " AND r.landlord_id = ?"
+        params.append(landlord_id)
+    if status:
+        query += " AND r.paymentstatus = ?"
+        params.append(status)
+    query += " ORDER BY r.rowid DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    with get_conn() as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM receipts" + (" WHERE landlord_id = ?" if landlord_id else ""),
+            (landlord_id,) if landlord_id else (),
+        ).fetchone()[0]
+        rows = conn.execute(query, tuple(params)).fetchall()
+    return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/api/preview/kyc")
+async def preview_kyc(
+    request: Request,
+    search: str | None = None,
+    landlord_id: int | None = None,
+    status: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    _get_platform_admin(request)
+    query = """
+        SELECT
+            o.occupantUuid as id, o.name, o.status, o.mobile, o.residentSince,
+            o.aadhaar_front, o.aadhaar_back, o.aadhaar_combined,
+            o.landlord_id,
+            la.full_name AS landlord_name,
+            t.name AS tenant_name, t.roomnumber AS tenant_unit
+        FROM occupants o
+        LEFT JOIN landlord_accounts la ON o.landlord_id = la.id
+        LEFT JOIN tenants t ON o.tenantId = t.id
+        WHERE 1=1
+    """
+    params: list = []
+    if search:
+        query += " AND (o.name LIKE ? OR t.name LIKE ? OR t.roomnumber LIKE ?)"
+        params.extend([f"%{search}%"] * 3)
+    if landlord_id:
+        query += " AND o.landlord_id = ?"
+        params.append(landlord_id)
+    if status:
+        query += " AND o.status = ?"
+        params.append(status)
+    query += " ORDER BY o.rowid DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    with get_conn() as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM occupants" + (" WHERE landlord_id = ?" if landlord_id else ""),
+            (landlord_id,) if landlord_id else (),
+        ).fetchone()[0]
+        rows = conn.execute(query, tuple(params)).fetchall()
+    return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
+
+
+# ─── Admin list (for landlord assignment) ────────────────────────────────────
+
+@router.get("/api/admins")
+async def list_admins(request: Request):
+    """Return a minimal list of admins for the landlord-assignment dropdown."""
+    _get_platform_admin(request)
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, username, email FROM admins ORDER BY id"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ─── Landlord TOTP & Password Management ────────────────────────────────────
+
+@router.post("/api/landlords/{landlord_id}/totp-toggle")
+async def toggle_landlord_totp(landlord_id: int, request: Request):
+    """Enable or disable TOTP for a specific landlord."""
+    _get_platform_admin(request)
+    import pyotp as _pyotp
+    from app.database.landlord_repository import (
+        get_landlord_by_id as _get_ll,
+        regenerate_landlord_totp_secret,
+        generate_totp_qr_base64 as _qr,
+        get_totp_uri as _uri,
+    )
+    landlord = _get_ll(landlord_id)
+    if not landlord:
+        raise HTTPException(status_code=404, detail="Landlord not found")
+
+    if landlord["totp_secret"]:
+        # Disable: clear secret
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE landlord_accounts SET totp_secret = NULL, updated_at = ? WHERE id = ?",
+                (datetime.utcnow().isoformat(), landlord_id),
+            )
+            conn.commit()
+        # Broadcast TOTP state change
+        try:
+            from app.core.websocket_manager import sync_manager
+            ll_uuid = landlord["landlord_uuid"]
+            await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "TOTP_STATE_CHANGED", "enabled": False})
+            await sync_manager.broadcast("platform_admin", {"type": "TOTP_STATE_CHANGED", "landlordId": landlord_id, "enabled": False})
+        except Exception:
+            pass
+        return {"status": "success", "totp_enabled": False, "message": "TOTP disabled"}
+    else:
+        # Enable: generate secret + QR
+        new_secret = regenerate_landlord_totp_secret(landlord_id)
+        landlord = _get_ll(landlord_id)
+        qr = _qr(landlord["username"], new_secret)
+        # Broadcast TOTP state change
+        try:
+            from app.core.websocket_manager import sync_manager
+            ll_uuid = landlord["landlord_uuid"]
+            await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "TOTP_STATE_CHANGED", "enabled": True})
+            await sync_manager.broadcast("platform_admin", {"type": "TOTP_STATE_CHANGED", "landlordId": landlord_id, "enabled": True})
+        except Exception:
+            pass
+        return {
+            "status": "success",
+            "totp_enabled": True,
+            "secret": new_secret,
+            "qr_code_base64": qr,
+            "provisioning_uri": _uri(landlord["username"], new_secret),
+        }
+
+
+@router.get("/api/landlords/{landlord_id}/reveal-password")
+async def reveal_landlord_password(landlord_id: int, request: Request):
+    """Reveal the current plaintext password from the admin vault."""
+    _get_platform_admin(request)
+    from app.authentication.common.pin_vault import decrypt_admin_view_pin
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT encrypted_password, updated_at FROM landlord_password_admin_store WHERE landlord_id = ?",
+            (landlord_id,),
+        ).fetchone()
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Password not in vault. Use 'Reset Password' to generate a new one.",
+        )
+
+    return {
+        "status": "success",
+        "password": decrypt_admin_view_pin(row["encrypted_password"]),
+        "updated_at": row["updated_at"],
+    }
+
+
+@router.post("/api/landlords/{landlord_id}/reset-password")
+async def reset_landlord_password(landlord_id: int, request: Request):
+    """Generate a new random password, hash + encrypt, return once, and build WhatsApp URL."""
+    _get_platform_admin(request)
+    import string as _string
+    from urllib.parse import quote
+    from app.authentication.common.pin_vault import encrypt_admin_view_pin
+    from app.core.config_service import config
+
+    with get_conn() as conn:
+        landlord = conn.execute(
+            "SELECT id, username, phone FROM landlord_accounts WHERE id = ?", (landlord_id,)
+        ).fetchone()
+        if not landlord:
+            raise HTTPException(status_code=404, detail="Landlord not found")
+
+    alphabet = _string.ascii_letters + _string.digits + "!@#$%^&*"
+    new_password = "".join(secrets.choice(alphabet) for _ in range(12))
+
+    password_hash = hash_pin(new_password)
+    encrypted_pw = encrypt_admin_view_pin(new_password)
+    now = datetime.utcnow().isoformat()
+
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE landlord_accounts
+               SET password_hash = ?,
+                   requires_password_change = 1,
+                   temp_password_created_at = ?,
+                   temp_password_consumed = 0,
+                   updated_at = ?
+               WHERE id = ?""",
+            (password_hash, now, now, landlord_id),
+        )
+        conn.execute(
+            """INSERT OR REPLACE INTO landlord_password_admin_store
+               (landlord_id, encrypted_password, updated_at) VALUES (?, ?, ?)""",
+            (landlord_id, encrypted_pw, now),
+        )
+        conn.commit()
+
+    # Build WhatsApp URL if phone number available
+    whatsapp_url = None
+    phone = landlord["phone"]
+    if phone:
+        phone_clean = __import__("re").sub(r"\D", "", str(phone))
+        if len(phone_clean) == 10:
+            country_code = str(
+                config.get("system", {}).get("whatsapp", {}).get("country_code", "91")
+            )
+            phone_clean = country_code + phone_clean
+
+        reset_template = config.get("whatsapp", {}).get("landlord_password_reset", {})
+        template_msg = reset_template.get("message") or reset_template.get(
+            "default_message",
+            "Hello {landlordName},\n\n"
+            "Your account password has been reset.\n\n"
+            "*Username:* {username}\n"
+            "*Temporary Password:* {tempPassword}\n\n"
+            "Please log in and change your password immediately.\n\n"
+            "Thank you!",
+        )
+        msg = template_msg.format(
+            landlordName=landlord["username"],
+            username=landlord["username"],
+            tempPassword=new_password,
+        )
+        whatsapp_url = f"https://api.whatsapp.com/send?phone={phone_clean}&text={quote(msg)}"
+
+    # Broadcast password reset event
+    try:
+        from app.core.websocket_manager import sync_manager
+        ll_uuid = landlord["landlord_uuid"]
+        await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "PASSWORD_RESET", "landlordId": landlord_id})
+        await sync_manager.broadcast("platform_admin", {"type": "PASSWORD_RESET", "landlordId": landlord_id})
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "password": new_password,
+        "requires_password_change": True,
+        "whatsapp_url": whatsapp_url,
+        "message": "Password reset. The landlord must change their password on next login.",
+    }
+
+
+# ─── Tenant Auth (for Data Explorer) ──────────────────────────────────────
+
+@router.get("/api/preview/tenants/{tenant_id}/auth")
+async def preview_tenant_auth(tenant_id: int, request: Request):
+    """Return tenant auth details (PIN, lock status) for the Data Explorer."""
+    _get_platform_admin(request)
+    from app.authentication.common.pin_vault import decrypt_admin_view_pin
+
+    with get_conn() as conn:
+        tenant = conn.execute(
+            """SELECT id, name, status, failed_attempts, locked_until, tenantpin
+               FROM tenants WHERE id = ?""",
+            (tenant_id,),
+        ).fetchone()
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+
+        pin_row = conn.execute(
+            "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = ?",
+            (tenant_id,),
+        ).fetchone()
+
+    result = {
+        "tenant_id": tenant["id"],
+        "name": tenant["name"],
+        "status": tenant["status"],
+        "failed_attempts": tenant["failed_attempts"],
+        "locked_until": tenant["locked_until"],
+        "has_pin": bool(tenant["tenantpin"]),
+    }
+
+    if pin_row:
+        try:
+            result["pin"] = decrypt_admin_view_pin(pin_row["encrypted_pin"])
+            result["pin_updated_at"] = pin_row["updated_at"]
+        except Exception:
+            result["pin"] = "(decryption error)"
+    else:
+        result["pin"] = None
+
+    return result
+
+
+# ─── Security & Ops ─────────────────────────────────────────────────────────
+
+@router.get("/api/security/alerts")
+async def security_alerts(
+    request: Request,
+    type: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    _get_platform_admin(request)
+    with get_conn() as conn:
+        # Build alerts from audit logs
+        query = """
+            SELECT
+                id, action, ip_address, created_at, meta_json,
+                'admin' AS actor_type,
+                (SELECT username FROM admins WHERE id = pal.actor_id) AS actor_name
+            FROM platform_admin_audit_logs pal
+            WHERE action LIKE '%fail%' OR action LIKE '%block%' OR action LIKE '%invalid%'
+        """
+        params: list = []
+        if type:
+            query += " AND action LIKE ?"
+            params.append(f"%{type}%")
+        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        rows = conn.execute(query, tuple(params)).fetchall()
+
+        # Also check landlord lockouts
+        locked = conn.execute(
+            """
+            SELECT
+                la.id, 'landlord_locked' AS action,
+                la.locked_until AS created_at,
+                'landlord' AS actor_type,
+                la.username AS actor_name
+            FROM landlord_accounts la
+            WHERE la.locked_until IS NOT NULL AND la.locked_until > datetime('now')
+            ORDER BY la.locked_until DESC LIMIT ? OFFSET ?
+            """,
+            (limit, offset),
+        ).fetchall()
+
+    alerts = []
+    for r in rows:
+        meta = {}
+        if r["meta_json"]:
+            try:
+                import json
+                meta = json.loads(r["meta_json"])
+            except Exception:
+                pass
+        alerts.append({
+            "id": r["id"],
+            "type": "failed_auth",
+            "action": r["action"],
+            "actor_type": r["actor_type"],
+            "actor_name": r["actor_name"],
+            "ip_address": r["ip_address"],
+            "created_at": r["created_at"],
+            "details": meta,
+        })
+    for r in locked:
+        alerts.append({
+            "id": r["id"],
+            "type": "account_locked",
+            "action": r["action"],
+            "actor_type": r["actor_type"],
+            "actor_name": r["actor_name"],
+            "created_at": r["created_at"],
+            "details": {"locked_until": r["created_at"]},
+        })
+    return alerts
+
+
+@router.get("/api/sessions")
+async def list_sessions(request: Request):
+    """List active platform admin sessions (from audit logs)."""
+    _get_platform_admin(request)
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                id, actor_id, action, ip_address, created_at, meta_json
+            FROM platform_admin_audit_logs
+            WHERE action LIKE 'login%' OR action LIKE 'totp%'
+            ORDER BY created_at DESC
+            LIMIT 20
+            """
+        ).fetchall()
+    sessions = []
+    for r in rows:
+        meta = {}
+        if r["meta_json"]:
+            try:
+                import json
+                meta = json.loads(r["meta_json"])
+            except Exception:
+                pass
+        sessions.append({
+            "admin_id": r["actor_id"],
+            "action": r["action"],
+            "ip_address": r["ip_address"],
+            "created_at": r["created_at"],
+            "user_agent": meta.get("user_agent"),
+        })
+    return sessions
+
+
+@router.get("/api/system/health")
+async def system_health(request: Request):
+    _get_platform_admin(request)
+    with get_conn() as conn:
+        db_check = conn.execute("SELECT 1").fetchone()
+        stats = {
+            "database": "ok" if db_check else "error",
+            "total_landlords": conn.execute("SELECT COUNT(*) FROM landlord_accounts").fetchone()[0],
+            "active_landlords": conn.execute(
+                "SELECT COUNT(*) FROM landlord_accounts WHERE status = 'Active'"
+            ).fetchone()[0],
+            "total_tenants": conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0],
+            "total_receipts": conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0],
+            "total_kyc": conn.execute("SELECT COUNT(*) FROM occupants").fetchone()[0],
+            "total_admins": conn.execute("SELECT COUNT(*) FROM admins").fetchone()[0],
+        }
+    stats["status"] = "healthy" if stats["database"] == "ok" else "degraded"
+    return stats
+
+
+# ─── SPA serving (AFTER all API routes) ────────────────────────────────────
+
+@router.get("", include_in_schema=False)
+async def platform_admin_root_redirect(request: Request):
+    url = request.url
+    if not url.path.endswith("/"):
+        return RedirectResponse(url=str(url.replace(path=url.path + "/")), status_code=307)
+    return await _serve_platform_admin_spa()
+
+
+@router.get("/", include_in_schema=False)
+@router.get("/{path:path}", include_in_schema=False)
+async def serve_platform_admin_app(request: Request, path: str = ""):
+    if path.startswith("api"):
+        raise HTTPException(status_code=404, detail="Platform admin API route not found")
+    return await _serve_platform_admin_spa()
 ```
 
 ```python
@@ -7774,7 +11207,7 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     elif amountReceived is None:
         amountReceived = 0.0
         
-    pdf_filename = old_receipt.get("pdf", f"{billNo}_{tenantName.replace(' ', '_')}_{month.replace(' ', '_')}.pdf")
+    pdf_filename = old_receipt.get("pdf") or f"{billNo}_{tenantName.replace(' ', '_')}_{month.replace(' ', '_')}.pdf"
     pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
     updated_dict = {
@@ -8162,37 +11595,67 @@ def save_all_receipts(receipts_list):
 
 ```python
 // File: app\app\services\pdf_service.py
-import os
 import io
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-from reportlab.platypus import Paragraph, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+import os
+import sys
+from datetime import datetime
+from xml.sax.saxutils import escape
+
+from num2words import num2words
 from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from num2words import num2words
-from datetime import datetime
-import sys
-from app.core.paths import UPLOADS_DIR
-from app.services.tenant_service import load_tenants
-from app.core.config_service import config
-
-font_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.fonts')
-
-FONT_REGULAR = 'Helvetica'
-FONT_BOLD = 'Helvetica-Bold'
-FONT_ITALIC = 'Helvetica-Oblique'
+from reportlab.pdfgen import canvas
+from reportlab.platypus import Paragraph, Table, TableStyle
 
 try:
-    pdfmetrics.registerFont(TTFont('NotoSans', os.path.join(font_dir, 'NotoSans-Regular.ttf')))
-    pdfmetrics.registerFont(TTFont('NotoSans-Bold', os.path.join(font_dir, 'NotoSans-Bold.ttf')))
-    pdfmetrics.registerFont(TTFont('NotoSans-Italic', os.path.join(font_dir, 'NotoSans-Italic.ttf')))
-    FONT_REGULAR = FONT_REGULAR
-    FONT_BOLD = FONT_BOLD
-    FONT_ITALIC = FONT_ITALIC
+    from app.core.paths import UPLOADS_DIR
+except Exception:
+    try:
+        from app.core.paths import UPLOADSDIR as UPLOADS_DIR
+    except Exception:
+        UPLOADS_DIR = ""
+
+try:
+    from app.core.config_service import config
+except Exception:
+    try:
+        from app.core.config_service import config
+    except Exception:
+        config = None
+
+try:
+    from app.services.tenant_service import get_tenant as _get_tenant
+except Exception:
+    try:
+        from app.services.tenant_service import get_tenant as _get_tenant
+    except Exception:
+        _get_tenant = None
+
+
+font_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".fonts")
+
+FONT_REGULAR = "Helvetica"
+FONT_BOLD = "Helvetica-Bold"
+FONT_ITALIC = "Helvetica-Oblique"
+
+try:
+    pdfmetrics.registerFont(TTFont("NotoSans", os.path.join(font_dir, "NotoSans-Regular.ttf")))
+    pdfmetrics.registerFont(TTFont("NotoSans-Bold", os.path.join(font_dir, "NotoSans-Bold.ttf")))
+    pdfmetrics.registerFont(TTFont("NotoSans-Italic", os.path.join(font_dir, "NotoSans-Italic.ttf")))
+    FONT_REGULAR = "NotoSans"
+    FONT_BOLD = "NotoSans-Bold"
+    FONT_ITALIC = "NotoSans-Italic"
 except Exception as e:
-    print(f"WARNING: Missing custom fonts in {font_dir}. PDFs may generate without the ? symbol. Error: {e}", file=sys.stderr)
+    print(
+        f"WARNING: Missing custom fonts in {font_dir}. Falling back to Helvetica. Error: {e}",
+        file=sys.stderr,
+    )
+
+CURRENCY_SYMBOL = "₹" if FONT_REGULAR.startswith("NotoSans") else "Rs."
+
 
 def _safe_int(val, default=0):
     try:
@@ -8200,187 +11663,356 @@ def _safe_int(val, default=0):
     except (ValueError, TypeError):
         return default
 
+
 def _safe_float(val, default=0.0):
     try:
         return float(val)
     except (ValueError, TypeError):
         return default
 
+
+def _currency(value):
+    return f"{CURRENCY_SYMBOL}{_safe_float(value):,.2f}"
+
+
+def _clean_text(value):
+    if value is None:
+        return ""
+    return escape(str(value)).replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br/>")
+
+
+def _p(text, style):
+    return Paragraph(_clean_text(text), style)
+
+
+def _config_get(section, key=None, default=None):
+    if config is None:
+        return default
+
+    attempts = []
+    if key is None:
+        attempts.append((section,))
+    else:
+        attempts.append((section, key))
+        attempts.append((f"{section}.{key}",))
+
+    for args in attempts:
+        try:
+            return config.get(*args, default=default)
+        except TypeError:
+            try:
+                return config.get(*args)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    return default
+
+
+def _mask_account_number(account_number, mask=True):
+    account_number = str(account_number or "").strip()
+    if not account_number:
+        return ""
+    if not mask:
+        return account_number
+    if len(account_number) <= 4:
+        return "X" * len(account_number)
+    return "X" * (len(account_number) - 4) + account_number[-4:]
+
+
+def _build_key_value_table(rows, total_width, label_width, label_style, value_style, top_padding=0):
+    colon_width = 10
+    value_width = max(total_width - label_width - colon_width, 40)
+
+    data = []
+    for label, value in rows:
+        data.append(
+            [
+                _p(label, label_style),
+                _p(":", label_style),
+                _p(value, value_style),
+            ]
+        )
+
+    table = Table(data, colWidths=[label_width, colon_width, value_width])
+    table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), top_padding),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ]
+        )
+    )
+    return table
+
+
+def _build_info_card(title, rows, width, title_style, label_style, value_style):
+    inner_width = width - 20
+    kv_table = _build_key_value_table(
+        rows=rows,
+        total_width=inner_width,
+        label_width=58,
+        label_style=label_style,
+        value_style=value_style,
+        top_padding=1,
+    )
+
+    card = Table(
+        [
+            [_p(title, title_style)],
+            [kv_table],
+        ],
+        colWidths=[width],
+    )
+    card.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (0, 0), 10),
+                ("BOTTOMPADDING", (0, 0), (0, 0), 6),
+                ("TOPPADDING", (0, 1), (0, 1), 0),
+                ("BOTTOMPADDING", (0, 1), (0, 1), 10),
+            ]
+        )
+    )
+    return card
+
+
 def generate_professional_pdf(data, landlord_config, output_path=None):
-    # Live Tenant Sync Engine: Override PDF with the most current tenant attributes
-    from app.services.tenant_service import get_tenant
-    tenantId = data.get('TenantId')
-    current_tenant = get_tenant(tenantId) if tenantId else None
+    tenant_id = data.get("TenantId") or data.get("tenantId")
+    current_tenant = _get_tenant(tenant_id) if tenant_id and _get_tenant else None
+
     if current_tenant:
-        data['Tenant_Phone'] = current_tenant.phone
-        data['Tenant_Company'] = current_tenant.company
-        data['Tenant_Address'] = current_tenant.address
+        data["Tenant_Phone"] = getattr(current_tenant, "phone", "") or data.get("Tenant_Phone", "")
+        data["Tenant_Company"] = getattr(current_tenant, "company", "") or data.get("Tenant_Company", "")
+        data["Tenant_Address"] = getattr(current_tenant, "address", "") or data.get("Tenant_Address", "")
 
     is_stream = False
     if output_path is None:
         output_path = io.BytesIO()
         is_stream = True
     else:
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
+        out_dir = os.path.dirname(output_path)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+
     c = canvas.Canvas(output_path, pagesize=A4)
     width, height = A4
-    
-    tenantName = data.get('Tenant', 'Unknown')
-    billNo = data.get('Bill', '000')
-    date_str = data.get('Date') or ''
+
+    tenant_name = data.get("Tenant", "Unknown")
+    bill_no = data.get("Bill", "000")
+    date_str = data.get("Date") or ""
     try:
         date_obj = datetime.strptime(str(date_str), "%d %B %Y")
         formatted_date = date_obj.strftime("%Y%m%d")
     except Exception:
         formatted_date = str(date_str).replace(" ", "")
 
-    safe_tenantName = tenantName.replace(" ", "_")
-    pdf_title = f"{safe_tenantName}_{formatted_date}_{billNo}"
+    safe_tenant_name = str(tenant_name).replace(" ", "_")
+    pdf_title = f"{safe_tenant_name}_{formatted_date}_{bill_no}"
     c.setTitle(pdf_title)
-    
+
+    styles = getSampleStyleSheet()
+    style_normal = ParagraphStyle(
+        "PdfNormal",
+        parent=styles["Normal"],
+        fontName=FONT_REGULAR,
+        fontSize=10,
+        leading=13,
+        textColor=colors.black,
+        spaceAfter=0,
+    )
+    style_label = ParagraphStyle(
+        "PdfLabel",
+        parent=style_normal,
+        fontName=FONT_BOLD,
+    )
+    style_heading = ParagraphStyle(
+        "PdfHeading",
+        parent=style_normal,
+        fontName=FONT_BOLD,
+        fontSize=12,
+        leading=14,
+        spaceAfter=0,
+    )
+    style_subtle = ParagraphStyle(
+        "PdfSubtle",
+        parent=style_normal,
+        fontSize=10,
+        leading=12,
+        textColor=colors.HexColor("#666666"),
+    )
+    style_amount_words = ParagraphStyle(
+        "PdfAmountWords",
+        parent=style_normal,
+        fontName=FONT_ITALIC,
+        fontSize=11,
+        leading=14,
+    )
+
     c.setLineWidth(1)
     c.rect(30, 30, width - 60, height - 60)
-    
+
     c.setFont(FONT_BOLD, 24)
     c.drawCentredString(width / 2.0, height - 70, "RENT RECEIPT")
-    
+
     c.setLineWidth(2)
     c.line(40, height - 85, width - 40, height - 85)
-    
+
     c.setFont(FONT_REGULAR, 11)
     y = height - 105
-    c.drawString(50, y, f"Receipt No: {data['Bill']}")
-    c.drawCentredString(width / 2.0, y, f"Billing Month: {data['Month']}")
-    c.drawRightString(width - 50, y, f"Date: {data['Date']}")
-    y -= 15
-    
-    
-    c.setLineWidth(1)
-    y -= 10
-    c.line(40, y, width - 40, y)
-    
-    y -= 15 
-    styles = getSampleStyleSheet()
-    style_normal = styles["Normal"]
-    style_normal.fontName = FONT_REGULAR
-    style_normal.fontSize = 10
-    style_normal.leading = 14
-    
-    style_heading = ParagraphStyle('Heading', parent=style_normal, fontName=FONT_BOLD, fontSize=12, spaceAfter=8)
-    
-    landlord_html = f"<b>Name:</b> {landlord_config.get('name', '')}<br/>" \
-                    f"<b>Phone:</b> {landlord_config.get('phone', '')}<br/>" \
-                    f"<b>Email:</b> {landlord_config.get('email', '')}<br/>" \
-                    f"<b>Address:</b> {landlord_config.get('address', '')}<br/>" \
-                    
-    tenant_html = f"<b>Name:</b> {data.get('Tenant', '')}<br/>" \
-                  f"<b>Phone:</b> {data.get('Tenant_Phone', '')}<br/>"
-    company = data.get('Tenant_Company', '')
-    if company:
-        tenant_html += f"<b>Company:</b> {company}<br/>"
-    tenant_html += f"<b>Address:</b> {data.get('Tenant_Address', '')}"
-    
-    p_landlord_title = Paragraph("LANDLORD", style_heading)
-    p_landlord_body = Paragraph(landlord_html, style_normal)
-    
-    p_tenant_title = Paragraph("TENANT", style_heading)
-    p_tenant_body = Paragraph(tenant_html, style_normal)
-    
-    card_width = (width - 100 - 20) / 2.0 
-    
-    table = Table([[ [p_landlord_title, p_landlord_body], "", [p_tenant_title, p_tenant_body] ]], 
-                  colWidths=[card_width, 20, card_width])
-                  
-    table.setStyle(TableStyle([
-        ('BOX', (0,0), (0,0), 1, colors.black),
-        ('BOX', (2,0), (2,0), 1, colors.black),
-        ('VALIGN', (0,0), (-1,-1), 'TOP'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-        ('TOPPADDING', (0,0), (-1,-1), 10),
-        ('LEFTPADDING', (0,0), (-1,-1), 10),
-        ('RIGHTPADDING', (0,0), (-1,-1), 10),
-    ]))
-    
-    tw, th = table.wrapOn(c, width, height)
-    y -= th
-    table.drawOn(c, 50, y)
-    
+    c.drawString(50, y, f"Receipt No: {data.get('Bill', '')}")
+    c.drawCentredString(width / 2.0, y, f"Billing Month : {data.get('Month', '')}")
+    c.drawRightString(width - 50, y, f"Date: {data.get('Date', '')}")
+
     y -= 25
     c.setLineWidth(1)
     c.line(40, y, width - 40, y)
-    
+
+    landlord_rows = [
+        ("Name", landlord_config.get("name", "")),
+        ("Phone", landlord_config.get("phone", "")),
+        ("Email", landlord_config.get("email", "")),
+        ("Address", landlord_config.get("address", "")),
+    ]
+
+    tenant_rows = [
+        ("Name", data.get("Tenant", "")),
+        ("Phone", data.get("Tenant_Phone", "")),
+    ]
+    company = data.get("Tenant_Company", "")
+    if company:
+        tenant_rows.append(("Company", company))
+    tenant_rows.append(("Address", data.get("Tenant_Address", "")))
+
+    card_width = (width - 100 - 20) / 2.0
+
+    landlord_card = _build_info_card(
+        title="LANDLORD",
+        rows=landlord_rows,
+        width=card_width,
+        title_style=style_heading,
+        label_style=style_label,
+        value_style=style_normal,
+    )
+    tenant_card = _build_info_card(
+        title="TENANT",
+        rows=tenant_rows,
+        width=card_width,
+        title_style=style_heading,
+        label_style=style_label,
+        value_style=style_normal,
+    )
+
+    party_table = Table(
+        [[landlord_card, "", tenant_card]],
+        colWidths=[card_width, 20, card_width],
+    )
+    party_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ("BOX", (0, 0), (0, 0), 1, colors.black),
+                ("BOX", (2, 0), (2, 0), 1, colors.black),
+            ]
+        )
+    )
+
+    tw, th = party_table.wrapOn(c, width, height)
+    y -= 15
+    y -= th
+    party_table.drawOn(c, 50, y)
+
+    y -= 25
+    c.line(40, y, width - 40, y)
+
     y -= 25
     c.setFont(FONT_BOLD, 12)
     c.drawString(60, y, "DESCRIPTION")
     c.drawRightString(width - 60, y, "AMOUNT")
-    
+
     y -= 10
     c.line(50, y, width - 50, y)
-    
+
     items = []
-    
-    rent = _safe_float(data.get('Rent'))
-    items.append(("Rent", "", rent))
-        
-    add_charge = _safe_float(data.get('Additional'))
+
+    rent = _safe_float(data.get("Rent"))
+    if rent:
+        items.append(("Rent", "", rent))
+
+    add_charge = _safe_float(data.get("Additional"))
     add_count = _safe_int(data.get("Additional_Persons"))
     add_rate = _safe_float(data.get("additionalPersonRate"))
-    items.append(("Additional Person Charges", f"{add_count} Persons x ₹{add_rate:,.2f}", add_charge))
-            
-    water = _safe_float(data.get('Water'))
-    items.append(("Water Charges", "", water))
-        
-    tankWater = _safe_float(data.get('tankWater'))
-    items.append(("Tank Water Charges", "", tankWater))
-        
-    maintenance = _safe_float(data.get('MaintenanceCharge'))
+    if add_charge:
+        subtitle = f"{add_count} Persons x {_currency(add_rate)}" if add_count or add_rate else ""
+        items.append(("Additional Person Charges", subtitle, add_charge))
+
+    water = _safe_float(data.get("Water"))
+    if water:
+        items.append(("Water Charges", "", water))
+
+    tank_water = _safe_float(data.get("tankWater"))
+    if tank_water:
+        items.append(("Tank Water Charges", "", tank_water))
+
+    maintenance = _safe_float(data.get("MaintenanceCharge"))
     if maintenance > 0:
-        desc = data.get('MaintenanceDesc', '')
-        items.append(("Maintenance Charges", desc, maintenance))
-        
-    electricity = _safe_float(data.get('Electricity'))
-    units = _safe_float(data.get('Units'))
-    rate = _safe_float(data.get('Rate'))
-    prev = data.get('Previous', '')
-    curr = data.get('Current', '')
-    
-    if prev == '' and curr == '':
-        items.append(("Electricity Charges", f"{units:g} Units x ₹{rate:,.2f}", electricity))
-    else:
-        items.append(("Electricity Charges", f"{prev}-{curr} = {units:g} Units x ₹{rate:,.2f}", electricity))
+        items.append(("Maintenance Charges", data.get("MaintenanceDesc", ""), maintenance))
+
+    electricity = _safe_float(data.get("Electricity"))
+    units = _safe_float(data.get("Units"))
+    rate = _safe_float(data.get("Rate"))
+    prev = data.get("Previous", "")
+    curr = data.get("Current", "")
+    if electricity or units or rate:
+        if prev == "" and curr == "":
+            subtitle = f"{units:g} Units x {_currency(rate)}"
+        else:
+            subtitle = f"{prev} - {curr} = {units:g} Units x {_currency(rate)}"
+        items.append(("Electricity Charges", subtitle, electricity))
 
     for title, subtitle, amt in items:
         y -= 20
         c.setFont(FONT_REGULAR, 11)
         c.drawString(60, y, title)
-        c.drawRightString(width - 60, y, f"     {amt:,.2f}")
+        c.drawRightString(width - 60, y, f"{amt:,.2f}")
+
         if subtitle:
-            y -= 15
-            c.setFont(FONT_REGULAR, 10)
-            c.setFillColorRGB(0.4, 0.4, 0.4)
-            c.drawString(60, y, subtitle)
-            c.setFillColorRGB(0, 0, 0)
-        
+            y -= 14
+            subtitle_p = _p(subtitle, style_subtle)
+            pw, ph = subtitle_p.wrapOn(c, width - 140, 40)
+            subtitle_p.drawOn(c, 60, y - (ph - 10))
+            y -= max(ph - 10, 0)
+
     y -= 15
     c.line(50, y, width - 50, y)
-    
-    curr_total = _safe_float(data.get('Total'))
-    prev_arr = _safe_float(data.get('previousArrears'))
-    grandTotal = curr_total + prev_arr
-    amt_recv = _safe_float(data.get('amountReceived'), grandTotal)
-    balance = grandTotal - amt_recv
+
+    curr_total = _safe_float(data.get("Total"))
+    prev_arr = _safe_float(data.get("previousArrears"))
+    grand_total = curr_total + prev_arr
+    amt_recv = _safe_float(data.get("amountReceived"), grand_total)
+    balance = grand_total - amt_recv
 
     y -= 20
     c.setFont(FONT_REGULAR, 11)
     c.drawString(60, y, "CURRENT MONTH TOTAL")
-    c.drawRightString(width - 60, y, f"     {curr_total:,.2f}")
+    c.drawRightString(width - 60, y, f"{curr_total:,.2f}")
 
     if prev_arr != 0:
         y -= 15
         c.setFont(FONT_REGULAR, 11)
         c.drawString(60, y, "PREVIOUS ARREARS" if prev_arr > 0 else "PREVIOUS ADVANCE")
-        c.drawRightString(width - 60, y, f"     {abs(prev_arr):,.2f}")
+        c.drawRightString(width - 60, y, f"{abs(prev_arr):,.2f}")
 
     y -= 15
     c.line(40, y, width - 40, y)
@@ -8388,105 +12020,99 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
     y -= 20
     c.setFont(FONT_BOLD, 12)
     c.drawString(60, y, "GRAND TOTAL")
-    c.drawRightString(width - 60, y, f"     {grandTotal:,.2f}")
+    c.drawRightString(width - 60, y, f"{grand_total:,.2f}")
 
-    if amt_recv != grandTotal:
-        # y -= 15
-        # c.setFont(FONT_REGULAR, 11)
-        # c.drawString(60, y, "AMOUNT RECEIVED")
-        # c.drawRightString(width - 60, y, f"     {amt_recv:,.2f}")
-        
-        # if balance > 0:
-        #     y -= 15
-        #     c.setFont(FONT_BOLD, 11)
-        #     c.drawString(60, y, "BALANCE DUE")
-        #     c.drawRightString(width - 60, y, f"     {balance:,.2f}")
-        if balance < 0:
-            y -= 15
-            c.setFont(FONT_BOLD, 11)
-            c.drawString(60, y, "ADVANCE AMOUNT")
-            c.drawRightString(width - 60, y, f"     {abs(balance):,.2f}")
+    if balance < 0:
+        y -= 15
+        c.setFont(FONT_BOLD, 11)
+        c.drawString(60, y, "ADVANCE AMOUNT")
+        c.drawRightString(width - 60, y, f"{abs(balance):,.2f}")
 
     y -= 15
     c.line(40, y, width - 40, y)
-    
+
     y -= 25
     c.setFont(FONT_BOLD, 11)
     c.drawString(50, y, "Amount in Words:")
-    c.setFont(FONT_ITALIC, 11)
     try:
-        total_float = grandTotal
-        words = num2words(total_float, lang='en_IN').replace(',', '').title()
-        
-        amount_style = ParagraphStyle('Amount', parent=style_normal, fontName=FONT_ITALIC, fontSize=11)
-        p_amount = Paragraph(f"Rupees {words} Only", amount_style)
-        pw, ph = p_amount.wrapOn(c, width - 200, height)
-        y -= ph - 11 
-        p_amount.drawOn(c, 160, y)
+        words = num2words(grand_total, lang="en_IN").replace(",", "").title()
+        amount_p = Paragraph(f"Rupees {escape(words)} Only", style_amount_words)
+        pw, ph = amount_p.wrapOn(c, width - 200, height)
+        amount_p.drawOn(c, 160, y - (ph - 11))
+        y -= max(ph - 11, 0)
     except Exception:
-        c.drawString(160, y, f"{total_float}")
-        
+        c.setFont(FONT_ITALIC, 11)
+        c.drawString(160, y, f"{grand_total:,.2f}")
+
     bank_acc_no = str(landlord_config.get("bank_account_number") or "").strip()
-    # pyrefly: ignore [bad-keyword-argument]
-    if bank_acc_no and config.get("receipt", "toggles.show_bank_details", default=True):
+    show_bank_details = bool(_config_get("receipt", "toggles.show_bank_details", True))
+
+    if bank_acc_no and show_bank_details:
         y -= 25
-        if landlord_config.get("mask_bank_account", True):
-            if len(bank_acc_no) > 4:
-                masked_no = "X" * (len(bank_acc_no) - 4) + bank_acc_no[-4:]
-            else:
-                masked_no = "XXXX"
-        else:
-            masked_no = bank_acc_no
-            
-        box_y = y - 90
+
+        masked_no = _mask_account_number(
+            bank_acc_no,
+            mask=bool(landlord_config.get("mask_bank_account", True)),
+        )
+
+        branch = str(landlord_config.get("bank_branch") or "").strip()
+        ifsc = str(landlord_config.get("bank_ifsc") or "").strip()
+        branch_ifsc = " - ".join([part for part in [branch, ifsc] if part])
+
+        payment_rows = [
+            ("Account Holder", landlord_config.get("bank_account_name", "") or landlord_config.get("name", "")),
+            ("Account Number", masked_no),
+            ("Bank Name", landlord_config.get("bank_name", "")),
+            ("Branch & IFSC", branch_ifsc),
+        ]
+
+        payment_table = _build_key_value_table(
+            rows=payment_rows,
+            total_width=300,
+            label_width=92,
+            label_style=style_label,
+            value_style=style_normal,
+            top_padding=0,
+        )
+
+        ptw, pth = payment_table.wrapOn(c, 300, 100)
         box_width = 320
+        box_height = max(90, pth + 30)
+        box_y = y - box_height
+
         c.setLineWidth(1)
-        c.rect(50, box_y, box_width, 90)
-        
+        c.rect(50, box_y, box_width, box_height)
         c.setFont(FONT_BOLD, 10)
-        c.drawString(60, box_y + 75, "PAYMENT DETAILS")
-        c.line(50, box_y + 70, 50 + box_width, box_y + 70)
-        
-        c.setFont(FONT_REGULAR, 10)
-        c.drawString(60, box_y + 53, f"Account Holder     : {landlord_config.get('bank_account_name', '')}")
-        c.drawString(60, box_y + 38, f"Account Number   : {masked_no}")
-        c.drawString(60, box_y + 23, f"Bank Name           : {landlord_config.get('bank_name', '')}")
-        
-        branch = str(landlord_config.get('bank_branch') or '')
-        ifsc = str(landlord_config.get('bank_ifsc') or '')
-        branch_ifsc = []
-        if branch: branch_ifsc.append(branch)
-        if ifsc: branch_ifsc.append(ifsc)
-        
-        c.drawString(60, box_y + 8, f"Branch & IFSC      : {' - '.join(branch_ifsc)}")
-        
+        c.drawString(60, box_y + box_height - 15, "PAYMENT DETAILS")
+        c.line(50, box_y + box_height - 20, 50 + box_width, box_y + box_height - 20)
+
+        payment_table.drawOn(c, 60, box_y + 8)
         y = box_y
-        
-    # Move down for the signature, but clamp 'y' to a minimum of 90 
-    # to prevent overlapping the footer (y=40) and outer border (y=30)
+
     y -= 50
     if y < 90:
         y = 90
-    
-    sig_filename = landlord_config.get('signature_image', '')
-    # pyrefly: ignore [bad-keyword-argument]
-    if sig_filename and config.get("receipt", "toggles.show_signature", default=True):
+
+    sig_filename = landlord_config.get("signature_image", "")
+    show_signature = bool(_config_get("receipt", "toggles.show_signature", True))
+
+    if sig_filename and show_signature:
         sig_img_path = os.path.join(UPLOADS_DIR, sig_filename)
-        
+
         if os.path.exists(sig_img_path):
             try:
-                from reportlab.lib.utils import ImageReader
                 from PIL import Image
-                
+                from reportlab.lib.utils import ImageReader
+
                 pil_img = Image.open(sig_img_path).convert("RGBA")
-                background = Image.new('RGBA', pil_img.size, (255, 255, 255, 255))
+                background = Image.new("RGBA", pil_img.size, (255, 255, 255, 255))
                 alpha_composite = Image.alpha_composite(background, pil_img)
-                final_img = alpha_composite.convert('RGB')
-                
+                final_img = alpha_composite.convert("RGB")
+
                 img = ImageReader(final_img)
                 max_w, max_h = 160, 60
                 img_w, img_h = img.getSize()
-                
+
                 aspect = img_w / float(img_h)
                 if (max_w / aspect) <= max_h:
                     new_w = max_w
@@ -8494,16 +12120,23 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
                 else:
                     new_h = max_h
                     new_w = max_h * aspect
-                    
-                c.drawImage(img, width - 60 - new_w, y, width=new_w, height=new_h, preserveAspectRatio=True)
+
+                c.drawImage(
+                    img,
+                    width - 60 - new_w,
+                    y,
+                    width=new_w,
+                    height=new_h,
+                    preserveAspectRatio=True,
+                )
                 y -= 15
             except Exception as e:
-                print(f"Error drawing signature image: {e}")
+                print(f"Error drawing signature image: {e}", file=sys.stderr)
                 c.setFont(FONT_REGULAR, 11)
                 c.drawRightString(width - 60, y, "________________________")
                 y -= 15
         else:
-            print(f"Warning: Signature image configured but not found at {sig_img_path}")
+            print(f"Warning: Signature image not found at {sig_img_path}", file=sys.stderr)
             c.setFont(FONT_REGULAR, 11)
             c.drawRightString(width - 60, y, "________________________")
             y -= 15
@@ -8511,39 +12144,39 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
         c.setFont(FONT_REGULAR, 11)
         c.drawRightString(width - 60, y, "________________________")
         y -= 15
-        
+
     c.setFont(FONT_REGULAR, 11)
-    sig_text = landlord_config.get('signature_text', '')
-    if sig_text:
-        c.drawRightString(width - 60, y, sig_text)
-    else:
-        c.drawRightString(width - 60, y, "Authorized Signature")
-        
+    sig_text = landlord_config.get("signature_text", "")
+    c.drawRightString(width - 60, y, sig_text or "Authorized Signature")
+
     y -= 15
     c.setFont(FONT_BOLD, 11)
-    c.drawRightString(width - 60, y, landlord_config.get('name', ''))
-    
-    status = data.get('Status', 'ACTIVE')
-    
+    c.drawRightString(width - 60, y, landlord_config.get("name", ""))
+
+    status = data.get("Status", "ACTIVE")
+
     c.setFont(FONT_REGULAR, 9)
     c.setFillColorRGB(0.5, 0.5, 0.5)
     c.drawString(40, 40, f"Receipt Status : {status}")
-    if status == 'ARCHIVED':
-        archived_date = data.get('Archived_Date', '')
+    if status == "ARCHIVED":
+        archived_date = data.get("Archived_Date", "")
         c.drawString(160, 40, f"Archived : {archived_date}")
-        
+
     gen_date = data.get("Date", "")
     c.drawRightString(width / 2.0 + 30, 40, f"Generated : {gen_date}")
-    c.drawRightString(width - 40, 40, f"Receipt No : {data['Bill']}")
-    
+    c.drawRightString(width - 40, 40, f"Receipt No : {data.get('Bill', '')}")
+
     c.showPage()
     c.save()
-    
+
     if is_stream:
         output_path.seek(0)
         return output_path
-        
+
     return output_path
+
+
+generateprofessionalpdf = generate_professional_pdf
 ```
 
 ```python
@@ -9581,7 +13214,8 @@ def load_tenants(include_archived: bool = False) -> List[Tenant]:
             securityDeposit=float(row["securitydeposit"]),
             meterId=row["meterid"],
             viewToken=row["viewToken"],
-            tenantPin=row["tenantpin"]
+            tenantPin=row["tenantpin"],
+            statusChangedAt=row["status_changed_at"] or None
         )
         tenants.append(t)
     return tenants
@@ -9616,7 +13250,8 @@ def get_tenant(tenantId: int) -> Optional[Tenant]:
         securityDeposit=float(row["securitydeposit"]),
         meterId=row["meterid"],
         viewToken=row["viewToken"],
-        tenantPin=row["tenantpin"]
+        tenantPin=row["tenantpin"],
+        statusChangedAt=row["status_changed_at"] or None
     )
 
 def get_tenant_by_name(name: str) -> Optional[Tenant]:
@@ -9646,7 +13281,8 @@ def get_tenant_by_name(name: str) -> Optional[Tenant]:
         securityDeposit=float(row["securitydeposit"]),
         meterId=row["meterid"],
         viewToken=row["viewToken"],
-        tenantPin=row["tenantpin"]
+        tenantPin=row["tenantpin"],
+        statusChangedAt=row["status_changed_at"] or None
     )
 
 def save_all_tenants(tenants_list: List[Tenant]):
@@ -9688,19 +13324,25 @@ def update_tenant(t: Tenant):
     tenantpin = t_dict.get("tenantPin") or ""
     
     with get_conn() as conn:
+        # Detect status change and record timestamp
+        if t.id is not None:
+            existing = conn.execute("SELECT status FROM tenants WHERE id = ?", (t.id,)).fetchone()
+            if existing and (existing["status"] or "").strip().lower() != (t.status or "").strip().lower():
+                t.statusChangedAt = datetime.utcnow().isoformat()
+
         conn.execute('''
             UPDATE tenants SET
                 name=?, company=?, phone=?, email=?, address=?, roomnumber=?, occupation=?,
                 notes=?, status=?, rent=?, water=?, electricityrate=?, previousmeter=?,
                 additionalpersoncharge=?, securitydeposit=?, defaulttankWatercharge=?,
-                meterid=?, viewToken=?, tenantpin=?
+                meterid=?, viewToken=?, tenantpin=?, status_changed_at=?
             WHERE id=?
         ''', (
             t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
             t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin,
-            t.id
+            t.statusChangedAt, t.id
         ))
         # Cascade identity/contact fields to all receipt rows for this tenant.
         # Only updates display-snapshot fields; historical billing values (rent, water,
@@ -9746,6 +13388,7 @@ def _tenant_row_to_dict(row) -> dict:
         "meterId": row["meterid"] or "",
         "viewToken": row["viewToken"] or "",
         "arrears": 0,
+        "statusChangedAt": row["status_changed_at"] or None,
     }
 
 
@@ -9807,10 +13450,11 @@ def delete_tenant(tenantId: int, action: str = "archive"):
 
         if action == "archive":
             archived_at = datetime.utcnow().strftime("%d %B %Y")
+            now_iso = datetime.utcnow().isoformat()
 
             conn.execute(
-                "UPDATE tenants SET status = ? WHERE id = ?",
-                ("Archived", tenantId),
+                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                ("Archived", now_iso, tenantId),
             )
             receipt_result = conn.execute(
                 """
@@ -9844,9 +13488,10 @@ def delete_tenant(tenantId: int, action: str = "archive"):
             }
 
         if action == "restore":
+            now_iso = datetime.utcnow().isoformat()
             updated_tenant = conn.execute(
-                "UPDATE tenants SET status = ? WHERE id = ?",
-                ("Active", tenantId),
+                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                ("Active", now_iso, tenantId),
             )
             if updated_tenant.rowcount == 0:
                 raise ValueError("Tenant not found.")
@@ -9882,9 +13527,10 @@ def delete_tenant(tenantId: int, action: str = "archive"):
             }
 
         if action == "inactive":
+            now_iso = datetime.utcnow().isoformat()
             conn.execute(
-                "UPDATE tenants SET status = ? WHERE id = ?",
-                ("Inactive", tenantId)
+                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                ("Inactive", now_iso, tenantId)
             )
             conn.commit()
             return {"tenantId": tenantId, "inactive": True, "archived": False, "restored": False}
@@ -9894,7 +13540,20 @@ def delete_tenant(tenantId: int, action: str = "archive"):
 def get_occupants(tenantId: int) -> List[dict]:
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM occupants WHERE tenantId = ?", (tenantId,)).fetchall()
-    return [dict(r) for r in rows]
+
+    result = []
+    for r in rows:
+        row = dict(r)
+        # Remap snake_case DB columns to camelCase/joined field names the frontend expects
+        row["aadhaarfront"] = row.pop("aadhaar_front", "") or ""
+        row["aadhaarback"] = row.pop("aadhaar_back", "") or ""
+        row["aadhaarcombined"] = row.pop("aadhaar_combined", "") or ""
+        row["empfront"] = row.pop("emp_front", "") or ""
+        row["empback"] = row.pop("emp_back", "") or ""
+        # Keep "Occupant UUID" alias for admin-app backwards compatibility
+        row["Occupant UUID"] = row.get("occupantUuid", "")
+        result.append(row)
+    return result
 
 def save_occupant(tenantId: int, occ_data: dict):
     uuid_val = occ_data.get("occupantUuid") or occ_data.get("uuid")
@@ -9902,16 +13561,19 @@ def save_occupant(tenantId: int, occ_data: dict):
         uuid_val = str(uuid.uuid4())
         
     with get_conn() as conn:
-        # Try updating first
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE occupants SET
-                name = ?, mobile = ?, status = ?, aadhaar_front = ?, aadhaar_back = ?,
-                aadhaar_combined = ?, emp_front = ?, emp_back = ?, uploaddate = ?, uploadmonth = ?
+                name = ?, mobile = ?, address = ?, residentSince = ?,
+                status = ?, aadhaar_front = ?, aadhaar_back = ?,
+                aadhaar_combined = ?, emp_front = ?, emp_back = ?,
+                uploaddate = ?, uploadmonth = ?
             WHERE occupantUuid = ?
         ''', (
             occ_data.get("name", ""),
             occ_data.get("mobile", ""),
+            occ_data.get("address", ""),
+            occ_data.get("residentSince", ""),
             occ_data.get("status", "Active"),
             occ_data.get("aadhaar_front", ""),
             occ_data.get("aadhaar_back", ""),
@@ -9925,12 +13587,20 @@ def save_occupant(tenantId: int, occ_data: dict):
         
         if cursor.rowcount == 0:
             cursor.execute('''
-                INSERT INTO occupants (tenantId, occupantUuid, name, mobile, status, aadhaar_front, aadhaar_back, aadhaar_combined, emp_front, emp_back, uploaddate, uploadmonth)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO occupants (
+                    tenantId, occupantUuid, name, mobile, address, residentSince,
+                    status, aadhaar_front, aadhaar_back, aadhaar_combined,
+                    emp_front, emp_back, uploaddate, uploadmonth
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
-                tenantId, uuid_val, occ_data.get("name", ""), occ_data.get("mobile", ""), occ_data.get("status", "Active"),
-                occ_data.get("aadhaar_front", ""), occ_data.get("aadhaar_back", ""), occ_data.get("aadhaar_combined", ""),
-                occ_data.get("emp_front", ""), occ_data.get("emp_back", ""), occ_data.get("uploaddate", ""), occ_data.get("uploadmonth", "")
+                tenantId, uuid_val,
+                occ_data.get("name", ""), occ_data.get("mobile", ""),
+                occ_data.get("address", ""), occ_data.get("residentSince", ""),
+                occ_data.get("status", "Active"),
+                occ_data.get("aadhaar_front", ""), occ_data.get("aadhaar_back", ""),
+                occ_data.get("aadhaar_combined", ""),
+                occ_data.get("emp_front", ""), occ_data.get("emp_back", ""),
+                occ_data.get("uploaddate", ""), occ_data.get("uploadmonth", "")
             ))
         conn.commit()
 
@@ -10160,6 +13830,372 @@ python deploy.py
 </html>
 ```
 
+```html
+// File: app\templates\landing.html
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ theme | default('system') }}">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rent Management — Welcome</title>
+  <meta name="description" content="Rent Management System — Landlord portal and Platform Admin login." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0d0f17;
+      --surface:     #141720;
+      --card:        #1c2030;
+      --border:      rgba(255,255,255,0.07);
+      --text:        #e8eaf0;
+      --muted:       #7a7f99;
+      --accent:      #6c63ff;
+      --accent-glow: rgba(108,99,255,0.35);
+      --green:       #22c55e;
+      --green-glow:  rgba(34,197,94,0.30);
+      --radius:      16px;
+      --transition:  0.22s cubic-bezier(0.4,0,0.2,1);
+    }
+
+    @media (prefers-color-scheme: light) {
+      [data-theme="system"] {
+        --bg:      #f0f2f8;
+        --surface: #ffffff;
+        --card:    #ffffff;
+        --border:  rgba(0,0,0,0.08);
+        --text:    #111827;
+        --muted:   #6b7280;
+      }
+    }
+    [data-theme="light"] {
+      --bg:      #f0f2f8;
+      --surface: #ffffff;
+      --card:    #ffffff;
+      --border:  rgba(0,0,0,0.08);
+      --text:    #111827;
+      --muted:   #6b7280;
+    }
+
+    html, body {
+      min-height: 100vh;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    /* ── Background grid ─────────────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(108,99,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(108,99,255,0.04) 1px, transparent 1px);
+      background-size: 48px 48px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Glow orbs ────────────────────────────────────────────────────────── */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.45;
+    }
+    .orb-1 { width: 520px; height: 520px; top: -160px; left: -120px; background: radial-gradient(circle, var(--accent) 0%, transparent 70%); }
+    .orb-2 { width: 400px; height: 400px; bottom: -100px; right: -80px; background: radial-gradient(circle, var(--green) 0%, transparent 70%); }
+
+    /* ── Layout ───────────────────────────────────────────────────────────── */
+    .page {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 40px 20px;
+      gap: 48px;
+    }
+
+    /* ── Hero ─────────────────────────────────────────────────────────────── */
+    .hero {
+      text-align: center;
+      max-width: 560px;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(108,99,255,0.12);
+      border: 1px solid rgba(108,99,255,0.3);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .hero-badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.8); }
+    }
+    .hero h1 {
+      font-size: clamp(2rem, 5vw, 3.25rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      background: linear-gradient(135deg, var(--text) 0%, var(--muted) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+    }
+    .hero p {
+      font-size: 1rem;
+      color: var(--muted);
+      max-width: 420px;
+      margin: 0 auto;
+    }
+
+    /* ── Cards ────────────────────────────────────────────────────────────── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      width: 100%;
+      max-width: 860px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+      cursor: default;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      opacity: 0;
+      transition: opacity var(--transition);
+      pointer-events: none;
+    }
+    .card:hover { transform: translateY(-4px); }
+
+    .card.landlord { --card-accent: var(--accent); --card-glow: var(--accent-glow); }
+    .card.admin    { --card-accent: var(--green);  --card-glow: var(--green-glow);  }
+
+    .card:hover { border-color: var(--card-accent); box-shadow: 0 16px 48px var(--card-glow), 0 0 0 1px var(--card-accent); }
+    .card::after { background: radial-gradient(circle at top left, var(--card-glow), transparent 60%); }
+    .card:hover::after { opacity: 1; }
+
+    .card-icon {
+      width: 52px; height: 52px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .card.landlord .card-icon { background: rgba(108,99,255,0.1); border-color: rgba(108,99,255,0.3); }
+    .card.admin    .card-icon { background: rgba(34,197,94,0.1);  border-color: rgba(34,197,94,0.3);  }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+    .card-desc {
+      font-size: 0.875rem;
+      color: var(--muted);
+      line-height: 1.55;
+      flex: 1;
+    }
+
+    .card-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ── Buttons ──────────────────────────────────────────────────────────── */
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+      transition: background var(--transition), transform var(--transition), box-shadow var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .btn:active { transform: scale(0.97); }
+
+    .btn-primary-purple {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+    .btn-primary-purple:hover {
+      background: #7c73ff;
+      box-shadow: 0 6px 24px var(--accent-glow);
+    }
+
+    .btn-secondary-purple {
+      background: rgba(108,99,255,0.1);
+      color: var(--accent);
+      border: 1px solid rgba(108,99,255,0.25);
+    }
+    .btn-secondary-purple:hover {
+      background: rgba(108,99,255,0.18);
+      border-color: rgba(108,99,255,0.45);
+    }
+
+    .btn-primary-green {
+      background: var(--green);
+      color: #fff;
+      box-shadow: 0 4px 16px var(--green-glow);
+    }
+    .btn-primary-green:hover {
+      background: #16a34a;
+      box-shadow: 0 6px 24px var(--green-glow);
+    }
+
+    /* ── Divider ──────────────────────────────────────────────────────────── */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Footer ───────────────────────────────────────────────────────────── */
+    .footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.01em;
+    }
+    .footer a { color: var(--muted); text-decoration: none; }
+    .footer a:hover { color: var(--text); }
+
+    /* ── Responsive ───────────────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .cards { grid-template-columns: 1fr; }
+      .card  { padding: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+
+  <main class="page" role="main">
+
+    <!-- Hero -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-badge" aria-label="Application status">Rent Management System</div>
+      <h1 id="hero-title">Welcome Back</h1>
+      <p>Choose how you'd like to access the platform below.</p>
+    </section>
+
+    <!-- Role selection cards -->
+    <div class="cards" role="list">
+
+      <!-- Landlord card -->
+      <article class="card landlord" role="listitem">
+        <div class="card-icon" aria-hidden="true">🏠</div>
+        <div>
+          <div class="card-title">Landlord Portal</div>
+          <p class="card-desc">
+            Manage your properties, tenants, and rental receipts. New here? Create a free landlord account.
+          </p>
+        </div>
+        <div class="card-actions">
+          <a id="btn-landlord-login" href="landlord/login" class="btn btn-primary-purple" role="button">
+            <span>🔑</span> Landlord Login
+          </a>
+          <div class="divider">or</div>
+          <a id="btn-landlord-signup" href="landlord/signup" class="btn btn-secondary-purple" role="button">
+            <span>✨</span> Create Landlord Account
+          </a>
+        </div>
+      </article>
+
+      <!-- Admin card -->
+      <article class="card admin" role="listitem">
+        <div class="card-icon" aria-hidden="true">🛡️</div>
+        <div>
+          <div class="card-title">Platform Admin</div>
+          <p class="card-desc">
+            System administration, global settings, and platform-wide oversight. Restricted access only.
+          </p>
+        </div>
+        <div class="card-actions">
+          <a id="btn-admin-login" href="admin/login" class="btn btn-primary-green" role="button">
+            <span>🔐</span> Platform Admin Login
+          </a>
+        </div>
+      </article>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer" role="contentinfo">
+      <p>Rent Management System &mdash; Secure &amp; Private</p>
+    </footer>
+
+  </main>
+</body>
+</html>
+```
+
 ```yaml
 // File: docker-compose.yml
 services:
@@ -10243,8 +14279,3878 @@ RUN mkdir -p /code/storage
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "20081", "--proxy-headers", "--forwarded-allow-ips", "*"]
 ```
 
+```html
+// File: frontend\landing-app\index.html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rent — Rent Management, Simplified</title>
+    <meta name="description" content="A complete digital platform for landlords, tenants, and administrators. Track payments, manage properties, send receipts, and stay compliant." />
+    <meta name="theme-color" content="#0d0f17" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
 ```
-// File: frontend\admin-app\.gitignore
+
+```json
+// File: frontend\landing-app\package-lock.json
+{
+  "name": "landing-app",
+  "version": "0.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "landing-app",
+      "version": "0.0.0",
+      "dependencies": {
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1"
+      },
+      "devDependencies": {
+        "@types/react": "^18.3.3",
+        "@types/react-dom": "^18.3.0",
+        "@vitejs/plugin-react": "^4.3.1",
+        "typescript": "^5.5.3",
+        "vite": "^5.4.1"
+      }
+    },
+    "node_modules/@babel/code-frame": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/code-frame/-/code-frame-7.29.7.tgz",
+      "integrity": "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/helper-validator-identifier": "^7.29.7",
+        "js-tokens": "^4.0.0",
+        "picocolors": "^1.1.1"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/compat-data": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/compat-data/-/compat-data-7.29.7.tgz",
+      "integrity": "sha512-locTkQyKvwIEgBzVrn8693ebc97F2U8ZHjbXwDXJ5Fn2TCpNwTlKcaKLkdHop5c/icOFE7qt7Q9JC5hnKNa6Gg==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/core": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/core/-/core-7.29.7.tgz",
+      "integrity": "sha512-RgHBCvtjbOK2gXSNBNIkNoEc9qoVEtau3hj8gEqKQuL3HZAibKarWFEI3Lfm6EYKkLalOh8eSrj9b+ch9H/VBA==",
+      "dev": true,
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "@babel/code-frame": "^7.29.7",
+        "@babel/generator": "^7.29.7",
+        "@babel/helper-compilation-targets": "^7.29.7",
+        "@babel/helper-module-transforms": "^7.29.7",
+        "@babel/helpers": "^7.29.7",
+        "@babel/parser": "^7.29.7",
+        "@babel/template": "^7.29.7",
+        "@babel/traverse": "^7.29.7",
+        "@babel/types": "^7.29.7",
+        "@jridgewell/remapping": "^2.3.5",
+        "convert-source-map": "^2.0.0",
+        "debug": "^4.1.0",
+        "gensync": "^1.0.0-beta.2",
+        "json5": "^2.2.3",
+        "semver": "^6.3.1"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/babel"
+      }
+    },
+    "node_modules/@babel/generator": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/generator/-/generator-7.29.7.tgz",
+      "integrity": "sha512-DkXD5OJQaAQIdZ1bt3UZdEnHAn9Imd3IVBdX03UFe+ony9Ojw5pzr9YVKGDY1jt+Gcn/FnGkNf8r+Vj5NOJWtQ==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/parser": "^7.29.7",
+        "@babel/types": "^7.29.7",
+        "@jridgewell/gen-mapping": "^0.3.12",
+        "@jridgewell/trace-mapping": "^0.3.28",
+        "jsesc": "^3.0.2"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-compilation-targets": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-compilation-targets/-/helper-compilation-targets-7.29.7.tgz",
+      "integrity": "sha512-wem6WaBj4NaVYVdNhLPPVacES6ZJ+KBBfSkTMD3YZxbP3rm3Di85tJU5ljaUNhaOynt+Aj0xruhYuzQBt8n71g==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/compat-data": "^7.29.7",
+        "@babel/helper-validator-option": "^7.29.7",
+        "browserslist": "^4.24.0",
+        "lru-cache": "^5.1.1",
+        "semver": "^6.3.1"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-globals": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-globals/-/helper-globals-7.29.7.tgz",
+      "integrity": "sha512-3nQVUAtvkKH9zahfWgw96Jc/uFOmjACE1kQz82E2lqWmHBgjzbNlsC22nuQTfahmWeQtTq5nQ/4Nnd2A1wj4zA==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-module-imports": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-module-imports/-/helper-module-imports-7.29.7.tgz",
+      "integrity": "sha512-ejHwrQQYcm9xnTivShn2IDOlIzInN34AXskvq9QicvCtEzq1Vzclu/tKF8Jq1Cg8JG2GL6/EmjgsCT7lXepE3g==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/traverse": "^7.29.7",
+        "@babel/types": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-module-transforms": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-module-transforms/-/helper-module-transforms-7.29.7.tgz",
+      "integrity": "sha512-UPUVSyXbOh627KiCIGQSgwWzGeBKLkaJ9PJEdrngIwMSzxLR4jS4+f1f1jb7VzBbg8nFLaYotvVPFCTqdrmTAg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/helper-module-imports": "^7.29.7",
+        "@babel/helper-validator-identifier": "^7.29.7",
+        "@babel/traverse": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      },
+      "peerDependencies": {
+        "@babel/core": "^7.0.0"
+      }
+    },
+    "node_modules/@babel/helper-plugin-utils": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-plugin-utils/-/helper-plugin-utils-7.29.7.tgz",
+      "integrity": "sha512-G7sHYigPY17oO5SYWnfD/0MTBwVR781S/JI643e/JhUYgVgWE/61SoW3NH9KWUKyKq5LVh3npif99Wkt6j86Jw==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-string-parser": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-string-parser/-/helper-string-parser-7.29.7.tgz",
+      "integrity": "sha512-Pb5ijPrZ89GDH8223L4UP8i6QApWxs04RbPQJTeWDV0/keR2E36MeKnyr6LYmUUvqRRI+Iv87SuF1W6ErINzYw==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-validator-identifier": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-validator-identifier/-/helper-validator-identifier-7.29.7.tgz",
+      "integrity": "sha512-qehxGkRj55h/ff8EMaJ+cYhyaKlHIxqYDn682wQD7RNp9UujOQsHog2uS0r2vzr4pW+sXf90NeeayjcNaX3fFg==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-validator-option": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-validator-option/-/helper-validator-option-7.29.7.tgz",
+      "integrity": "sha512-N9ZErrD+yW5geCDtBqnOoxmR8+tNKiGuxKlDpuJxfsqpa2dFcexaziGAE/qoHLiDDreVNMupxGmSoNlyvsA3gw==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helpers": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helpers/-/helpers-7.29.7.tgz",
+      "integrity": "sha512-1k2lAGRMfHTcwuNYcCNUmaUffmQv8KWMfh2iJUUeRlwlwH4FdNG7mfPI10NPfLHJFThE4Tyr4mv7kTNZOiPuBg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/template": "^7.29.7",
+        "@babel/types": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/parser": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/parser/-/parser-7.29.7.tgz",
+      "integrity": "sha512-hnORnjP/1P/zFEndoeX+n+t1RwWRJiJpM/jO7FW32Kn9r5+sJB2JWOdYo4L6k78j15eCwY3Gm/7364B1EMwtNg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/types": "^7.29.7"
+      },
+      "bin": {
+        "parser": "bin/babel-parser.js"
+      },
+      "engines": {
+        "node": ">=6.0.0"
+      }
+    },
+    "node_modules/@babel/plugin-transform-react-jsx-self": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/plugin-transform-react-jsx-self/-/plugin-transform-react-jsx-self-7.29.7.tgz",
+      "integrity": "sha512-TL0hMc9xzy86VD31nUiwzd5otRAcyEPcsegCxolO0PvcXuH1v0kECe/UIznYFihpkvU5wg/jk4v0TTEFfm53fw==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/helper-plugin-utils": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      },
+      "peerDependencies": {
+        "@babel/core": "^7.0.0-0"
+      }
+    },
+    "node_modules/@babel/plugin-transform-react-jsx-source": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/plugin-transform-react-jsx-source/-/plugin-transform-react-jsx-source-7.29.7.tgz",
+      "integrity": "sha512-06IyK09H3wi4cGbhDBwp5gUGo0IKtnYa8tyTiephirPCK6fbobVGiXMMI5zLQ4aKEYP3wZ3ArU44o+8KMrSG/Q==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/helper-plugin-utils": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      },
+      "peerDependencies": {
+        "@babel/core": "^7.0.0-0"
+      }
+    },
+    "node_modules/@babel/template": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/template/-/template-7.29.7.tgz",
+      "integrity": "sha512-puq+Gf35oI24FeN11LkoUQFqv9uwNeWpxXZi/Ji3rRIoKAzKnxRaZ+Gkj0vKS9ZCiTESfng1N9LyOyXvo+m+Gg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/code-frame": "^7.29.7",
+        "@babel/parser": "^7.29.7",
+        "@babel/types": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/traverse": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/traverse/-/traverse-7.29.7.tgz",
+      "integrity": "sha512-EhlfNQtZ+NK22w5BM61ciuiq1m58ed33Wr1Xan//ZRTy6hgjnwyCffRYwzsGXdASJSUJ1guZILsErh1eQcl+zw==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/code-frame": "^7.29.7",
+        "@babel/generator": "^7.29.7",
+        "@babel/helper-globals": "^7.29.7",
+        "@babel/parser": "^7.29.7",
+        "@babel/template": "^7.29.7",
+        "@babel/types": "^7.29.7",
+        "debug": "^4.3.1"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/types": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/types/-/types-7.29.7.tgz",
+      "integrity": "sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/helper-string-parser": "^7.29.7",
+        "@babel/helper-validator-identifier": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@esbuild/aix-ppc64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/aix-ppc64/-/aix-ppc64-0.21.5.tgz",
+      "integrity": "sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==",
+      "cpu": [
+        "ppc64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "aix"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/android-arm": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/android-arm/-/android-arm-0.21.5.tgz",
+      "integrity": "sha512-vCPvzSjpPHEi1siZdlvAlsPxXl7WbOVUBBAowWug4rJHb68Ox8KualB+1ocNvT5fjv6wpkX6o/iEpbDrf68zcg==",
+      "cpu": [
+        "arm"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/android-arm64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/android-arm64/-/android-arm64-0.21.5.tgz",
+      "integrity": "sha512-c0uX9VAUBQ7dTDCjq+wdyGLowMdtR/GoC2U5IYk/7D1H1JYC0qseD7+11iMP2mRLN9RcCMRcjC4YMclCzGwS/A==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/android-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/android-x64/-/android-x64-0.21.5.tgz",
+      "integrity": "sha512-D7aPRUUNHRBwHxzxRvp856rjUHRFW1SdQATKXH2hqA0kAZb1hKmi02OpYRacl0TxIGz/ZmXWlbZgjwWYaCakTA==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/darwin-arm64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.21.5.tgz",
+      "integrity": "sha512-DwqXqZyuk5AiWWf3UfLiRDJ5EDd49zg6O9wclZ7kUMv2WRFr4HKjXp/5t8JZ11QbQfUS6/cRCKGwYhtNAY88kQ==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/darwin-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/darwin-x64/-/darwin-x64-0.21.5.tgz",
+      "integrity": "sha512-se/JjF8NlmKVG4kNIuyWMV/22ZaerB+qaSi5MdrXtd6R08kvs2qCN4C09miupktDitvh8jRFflwGFBQcxZRjbw==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/freebsd-arm64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/freebsd-arm64/-/freebsd-arm64-0.21.5.tgz",
+      "integrity": "sha512-5JcRxxRDUJLX8JXp/wcBCy3pENnCgBR9bN6JsY4OmhfUtIHe3ZW0mawA7+RDAcMLrMIZaf03NlQiX9DGyB8h4g==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/freebsd-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/freebsd-x64/-/freebsd-x64-0.21.5.tgz",
+      "integrity": "sha512-J95kNBj1zkbMXtHVH29bBriQygMXqoVQOQYA+ISs0/2l3T9/kj42ow2mpqerRBxDJnmkUDCaQT/dfNXWX/ZZCQ==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-arm": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-arm/-/linux-arm-0.21.5.tgz",
+      "integrity": "sha512-bPb5AHZtbeNGjCKVZ9UGqGwo8EUu4cLq68E95A53KlxAPRmUyYv2D6F0uUI65XisGOL1hBP5mTronbgo+0bFcA==",
+      "cpu": [
+        "arm"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-arm64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-arm64/-/linux-arm64-0.21.5.tgz",
+      "integrity": "sha512-ibKvmyYzKsBeX8d8I7MH/TMfWDXBF3db4qM6sy+7re0YXya+K1cem3on9XgdT2EQGMu4hQyZhan7TeQ8XkGp4Q==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-ia32": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-ia32/-/linux-ia32-0.21.5.tgz",
+      "integrity": "sha512-YvjXDqLRqPDl2dvRODYmmhz4rPeVKYvppfGYKSNGdyZkA01046pLWyRKKI3ax8fbJoK5QbxblURkwK/MWY18Tg==",
+      "cpu": [
+        "ia32"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-loong64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-loong64/-/linux-loong64-0.21.5.tgz",
+      "integrity": "sha512-uHf1BmMG8qEvzdrzAqg2SIG/02+4/DHB6a9Kbya0XDvwDEKCoC8ZRWI5JJvNdUjtciBGFQ5PuBlpEOXQj+JQSg==",
+      "cpu": [
+        "loong64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-mips64el": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-mips64el/-/linux-mips64el-0.21.5.tgz",
+      "integrity": "sha512-IajOmO+KJK23bj52dFSNCMsz1QP1DqM6cwLUv3W1QwyxkyIWecfafnI555fvSGqEKwjMXVLokcV5ygHW5b3Jbg==",
+      "cpu": [
+        "mips64el"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-ppc64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-ppc64/-/linux-ppc64-0.21.5.tgz",
+      "integrity": "sha512-1hHV/Z4OEfMwpLO8rp7CvlhBDnjsC3CttJXIhBi+5Aj5r+MBvy4egg7wCbe//hSsT+RvDAG7s81tAvpL2XAE4w==",
+      "cpu": [
+        "ppc64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-riscv64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-riscv64/-/linux-riscv64-0.21.5.tgz",
+      "integrity": "sha512-2HdXDMd9GMgTGrPWnJzP2ALSokE/0O5HhTUvWIbD3YdjME8JwvSCnNGBnTThKGEB91OZhzrJ4qIIxk/SBmyDDA==",
+      "cpu": [
+        "riscv64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-s390x": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-s390x/-/linux-s390x-0.21.5.tgz",
+      "integrity": "sha512-zus5sxzqBJD3eXxwvjN1yQkRepANgxE9lgOW2qLnmr8ikMTphkjgXu1HR01K4FJg8h1kEEDAqDcZQtbrRnB41A==",
+      "cpu": [
+        "s390x"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.21.5.tgz",
+      "integrity": "sha512-1rYdTpyv03iycF1+BhzrzQJCdOuAOtaqHTWJZCWvijKD2N5Xu0TtVC8/+1faWqcP9iBCWOmjmhoH94dH82BxPQ==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/netbsd-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/netbsd-x64/-/netbsd-x64-0.21.5.tgz",
+      "integrity": "sha512-Woi2MXzXjMULccIwMnLciyZH4nCIMpWQAs049KEeMvOcNADVxo0UBIQPfSmxB3CWKedngg7sWZdLvLczpe0tLg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "netbsd"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/openbsd-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/openbsd-x64/-/openbsd-x64-0.21.5.tgz",
+      "integrity": "sha512-HLNNw99xsvx12lFBUwoT8EVCsSvRNDVxNpjZ7bPn947b8gJPzeHWyNVhFsaerc0n3TsbOINvRP2byTZ5LKezow==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "openbsd"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/sunos-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/sunos-x64/-/sunos-x64-0.21.5.tgz",
+      "integrity": "sha512-6+gjmFpfy0BHU5Tpptkuh8+uw3mnrvgs+dSPQXQOv3ekbordwnzTVEb4qnIvQcYXq6gzkyTnoZ9dZG+D4garKg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "sunos"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/win32-arm64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/win32-arm64/-/win32-arm64-0.21.5.tgz",
+      "integrity": "sha512-Z0gOTd75VvXqyq7nsl93zwahcTROgqvuAcYDUr+vOv8uHhNSKROyU961kgtCD1e95IqPKSQKH7tBTslnS3tA8A==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/win32-ia32": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/win32-ia32/-/win32-ia32-0.21.5.tgz",
+      "integrity": "sha512-SWXFF1CL2RVNMaVs+BBClwtfZSvDgtL//G/smwAc5oVK/UPu2Gu9tIaRgFmYFFKrmg3SyAjSrElf0TiJ1v8fYA==",
+      "cpu": [
+        "ia32"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/win32-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.21.5.tgz",
+      "integrity": "sha512-tQd/1efJuzPC6rCFwEvLtci/xNFcTZknmXs98FYDfGE4wP9ClFV98nyKrzJKVPMhdDnjzLhdUyMX4PsQAPjwIw==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@jridgewell/gen-mapping": {
+      "version": "0.3.13",
+      "resolved": "https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz",
+      "integrity": "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@jridgewell/sourcemap-codec": "^1.5.0",
+        "@jridgewell/trace-mapping": "^0.3.24"
+      }
+    },
+    "node_modules/@jridgewell/remapping": {
+      "version": "2.3.5",
+      "resolved": "https://registry.npmjs.org/@jridgewell/remapping/-/remapping-2.3.5.tgz",
+      "integrity": "sha512-LI9u/+laYG4Ds1TDKSJW2YPrIlcVYOwi2fUC6xB43lueCjgxV4lffOCZCtYFiH6TNOX+tQKXx97T4IKHbhyHEQ==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@jridgewell/gen-mapping": "^0.3.5",
+        "@jridgewell/trace-mapping": "^0.3.24"
+      }
+    },
+    "node_modules/@jridgewell/resolve-uri": {
+      "version": "3.1.2",
+      "resolved": "https://registry.npmjs.org/@jridgewell/resolve-uri/-/resolve-uri-3.1.2.tgz",
+      "integrity": "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.0.0"
+      }
+    },
+    "node_modules/@jridgewell/sourcemap-codec": {
+      "version": "1.5.5",
+      "resolved": "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz",
+      "integrity": "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/@jridgewell/trace-mapping": {
+      "version": "0.3.31",
+      "resolved": "https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz",
+      "integrity": "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@jridgewell/resolve-uri": "^3.1.0",
+        "@jridgewell/sourcemap-codec": "^1.4.14"
+      }
+    },
+    "node_modules/@rolldown/pluginutils": {
+      "version": "1.0.0-beta.27",
+      "resolved": "https://registry.npmjs.org/@rolldown/pluginutils/-/pluginutils-1.0.0-beta.27.tgz",
+      "integrity": "sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/@rollup/rollup-android-arm-eabi": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-android-arm-eabi/-/rollup-android-arm-eabi-4.62.2.tgz",
+      "integrity": "sha512-6o7ZLZK+BeenkZCFNDXqpbjw9bD6nuWonvS/lwQJp7NoVVxm6p3qE7qQ5jGuBjiFsgvqjD8mZAU5oWxTmbOeOg==",
+      "cpu": [
+        "arm"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ]
+    },
+    "node_modules/@rollup/rollup-android-arm64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-android-arm64/-/rollup-android-arm64-4.62.2.tgz",
+      "integrity": "sha512-BaH7BllCACHoH1LguOU56UItGfUWjujlO65kS9LAodViaN4bwIKd7oeW/ZHJ/4ljr/7MIiENnNy3HJ0zXv8Zkw==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ]
+    },
+    "node_modules/@rollup/rollup-darwin-arm64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-darwin-arm64/-/rollup-darwin-arm64-4.62.2.tgz",
+      "integrity": "sha512-v39RCCvj4He82I9sFmk+M1VZ0PLM9sfsLVikjfx2hYBNALhrrOR2D3JjQA6AhlaSOgcR+RzrKY7e1+bT6SUO/A==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ]
+    },
+    "node_modules/@rollup/rollup-darwin-x64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-darwin-x64/-/rollup-darwin-x64-4.62.2.tgz",
+      "integrity": "sha512-yl0y2vq3S3lHeuXhEdss6TWfKW8vkujImO12tn4ZkG/4oghr09LvdYm2RElVjokTQiUvDUGXLGsYeLqUMCKpGA==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ]
+    },
+    "node_modules/@rollup/rollup-freebsd-arm64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-freebsd-arm64/-/rollup-freebsd-arm64-4.62.2.tgz",
+      "integrity": "sha512-tT4pvt4qXD+vEoezupCWi+a1F0vvDiksiHc+PxRlYTOH1I6/X4id9jPxTP+Fg+545euaFT1jJVs4CEdHZAU1vw==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ]
+    },
+    "node_modules/@rollup/rollup-freebsd-x64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-freebsd-x64/-/rollup-freebsd-x64-4.62.2.tgz",
+      "integrity": "sha512-6nU5F2wCW+qvCBhTn1pdIU3bzsIoF7EUwsCDRxilWGprQR6yd508YnH9+OKFCwpfS8pjZqDUmnCAr7exax0XCg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-arm-gnueabihf": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-arm-gnueabihf/-/rollup-linux-arm-gnueabihf-4.62.2.tgz",
+      "integrity": "sha512-n1GJHPOvpIfhi3TmrCeh6S6URt9BFCt0KQE3qvexyGCTAKpR4Lg+eWvNZEqu7epxwus/8ElT3hacYEucm49SZg==",
+      "cpu": [
+        "arm"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-arm-musleabihf": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-arm-musleabihf/-/rollup-linux-arm-musleabihf-4.62.2.tgz",
+      "integrity": "sha512-JqgflS8wEB+UXV/vS1RpRbifGBeN4D5lz8D8oOFbFZw4vedvdOgCFAjfBmIMdW3yL10XpQQ0Ambepw6MXrhOnA==",
+      "cpu": [
+        "arm"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-arm64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-arm64-gnu/-/rollup-linux-arm64-gnu-4.62.2.tgz",
+      "integrity": "sha512-wnFJkogWvN4jm/hQRF2UBaeUmk20j5+DmHvoyWii2b8HJDyvz1MF2OU/6ynXt2KR63rbZLWkFpoytpdc/yBuSA==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-arm64-musl": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-arm64-musl/-/rollup-linux-arm64-musl-4.62.2.tgz",
+      "integrity": "sha512-HVu2bp0zhvJ8xHEV9+UUs7S90VadmBSY3LcIMvozbPo4AuMGDWlz3ymHLHZPX4hR67TKTt8Qp5PJ5RBg/i+RMQ==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-loong64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-loong64-gnu/-/rollup-linux-loong64-gnu-4.62.2.tgz",
+      "integrity": "sha512-mQqqAV8QaoSgr9I2fKDLY2BAVvmKjWoGiu/cSYQonsLvtqwEn1E4QYfnCOcp5zoEqNhsDYin1s6jx/VJmrxlZg==",
+      "cpu": [
+        "loong64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-loong64-musl": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-loong64-musl/-/rollup-linux-loong64-musl-4.62.2.tgz",
+      "integrity": "sha512-IxKLoxCQ2IWi6bT2akyDUBGsOImDKB+sPp4EsTmwFQ/fMwpCKm8uLSSgP/Kx/QYUgKis6SEZ5/Nlhup0DIA0PQ==",
+      "cpu": [
+        "loong64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-ppc64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-ppc64-gnu/-/rollup-linux-ppc64-gnu-4.62.2.tgz",
+      "integrity": "sha512-Mk5ha2RQSgyFfmYYLkBpPnUk8D8FriBxesO1u9O75X0mHgXL1UQcH5Itl2lurWL2tj0RxV9b9tJgipac0hRY9A==",
+      "cpu": [
+        "ppc64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-ppc64-musl": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-ppc64-musl/-/rollup-linux-ppc64-musl-4.62.2.tgz",
+      "integrity": "sha512-CjvEnqJL/0/TQ3TXX3OPIJ/kmBellrWd4heXUmHeJlTnmwjKpSJzoehLaL6Xk0ZnMHBu9dZuFADNOrtjF4v+2w==",
+      "cpu": [
+        "ppc64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-riscv64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-riscv64-gnu/-/rollup-linux-riscv64-gnu-4.62.2.tgz",
+      "integrity": "sha512-1SiZbzwdkaDURsew/tSOrooKiYy7EQGT6m8ufavAi9NEyQb/6VuIxFXAL1fqa4iZe3g4NbNk4P7J32z2tw5Mgg==",
+      "cpu": [
+        "riscv64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-riscv64-musl": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-riscv64-musl/-/rollup-linux-riscv64-musl-4.62.2.tgz",
+      "integrity": "sha512-nQts12zJ3NQRoE6uYljOH89v7szzLDvG2JD/vsX+vGXU8w/At1GowTZ5/7qeFQ8m7L55rpR8Okugnuo5bgjy2Q==",
+      "cpu": [
+        "riscv64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-s390x-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-s390x-gnu/-/rollup-linux-s390x-gnu-4.62.2.tgz",
+      "integrity": "sha512-E9/ll019jhPIJgpzfZoIkBGhcz+kKNgVWYRY0zr9srBdPPFVpvOKW8VaJKUbeK+eZXyQF9ltME+Kk6affeaPgg==",
+      "cpu": [
+        "s390x"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-x64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-x64-gnu/-/rollup-linux-x64-gnu-4.62.2.tgz",
+      "integrity": "sha512-5BqxR/pshjey51iliyzTD5Xi3EN0aLmQ2lZ3lvefVV9c82BvrLo2/6OT55iifpWBufs6kdwWbuOKS841DrmK9A==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-x64-musl": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-x64-musl/-/rollup-linux-x64-musl-4.62.2.tgz",
+      "integrity": "sha512-uNN83XxQrRAh/w0/pmAfibcwyb6YWt4gP+dpnQKPVJshAloQ785ii8CT8ZCIxkGg9opVsvAlGhFitSm6D1Jjpg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-openbsd-x64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-openbsd-x64/-/rollup-openbsd-x64-4.62.2.tgz",
+      "integrity": "sha512-srjEIxSH3LRnJN6THczDHWQplqEMFiAJrTab0msUryh9kwNpkICf3Ea6q6MN/2cZwRFUNx5w+h6Hpi4QuHS6Zg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "openbsd"
+      ]
+    },
+    "node_modules/@rollup/rollup-openharmony-arm64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-openharmony-arm64/-/rollup-openharmony-arm64-4.62.2.tgz",
+      "integrity": "sha512-8hOJnxgbyObnCm5AlRA3A931xX19xq80RjVTKgJOvEKWqJruP/Uf12IbAOaDjjEXYRewwHLfmF0YRIdK3OwKWA==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "openharmony"
+      ]
+    },
+    "node_modules/@rollup/rollup-win32-arm64-msvc": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-win32-arm64-msvc/-/rollup-win32-arm64-msvc-4.62.2.tgz",
+      "integrity": "sha512-mmF4AY1i0hG/bLWUctUq59gtmgaSIRa3cu/A3JFRp/sCNEme2bgDEiDS22P9FbnJB8NJNF4jPJiSP5RHQpUTDg==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ]
+    },
+    "node_modules/@rollup/rollup-win32-ia32-msvc": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-win32-ia32-msvc/-/rollup-win32-ia32-msvc-4.62.2.tgz",
+      "integrity": "sha512-DZgkknc6jhHrk46V25vbAM0zZkyP0nSDkJB8/dRkLTxv470dOmWDqGoEJl/9A0dFfS7yE3REOwNDxpHwSLSt0Q==",
+      "cpu": [
+        "ia32"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ]
+    },
+    "node_modules/@rollup/rollup-win32-x64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-win32-x64-gnu/-/rollup-win32-x64-gnu-4.62.2.tgz",
+      "integrity": "sha512-T6xr6ucWSFto+VGajA8YH26LdpHRuP4YLHEKAtCWvJDOlnmWcDZVCI2Jmjr+IFHDlt2zRaTAKE4tfjTaWLgJBg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ]
+    },
+    "node_modules/@rollup/rollup-win32-x64-msvc": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.62.2.tgz",
+      "integrity": "sha512-BfzEnDJOt9T8M989/lA37EcJgat01wLRnoi5dQf3QzOH7jzpqTAzdDbVfRljVr5r+jzKqpbHeyOfAaXxAd0PAA==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ]
+    },
+    "node_modules/@types/babel__core": {
+      "version": "7.20.5",
+      "resolved": "https://registry.npmjs.org/@types/babel__core/-/babel__core-7.20.5.tgz",
+      "integrity": "sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/parser": "^7.20.7",
+        "@babel/types": "^7.20.7",
+        "@types/babel__generator": "*",
+        "@types/babel__template": "*",
+        "@types/babel__traverse": "*"
+      }
+    },
+    "node_modules/@types/babel__generator": {
+      "version": "7.27.0",
+      "resolved": "https://registry.npmjs.org/@types/babel__generator/-/babel__generator-7.27.0.tgz",
+      "integrity": "sha512-ufFd2Xi92OAVPYsy+P4n7/U7e68fex0+Ee8gSG9KX7eo084CWiQ4sdxktvdl0bOPupXtVJPY19zk6EwWqUQ8lg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/types": "^7.0.0"
+      }
+    },
+    "node_modules/@types/babel__template": {
+      "version": "7.4.4",
+      "resolved": "https://registry.npmjs.org/@types/babel__template/-/babel__template-7.4.4.tgz",
+      "integrity": "sha512-h/NUaSyG5EyxBIp8YRxo4RMe2/qQgvyowRwVMzhYhBCONbW8PUsg4lkFMrhgZhUe5z3L3MiLDuvyJ/CaPa2A8A==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/parser": "^7.1.0",
+        "@babel/types": "^7.0.0"
+      }
+    },
+    "node_modules/@types/babel__traverse": {
+      "version": "7.28.0",
+      "resolved": "https://registry.npmjs.org/@types/babel__traverse/-/babel__traverse-7.28.0.tgz",
+      "integrity": "sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/types": "^7.28.2"
+      }
+    },
+    "node_modules/@types/estree": {
+      "version": "1.0.9",
+      "resolved": "https://registry.npmjs.org/@types/estree/-/estree-1.0.9.tgz",
+      "integrity": "sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/@types/prop-types": {
+      "version": "15.7.15",
+      "resolved": "https://registry.npmjs.org/@types/prop-types/-/prop-types-15.7.15.tgz",
+      "integrity": "sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/@types/react": {
+      "version": "18.3.31",
+      "resolved": "https://registry.npmjs.org/@types/react/-/react-18.3.31.tgz",
+      "integrity": "sha512-vfEqpXTvwT91yhmwdfouStN2hSKwTvyRs8qpLfADyrq/kxDw0hZM7Wk9Ug1FELj8hIby+S/+kQCSRFF32nv2Qw==",
+      "dev": true,
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "@types/prop-types": "*",
+        "csstype": "^3.2.2"
+      }
+    },
+    "node_modules/@types/react-dom": {
+      "version": "18.3.7",
+      "resolved": "https://registry.npmjs.org/@types/react-dom/-/react-dom-18.3.7.tgz",
+      "integrity": "sha512-MEe3UeoENYVFXzoXEWsvcpg6ZvlrFNlOQ7EOsvhI3CfAXwzPfO8Qwuxd40nepsYKqyyVQnTdEfv68q91yLcKrQ==",
+      "dev": true,
+      "license": "MIT",
+      "peerDependencies": {
+        "@types/react": "^18.0.0"
+      }
+    },
+    "node_modules/@vitejs/plugin-react": {
+      "version": "4.7.0",
+      "resolved": "https://registry.npmjs.org/@vitejs/plugin-react/-/plugin-react-4.7.0.tgz",
+      "integrity": "sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/core": "^7.28.0",
+        "@babel/plugin-transform-react-jsx-self": "^7.27.1",
+        "@babel/plugin-transform-react-jsx-source": "^7.27.1",
+        "@rolldown/pluginutils": "1.0.0-beta.27",
+        "@types/babel__core": "^7.20.5",
+        "react-refresh": "^0.17.0"
+      },
+      "engines": {
+        "node": "^14.18.0 || >=16.0.0"
+      },
+      "peerDependencies": {
+        "vite": "^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0"
+      }
+    },
+    "node_modules/baseline-browser-mapping": {
+      "version": "2.11.0",
+      "resolved": "https://registry.npmjs.org/baseline-browser-mapping/-/baseline-browser-mapping-2.11.0.tgz",
+      "integrity": "sha512-oCu2wfipvX3AePSgmOuKkIywOu+8n9psz7hXYmk56ghpu3+7KzNIBopaOs4c9BrtdnTtW30unG9GTfHo7EwERQ==",
+      "dev": true,
+      "license": "Apache-2.0",
+      "bin": {
+        "baseline-browser-mapping": "dist/cli.cjs"
+      },
+      "engines": {
+        "node": ">=6.0.0"
+      }
+    },
+    "node_modules/browserslist": {
+      "version": "4.28.7",
+      "resolved": "https://registry.npmjs.org/browserslist/-/browserslist-4.28.7.tgz",
+      "integrity": "sha512-JxV13hNrFxqjOc8alRbq9dK1MM79NEXYpma2B2J4wAtpWS5zIEIKqWPGCl7N4o7Uc7B7itylh7SuDujATRyyTw==",
+      "dev": true,
+      "funding": [
+        {
+          "type": "opencollective",
+          "url": "https://opencollective.com/browserslist"
+        },
+        {
+          "type": "tidelift",
+          "url": "https://tidelift.com/funding/github/npm/browserslist"
+        },
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/ai"
+        }
+      ],
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "baseline-browser-mapping": "^2.10.44",
+        "caniuse-lite": "^1.0.30001806",
+        "electron-to-chromium": "^1.5.393",
+        "node-releases": "^2.0.51",
+        "update-browserslist-db": "^1.2.3"
+      },
+      "bin": {
+        "browserslist": "cli.js"
+      },
+      "engines": {
+        "node": "^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7"
+      }
+    },
+    "node_modules/caniuse-lite": {
+      "version": "1.0.30001806",
+      "resolved": "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001806.tgz",
+      "integrity": "sha512-72Cuvd95zbSYPKq6Fhg8eDJRlzgWDf7/mtoZv6Qe/DYNCEBdNxoA3+rZAU2ZhGCpZlns3EssFavaZomckT5Uuw==",
+      "dev": true,
+      "funding": [
+        {
+          "type": "opencollective",
+          "url": "https://opencollective.com/browserslist"
+        },
+        {
+          "type": "tidelift",
+          "url": "https://tidelift.com/funding/github/npm/caniuse-lite"
+        },
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/ai"
+        }
+      ],
+      "license": "CC-BY-4.0"
+    },
+    "node_modules/convert-source-map": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/convert-source-map/-/convert-source-map-2.0.0.tgz",
+      "integrity": "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/csstype": {
+      "version": "3.2.3",
+      "resolved": "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz",
+      "integrity": "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/debug": {
+      "version": "4.4.3",
+      "resolved": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz",
+      "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "ms": "^2.1.3"
+      },
+      "engines": {
+        "node": ">=6.0"
+      },
+      "peerDependenciesMeta": {
+        "supports-color": {
+          "optional": true
+        }
+      }
+    },
+    "node_modules/electron-to-chromium": {
+      "version": "1.5.395",
+      "resolved": "https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.395.tgz",
+      "integrity": "sha512-7zt9Aw+SrmxLWLN0zhaTWZQiCdryLVrYTq5R7iZakLvi2UQPYMMsROYV/2qVCzMeCiSXHwKOU+sZ4zOVVlrtKA==",
+      "dev": true,
+      "license": "ISC"
+    },
+    "node_modules/esbuild": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.21.5.tgz",
+      "integrity": "sha512-mg3OPMV4hXywwpoDxu3Qda5xCKQi+vCTZq8S9J/EpkhB2HzKXq4SNFZE3+NK93JYxc8VMSep+lOUSC/RVKaBqw==",
+      "dev": true,
+      "hasInstallScript": true,
+      "license": "MIT",
+      "bin": {
+        "esbuild": "bin/esbuild"
+      },
+      "engines": {
+        "node": ">=12"
+      },
+      "optionalDependencies": {
+        "@esbuild/aix-ppc64": "0.21.5",
+        "@esbuild/android-arm": "0.21.5",
+        "@esbuild/android-arm64": "0.21.5",
+        "@esbuild/android-x64": "0.21.5",
+        "@esbuild/darwin-arm64": "0.21.5",
+        "@esbuild/darwin-x64": "0.21.5",
+        "@esbuild/freebsd-arm64": "0.21.5",
+        "@esbuild/freebsd-x64": "0.21.5",
+        "@esbuild/linux-arm": "0.21.5",
+        "@esbuild/linux-arm64": "0.21.5",
+        "@esbuild/linux-ia32": "0.21.5",
+        "@esbuild/linux-loong64": "0.21.5",
+        "@esbuild/linux-mips64el": "0.21.5",
+        "@esbuild/linux-ppc64": "0.21.5",
+        "@esbuild/linux-riscv64": "0.21.5",
+        "@esbuild/linux-s390x": "0.21.5",
+        "@esbuild/linux-x64": "0.21.5",
+        "@esbuild/netbsd-x64": "0.21.5",
+        "@esbuild/openbsd-x64": "0.21.5",
+        "@esbuild/sunos-x64": "0.21.5",
+        "@esbuild/win32-arm64": "0.21.5",
+        "@esbuild/win32-ia32": "0.21.5",
+        "@esbuild/win32-x64": "0.21.5"
+      }
+    },
+    "node_modules/escalade": {
+      "version": "3.2.0",
+      "resolved": "https://registry.npmjs.org/escalade/-/escalade-3.2.0.tgz",
+      "integrity": "sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6"
+      }
+    },
+    "node_modules/fsevents": {
+      "version": "2.3.3",
+      "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz",
+      "integrity": "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
+      "dev": true,
+      "hasInstallScript": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": "^8.16.0 || ^10.6.0 || >=11.0.0"
+      }
+    },
+    "node_modules/gensync": {
+      "version": "1.0.0-beta.2",
+      "resolved": "https://registry.npmjs.org/gensync/-/gensync-1.0.0-beta.2.tgz",
+      "integrity": "sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/js-tokens": {
+      "version": "4.0.0",
+      "resolved": "https://registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz",
+      "integrity": "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==",
+      "license": "MIT"
+    },
+    "node_modules/jsesc": {
+      "version": "3.1.0",
+      "resolved": "https://registry.npmjs.org/jsesc/-/jsesc-3.1.0.tgz",
+      "integrity": "sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA==",
+      "dev": true,
+      "license": "MIT",
+      "bin": {
+        "jsesc": "bin/jsesc"
+      },
+      "engines": {
+        "node": ">=6"
+      }
+    },
+    "node_modules/json5": {
+      "version": "2.2.3",
+      "resolved": "https://registry.npmjs.org/json5/-/json5-2.2.3.tgz",
+      "integrity": "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==",
+      "dev": true,
+      "license": "MIT",
+      "bin": {
+        "json5": "lib/cli.js"
+      },
+      "engines": {
+        "node": ">=6"
+      }
+    },
+    "node_modules/loose-envify": {
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/loose-envify/-/loose-envify-1.4.0.tgz",
+      "integrity": "sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==",
+      "license": "MIT",
+      "dependencies": {
+        "js-tokens": "^3.0.0 || ^4.0.0"
+      },
+      "bin": {
+        "loose-envify": "cli.js"
+      }
+    },
+    "node_modules/lru-cache": {
+      "version": "5.1.1",
+      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-5.1.1.tgz",
+      "integrity": "sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==",
+      "dev": true,
+      "license": "ISC",
+      "dependencies": {
+        "yallist": "^3.0.2"
+      }
+    },
+    "node_modules/ms": {
+      "version": "2.1.3",
+      "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+      "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/nanoid": {
+      "version": "3.3.16",
+      "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.16.tgz",
+      "integrity": "sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==",
+      "dev": true,
+      "funding": [
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/ai"
+        }
+      ],
+      "license": "MIT",
+      "bin": {
+        "nanoid": "bin/nanoid.cjs"
+      },
+      "engines": {
+        "node": "^10 || ^12 || ^13.7 || ^14 || >=15.0.1"
+      }
+    },
+    "node_modules/node-releases": {
+      "version": "2.0.51",
+      "resolved": "https://registry.npmjs.org/node-releases/-/node-releases-2.0.51.tgz",
+      "integrity": "sha512-wRNIrw4DmVLKQlbgOMdkMx27Wrpzes2hh5Jtbi2bjPd+4wJstWIqP5A+lscnqbm0xxmT5Bpg8Lec5ItEBwx6BQ==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/picocolors": {
+      "version": "1.1.1",
+      "resolved": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz",
+      "integrity": "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==",
+      "dev": true,
+      "license": "ISC"
+    },
+    "node_modules/postcss": {
+      "version": "8.5.21",
+      "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.5.21.tgz",
+      "integrity": "sha512-v4sDNP3fdNiWMfabO7OwOQdOX8TiQSztKyT1Wj0w+j7LDallJThJRBBBmzVGyYj0crMh7jlV4zepPkiNu9UwDQ==",
+      "dev": true,
+      "funding": [
+        {
+          "type": "opencollective",
+          "url": "https://opencollective.com/postcss/"
+        },
+        {
+          "type": "tidelift",
+          "url": "https://tidelift.com/funding/github/npm/postcss"
+        },
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/ai"
+        }
+      ],
+      "license": "MIT",
+      "dependencies": {
+        "nanoid": "^3.3.16",
+        "picocolors": "^1.1.1",
+        "source-map-js": "^1.2.1"
+      },
+      "engines": {
+        "node": "^10 || ^12 || >=14"
+      }
+    },
+    "node_modules/react": {
+      "version": "18.3.1",
+      "resolved": "https://registry.npmjs.org/react/-/react-18.3.1.tgz",
+      "integrity": "sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==",
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "loose-envify": "^1.1.0"
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/react-dom": {
+      "version": "18.3.1",
+      "resolved": "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz",
+      "integrity": "sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==",
+      "license": "MIT",
+      "dependencies": {
+        "loose-envify": "^1.1.0",
+        "scheduler": "^0.23.2"
+      },
+      "peerDependencies": {
+        "react": "^18.3.1"
+      }
+    },
+    "node_modules/react-refresh": {
+      "version": "0.17.0",
+      "resolved": "https://registry.npmjs.org/react-refresh/-/react-refresh-0.17.0.tgz",
+      "integrity": "sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/rollup": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/rollup/-/rollup-4.62.2.tgz",
+      "integrity": "sha512-RFnrW4lhXA3s3eqHDZvN654g8OTjzRfqpIRJYczCGB6HzphckVAi/Qh4tbPUbRuDi7s1Llv8g/NspLkttY3gTA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@types/estree": "1.0.9"
+      },
+      "bin": {
+        "rollup": "dist/bin/rollup"
+      },
+      "engines": {
+        "node": ">=18.0.0",
+        "npm": ">=8.0.0"
+      },
+      "optionalDependencies": {
+        "@rollup/rollup-android-arm-eabi": "4.62.2",
+        "@rollup/rollup-android-arm64": "4.62.2",
+        "@rollup/rollup-darwin-arm64": "4.62.2",
+        "@rollup/rollup-darwin-x64": "4.62.2",
+        "@rollup/rollup-freebsd-arm64": "4.62.2",
+        "@rollup/rollup-freebsd-x64": "4.62.2",
+        "@rollup/rollup-linux-arm-gnueabihf": "4.62.2",
+        "@rollup/rollup-linux-arm-musleabihf": "4.62.2",
+        "@rollup/rollup-linux-arm64-gnu": "4.62.2",
+        "@rollup/rollup-linux-arm64-musl": "4.62.2",
+        "@rollup/rollup-linux-loong64-gnu": "4.62.2",
+        "@rollup/rollup-linux-loong64-musl": "4.62.2",
+        "@rollup/rollup-linux-ppc64-gnu": "4.62.2",
+        "@rollup/rollup-linux-ppc64-musl": "4.62.2",
+        "@rollup/rollup-linux-riscv64-gnu": "4.62.2",
+        "@rollup/rollup-linux-riscv64-musl": "4.62.2",
+        "@rollup/rollup-linux-s390x-gnu": "4.62.2",
+        "@rollup/rollup-linux-x64-gnu": "4.62.2",
+        "@rollup/rollup-linux-x64-musl": "4.62.2",
+        "@rollup/rollup-openbsd-x64": "4.62.2",
+        "@rollup/rollup-openharmony-arm64": "4.62.2",
+        "@rollup/rollup-win32-arm64-msvc": "4.62.2",
+        "@rollup/rollup-win32-ia32-msvc": "4.62.2",
+        "@rollup/rollup-win32-x64-gnu": "4.62.2",
+        "@rollup/rollup-win32-x64-msvc": "4.62.2",
+        "fsevents": "~2.3.2"
+      }
+    },
+    "node_modules/scheduler": {
+      "version": "0.23.2",
+      "resolved": "https://registry.npmjs.org/scheduler/-/scheduler-0.23.2.tgz",
+      "integrity": "sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==",
+      "license": "MIT",
+      "dependencies": {
+        "loose-envify": "^1.1.0"
+      }
+    },
+    "node_modules/semver": {
+      "version": "6.3.1",
+      "resolved": "https://registry.npmjs.org/semver/-/semver-6.3.1.tgz",
+      "integrity": "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==",
+      "dev": true,
+      "license": "ISC",
+      "bin": {
+        "semver": "bin/semver.js"
+      }
+    },
+    "node_modules/source-map-js": {
+      "version": "1.2.1",
+      "resolved": "https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz",
+      "integrity": "sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==",
+      "dev": true,
+      "license": "BSD-3-Clause",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/typescript": {
+      "version": "5.9.3",
+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
+      "dev": true,
+      "license": "Apache-2.0",
+      "bin": {
+        "tsc": "bin/tsc",
+        "tsserver": "bin/tsserver"
+      },
+      "engines": {
+        "node": ">=14.17"
+      }
+    },
+    "node_modules/update-browserslist-db": {
+      "version": "1.2.3",
+      "resolved": "https://registry.npmjs.org/update-browserslist-db/-/update-browserslist-db-1.2.3.tgz",
+      "integrity": "sha512-Js0m9cx+qOgDxo0eMiFGEueWztz+d4+M3rGlmKPT+T4IS/jP4ylw3Nwpu6cpTTP8R1MAC1kF4VbdLt3ARf209w==",
+      "dev": true,
+      "funding": [
+        {
+          "type": "opencollective",
+          "url": "https://opencollective.com/browserslist"
+        },
+        {
+          "type": "tidelift",
+          "url": "https://tidelift.com/funding/github/npm/browserslist"
+        },
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/ai"
+        }
+      ],
+      "license": "MIT",
+      "dependencies": {
+        "escalade": "^3.2.0",
+        "picocolors": "^1.1.1"
+      },
+      "bin": {
+        "update-browserslist-db": "cli.js"
+      },
+      "peerDependencies": {
+        "browserslist": ">= 4.21.0"
+      }
+    },
+    "node_modules/vite": {
+      "version": "5.4.21",
+      "resolved": "https://registry.npmjs.org/vite/-/vite-5.4.21.tgz",
+      "integrity": "sha512-o5a9xKjbtuhY6Bi5S3+HvbRERmouabWbyUcpXXUA1u+GNUKoROi9byOJ8M0nHbHYHkYICiMlqxkg1KkYmm25Sw==",
+      "dev": true,
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "esbuild": "^0.21.3",
+        "postcss": "^8.4.43",
+        "rollup": "^4.20.0"
+      },
+      "bin": {
+        "vite": "bin/vite.js"
+      },
+      "engines": {
+        "node": "^18.0.0 || >=20.0.0"
+      },
+      "funding": {
+        "url": "https://github.com/vitejs/vite?sponsor=1"
+      },
+      "optionalDependencies": {
+        "fsevents": "~2.3.3"
+      },
+      "peerDependencies": {
+        "@types/node": "^18.0.0 || >=20.0.0",
+        "less": "*",
+        "lightningcss": "^1.21.0",
+        "sass": "*",
+        "sass-embedded": "*",
+        "stylus": "*",
+        "sugarss": "*",
+        "terser": "^5.4.0"
+      },
+      "peerDependenciesMeta": {
+        "@types/node": {
+          "optional": true
+        },
+        "less": {
+          "optional": true
+        },
+        "lightningcss": {
+          "optional": true
+        },
+        "sass": {
+          "optional": true
+        },
+        "sass-embedded": {
+          "optional": true
+        },
+        "stylus": {
+          "optional": true
+        },
+        "sugarss": {
+          "optional": true
+        },
+        "terser": {
+          "optional": true
+        }
+      }
+    },
+    "node_modules/yallist": {
+      "version": "3.1.1",
+      "resolved": "https://registry.npmjs.org/yallist/-/yallist-3.1.1.tgz",
+      "integrity": "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==",
+      "dev": true,
+      "license": "ISC"
+    }
+  }
+}
+```
+
+```json
+// File: frontend\landing-app\package.json
+{
+  "name": "landing-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.1"
+  }
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\App.tsx
+import Navbar from "./components/Navbar";
+import Hero from "./components/Hero";
+import TrustBadges from "./components/TrustBadges";
+import Features from "./components/Features";
+import WhyChoose from "./components/WhyChoose";
+import FeaturesGrid from "./components/FeaturesGrid";
+import Security from "./components/Security";
+import Roadmap from "./components/Roadmap";
+import FAQ from "./components/FAQ";
+import CTA from "./components/CTA";
+import NextStep from "./components/NextStep";
+import Footer from "./components/Footer";
+
+export default function App() {
+  return (
+    <>
+      <div className="orb orb-1" />
+      <div className="orb orb-2" />
+      <div className="orb orb-3" />
+
+      <Navbar />
+      <main>
+        <Hero />
+        <TrustBadges />
+        <Features />
+        <WhyChoose />
+        <FeaturesGrid />
+        <Security />
+        <Roadmap />
+        <FAQ />
+        <CTA />
+        <NextStep />
+      </main>
+      <Footer />
+    </>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\CTA.tsx
+export default function CTA() {
+  return (
+    <section className="cta-section" id="cta">
+      <div className="section-container">
+        <h2 className="cta-title">
+          Ready to simplify rent management?
+        </h2>
+        <p className="cta-subtitle">
+          Join the early access list and be the first to know when the platform
+          launches.
+        </p>
+        <div className="cta-form">
+          <input
+            type="email"
+            placeholder="Enter your email address"
+            className="cta-input"
+            aria-label="Email address"
+          />
+          <button className="btn btn-primary cta-button">Notify Me</button>
+        </div>
+        <p className="cta-note">
+          No spam. We'll only email you when the platform is ready or when we
+          have a major update.
+        </p>
+      </div>
+    </section>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\FAQ.tsx
+import { useState } from "react";
+import { faqItems } from "../data";
+
+export default function FAQ() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
+  return (
+    <section className="faq-section" id="faq">
+      <div className="section-container">
+        <div className="section-badge">FAQ</div>
+        <h2 className="section-title">Frequently asked questions</h2>
+        <p className="section-subtitle">
+          Quick answers to common questions about the platform.
+        </p>
+        <div className="faq-list">
+          {faqItems.map((item, i) => (
+            <div key={i} className={`faq-item ${openIndex === i ? "open" : ""}`}>
+              <button
+                className="faq-question"
+                onClick={() => setOpenIndex(openIndex === i ? null : i)}
+                aria-expanded={openIndex === i}
+              >
+                <span>{item.question}</span>
+                <span className="faq-chevron">{openIndex === i ? "−" : "+"}</span>
+              </button>
+              {openIndex === i && (
+                <div className="faq-answer">
+                  <p>{item.answer}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\Features.tsx
+import { features } from "../data";
+
+const iconMap: Record<string, string> = {
+  receipt: "🧾",
+  users: "👥",
+  "layout-dashboard": "📊",
+  "bell-ring": "📣",
+  "file-check": "✅",
+  scale: "⚖️",
+};
+
+export default function Features() {
+  return (
+    <section className="features-section" id="features">
+      <div className="section-container">
+        <div className="section-badge">Features</div>
+        <h2 className="section-title">
+          Everything you need to manage rent digitally
+        </h2>
+        <p className="section-subtitle">
+          From automated rent collection to legal-ready receipts — the platform
+          handles the complexity so you don't have to.
+        </p>
+        <div className="features-grid">
+          {features.map((feature) => (
+            <div key={feature.title} className="feature-card">
+              <div className="feature-icon">{iconMap[feature.icon]}</div>
+              <h3 className="feature-title">{feature.title}</h3>
+              <p className="feature-desc">{feature.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\FeaturesGrid.tsx
+import { featureCategories } from "../data";
+
+export default function FeaturesGrid() {
+  return (
+    <section className="features-grid-section">
+      <div className="section-container">
+        <div className="section-badge">Capabilities</div>
+        <h2 className="section-title">
+          A full-stack rent management solution
+        </h2>
+        <p className="section-subtitle">
+          Property management, tenant tracking, financial tools, alerts,
+          documents, and admin — all unified under one roof.
+        </p>
+        <div className="feature-cat-grid">
+          {featureCategories.map((cat) => (
+            <div key={cat.title} className="feature-cat-card">
+              <h3 className="feature-cat-title">{cat.title}</h3>
+              <ul className="feature-cat-list">
+                {cat.items.map((item) => (
+                  <li key={item}>
+                    <span className="bullet" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\Footer.tsx
+import { supportLinks } from "../data";
+
+export default function Footer() {
+  return (
+    <footer className="site-footer">
+      <div className="footer-inner">
+        <div className="footer-brand">
+          <div className="footer-logo">
+            <span className="logo-icon">R</span>
+            <span className="logo-text">Rent</span>
+          </div>
+          <p className="footer-tagline">
+            Rent management for the digital age.
+          </p>
+        </div>
+
+        <div className="footer-col">
+          <h4 className="footer-heading">Features</h4>
+          <ul>
+            <li><a href="#features">Rent Collection</a></li>
+            <li><a href="#features">Tenant Management</a></li>
+            <li><a href="#features">Smart Alerts</a></li>
+            <li><a href="#features">Receipts</a></li>
+          </ul>
+        </div>
+
+        <div className="footer-col">
+          <h4 className="footer-heading">Support</h4>
+          <ul>
+            {supportLinks.map((link) => (
+              <li key={link}><a href="#">{link}</a></li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="footer-col">
+          <h4 className="footer-heading">Contact</h4>
+          <ul>
+            <li><a href="mailto:support@rent.vijaykrsha.online">support@rent.vijaykrsha.online</a></li>
+            <li><a href="tel:+919449825584">+91 94498 25584</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="footer-bottom">
+        <p>&copy; {new Date().getFullYear()} Rent Management Platform. All rights reserved.</p>
+        <div className="footer-bottom-links">
+          <a href="#">Privacy Policy</a>
+          <a href="#">Terms of Service</a>
+        </div>
+      </div>
+    </footer>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\Hero.tsx
+import { heroInlineBadges } from "../data";
+
+export default function Hero() {
+  return (
+    <section className="hero-section" id="hero">
+      <div className="hero-animated-logo" aria-hidden="true">
+        <div className="animated-logo-placeholder">
+          <span>R</span>
+        </div>
+      </div>
+
+      <div className="hero-badge">
+        <span className="pulse-dot" />
+        Coming Soon — Smarter Rent Management
+      </div>
+
+      <h1 className="hero-title">
+        Rent Management,
+        <br />
+        <span className="gradient-text">Simplified.</span>
+      </h1>
+
+      <p className="hero-subtitle">
+        A complete digital platform for landlords, tenants, and administrators.
+        Track payments, manage properties, send receipts, and stay compliant —
+        all from one place.
+      </p>
+
+      <div className="hero-inline-badges">
+        {heroInlineBadges.map((badge) => (
+          <span key={badge} className="inline-badge">
+            {badge}
+          </span>
+        ))}
+      </div>
+
+      <div className="hero-actions">
+        <a href="#cta" className="btn btn-primary">
+          Notify Me
+        </a>
+        <a href="#features" className="btn btn-ghost">
+          Learn More
+        </a>
+      </div>
+    </section>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\Navbar.tsx
+import { useState } from "react";
+import { navLinks } from "../data";
+
+export default function Navbar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  return (
+    <nav className="navbar">
+      <div className="navbar-inner">
+        <a href="#" className="navbar-logo" aria-label="Home">
+          <span className="logo-icon">R</span>
+          <span className="logo-text">Rent</span>
+        </a>
+
+        <ul className={`navbar-links ${mobileOpen ? "open" : ""}`}>
+          {navLinks.map((link) => (
+            <li key={link.href}>
+              <a
+                href={link.href}
+                onClick={() => setMobileOpen(false)}
+              >
+                {link.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+
+        <a href="#cta" className="navbar-cta">
+          Get Early Access
+        </a>
+
+        <button
+          className="navbar-toggle"
+          aria-label="Toggle menu"
+          onClick={() => setMobileOpen(!mobileOpen)}
+        >
+          <span className={`hamburger ${mobileOpen ? "open" : ""}`} />
+        </button>
+      </div>
+    </nav>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\NextStep.tsx
+const portals = [
+  {
+    icon: "🏠",
+    title: "Landlord Portal",
+    description:
+      "Manage your properties, tenants, and rental receipts. New here? Create a free landlord account.",
+    buttons: [
+      { label: "🔑 Landlord Login", href: "./landlord/login", variant: "primary" },
+      { label: "✨ Create Account", href: "./landlord/signup", variant: "secondary" },
+    ],
+  },
+  {
+    icon: "👤",
+    title: "Tenant Portal",
+    description:
+      "View your rent due, payment history, download receipts, and communicate with your landlord.",
+    buttons: [
+      { label: "🔑 Tenant Login", href: "./tenant/login", variant: "primary" },
+    ],
+  },
+  {
+    icon: "🛡️",
+    title: "Platform Admin",
+    description:
+      "System administration, global settings, and platform-wide oversight. Restricted access only.",
+    buttons: [
+      { label: "🔐 Admin Login", href: "./platform-admin", variant: "green" },
+    ],
+  },
+];
+
+export default function NextStep() {
+  return (
+    <section className="nextstep-section" id="contact">
+      <div className="section-container">
+        <div className="section-badge">Get Started</div>
+        <h2 className="section-title">The next step</h2>
+        <p className="section-subtitle">
+          Choose how you'd like to access the platform.
+        </p>
+        <div className="nextstep-grid">
+          {portals.map((portal) => (
+            <div key={portal.title} className="nextstep-card">
+              <div className="nextstep-icon">{portal.icon}</div>
+              <h3 className="nextstep-title">{portal.title}</h3>
+              <p className="nextstep-desc">{portal.description}</p>
+              <div className="nextstep-buttons">
+                {portal.buttons.map((btn) => (
+                  <a
+                    key={btn.label}
+                    href={btn.href}
+                    className={`btn btn-${btn.variant === "green" ? "green" : btn.variant === "secondary" ? "outline" : "primary"}`}
+                  >
+                    {btn.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\Roadmap.tsx
+import { roadmapMilestones } from "../data";
+
+const statusColors: Record<string, string> = {
+  completed: "#22c55e",
+  "in-progress": "#6c63ff",
+  upcoming: "#7a7f99",
+};
+
+const statusLabels: Record<string, string> = {
+  completed: "Completed",
+  "in-progress": "In Progress",
+  upcoming: "Upcoming",
+};
+
+export default function Roadmap() {
+  return (
+    <section className="roadmap-section">
+      <div className="section-container">
+        <div className="section-badge">Roadmap</div>
+        <h2 className="section-title">Coming soon: The roadmap</h2>
+        <p className="section-subtitle">
+          A transparent view of what's being built and what's coming next.
+        </p>
+        <div className="roadmap-timeline">
+          {roadmapMilestones.map((milestone, i) => (
+            <div key={milestone.version} className="roadmap-item">
+              <div className="roadmap-marker">
+                <div
+                  className="roadmap-dot"
+                  style={{ background: statusColors[milestone.status] }}
+                />
+                {i < roadmapMilestones.length - 1 && (
+                  <div className="roadmap-line" />
+                )}
+              </div>
+              <div className="roadmap-content">
+                <div className="roadmap-header">
+                  <span className="roadmap-version">{milestone.version}</span>
+                  <span
+                    className="roadmap-status"
+                    style={{
+                      color: statusColors[milestone.status],
+                      borderColor: statusColors[milestone.status],
+                    }}
+                  >
+                    {statusLabels[milestone.status]}
+                  </span>
+                </div>
+                <h3 className="roadmap-title">{milestone.title}</h3>
+                <p className="roadmap-desc">{milestone.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\Security.tsx
+import { securityPillars } from "../data";
+
+const iconMap: Record<string, string> = {
+  lock: "🔒",
+  "shield-check": "🛡️",
+  key: "🔐",
+  "file-search": "📋",
+};
+
+export default function Security() {
+  return (
+    <section className="security-section" id="security">
+      <div className="section-container">
+        <div className="section-badge">Security & Privacy</div>
+        <h2 className="section-title">Your data is protected by design</h2>
+        <p className="section-subtitle">
+          Security is not an afterthought. Every layer of the platform is built
+          with privacy, encryption, and access control at its core.
+        </p>
+        <div className="security-grid">
+          {securityPillars.map((pillar) => (
+            <div key={pillar.title} className="security-card">
+              <div className="security-icon">{iconMap[pillar.icon]}</div>
+              <h3 className="security-title">{pillar.title}</h3>
+              <p className="security-desc">{pillar.description}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\TrustBadges.tsx
+import { trustBadges } from "../data";
+
+const iconMap: Record<string, string> = {
+  bell: "🔔",
+  scale: "⚖️",
+  badge: "🎯",
+  building: "🏢",
+  shield: "🔒",
+  zap: "⚡",
+};
+
+export default function TrustBadges() {
+  return (
+    <section className="trust-section">
+      <div className="trust-grid">
+        {trustBadges.map((badge) => (
+          <div key={badge.title} className="trust-card">
+            <div className="trust-icon">{iconMap[badge.icon]}</div>
+            <div className="trust-title">{badge.title}</div>
+            <div className="trust-desc">{badge.description}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\WhyChoose.tsx
+import { useState } from "react";
+import { whyChooseFeatures, screenshotTabs } from "../data";
+
+export default function WhyChoose() {
+  const [activeTab, setActiveTab] = useState(0);
+
+  return (
+    <section className="why-section" id="benefits">
+      <div className="why-grid">
+        <div className="why-content">
+          <div className="section-badge">Why Rent</div>
+          <h2 className="section-title">Built for modern landlords</h2>
+          <p className="section-subtitle" style={{ textAlign: "left" }}>
+            Stop chasing payments and chasing paperwork. The platform automates
+            the tedious parts of rent management so you can focus on what
+            matters.
+          </p>
+          <ul className="benefits-list">
+            {whyChooseFeatures.map((item) => (
+              <li key={item}>
+                <span className="check-icon">✓</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="why-preview">
+          <div className="screenshot-tabs">
+            {screenshotTabs.map((tab, i) => (
+              <button
+                key={tab}
+                className={`screenshot-tab ${i === activeTab ? "active" : ""}`}
+                onClick={() => setActiveTab(i)}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+          <div className="screenshot-placeholder">
+            <div className="screenshot-mockup">
+              <div className="mockup-header">
+                <span className="mockup-dot red" />
+                <span className="mockup-dot yellow" />
+                <span className="mockup-dot green" />
+              </div>
+              <div className="mockup-body">
+                <div className="mockup-label">
+                  {screenshotTabs[activeTab]} — Coming Soon
+                </div>
+                <div className="mockup-bars">
+                  <div className="mockup-bar" style={{ width: "80%" }} />
+                  <div className="mockup-bar" style={{ width: "60%" }} />
+                  <div className="mockup-bar" style={{ width: "90%" }} />
+                  <div className="mockup-bar" style={{ width: "45%" }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+```
+
+```typescript
+// File: frontend\landing-app\src\data.ts
+export const navLinks = [
+  { label: "Features", href: "#features" },
+  { label: "Benefits", href: "#benefits" },
+  { label: "Security", href: "#security" },
+  { label: "FAQ", href: "#faq" },
+  { label: "Contact Us", href: "#contact" },
+];
+
+export const trustBadges = [
+  {
+    icon: "bell",
+    title: "Smart Alerts",
+    description: "Rent reminders, overdue notices, and renewal alerts sent automatically.",
+  },
+  {
+    icon: "scale",
+    title: "Legal-Ready",
+    description: "Compliant notices, TDS tracking, and legally valid rent receipts.",
+  },
+  {
+    icon: "badge",
+    title: "Free Core",
+    description: "Core rent management features are free forever for all landlords.",
+  },
+  {
+    icon: "building",
+    title: "Multi-Property",
+    description: "Manage unlimited properties, tenants, and units from one dashboard.",
+  },
+  {
+    icon: "shield",
+    title: "Private & Secure",
+    description: "Your data stays yours. Encrypted at rest, never shared with third parties.",
+  },
+  {
+    icon: "zap",
+    title: "Fast Setup",
+    description: "Add your first property in under 2 minutes. No training required.",
+  },
+];
+
+export const heroInlineBadges = [
+  "Live Tracking",
+  "Legal-Ready",
+  "WhatsApp Alerts",
+];
+
+export const features = [
+  {
+    icon: "receipt",
+    title: "Automated Rent Collection",
+    description:
+      "Set rent amounts, due dates, and let the system handle reminders and tracking automatically.",
+  },
+  {
+    icon: "users",
+    title: "Tenant & Lease Management",
+    description:
+      "Maintain complete tenant profiles, lease agreements, move-in/move-out dates, and deposit records.",
+  },
+  {
+    icon: "layout-dashboard",
+    title: "Multi-Property Dashboard",
+    description:
+      "View occupancy, payments, and alerts across all your properties in a single dashboard.",
+  },
+  {
+    icon: "bell-ring",
+    title: "Smart Alerts & Notifications",
+    description:
+      "Automated WhatsApp, email, and in-app notifications for rent due, overdue, and renewals.",
+  },
+  {
+    icon: "file-check",
+    title: "Receipt & Payment Tracking",
+    description:
+      "Generate digital receipts for every payment. Track partial payments, advances, and arrears.",
+  },
+  {
+    icon: "scale",
+    title: "Legal & Compliance Support",
+    description:
+      "Compliant rent receipts, TDS certificates, and legal notice templates ready to use.",
+  },
+];
+
+export const whyChooseFeatures = [
+  "Track every payment in real-time across all properties",
+  "Automated WhatsApp and email reminders — no follow-ups needed",
+  "Legally valid receipts and notices, instantly downloadable",
+  "Works on any device — phone, tablet, or desktop",
+  "Multi-language support (English, Hindi, Kannada, Tamil, Telugu)",
+  "Free for landlords to manage up to 5 tenants",
+];
+
+export const screenshotTabs = ["Dashboard", "Tenants", "Payments"];
+
+export const featureCategories = [
+  {
+    title: "Property Management",
+    items: [
+      "Add unlimited properties and units",
+      "Track occupancy in real-time",
+      "Property-wise income & expense reports",
+      "Unit-level rent configuration",
+    ],
+  },
+  {
+    title: "Tenant Management",
+    items: [
+      "Complete tenant profiles with documents",
+      "Lease tracking with auto-renewal alerts",
+      "Move-in / Move-out workflow",
+      "Deposit management and refund tracking",
+    ],
+  },
+  {
+    title: "Financial Management",
+    items: [
+      "Automated rent invoicing",
+      "Payment tracking with partial payments",
+      "Digital receipts for every transaction",
+      "Expense tracking per property",
+    ],
+  },
+  {
+    title: "Alerts & Notifications",
+    items: [
+      "Rent due reminders (7 days, 3 days, 1 day before)",
+      "Overdue rent escalation alerts",
+      "Lease renewal reminders",
+      "WhatsApp, Email, and In-app notifications",
+    ],
+  },
+  {
+    title: "Document Management",
+    items: [
+      "Upload and store lease agreements",
+      "ID proof document storage",
+      "Rent receipts (downloadable PDF)",
+      "Legal notice templates",
+    ],
+  },
+  {
+    title: "Admin & Support",
+    items: [
+      "Platform-wide tenant support system",
+      "Global settings and configuration",
+      "Audit logs for all actions",
+      "Data backup and export",
+    ],
+  },
+];
+
+export const securityPillars = [
+  {
+    icon: "lock",
+    title: "Data Protection",
+    description: "AES-256 encryption at rest and TLS 1.3 in transit. Your data never leaves secure infrastructure.",
+  },
+  {
+    icon: "shield-check",
+    title: "Role-Based Access",
+    description: "Landlords see their data, tenants see theirs, admins have controlled access. Zero privilege escalation.",
+  },
+  {
+    icon: "key",
+    title: "Encrypted Secrets",
+    description: "API keys, tokens, and credentials are encrypted at the application level. Never stored in plaintext.",
+  },
+  {
+    icon: "file-search",
+    title: "Transparent Logs",
+    description: "Every action is logged. Full audit trail for compliance, disputes, and transparency.",
+  },
+];
+
+export const roadmapMilestones = [
+  {
+    version: "v1.0",
+    title: "MVP Live",
+    description: "Core rent management, tenant tracking, payment receipts, and basic alerts.",
+    status: "completed" as const,
+  },
+  {
+    version: "v1.5",
+    title: "Advanced Billing",
+    description: "Maintenance charges, utility billing, penalty calculation, and partial payment support.",
+    status: "in-progress" as const,
+  },
+  {
+    version: "v2.0",
+    title: "Full Analytics",
+    description: "Revenue analytics, occupancy trends, tenant history, and exportable reports.",
+    status: "upcoming" as const,
+  },
+  {
+    version: "v3.0",
+    title: "API & Integrations",
+    description: "Public API, accounting software integration, bank statement import, and UPI tracking.",
+    status: "upcoming" as const,
+  },
+];
+
+export const faqItems = [
+  {
+    question: "Is the platform free for landlords?",
+    answer:
+      "Yes. Core rent management features — adding properties, tracking tenants, generating receipts, and sending reminders — are free for landlords managing up to 5 tenants. Premium features are available for larger portfolios.",
+  },
+  {
+    question: "How does the WhatsApp integration work?",
+    answer:
+      "The platform sends automated rent reminders, overdue notices, and receipts directly via WhatsApp. Tenants receive messages from an official business account. No personal WhatsApp account is required.",
+  },
+  {
+    question: "Can tenants use the platform independently?",
+    answer:
+      "Yes. Tenants get their own portal to view rent due, payment history, download receipts, and communicate with their landlord. They can access it from any device with a web browser.",
+  },
+  {
+    question: "Is my data secure and private?",
+    answer:
+      "Absolutely. All data is encrypted at rest (AES-256) and in transit (TLS 1.3). Landlords can only see their own data. We never share or sell any information to third parties.",
+  },
+  {
+    question: "What languages are supported?",
+    answer:
+      "The platform currently supports English, Hindi, Kannada, Tamil, and Telugu. More languages are planned based on user demand.",
+  },
+];
+
+export const supportLinks = [
+  "Help Center",
+  "API Documentation",
+  "System Status",
+  "Report a Bug",
+];
+```
+
+```css
+// File: frontend\landing-app\src\index.css
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RESET & VARIABLES
+   ═══════════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #0a0c14;
+  --surface:     #111320;
+  --card:        #161829;
+  --border:      rgba(255,255,255,0.06);
+  --text:        #e8eaf0;
+  --muted:       #7a7f99;
+  --accent:      #6c63ff;
+  --accent-glow: rgba(108,99,255,0.35);
+  --accent-soft: rgba(108,99,255,0.1);
+  --green:       #22c55e;
+  --green-glow:  rgba(34,197,94,0.30);
+  --green-soft:  rgba(34,197,94,0.1);
+  --orange:      #f97316;
+  --radius:      16px;
+  --radius-sm:   10px;
+  --transition:  0.22s cubic-bezier(0.4,0,0.2,1);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:      #f0f2f8;
+    --surface: #ffffff;
+    --card:    #ffffff;
+    --border:  rgba(0,0,0,0.08);
+    --text:    #111827;
+    --muted:   #6b7280;
+    --accent-soft: rgba(108,99,255,0.06);
+    --green-soft:  rgba(34,197,94,0.06);
+  }
+}
+
+html { scroll-behavior: smooth; }
+html, body {
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BACKGROUND EFFECTS
+   ═══════════════════════════════════════════════════════════════════════ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(108,99,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(108,99,255,0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(140px);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+.orb-1 { width: 600px; height: 600px; top: -200px; left: -150px; background: radial-gradient(circle, var(--accent) 0%, transparent 70%); }
+.orb-2 { width: 450px; height: 450px; bottom: -120px; right: -100px; background: radial-gradient(circle, var(--green) 0%, transparent 70%); }
+.orb-3 { width: 300px; height: 300px; top: 50%; left: 50%; transform: translate(-50%, -50%); background: radial-gradient(circle, rgba(108,99,255,0.3) 0%, transparent 70%); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   LAYOUT
+   ═══════════════════════════════════════════════════════════════════════ */
+main {
+  position: relative;
+  z-index: 1;
+}
+
+.section-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 80px 24px;
+  text-align: center;
+}
+
+.section-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(108,99,255,0.2);
+  border-radius: 100px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.section-title {
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  margin-bottom: 16px;
+}
+
+.section-subtitle {
+  font-size: 1.05rem;
+  color: var(--muted);
+  max-width: 600px;
+  margin: 0 auto 48px;
+  line-height: 1.65;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════════════════════════════════ */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 4px 20px var(--accent-glow);
+}
+.btn-primary:hover {
+  background: #7c73ff;
+  box-shadow: 0 8px 32px var(--accent-glow);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover {
+  border-color: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.03);
+}
+
+.btn-outline {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid rgba(108,99,255,0.25);
+}
+.btn-outline:hover {
+  background: rgba(108,99,255,0.18);
+  border-color: rgba(108,99,255,0.45);
+}
+
+.btn-green {
+  background: var(--green);
+  color: #fff;
+  box-shadow: 0 4px 20px var(--green-glow);
+}
+.btn-green:hover {
+  background: #16a34a;
+  box-shadow: 0 8px 32px var(--green-glow);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   NAVBAR
+   ═══════════════════════════════════════════════════════════════════════ */
+.navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: rgba(10,12,20,0.8);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+
+.navbar-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 24px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.navbar-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.logo-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.logo-text {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.navbar-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  list-style: none;
+  flex: 1;
+}
+
+.navbar-links a {
+  display: block;
+  padding: 8px 14px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all var(--transition);
+}
+
+.navbar-links a:hover {
+  color: var(--text);
+  background: rgba(255,255,255,0.05);
+}
+
+.navbar-cta {
+  padding: 8px 20px;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 8px;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.navbar-cta:hover {
+  background: #7c73ff;
+}
+
+.navbar-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.hamburger {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--text);
+  position: relative;
+  transition: all var(--transition);
+}
+.hamburger::before, .hamburger::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--text);
+  transition: all var(--transition);
+}
+.hamburger::before { top: -6px; }
+.hamburger::after { top: 6px; }
+.hamburger.open { background: transparent; }
+.hamburger.open::before { top: 0; transform: rotate(45deg); }
+.hamburger.open::after { top: 0; transform: rotate(-45deg); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HERO
+   ═══════════════════════════════════════════════════════════════════════ */
+.hero-section {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 120px 24px 80px;
+  gap: 24px;
+}
+
+.hero-animated-logo {
+  margin-bottom: 8px;
+}
+
+.animated-logo-placeholder {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: 900;
+  color: #fff;
+  box-shadow: 0 8px 40px var(--accent-glow);
+  animation: float 3s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(108,99,255,0.2);
+  border-radius: 100px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.7); }
+}
+
+.hero-title {
+  font-size: clamp(2.5rem, 6vw, 4.25rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+  max-width: 700px;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent) 0%, #a78bfa 50%, var(--green) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-subtitle {
+  font-size: 1.15rem;
+  color: var(--muted);
+  max-width: 560px;
+  line-height: 1.7;
+}
+
+.hero-inline-badges {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.inline-badge {
+  padding: 6px 16px;
+  border-radius: 100px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TRUST BADGES
+   ═══════════════════════════════════════════════════════════════════════ */
+.trust-section {
+  position: relative;
+  z-index: 1;
+  padding: 0 24px;
+}
+
+.trust-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.trust-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px 20px;
+  text-align: center;
+  transition: all var(--transition);
+}
+.trust-card:hover {
+  border-color: rgba(108,99,255,0.2);
+  transform: translateY(-2px);
+}
+
+.trust-icon {
+  font-size: 28px;
+  margin-bottom: 12px;
+}
+
+.trust-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.trust-desc {
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FEATURES (6 cards)
+   ═══════════════════════════════════════════════════════════════════════ */
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.feature-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 28px;
+  text-align: left;
+  transition: all var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+.feature-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at top left, var(--accent-glow), transparent 60%);
+  opacity: 0;
+  transition: opacity var(--transition);
+  pointer-events: none;
+}
+.feature-card:hover {
+  border-color: rgba(108,99,255,0.25);
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(108,99,255,0.12);
+}
+.feature-card:hover::after { opacity: 1; }
+
+.feature-icon {
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+
+.feature-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.feature-desc {
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WHY CHOOSE + SCREENSHOTS
+   ═══════════════════════════════════════════════════════════════════════ */
+.why-section {
+  position: relative;
+  z-index: 1;
+  padding: 80px 24px;
+}
+
+.why-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 60px;
+  align-items: center;
+}
+
+.benefits-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.benefits-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.check-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--green-soft);
+  color: var(--green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+/* Screenshot Preview */
+.screenshot-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 16px;
+}
+
+.screenshot-tab {
+  flex: 1;
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.screenshot-tab.active {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.screenshot-tab:hover:not(.active) {
+  color: var(--text);
+}
+
+.screenshot-placeholder {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.screenshot-mockup {
+  background: var(--surface);
+}
+
+.mockup-header {
+  display: flex;
+  gap: 6px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mockup-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.mockup-dot.red { background: #ff5f57; }
+.mockup-dot.yellow { background: #ffbd2e; }
+.mockup-dot.green { background: #28ca41; }
+
+.mockup-body {
+  padding: 28px;
+}
+
+.mockup-label {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.mockup-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mockup-bar {
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--accent-soft), rgba(108,99,255,0.15));
+  opacity: 0.6;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FEATURES GRID (6 categories)
+   ═══════════════════════════════════════════════════════════════════════ */
+.feature-cat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  text-align: left;
+}
+
+.feature-cat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  transition: all var(--transition);
+}
+.feature-cat-card:hover {
+  border-color: rgba(108,99,255,0.2);
+}
+
+.feature-cat-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+
+.feature-cat-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feature-cat-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.bullet {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SECURITY
+   ═══════════════════════════════════════════════════════════════════════ */
+.security-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+.security-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px 24px;
+  text-align: center;
+  transition: all var(--transition);
+}
+.security-card:hover {
+  border-color: rgba(34,197,94,0.25);
+  transform: translateY(-2px);
+}
+
+.security-icon {
+  font-size: 32px;
+  margin-bottom: 14px;
+}
+
+.security-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.security-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ROADMAP
+   ═══════════════════════════════════════════════════════════════════════ */
+.roadmap-timeline {
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.roadmap-item {
+  display: flex;
+  gap: 24px;
+  position: relative;
+}
+
+.roadmap-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.roadmap-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 3px solid var(--bg);
+  box-shadow: 0 0 0 2px currentColor;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.roadmap-line {
+  width: 2px;
+  flex: 1;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.roadmap-content {
+  padding-bottom: 32px;
+}
+
+.roadmap-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.roadmap-version {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 2px 10px;
+  border-radius: 100px;
+}
+
+.roadmap-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid;
+  padding: 2px 10px;
+  border-radius: 100px;
+}
+
+.roadmap-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.roadmap-desc {
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FAQ
+   ═══════════════════════════════════════════════════════════════════════ */
+.faq-list {
+  max-width: 700px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: left;
+}
+
+.faq-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+.faq-item.open {
+  border-color: rgba(108,99,255,0.2);
+}
+
+.faq-question {
+  width: 100%;
+  padding: 18px 24px;
+  background: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  text-align: left;
+  font-family: inherit;
+}
+
+.faq-chevron {
+  font-size: 1.25rem;
+  color: var(--accent);
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+}
+
+.faq-answer {
+  padding: 0 24px 18px;
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CTA
+   ═══════════════════════════════════════════════════════════════════════ */
+.cta-section {
+  position: relative;
+  z-index: 1;
+}
+
+.cta-section .section-container {
+  background: linear-gradient(135deg, rgba(108,99,255,0.08) 0%, rgba(34,197,94,0.05) 100%);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.cta-title {
+  font-size: clamp(1.5rem, 3.5vw, 2.25rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 12px;
+}
+
+.cta-subtitle {
+  font-size: 1rem;
+  color: var(--muted);
+  margin-bottom: 32px;
+}
+
+.cta-form {
+  display: flex;
+  gap: 12px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.cta-input {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.cta-input::placeholder { color: var(--muted); }
+.cta-input:focus { border-color: var(--accent); }
+
+.cta-button {
+  flex-shrink: 0;
+}
+
+.cta-note {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 16px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   NEXT STEP (Role cards)
+   ═══════════════════════════════════════════════════════════════════════ */
+.nextstep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.nextstep-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 28px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  transition: all var(--transition);
+}
+.nextstep-card:hover {
+  border-color: rgba(108,99,255,0.2);
+  transform: translateY(-4px);
+}
+
+.nextstep-icon {
+  font-size: 36px;
+}
+
+.nextstep-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.nextstep-desc {
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.55;
+  flex: 1;
+}
+
+.nextstep-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.nextstep-buttons .btn {
+  width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FOOTER
+   ═══════════════════════════════════════════════════════════════════════ */
+.site-footer {
+  position: relative;
+  z-index: 1;
+  border-top: 1px solid var(--border);
+  padding: 60px 24px 32px;
+}
+
+.footer-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 40px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid var(--border);
+}
+
+.footer-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.footer-tagline {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.footer-heading {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.footer-col ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.footer-col a {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+.footer-col a:hover { color: var(--text); }
+
+.footer-bottom {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.footer-bottom-links {
+  display: flex;
+  gap: 20px;
+}
+
+.footer-bottom-links a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color var(--transition);
+}
+.footer-bottom-links a:hover { color: var(--text); }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .navbar-links {
+    display: none;
+    position: absolute;
+    top: 64px;
+    left: 0;
+    right: 0;
+    background: rgba(10,12,20,0.95);
+    backdrop-filter: blur(16px);
+    flex-direction: column;
+    padding: 16px 24px;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .navbar-links.open { display: flex; }
+  .navbar-cta { display: none; }
+  .navbar-toggle { display: block; }
+
+  .hero-section { padding: 100px 20px 60px; min-height: auto; }
+  .hero-title { font-size: clamp(2rem, 8vw, 3rem); }
+  .hero-actions { flex-direction: column; width: 100%; }
+  .hero-actions .btn { width: 100%; }
+
+  .trust-grid { grid-template-columns: repeat(2, 1fr); }
+
+  .features-grid { grid-template-columns: 1fr; }
+
+  .why-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+
+  .feature-cat-grid { grid-template-columns: 1fr; }
+
+  .security-grid { grid-template-columns: 1fr; }
+
+  .nextstep-grid { grid-template-columns: 1fr; }
+
+  .cta-form {
+    flex-direction: column;
+  }
+
+  .footer-inner {
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .trust-grid { grid-template-columns: 1fr; }
+  .footer-inner { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  html { scroll-behavior: auto; }
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\main.tsx
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+```
+
+```json
+// File: frontend\landing-app\tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+```
+
+```json
+// File: frontend\landing-app\tsconfig.node.json
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "strict": true
+  },
+  "include": ["vite.config.ts"]
+}
+```
+
+```
+// File: frontend\landing-app\tsconfig.node.tsbuildinfo
+{"fileNames":["./node_modules/typescript/lib/lib.d.ts","./node_modules/typescript/lib/lib.es5.d.ts","./node_modules/typescript/lib/lib.dom.d.ts","./node_modules/typescript/lib/lib.webworker.importscripts.d.ts","./node_modules/typescript/lib/lib.scripthost.d.ts","./node_modules/typescript/lib/lib.decorators.d.ts","./node_modules/typescript/lib/lib.decorators.legacy.d.ts","./node_modules/@types/estree/index.d.ts","./node_modules/rollup/dist/rollup.d.ts","./node_modules/rollup/dist/parseast.d.ts","./node_modules/vite/types/hmrpayload.d.ts","./node_modules/vite/types/customevent.d.ts","./node_modules/vite/types/hot.d.ts","./node_modules/vite/dist/node/types.d-agj9qkwt.d.ts","./node_modules/esbuild/lib/main.d.ts","./node_modules/source-map-js/source-map.d.ts","./node_modules/postcss/lib/previous-map.d.ts","./node_modules/postcss/lib/input.d.ts","./node_modules/postcss/lib/css-syntax-error.d.ts","./node_modules/postcss/lib/declaration.d.ts","./node_modules/postcss/lib/root.d.ts","./node_modules/postcss/lib/warning.d.ts","./node_modules/postcss/lib/lazy-result.d.ts","./node_modules/postcss/lib/no-work-result.d.ts","./node_modules/postcss/lib/processor.d.ts","./node_modules/postcss/lib/result.d.ts","./node_modules/postcss/lib/document.d.ts","./node_modules/postcss/lib/rule.d.ts","./node_modules/postcss/lib/node.d.ts","./node_modules/postcss/lib/comment.d.ts","./node_modules/postcss/lib/container.d.ts","./node_modules/postcss/lib/at-rule.d.ts","./node_modules/postcss/lib/list.d.ts","./node_modules/postcss/lib/postcss.d.ts","./node_modules/postcss/lib/postcss.d.mts","./node_modules/vite/dist/node/runtime.d.ts","./node_modules/vite/types/importglob.d.ts","./node_modules/vite/types/metadata.d.ts","./node_modules/vite/dist/node/index.d.ts","./node_modules/@babel/types/lib/index.d.ts","./node_modules/@types/babel__generator/index.d.ts","./node_modules/@babel/parser/typings/babel-parser.d.ts","./node_modules/@types/babel__template/index.d.ts","./node_modules/@types/babel__traverse/index.d.ts","./node_modules/@types/babel__core/index.d.ts","./node_modules/@vitejs/plugin-react/dist/index.d.ts","./vite.config.ts","./node_modules/@types/prop-types/index.d.ts","./node_modules/@types/react/global.d.ts","./node_modules/csstype/index.d.ts","./node_modules/@types/react/index.d.ts","./node_modules/@types/react-dom/index.d.ts"],"fileIdsList":[[40],[40,41,42,43,44],[40,42],[51],[48,49,50],[39,45],[31],[29,31],[20,28,29,30,32,34],[18],[21,26,31,34],[17,34],[21,22,25,26,27,34],[21,22,23,25,26,34],[18,19,20,21,22,26,27,28,30,31,32,34],[34],[16,18,19,20,21,22,23,25,26,27,28,29,30,31,32,33],[16,34],[21,23,24,26,27,34],[25,34],[26,27,31,34],[19,29],[9,38],[8,9],[9,10,11,12,13,14,15,35,36,37,38],[11,12,13,14],[11,12,13],[11],[12],[9],[39,46]],"fileInfos":[{"version":"a7297ff837fcdf174a9524925966429eb8e5feecc2cc55cc06574e6b092c1eaa","impliedFormat":1},{"version":"c430d44666289dae81f30fa7b2edebf186ecc91a2d4c71266ea6ae76388792e1","affectsGlobalScope":true,"impliedFormat":1},{"version":"080941d9f9ff9307f7e27a83bcd888b7c8270716c39af943532438932ec1d0b9","affectsGlobalScope":true,"impliedFormat":1},{"version":"80e18897e5884b6723488d4f5652167e7bb5024f946743134ecc4aa4ee731f89","affectsGlobalScope":true,"impliedFormat":1},{"version":"cd034f499c6cdca722b60c04b5b1b78e058487a7085a8e0d6fb50809947ee573","affectsGlobalScope":true,"impliedFormat":1},{"version":"8e7f8264d0fb4c5339605a15daadb037bf238c10b654bb3eee14208f860a32ea","affectsGlobalScope":true,"impliedFormat":1},{"version":"782dec38049b92d4e85c1585fbea5474a219c6984a35b004963b00beb1aab538","affectsGlobalScope":true,"impliedFormat":1},{"version":"751764bb94219b4ce8f5475dc35d3de2e432fea01a0c9610cd7f69ad05e398c6","impliedFormat":1},{"version":"ee70b8037ecdf0de6c04f35277f253663a536d7e38f1539d270e4e916d225a3f","affectsGlobalScope":true,"impliedFormat":1},{"version":"a660aa95476042d3fdcc1343cf6bb8fdf24772d31712b1db321c5a4dcc325434","impliedFormat":1},{"version":"282f98006ed7fa9bb2cd9bdbe2524595cfc4bcd58a0bb3232e4519f2138df811","impliedFormat":1},{"version":"6222e987b58abfe92597e1273ad7233626285bc2d78409d4a7b113d81a83496b","impliedFormat":1},{"version":"cbe726263ae9a7bf32352380f7e8ab66ee25b3457137e316929269c19e18a2be","impliedFormat":1},{"version":"8b96046bf5fb0a815cba6b0880d9f97b7f3a93cf187e8dcfe8e2792e97f38f87","impliedFormat":99},{"version":"bacf2c84cf448b2cd02c717ad46c3d7fd530e0c91282888c923ad64810a4d511","affectsGlobalScope":true,"impliedFormat":1},{"version":"402e5c534fb2b85fa771170595db3ac0dd532112c8fa44fc23f233bc6967488b","impliedFormat":1},{"version":"52dcc257df5119fb66d864625112ce5033ac51a4c2afe376a0b299d2f7f76e4a","impliedFormat":1},{"version":"e5bab5f871ef708d52d47b3e5d0aa72a08ee7a152f33931d9a60809711a2a9a3","impliedFormat":1},{"version":"e16dc2a81595736024a206c7d5c8a39bfe2e6039208ef29981d0d95434ba8fcf","impliedFormat":1},{"version":"cc4a4903fb698ca1d961d4c10dce658aa3a479faf40509d526f122b044eaf6a4","impliedFormat":1},{"version":"19ee8416e6473ed6c7adb868fa796b5653cf0fa2a337658e677eaa0d134388c3","impliedFormat":1},{"version":"1328ab4e442614b28cdb3d4b414cf68325c0da0dca07287a338d0654b7a00261","impliedFormat":1},{"version":"a039dc21f045919f3cbee2ec13812cc6cc3eebc99dae4be00973230f468d19a6","impliedFormat":1},{"version":"3fbe57af01460e49dcd29df55d6931e1672bc6f1be0fb073d11410bc16f9037d","impliedFormat":1},{"version":"f760be449e8562ec5c09bb5187e8e1eabf3c113c0c58cddda53ef8c69f3e2131","impliedFormat":1},{"version":"44325ed13294fce6ab825b82947bbeed2611db7dad9d9135260192f375e5a189","impliedFormat":1},{"version":"e392e8fb5b514eafc585601c1d781485aa6dd6a320e75daf1064a4c6918a1b45","impliedFormat":1},{"version":"46e4a36e8ddbdfb4e7330e11c81c970dc8b218611df9183d39c41c5f8c653b55","impliedFormat":1},{"version":"3cc8a3d123b6b232d48d34b51b785f9da8d193f5b5817fa521fcd2f3b9315c55","impliedFormat":1},{"version":"6332f565867cf4a740a70e30f31cefba37ef7cebcf74f22eab8d744fde6d193e","impliedFormat":1},{"version":"2977b7884aedc895a1d0c9c210c7cf3272c29d6959a08a6fa3ff71e0aff08175","impliedFormat":1},{"version":"17f2922d41ddd032830a91371c948cd9ce903b35c95adca72271a54584f19b0b","impliedFormat":1},{"version":"3eed76ede2a1a14d7c9bb0a642041282dcc264811139d3dd275c9fe14efc9840","impliedFormat":1},{"version":"354a7f8e1287d9d6b7561bc97fdd8cbc2f7c1dd79e4cb37b942e8a5cfaff1085","impliedFormat":1},{"version":"8d369483f0c2b9ee388129cfdb6a43bc8112b377e86a41884bd06e19ce04f4c1","impliedFormat":99},{"version":"82e687ebd99518bc63ea04b0c3810fb6e50aa6942decd0ca6f7a56d9b9a212a6","impliedFormat":99},{"version":"7f698624bbbb060ece7c0e51b7236520ebada74b747d7523c7df376453ed6fea","impliedFormat":1},{"version":"8f07f2b6514744ac96e51d7cb8518c0f4de319471237ea10cf688b8d0e9d0225","impliedFormat":1},{"version":"257b83faa134d971c738a6b9e4c47e59bb7b23274719d92197580dd662bfafc3","impliedFormat":99},{"version":"556ccd493ec36c7d7cb130d51be66e147b91cc1415be383d71da0f1e49f742a9","impliedFormat":1},{"version":"b6d03c9cfe2cf0ba4c673c209fcd7c46c815b2619fd2aad59fc4229aaef2ed43","impliedFormat":1},{"version":"95aba78013d782537cc5e23868e736bec5d377b918990e28ed56110e3ae8b958","impliedFormat":1},{"version":"670a76db379b27c8ff42f1ba927828a22862e2ab0b0908e38b671f0e912cc5ed","impliedFormat":1},{"version":"13b77ab19ef7aadd86a1e54f2f08ea23a6d74e102909e3c00d31f231ed040f62","impliedFormat":1},{"version":"069bebfee29864e3955378107e243508b163e77ab10de6a5ee03ae06939f0bb9","impliedFormat":1},{"version":"26e0ffceb2198feb1ef460d5d14111c69ad07d44c5a67fd4bfeb74c969aa9afb","impliedFormat":99},{"version":"645d255dc2c536b38cb0c1e2aaa5754263715388b612aed407ef1818b24bd9dd","signature":"4b96dd19fd2949d28ce80e913412b0026dc421e5bf6c31d87c7b5eb11b5753b4"},{"version":"87d9d29dbc745f182683f63187bf3d53fd8673e5fca38ad5eaab69798ed29fbc","impliedFormat":1},{"version":"eb5b19b86227ace1d29ea4cf81387279d04bb34051e944bc53df69f58914b788","affectsGlobalScope":true,"impliedFormat":1},{"version":"ac51dd7d31333793807a6abaa5ae168512b6131bd41d9c5b98477fc3b7800f9f","impliedFormat":1},{"version":"09ddcfcfbe77a8232d155ca1030005106b1328f6210df43629d0be750da07c16","affectsGlobalScope":true,"impliedFormat":1},{"version":"17ed71200119e86ccef2d96b73b02ce8854b76ad6bd21b5021d4269bec527b5f","impliedFormat":1}],"root":[47],"options":{"allowSyntheticDefaultImports":true,"composite":true,"module":99,"skipLibCheck":true,"strict":true},"referencedMap":[[42,1],[45,2],[41,1],[43,3],[44,1],[52,4],[51,5],[46,6],[32,7],[30,8],[31,9],[19,10],[20,8],[27,11],[18,12],[23,13],[24,14],[29,15],[35,16],[34,17],[17,18],[25,19],[26,20],[21,21],[28,7],[22,22],[10,23],[9,24],[39,25],[36,26],[14,27],[12,28],[13,29],[38,30],[47,31]],"latestChangedDtsFile":"./vite.config.d.ts","version":"5.9.3"}
+```
+
+```
+// File: frontend\landing-app\tsconfig.tsbuildinfo
+{"root":["./src/app.tsx","./src/data.ts","./src/main.tsx","./src/components/cta.tsx","./src/components/faq.tsx","./src/components/features.tsx","./src/components/featuresgrid.tsx","./src/components/footer.tsx","./src/components/hero.tsx","./src/components/navbar.tsx","./src/components/nextstep.tsx","./src/components/roadmap.tsx","./src/components/security.tsx","./src/components/trustbadges.tsx","./src/components/whychoose.tsx"],"version":"5.9.3"}
+```
+
+```typescript
+// File: frontend\landing-app\vite.config.d.ts
+declare const _default: import("vite").UserConfig;
+export default _default;
+```
+
+```javascript
+// File: frontend\landing-app\vite.config.js
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+export default defineConfig({
+    base: "./",
+    plugins: [react()],
+});
+```
+
+```typescript
+// File: frontend\landing-app\vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  base: "./",
+  plugins: [react()],
+});
+```
+
+```
+// File: frontend\landlord-app\.gitignore
 # Logs
 logs
 *.log
@@ -10272,7 +18178,7 @@ dist-ssr
 ```
 
 ```json
-// File: frontend\admin-app\.oxlintrc.json
+// File: frontend\landlord-app\.oxlintrc.json
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["react", "typescript", "oxc"],
@@ -10284,7 +18190,7 @@ dist-ssr
 ```
 
 ```json
-// File: frontend\admin-app\components.json
+// File: frontend\landlord-app\components.json
 {
   "$schema": "https://ui.shadcn.com/schema.json",
   "style": "new-york",
@@ -10310,7 +18216,7 @@ dist-ssr
 ```
 
 ```javascript
-// File: frontend\admin-app\eslint.config.js
+// File: frontend\landlord-app\eslint.config.js
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -10337,7 +18243,7 @@ export default defineConfig([
 ```
 
 ```html
-// File: frontend\admin-app\index.html
+// File: frontend\landlord-app\index.html
 <!doctype html>
 <html lang="en">
   <head>
@@ -10354,7 +18260,7 @@ export default defineConfig([
 ```
 
 ```markdown
-// File: frontend\admin-app\info.md
+// File: frontend\landlord-app\info.md
 Using Node.js 20, Tailwind CSS v3.4.19, and Vite v7.2.4
 
 Tailwind CSS has been set up with the shadcn theme
@@ -10389,15 +18295,15 @@ Structure:
 ```
 
 ```json
-// File: frontend\admin-app\package-lock.json
+// File: frontend\landlord-app\package-lock.json
 {
-  "name": "my-app",
+  "name": "landlord-app",
   "version": "0.0.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
-      "name": "my-app",
+      "name": "landlord-app",
       "version": "0.0.0",
       "dependencies": {
         "@hookform/resolvers": "^5.2.2",
@@ -18506,9 +26412,9 @@ Structure:
 ```
 
 ```json
-// File: frontend\admin-app\package.json
+// File: frontend\landlord-app\package.json
 {
-  "name": "my-app",
+  "name": "landlord-app",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -18592,7 +26498,7 @@ Structure:
 ```
 
 ```javascript
-// File: frontend\admin-app\postcss.config.js
+// File: frontend\landlord-app\postcss.config.js
 export default {
   plugins: {
     tailwindcss: {},
@@ -18602,7 +26508,7 @@ export default {
 ```
 
 ```markdown
-// File: frontend\admin-app\README.md
+// File: frontend\landlord-app\README.md
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
@@ -18649,7 +26555,7 @@ export default defineConfig([
 ```
 
 ```css
-// File: frontend\admin-app\src\App.css
+// File: frontend\landlord-app\src\App.css
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -18703,7 +26609,7 @@ table {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\App.tsx
+// File: frontend\landlord-app\src\App.tsx
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -18718,23 +26624,29 @@ import Settings from './pages/Settings';
 import History from './pages/History';
 import Backups from './pages/Backups';
 import Archive from './pages/Archive';
-import AdminLoginPage from './pages/AdminLoginPage';
-import AdminSetupPage from './pages/AdminSetupPage';
 import SecuritySettingsPage from './pages/SecuritySettingsPage';
+import ChangePasswordPage from './pages/ChangePasswordPage';
+import LandlordLoginPage from './pages/LandlordLoginPage';
+import LandlordSignupPage from './pages/LandlordSignupPage';
+import { APP_BASE } from './lib/runtime';
 
 function App() {
+  const basename = APP_BASE === "/" ? "/" : APP_BASE.replace(/\/+$/, "");
+
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <BrowserRouter basename="/rent/admin">
+    <AuthProvider>
+      <ThemeProvider>
+        <BrowserRouter basename={basename}>
           <Routes>
             {/* Public/Auth Routes */}
-            <Route path="/login" element={<AdminLoginPage />} />
-            <Route path="/setup" element={<AdminSetupPage />} />
+            <Route path="/login" element={<LandlordLoginPage />} />
+            <Route path="/signup" element={<LandlordSignupPage />} />
+            <Route path="/change-password" element={<ChangePasswordPage />} />
             
-            {/* Protected Routes inside MainLayout */}
+            {/* Protected Routes inside MainLayout — no UUID prefix */}
             <Route element={<MainLayout />}>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/tenants" element={<Tenants />} />
               <Route path="/billing" element={<Billing />} />
               <Route path="/settings" element={<Settings />} />
@@ -18744,13 +26656,26 @@ function App() {
               <Route path="/security" element={<SecuritySettingsPage />} />
             </Route>
 
+            {/* Protected Routes with UUID prefix — for when basename doesn't include UUID */}
+            <Route path="/:uuid" element={<MainLayout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="tenants" element={<Tenants />} />
+              <Route path="billing" element={<Billing />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="history" element={<History />} />
+              <Route path="backups" element={<Backups />} />
+              <Route path="archive" element={<Archive />} />
+              <Route path="security" element={<SecuritySettingsPage />} />
+            </Route>
+
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <Toaster position="top-right" />
         </BrowserRouter>
-      </AuthProvider>
-    </ThemeProvider>
+      </ThemeProvider>
+    </AuthProvider>
   );
 }
 
@@ -18758,7 +26683,7 @@ export default App;
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\archive\ArchiveTenantCard.tsx
+// File: frontend\landlord-app\src\components\archive\ArchiveTenantCard.tsx
 import { useState } from 'react';
 import { RotateCcw, ChevronDown, ChevronUp, Trash2, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18767,6 +26692,7 @@ import { Input } from '@/components/ui/input';
 import { api } from '@/services/api';
 import type { Tenant, Receipt, PermanentDeleteResult } from '@/types';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/contexts/AuthContext';
 import ReceiptRow from '@/components/shared/ReceiptRow';
 import {
   AlertDialog,
@@ -18805,6 +26731,7 @@ export function ArchiveTenantCard({
   onPermanentDelete,
 }: ArchiveTenantCardProps) {
   const toast = useToast();
+  const { landlordUuid } = useAuth();
   const [open, setOpen] = useState(true);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -18818,7 +26745,7 @@ export function ArchiveTenantCard({
     try {
       setRestoring(true);
       // POST /admin/api/tenants/{tenantId}/restore — dedicated endpoint, not DELETE ?action=restore
-      const response = await api.restoreTenant(Number(tenant.id));
+      const response = await api.restoreTenant(landlordUuid!, Number(tenant.id));
 
       // Use the restored tenant name from the response payload if available
       const restoredName =
@@ -18851,7 +26778,7 @@ export function ArchiveTenantCard({
     if (!isConfirmValid || permDeleting) return;
     try {
       setPermDeleting(true);
-      const result = await api.permanentlyDeleteArchivedTenant(Number(tenant.id));
+      const result = await api.permanentlyDeleteArchivedTenant(landlordUuid!, Number(tenant.id));
       closePermDeleteDialog();
       toast.success(
         `Tenant "${result.tenantName}" permanently deleted. Recovery snapshot: ${result.snapshotId} (expires ${new Date(result.expiresAt).toLocaleDateString()})`,
@@ -19080,7 +27007,7 @@ export default ArchiveTenantCard;
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\dashboard\DuePaymentsModal.tsx
+// File: frontend\landlord-app\src\components\dashboard\DuePaymentsModal.tsx
 import { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
@@ -19104,6 +27031,7 @@ import {
 } from '@/components/ui/table';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Receipt, Tenant } from '@/types';
 import PDFPreviewModal from '@/components/shared/PDFPreviewModal';
 import { AlertCircle, Eye, Loader2, Pencil, Search, User } from 'lucide-react';
@@ -19151,6 +27079,7 @@ function PaymentUpdateDialog({
   onSaved: () => void;
 }) {
   const toast = useToast();
+  const { landlordUuid } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState('PENDING');
   const [amountReceived, setAmountReceived] = useState('0');
@@ -19170,7 +27099,7 @@ function PaymentUpdateDialog({
 
     try {
       setSubmitting(true);
-      await api.updatePaymentStatus(receipt.TenantId, receipt.Bill, {
+      await api.updatePaymentStatus(landlordUuid!, receipt.TenantId, receipt.Bill, {
         paymentStatus,
         amountReceived: finalAmount,
       });
@@ -19244,6 +27173,7 @@ function PaymentUpdateDialog({
 
 export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Props) {
   const toast = useToast();
+  const { landlordUuid } = useAuth();
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState('');
   const [groups, setGroups] = useState<DueGroup[]>([]);
@@ -19255,8 +27185,8 @@ export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Prop
     try {
       setLoading(true);
       const [tenants, receipts] = await Promise.all([
-        api.getTenants(),
-        api.getActiveReceipts(),
+        api.getTenants(landlordUuid!),
+        api.getActiveReceipts(landlordUuid!),
       ]);
 
       const tenantMap = new Map<number, Tenant>(tenants.map((t) => [t.id, t]));
@@ -19545,7 +27475,7 @@ export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Prop
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\dashboard\MeterReadingDetailsModal.tsx
+// File: frontend\landlord-app\src\components\dashboard\MeterReadingDetailsModal.tsx
 import { useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
@@ -19566,6 +27496,7 @@ import {
 } from '@/components/ui/table';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Receipt, Tenant } from '@/types';
 import { Loader2, Gauge, User, Zap } from 'lucide-react';
 import {
@@ -19581,8 +27512,9 @@ import {
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  tenantId: number | null;
+  tenantId?: number | null;
   billNo?: string | null;
+  allTenantIds?: number[];
 };
 
 function parseMonthOrder(month: string) {
@@ -19590,21 +27522,40 @@ function parseMonthOrder(month: string) {
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
 
-export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId, billNo }: Props) {
+export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId, billNo, allTenantIds }: Props) {
   const toast = useToast();
+  const { landlordUuid } = useAuth();
   const [loading, setLoading] = useState(false);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [allTenants, setAllTenants] = useState<Tenant[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<number | null>(tenantId ?? null);
 
   useEffect(() => {
-    const load = async () => {
-      if (!open || !tenantId) return;
+    if (!open) return;
 
+    const loadAll = async () => {
+      try {
+        const tenants = await api.getTenants(landlordUuid!);
+        setAllTenants(tenants);
+        const targetId = tenantId ?? (tenants.length > 0 ? tenants[0].id : null);
+        setSelectedTenantId(targetId);
+      } catch {
+        toast.error('Failed to load tenants');
+      }
+    };
+    loadAll();
+  }, [open, tenantId]);
+
+  useEffect(() => {
+    if (!open || !selectedTenantId) return;
+
+    const loadTenant = async () => {
       try {
         setLoading(true);
         const [tenantData, receiptData] = await Promise.all([
-          api.getTenant(tenantId),
-          api.getTenantReceipts(tenantId),
+          api.getTenant(landlordUuid!, selectedTenantId),
+          api.getTenantReceipts(landlordUuid!, selectedTenantId),
         ]);
 
         const sortedReceipts = [...receiptData].sort(
@@ -19620,8 +27571,8 @@ export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId,
       }
     };
 
-    load();
-  }, [open, tenantId]);
+    loadTenant();
+  }, [open, selectedTenantId]);
 
   const chartData = useMemo(() => {
     return receipts.map((receipt) => ({
@@ -19645,10 +27596,28 @@ export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId,
               <DialogDescription>
                 Tenant electricity history, monthly readings, and usage trend
               </DialogDescription>
+              {allTenantIds && allTenantIds.length > 0 && allTenants.length > 0 && (
+                <div className="mt-2">
+                  <label className="text-sm text-muted-foreground mr-2">Select Tenant:</label>
+                  <select
+                    className="border rounded px-2 py-1 text-sm"
+                    value={selectedTenantId ?? ''}
+                    onChange={(e) => setSelectedTenantId(Number(e.target.value))}
+                  >
+                    {allTenants
+                      .filter((t) => allTenantIds.includes(t.id))
+                      .map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name} ({t.roomNumber || 'No Room'})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
             </div>
-            {billNo ? (
+            {selectedTenantId ? (
               <Badge className="bg-amber-100 text-amber-700 border-amber-200">
-                Triggered by {billNo}
+                Tenant {selectedTenantId}
               </Badge>
             ) : null}
           </div>
@@ -19798,7 +27767,7 @@ export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId,
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\layout\Header.tsx
+// File: frontend\landlord-app\src\components\layout\Header.tsx
 import { Search, Sun, Moon, Laptop, Bell } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
@@ -19813,7 +27782,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function Header() {
   const navigate = useNavigate();
-  const { theme, effectiveTheme, setTheme } = useTheme();
+  const { theme, resolvedTheme: effectiveTheme, setTheme } = useTheme();
 
   return (
     <header className="sticky top-0 z-20 h-14 bg-card border-b flex items-center px-4 lg:px-6 gap-4">
@@ -19881,13 +27850,20 @@ export default function Header() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\layout\MainLayout.tsx
-import { Outlet } from 'react-router-dom';
+// File: frontend\landlord-app\src\components\layout\MainLayout.tsx
+import { Outlet, Navigate } from 'react-router-dom';
 import { Toaster } from '@/components/ui/sonner';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function MainLayout() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (!isLoading && !isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
@@ -19904,7 +27880,7 @@ export default function MainLayout() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\layout\Sidebar.tsx
+// File: frontend\landlord-app\src\components\layout\Sidebar.tsx
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import {
@@ -20009,7 +27985,7 @@ export default function Sidebar() {
             <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
               A
             </div>
-            <span className="text-sm text-muted-foreground font-medium">Admin User</span>
+            <span className="text-sm text-muted-foreground font-medium">Landlord User</span>
           </div>
           <button
             onClick={logout}
@@ -20028,7 +28004,7 @@ export default function Sidebar() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\modals\BillsModal.tsx
+// File: frontend\landlord-app\src\components\modals\BillsModal.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20045,6 +28021,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, RefreshCw, Search, FileText, AlertCircle, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ROUTES from '@/lib/routes';
+import { useAuth } from '@/contexts/AuthContext';
 
 export type TenantBill = {
     Bill: string;
@@ -20141,6 +28118,7 @@ export default function BillsModal({
     selectedBill,
     onSelectBill,
 }: BillsModalProps) {
+    const { landlordUuid } = useAuth();
     const [iframeLoading, setIframeLoading] = useState(true);
     const [query, setQuery] = useState('');
     const [refreshKey, setRefreshKey] = useState(0);
@@ -20171,8 +28149,8 @@ export default function BillsModal({
         }
     }, [selectedBill?.Bill, open, refreshKey]);
 
-    const previewUrl = selectedBill && tenantId
-        ? `${ROUTES.ADMINAPIPDFVIEW(tenantId, selectedBill.Bill)}?ts=${refreshKey}`
+    const previewUrl = selectedBill && tenantId && landlordUuid
+        ? `${ROUTES.LANDLORDAPIPDFVIEW(landlordUuid, tenantId, selectedBill.Bill)}?ts=${refreshKey}`
         : '';
 
     return (
@@ -20689,7 +28667,7 @@ export default function BillsModal({
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\modals\ExportPreviewModal.tsx
+// File: frontend\landlord-app\src\components\modals\ExportPreviewModal.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20722,6 +28700,7 @@ import {
     User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 import {
     fetchExportPreview,
     exportCsv,
@@ -20786,6 +28765,7 @@ export default function ExportPreviewModal({
     open,
     onOpenChange,
 }: ExportPreviewModalProps) {
+    const { landlordUuid } = useAuth();
     const [query, setQuery] = useState('');
     const [selectedTenant, setSelectedTenant] = useState<ExportTarget | null>(null);
     const [selectedTenantIds, setSelectedTenantIds] = useState<Set<number>>(new Set());
@@ -20797,7 +28777,7 @@ export default function ExportPreviewModal({
     useEffect(() => {
         if (open && !previewData) {
             setIsLoading(true);
-            fetchExportPreview()
+            fetchExportPreview(landlordUuid!)
                 .then((data) => {
                     setPreviewData(data);
                 })
@@ -20925,15 +28905,15 @@ export default function ExportPreviewModal({
 
             switch (format) {
                 case 'csv':
-                    blob = await exportCsv(ids);
+                    blob = await exportCsv(landlordUuid!, ids);
                     filename = `receipts_export_${dateStr}.csv`;
                     break;
                 case 'xlsx':
-                    blob = await exportExcel('xlsx', ids);
+                    blob = await exportExcel(landlordUuid!, 'xlsx', ids);
                     filename = `Rent_Data_Export_${dateStr}.xlsx`;
                     break;
                 case 'zip':
-                    blob = await exportZip(ids);
+                    blob = await exportZip(landlordUuid!, ids);
                     filename = `tenant_data_${dateStr}.zip`;
                     break;
             }
@@ -21283,7 +29263,7 @@ export default function ExportPreviewModal({
 ```
 
 ```typescript
-// File: frontend\admin-app\src\components\modals\ExportService.ts
+// File: frontend\landlord-app\src\components\modals\ExportService.ts
 // ExportService.ts
 import { ROUTES } from '@/lib/routes';
 
@@ -21331,13 +29311,10 @@ export type ExportPreviewResponse = {
     receipts: Receipt[];
 };
 
-/**
- * Fetch all tenants and receipts for export preview
- */
-export async function fetchExportPreview(): Promise<ExportPreviewResponse> {
+export async function fetchExportPreview(landlordUuid: string): Promise<ExportPreviewResponse> {
     const [tenantsRes, receiptsRes] = await Promise.all([
-        fetch(ROUTES.ADMINAPITENANTSLIST, { credentials: 'include' }),
-        fetch(`${ROUTES.ADMINAPIBILLINGFILTER}?status=active`, { credentials: 'include' }),
+        fetch(ROUTES.LANDLORDAPITENANTSLIST(landlordUuid), { credentials: 'include' }),
+        fetch(`${ROUTES.LANDLORDAPIBILLINGFILTER(landlordUuid)}?status=active`, { credentials: 'include' }),
     ]);
 
     if (!tenantsRes.ok) {
@@ -21353,15 +29330,11 @@ export async function fetchExportPreview(): Promise<ExportPreviewResponse> {
     return { tenants, receipts };
 }
 
-/**
- * Export selected tenants' data as CSV
- * @param tenantIds - Array of tenant IDs to export, or "all"
- */
-export async function exportCsv(tenantIds: number[] | 'all'): Promise<Blob> {
+export async function exportCsv(landlordUuid: string, tenantIds: number[] | 'all'): Promise<Blob> {
     const idsParam = tenantIds === 'all' ? 'all' : tenantIds.join(',');
 
     const response = await fetch(
-        `${ROUTES.ADMINAPISYNCEXPORTCSV}?tenants_list=${encodeURIComponent(idsParam)}`,
+        `${ROUTES.LANDLORDAPISYNCEXPORTCSV(landlordUuid)}?tenants_list=${encodeURIComponent(idsParam)}`,
         { credentials: 'include' }
     );
 
@@ -21372,15 +29345,11 @@ export async function exportCsv(tenantIds: number[] | 'all'): Promise<Blob> {
     return response.blob();
 }
 
-/**
- * Export selected tenants' data as ZIP (with PDFs)
- * @param tenantIds - Array of tenant IDs to export, or "all"
- */
-export async function exportZip(tenantIds: number[] | 'all'): Promise<Blob> {
+export async function exportZip(landlordUuid: string, tenantIds: number[] | 'all'): Promise<Blob> {
     const idsParam = tenantIds === 'all' ? 'all' : tenantIds.join(',');
 
     const response = await fetch(
-        `${ROUTES.ADMINAPISYNCEXPORTZIP}?tenants_list=${encodeURIComponent(idsParam)}`,
+        `${ROUTES.LANDLORDAPISYNCEXPORTZIP(landlordUuid)}?tenants_list=${encodeURIComponent(idsParam)}`,
         { credentials: 'include' }
     );
 
@@ -21391,16 +29360,11 @@ export async function exportZip(tenantIds: number[] | 'all'): Promise<Blob> {
     return response.blob();
 }
 
-/**
- * Export selected tenants' data as XLSX/CSV/ZIP via the unified export-excel endpoint
- * @param format - 'xlsx', 'csv', or 'zip'
- * @param tenantIds - Array of tenant IDs to export, or "all"
- */
-export async function exportExcel(format: 'xlsx' | 'csv' | 'zip', tenantIds: number[] | 'all'): Promise<Blob> {
+export async function exportExcel(landlordUuid: string, format: 'xlsx' | 'csv' | 'zip', tenantIds: number[] | 'all'): Promise<Blob> {
     const idsParam = tenantIds === 'all' ? 'all' : tenantIds.join(',');
 
     const response = await fetch(
-        `${ROUTES.ADMINAPISYNCEXPORTEXCEL(format)}&tenants_list=${encodeURIComponent(idsParam)}`,
+        `${ROUTES.LANDLORDAPISYNCEXPORTEXCEL(landlordUuid, format)}?tenants_list=${encodeURIComponent(idsParam)}`,
         { credentials: 'include' }
     );
 
@@ -21411,9 +29375,6 @@ export async function exportExcel(format: 'xlsx' | 'csv' | 'zip', tenantIds: num
     return response.blob();
 }
 
-/**
- * Trigger file download from blob
- */
 export function downloadBlob(blob: Blob, filename: string) {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -21427,7 +29388,7 @@ export function downloadBlob(blob: Blob, filename: string) {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\modals\ImportPreviewModal.tsx
+// File: frontend\landlord-app\src\components\modals\ImportPreviewModal.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21450,8 +29411,9 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Loader2, Search, FileSpreadsheet, AlertCircle, Upload, Check, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Loader2, Search, FileSpreadsheet, AlertCircle, Check, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 import { importExecute, type PreviewResponse } from './importService';
 import { toast } from 'sonner';
 import {
@@ -21540,18 +29502,7 @@ function getStatusTone(status: string) {
     }
 }
 
-function getPaymentTone(status: string) {
-    switch ((status || '').toUpperCase()) {
-        case 'PAID':
-            return 'bg-green-50 text-green-700 border-green-200';
-        case 'ADVANCE':
-            return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-        case 'PARTIAL':
-            return 'bg-amber-50 text-amber-700 border-amber-200';
-        default:
-            return 'bg-red-50 text-red-700 border-red-200';
-    }
-}
+
 
 function makeTargetKey(file: string, tenantId: string) {
     return `${file}::${tenantId}`;
@@ -21566,6 +29517,7 @@ export default function ImportPreviewModal({
     files,
     onImportSuccess,
 }: ImportPreviewModalProps) {
+    const { landlordUuid } = useAuth();
     const [query, setQuery] = useState('');
     const [selectedTenant, setSelectedTenant] = useState<ImportTarget | null>(null);
     const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
@@ -21718,6 +29670,7 @@ export default function ImportPreviewModal({
             );
 
             const result = await importExecute(
+                landlordUuid!,
                 files, 
                 targets, 
                 selectedStatusMap,
@@ -22187,7 +30140,7 @@ export default function ImportPreviewModal({
 ```
 
 ```typescript
-// File: frontend\admin-app\src\components\modals\importService.ts
+// File: frontend\landlord-app\src\components\modals\importService.ts
 import { ROUTES } from '@/lib/routes';
 import type { SchemaMismatchInfo } from './SchemaMismatchDialog';
 
@@ -22263,11 +30216,11 @@ export interface PreviewResponse {
 /**
  * Upload files for import preview. Returns parsed data or throws with schema mismatch info.
  */
-export async function importPreview(files: File[]): Promise<PreviewResponse> {
+export async function importPreview(landlordUuid: string, files: File[]): Promise<PreviewResponse> {
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
 
-  const response = await fetch(ROUTES.ADMINAPISYNCIMPORTPREVIEW, {
+  const response = await fetch(ROUTES.LANDLORDAPISYNCIMPORTPREVIEW(landlordUuid), {
     method: "POST",
     body: formData,
     credentials: 'include',
@@ -22308,6 +30261,7 @@ export async function importPreview(files: File[]): Promise<PreviewResponse> {
  * form data, NOT a JSON request body.
  */
 export async function importExecute(
+  landlordUuid: string,
   files: File[],
   selectedTargets: string[],
   targetStatuses: Record<string, string> = {},
@@ -22331,7 +30285,7 @@ export async function importExecute(
   if (pinHandling) formData.append("pinhandling", pinHandling);
   if (receiptStrategies) formData.append("receiptstrategies", JSON.stringify(receiptStrategies));
 
-  const response = await fetch(ROUTES.ADMINAPISYNCIMPORTEXECUTE, {
+  const response = await fetch(ROUTES.LANDLORDAPISYNCIMPORTEXECUTE(landlordUuid), {
     method: "POST",
     body: formData,
     credentials: 'include',
@@ -22349,8 +30303,8 @@ export async function importExecute(
 /**
  * Download the import template.
  */
-export async function downloadImportTemplate(): Promise<Blob> {
-    const response = await fetch(ROUTES.ADMINAPISYNCTEMPLATE, {
+export async function downloadImportTemplate(landlordUuid: string): Promise<Blob> {
+    const response = await fetch(ROUTES.LANDLORDAPISYNCTEMPLATE(landlordUuid), {
         credentials: 'include',
     });
 
@@ -22428,7 +30382,498 @@ export function parseSchemaMismatch(
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\modals\PaymentModal.tsx
+// File: frontend\landlord-app\src\components\modals\OccupantsModal.tsx
+import { useState, useEffect, useCallback } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Users,
+  Upload,
+  FileText,
+  Trash2,
+  UserX,
+  X,
+  Loader2,
+  CalendarDays,
+  Phone,
+  MapPin,
+  Clock,
+} from "lucide-react";
+import { api } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
+import type { Occupant, Tenant } from "@/types";
+import { toast } from "sonner";
+
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+function isPdf(filename: string) {
+  return filename.toLowerCase().endsWith(".pdf");
+}
+
+function getUuid(o: Occupant): string {
+  return o.occupantUuid || o["Occupant UUID"] || "";
+}
+
+function daysStayed(residentSince?: string): string {
+  if (!residentSince) return "";
+  try {
+    const days = Math.floor((Date.now() - new Date(residentSince).getTime()) / 86_400_000);
+    if (isNaN(days) || days < 0) return "";
+    return `${days} day${days === 1 ? "" : "s"}`;
+  } catch {
+    return "";
+  }
+}
+
+function formatDate(iso?: string): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return iso;
+  }
+}
+
+// Maps display labels to the possible field names returned by get_occupants
+const DOC_LABEL_KEYS: Record<string, (keyof Occupant)[]> = {
+  "Aadhaar Combined": ["aadhaarcombined", "aadhaar_combined", "Aadhaar Combined"],
+  "Aadhaar Front": ["aadhaarfront", "aadhaar_front", "Aadhaar Front"],
+  "Aadhaar Back": ["aadhaarback", "aadhaar_back", "Aadhaar Back"],
+  "Emp Front": ["empfront", "emp_front", "Emp Front"],
+  "Emp Back": ["empback", "emp_back", "Emp Back"],
+};
+const DOC_LABELS = Object.keys(DOC_LABEL_KEYS) as (keyof typeof DOC_LABEL_KEYS)[];
+
+function getDocFilename(o: Occupant, label: string): string {
+  for (const k of DOC_LABEL_KEYS[label] ?? []) {
+    const v = o[k] as string | undefined;
+    if (v) return v;
+  }
+  return "";
+}
+
+// ─── Upload form ──────────────────────────────────────────────────────────────
+
+function UploadForm({
+  tenantId,
+  onSuccess,
+  onCancel,
+}: {
+  tenantId: number;
+  onSuccess: (newUuid: string) => void;
+  onCancel: () => void;
+}) {
+  const { landlordUuid } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+  const [aadhaarMode, setAadhaarMode] = useState<"combined" | "split">("combined");
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const rawForm = new FormData(e.currentTarget);
+    const combined = rawForm.get("aadhaarcombined") as File | null;
+    const front = rawForm.get("aadhaarfront") as File | null;
+    const back = rawForm.get("aadhaarback") as File | null;
+
+    const hasCombined = combined instanceof File && combined.size > 0;
+    const hasBoth =
+      front instanceof File && front.size > 0 &&
+      back instanceof File && back.size > 0;
+
+    if (!hasCombined && !hasBoth) {
+      toast.error("Upload Aadhaar combined, or both front and back.");
+      return;
+    }
+
+    // Build clean FormData — exclude empty file inputs from the inactive Aadhaar mode
+    const data = new FormData();
+    data.append("name", (rawForm.get("name") as string)?.trim() ?? "");
+    data.append("mobile", (rawForm.get("mobile") as string)?.trim() ?? "");
+    data.append("address", (rawForm.get("address") as string)?.trim() ?? "");
+    data.append("residentSince", rawForm.get("residentSince") as string ?? "");
+
+    if (hasCombined) data.append("aadhaarcombined", combined!);
+    if (hasBoth) {
+      data.append("aadhaarfront", front!);
+      data.append("aadhaarback", back!);
+    }
+    const empFront = rawForm.get("empfront") as File | null;
+    const empBack = rawForm.get("empback") as File | null;
+    if (empFront instanceof File && empFront.size > 0) data.append("empfront", empFront);
+    if (empBack instanceof File && empBack.size > 0) data.append("empback", empBack);
+
+    setSubmitting(true);
+    try {
+      const result = await api.saveOccupant(landlordUuid!, tenantId, data);
+      toast.success("Occupant uploaded");
+      onSuccess(result.occupantUuid);
+    } catch (err: any) {
+      toast.error(err?.message || "Upload failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Name *</Label>
+          <Input name="name" required placeholder="Full name" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Mobile</Label>
+          <Input name="mobile" placeholder="10-digit number" />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Address *</Label>
+        <Input name="address" required placeholder="Permanent address" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Residing Since *</Label>
+        <Input name="residentSince" type="date" required max={new Date().toISOString().slice(0, 10)} />
+      </div>
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-3">
+          <Label className="text-xs font-medium">Aadhaar *</Label>
+          <div className="flex gap-1">
+            {(["combined", "split"] as const).map((m) => (
+              <Button key={m} type="button" size="sm"
+                variant={aadhaarMode === m ? "default" : "outline"}
+                className="h-6 px-2 text-xs"
+                onClick={() => setAadhaarMode(m)}
+              >
+                {m === "combined" ? "Combined" : "Front + Back"}
+              </Button>
+            ))}
+          </div>
+        </div>
+        {aadhaarMode === "combined" ? (
+          <Input name="aadhaarcombined" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Front</Label>
+              <Input name="aadhaarfront" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Back</Label>
+              <Input name="aadhaarback" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+            </div>
+          </div>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Employment Proof (optional)</Label>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Front</Label>
+            <Input name="empfront" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Back</Label>
+            <Input name="empback" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+          </div>
+        </div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <Button type="submit" className="flex-1" disabled={submitting}>
+          {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Upload
+        </Button>
+        <Button type="button" variant="outline" className="flex-1" disabled={submitting} onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Main modal ───────────────────────────────────────────────────────────────
+
+export interface OccupantsModalProps {
+  tenant: Tenant | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export default function OccupantsModal({ tenant, open, onOpenChange }: OccupantsModalProps) {
+  const { landlordUuid } = useAuth();
+  const [occupants, setOccupants] = useState<Occupant[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Occupant | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<string>("");
+  const [showUpload, setShowUpload] = useState(false);
+
+  const tenantId = tenant?.id ?? 0;
+
+  const loadOccupants = useCallback(async (selectUuid?: string) => {
+    if (!tenantId) return;
+    setLoading(true);
+    try {
+      const list = await api.getOccupants(landlordUuid!, tenantId);
+      setOccupants(list);
+      if (selectUuid) {
+        setSelected(list.find((o) => getUuid(o) === selectUuid) ?? list[0] ?? null);
+      } else if (list.length > 0) {
+        setSelected((prev) => prev ?? list[0]);
+      } else {
+        setSelected(null);
+      }
+    } catch {
+      toast.error("Failed to load occupants");
+    } finally {
+      setLoading(false);
+    }
+  }, [tenantId]);
+
+  useEffect(() => {
+    if (open && tenantId) {
+      setSelected(null);
+      setSelectedDoc("");
+      setShowUpload(false);
+      loadOccupants();
+    }
+  }, [open, tenantId]);
+
+  useEffect(() => { setSelectedDoc(""); }, [selected]);
+
+  async function handleMarkInactive(o: Occupant) {
+    try {
+      await api.markOccupantInactive(landlordUuid!, tenantId, getUuid(o));
+      toast.success("Occupant marked inactive");
+      loadOccupants(getUuid(o));
+    } catch { toast.error("Failed to mark inactive"); }
+  }
+
+  async function handleDelete(o: Occupant) {
+    const wasSelected = getUuid(o) === getUuid(selected ?? ({} as Occupant));
+    try {
+      await api.deleteOccupant(landlordUuid!, tenantId, getUuid(o));
+      toast.success("Occupant deleted");
+      if (wasSelected) setSelected(null);
+      loadOccupants();
+    } catch { toast.error("Failed to delete occupant"); }
+  }
+
+  const availableDocs = selected
+    ? DOC_LABELS.filter((label) => Boolean(getDocFilename(selected, label)))
+    : [];
+
+  const documentUrl = selected && selectedDoc
+    ? api.getOccupantFileUrl(landlordUuid!, tenantId, selectedDoc)
+    : null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
+
+        {/* Header */}
+        <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b">
+          <div className="flex items-center justify-between pr-8">
+            <DialogTitle className="flex items-center gap-2 text-lg">
+              <Users className="h-5 w-5 text-primary" />
+              Occupants — {tenant?.name} {tenant?.id}
+            </DialogTitle>
+            <Button size="sm" variant={showUpload ? "secondary" : "default"} onClick={() => setShowUpload((v) => !v)}>
+              {showUpload ? <><X className="mr-2 h-4 w-4" />Cancel Upload</> : <><Upload className="mr-2 h-4 w-4" />Upload KYC</>}
+            </Button>
+          </div>
+        </DialogHeader>
+
+        {/* Upload form */}
+        {showUpload && (
+          <div className="flex-shrink-0 border-b bg-muted/30 px-6 py-4">
+            <UploadForm
+              tenantId={tenantId}
+              onSuccess={(uuid) => { setShowUpload(false); loadOccupants(uuid); }}
+              onCancel={() => setShowUpload(false)}
+            />
+          </div>
+        )}
+
+        {/* Body */}
+        <div className="flex flex-1 min-h-0">
+
+          {/* Left pane: occupant list */}
+          <div className="w-[380px] lg:w-[420px] flex-shrink-0 border-r flex flex-col">
+            <div className="px-4 py-2 border-b bg-muted/20">
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                {occupants.length} occupant{occupants.length !== 1 ? "s" : ""}
+              </p>
+            </div>
+            {loading ? (
+              <div className="flex flex-1 items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : occupants.length === 0 ? (
+              <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
+                <Users className="h-8 w-8 opacity-40" />
+                <p className="text-sm">No occupants yet.</p>
+                <Button size="sm" variant="outline" onClick={() => setShowUpload(true)}>Upload first KYC</Button>
+              </div>
+            ) : (
+              <ScrollArea className="flex-1">
+                <div className="p-2 space-y-1">
+                  {occupants.map((o) => {
+                    const active = o.status === "Active";
+                    const isSel = getUuid(o) === getUuid(selected ?? ({} as Occupant));
+                    return (
+                      <button key={getUuid(o)} onClick={() => setSelected(o)}
+                        className={`w-full text-left rounded-lg px-3 py-2.5 transition-colors ${isSel ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium text-sm truncate">{o.name || "—"}</p>
+                            {o.mobile && (
+                              <p className={`text-xs truncate mt-0.5 ${isSel ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{o.mobile}</p>
+                            )}
+                            {o.address && (
+                              <p className={`text-xs line-clamp-1 mt-0.5 ${isSel ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{o.address}</p>
+                            )}
+                          </div>
+                          <Badge className={`text-[10px] flex-shrink-0 ${active ? "bg-green-100 text-green-700 border-green-200" : "bg-slate-100 text-slate-600 border-slate-200"}`}>
+                            {active ? "ACTIVE" : "INACTIVE"}
+                          </Badge>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+
+          {/* Right pane: detail + document viewer */}
+          <div className="flex-1 min-w-0 flex flex-col">
+            {!selected ? (
+              <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                Select an occupant to preview their documents.
+              </div>
+            ) : (
+              <>
+                {/* Profile bar */}
+                <div className="flex-shrink-0 border-b px-5 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h3 className="text-base font-semibold truncate">{selected.name}</h3>
+                      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {selected.mobile && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{selected.mobile}</span>}
+                        {selected.address && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{selected.address}</span>}
+                        {selected.residentSince && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />Since {formatDate(selected.residentSince)}</span>}
+                        {daysStayed(selected.residentSince) && <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{daysStayed(selected.residentSince)}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Badge className={selected.status === "Active" ? "bg-green-100 text-green-700 border-green-200" : "bg-slate-100 text-slate-600 border-slate-200"}>
+                        {selected.status.toUpperCase()}
+                      </Badge>
+                      {selected.status === "Active" && (
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="outline" className="h-7 text-xs">
+                              <UserX className="mr-1 h-3.5 w-3.5" />Mark Inactive
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Mark occupant as inactive?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This changes {selected.name}'s status to Inactive. It cannot be reversed from the admin panel.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleMarkInactive(selected)}>Confirm</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete occupant?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              All KYC documents for {selected.name} will be permanently removed.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDelete(selected)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
+
+                  {/* Document buttons */}
+                  {availableDocs.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {availableDocs.map((label) => {
+                        const filename = getDocFilename(selected, label);
+                        return (
+                          <Button key={label} size="sm"
+                            variant={selectedDoc === filename ? "default" : "outline"}
+                            className="h-7 text-xs"
+                            onClick={() => setSelectedDoc((prev) => prev === filename ? "" : filename)}
+                          >
+                            <FileText className="mr-1.5 h-3.5 w-3.5" />{label}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Document viewer */}
+                <div className="flex-1 min-h-0 bg-muted/20 p-4">
+                  {!selectedDoc ? (
+                    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                      {availableDocs.length === 0 ? "No documents uploaded for this occupant." : "Select a document above to preview it."}
+                    </div>
+                  ) : isPdf(selectedDoc) ? (
+                    <iframe src={documentUrl!} title="KYC document" className="h-full min-h-[360px] w-full rounded-lg border bg-white" />
+                  ) : (
+                    <img src={documentUrl!} alt="KYC document" className="h-full max-h-[60vh] w-full rounded-lg object-contain" />
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+```tsx
+// File: frontend\landlord-app\src\components\modals\PaymentModal.tsx
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -22563,7 +31008,7 @@ export default function PaymentModal({ open, onOpenChange, bill, onUpdate }: Pay
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\modals\SchemaMismatchDialog.tsx
+// File: frontend\landlord-app\src\components\modals\SchemaMismatchDialog.tsx
 import {
     Dialog,
     DialogContent,
@@ -22576,14 +31021,12 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import {
     AlertTriangle,
-    FileSpreadsheet,
     Download,
     X,
     CheckCircle2,
     XCircle,
     Sheet,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 // ─── Types ─────────────────────────────────────────────────────────
 
@@ -22850,7 +31293,124 @@ export default function SchemaMismatchDialog({
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\shared\EditBillModal.tsx
+// File: frontend\landlord-app\src\components\modals\TotpSetupModal.tsx
+import { useState } from "react";
+
+interface TotpSetupModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  totp: {
+    secret: string;
+    qr_code_base64: string;
+    provisioning_uri: string;
+  };
+  hasExistingTotp: boolean;
+  onRegenerate?: () => Promise<void>;
+}
+
+export function TotpSetupModal({
+  isOpen,
+  onClose,
+  totp,
+  hasExistingTotp,
+  onRegenerate,
+}: TotpSetupModalProps) {
+  const [regenerating, setRegenerating] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleRegenerate = async () => {
+    if (!onRegenerate) return;
+    setRegenerating(true);
+    try {
+      await onRegenerate();
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 z-10">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        <div className="text-center mb-4">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-3">
+            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">
+            {hasExistingTotp ? "Review Your TOTP Setup" : "Set Up Two-Factor Authentication"}
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {hasExistingTotp
+              ? "Scan this QR code with your authenticator app to verify it's working."
+              : "Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)"}
+          </p>
+        </div>
+
+        <div className="flex justify-center mb-4">
+          <div className="bg-white p-3 rounded-xl border border-gray-200 shadow-inner">
+            <img
+              src={`data:image/png;base64,${totp.qr_code_base64}`}
+              alt="TOTP QR Code"
+              className="w-48 h-48"
+            />
+          </div>
+        </div>
+
+        <div className="bg-gray-50 rounded-lg p-3 mb-4">
+          <p className="text-xs text-gray-500 mb-1">Manual entry key:</p>
+          <code className="text-sm font-mono text-gray-800 break-all select-all">
+            {totp.secret}
+          </code>
+        </div>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+          <div className="flex gap-2">
+            <svg className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <p className="text-xs text-amber-700">
+              Save this secret in a secure location. If you lose access to your authenticator app, you'll need an administrator to reset your TOTP.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-3">
+          {hasExistingTotp && onRegenerate && (
+            <button
+              onClick={handleRegenerate}
+              disabled={regenerating}
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {regenerating ? "Regenerating..." : "Change Secret"}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            {hasExistingTotp ? "Done" : "I've Saved the Secret"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+```
+
+```tsx
+// File: frontend\landlord-app\src\components\shared\EditBillModal.tsx
 import { useState, useEffect } from 'react';
 import {
   Dialog,
@@ -22871,6 +31431,7 @@ import {
 import { api } from '@/services/api';
 import type { Tenant, Receipt } from '@/types';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface EditBillModalProps {
   billNo: string | null;
@@ -22886,14 +31447,15 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
+  const { landlordUuid } = useAuth();
 
   useEffect(() => {
     if (billNo && tenantId) {
       setLoading(true);
       Promise.all([
-        api.getReceipt(tenantId, billNo),
-        api.getTenants(),
-        api.getBillingMonths(),
+        api.getReceipt(landlordUuid!, tenantId, billNo),
+        api.getTenants(landlordUuid!),
+        api.getBillingMonths(landlordUuid!),
       ])
         .then(([r, t, m]) => {
           setReceipt(r);
@@ -22911,7 +31473,7 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
 
     setSaving(true);
     try {
-      await api.updateBill(receipt.TenantId, receipt.Bill, {
+      await api.updateBill(landlordUuid!, receipt.TenantId, receipt.Bill, {
         tenant: receipt.Tenant,
         month: receipt.Month,
         current_reading: receipt.Current,
@@ -23063,7 +31625,7 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\shared\PDFPreviewModal.tsx
+// File: frontend\landlord-app\src\components\shared\PDFPreviewModal.tsx
 import {
   Dialog,
   DialogContent,
@@ -23072,6 +31634,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { api } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { FileText } from 'lucide-react';
 
 interface PDFPreviewModalProps {
@@ -23081,6 +31644,7 @@ interface PDFPreviewModalProps {
 }
 
 export default function PDFPreviewModal({ billNo, tenantId, onClose }: PDFPreviewModalProps) {
+  const { landlordUuid } = useAuth();
   const open = !!(billNo && tenantId);
 
   return (
@@ -23109,7 +31673,7 @@ export default function PDFPreviewModal({ billNo, tenantId, onClose }: PDFPrevie
         <div className="flex-1 min-h-0 bg-muted">
           {billNo && tenantId && (
             <iframe
-              src={api.getPDFViewUrl(tenantId, billNo)}
+              src={api.getPDFViewUrl(landlordUuid!, tenantId, billNo)}
               className="w-full h-full border-0"
               title={`Receipt ${billNo}`}
             />
@@ -23122,12 +31686,13 @@ export default function PDFPreviewModal({ billNo, tenantId, onClose }: PDFPrevie
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\shared\ReceiptRow.tsx
+// File: frontend\landlord-app\src\components\shared\ReceiptRow.tsx
 import { FileText, Eye, Download, Pencil, Archive, Trash2, RotateCcw, Check, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { api } from '@/services/api';
 import type { Receipt } from '@/types';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import PaymentModal from '@/components/modals/PaymentModal';
 import {
@@ -23157,6 +31722,7 @@ interface ReceiptRowProps {
 
 export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, variant = 'history', onUpdatePayment, ownerTenantIsArchived = false, ownerTenantName }: ReceiptRowProps) {
   const toast = useToast();
+  const { landlordUuid } = useAuth();
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
 
   const currTotal = receipt.Total || 0;
@@ -23173,7 +31739,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
       if (onUpdatePayment) {
         onUpdatePayment(receipt.Bill, status, amount);
       } else {
-        await api.updatePaymentStatus(receipt.TenantId, receipt.Bill, {
+        await api.updatePaymentStatus(landlordUuid!, receipt.TenantId, receipt.Bill, {
           paymentStatus: status,
           amountReceived: amount,
         });
@@ -23187,7 +31753,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
 
   const handleArchive = async () => {
     try {
-      await api.archiveBill(receipt.TenantId, receipt.Bill);
+      await api.archiveBill(landlordUuid!, receipt.TenantId, receipt.Bill);
       toast.success('Receipt archived');
       onAction();
     } catch {
@@ -23198,7 +31764,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
 
   const handleRestore = async () => {
     try {
-      await api.restoreBill(receipt.TenantId, receipt.Bill);
+      await api.restoreBill(landlordUuid!, receipt.TenantId, receipt.Bill);
       toast.success('Receipt restored');
       onAction();
     } catch {
@@ -23209,7 +31775,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
 
   const handleDelete = async () => {
     try {
-      await api.permanentlyDeleteBill(receipt.TenantId, receipt.Bill);
+      await api.permanentlyDeleteBill(landlordUuid!, receipt.TenantId, receipt.Bill);
       toast.success('Receipt permanently deleted');
       onAction();
     } catch {
@@ -23220,7 +31786,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
 
   const handleWhatsApp = async () => {
     try {
-      const data = await api.sendWhatsApp(receipt.TenantId, receipt.Bill);
+      const data = await api.sendWhatsApp(landlordUuid!, receipt.TenantId, receipt.Bill);
       if (data.url) {
         window.open(data.url, '_blank');
       }
@@ -23230,7 +31796,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
   };
 
   const handleDownload = () => {
-    const url = api.getPDFDownloadUrl(receipt.TenantId, receipt.Bill);
+    const url = api.getPDFDownloadUrl(landlordUuid!, receipt.TenantId, receipt.Bill);
     const a = document.createElement('a');
     a.href = url;
     a.download = `Receipt_${receipt.Bill}.pdf`;
@@ -23460,7 +32026,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\accordion.tsx
+// File: frontend\landlord-app\src\components\ui\accordion.tsx
 import * as React from "react"
 import * as AccordionPrimitive from "@radix-ui/react-accordion"
 import { ChevronDownIcon } from "lucide-react"
@@ -23528,7 +32094,7 @@ export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\alert-dialog.tsx
+// File: frontend\landlord-app\src\components\ui\alert-dialog.tsx
 import * as React from "react"
 import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 
@@ -23687,7 +32253,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\alert.tsx
+// File: frontend\landlord-app\src\components\ui\alert.tsx
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -23757,7 +32323,7 @@ export { Alert, AlertTitle, AlertDescription }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\aspect-ratio.tsx
+// File: frontend\landlord-app\src\components\ui\aspect-ratio.tsx
 "use client"
 
 import * as AspectRatioPrimitive from "@radix-ui/react-aspect-ratio"
@@ -23772,7 +32338,7 @@ export { AspectRatio }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\avatar.tsx
+// File: frontend\landlord-app\src\components\ui\avatar.tsx
 import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
@@ -23827,7 +32393,7 @@ export { Avatar, AvatarImage, AvatarFallback }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\badge.tsx
+// File: frontend\landlord-app\src\components\ui\badge.tsx
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
@@ -23877,7 +32443,7 @@ export { Badge, badgeVariants }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\breadcrumb.tsx
+// File: frontend\landlord-app\src\components\ui\breadcrumb.tsx
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { ChevronRight, MoreHorizontal } from "lucide-react"
@@ -23990,7 +32556,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\button-group.tsx
+// File: frontend\landlord-app\src\components\ui\button-group.tsx
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -24077,7 +32643,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\button.tsx
+// File: frontend\landlord-app\src\components\ui\button.tsx
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
@@ -24143,7 +32709,7 @@ export { Button, buttonVariants }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\calendar.tsx
+// File: frontend\landlord-app\src\components\ui\calendar.tsx
 "use client"
 
 import * as React from "react"
@@ -24367,7 +32933,7 @@ export { Calendar, CalendarDayButton }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\card.tsx
+// File: frontend\landlord-app\src\components\ui\card.tsx
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -24463,7 +33029,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\carousel.tsx
+// File: frontend\landlord-app\src\components\ui\carousel.tsx
 import * as React from "react"
 import useEmblaCarousel, {
   type UseEmblaCarouselType,
@@ -24706,7 +33272,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\chart.tsx
+// File: frontend\landlord-app\src\components\ui\chart.tsx
 "use client"
 
 import * as React from "react"
@@ -25067,7 +33633,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\checkbox.tsx
+// File: frontend\landlord-app\src\components\ui\checkbox.tsx
 "use client"
 
 import * as React from "react"
@@ -25103,7 +33669,7 @@ export { Checkbox }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\collapsible.tsx
+// File: frontend\landlord-app\src\components\ui\collapsible.tsx
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible"
 
 function Collapsible({
@@ -25138,7 +33704,7 @@ export { Collapsible, CollapsibleTrigger, CollapsibleContent }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\command.tsx
+// File: frontend\landlord-app\src\components\ui\command.tsx
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 import { SearchIcon } from "lucide-react"
@@ -25324,7 +33890,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\context-menu.tsx
+// File: frontend\landlord-app\src\components\ui\context-menu.tsx
 "use client"
 
 import * as React from "react"
@@ -25580,7 +34146,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\dialog.tsx
+// File: frontend\landlord-app\src\components\ui\dialog.tsx
 import * as React from "react"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
@@ -25725,7 +34291,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\drawer.tsx
+// File: frontend\landlord-app\src\components\ui\drawer.tsx
 "use client"
 
 import * as React from "react"
@@ -25864,7 +34430,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\dropdown-menu.tsx
+// File: frontend\landlord-app\src\components\ui\dropdown-menu.tsx
 import * as React from "react"
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
 import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
@@ -26123,7 +34689,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\empty.tsx
+// File: frontend\landlord-app\src\components\ui\empty.tsx
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
@@ -26231,7 +34797,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\field.tsx
+// File: frontend\landlord-app\src\components\ui\field.tsx
 import { useMemo } from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 
@@ -26481,7 +35047,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\form.tsx
+// File: frontend\landlord-app\src\components\ui\form.tsx
 "use client"
 
 import * as React from "react"
@@ -26652,7 +35218,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\hover-card.tsx
+// File: frontend\landlord-app\src\components\ui\hover-card.tsx
 "use client"
 
 import * as React from "react"
@@ -26700,7 +35266,7 @@ export { HoverCard, HoverCardTrigger, HoverCardContent }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\input-group.tsx
+// File: frontend\landlord-app\src\components\ui\input-group.tsx
 "use client"
 
 import * as React from "react"
@@ -26874,7 +35440,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\input-otp.tsx
+// File: frontend\landlord-app\src\components\ui\input-otp.tsx
 import * as React from "react"
 import { OTPInput, OTPInputContext } from "input-otp"
 import { MinusIcon } from "lucide-react"
@@ -26953,7 +35519,7 @@ export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\input.tsx
+// File: frontend\landlord-app\src\components\ui\input.tsx
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -26978,7 +35544,7 @@ export { Input }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\item.tsx
+// File: frontend\landlord-app\src\components\ui\item.tsx
 import * as React from "react"
 import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
@@ -27175,7 +35741,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\kbd.tsx
+// File: frontend\landlord-app\src\components\ui\kbd.tsx
 import { cn } from "@/lib/utils"
 
 function Kbd({ className, ...props }: React.ComponentProps<"kbd">) {
@@ -27207,7 +35773,7 @@ export { Kbd, KbdGroup }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\label.tsx
+// File: frontend\landlord-app\src\components\ui\label.tsx
 "use client"
 
 import * as React from "react"
@@ -27235,7 +35801,7 @@ export { Label }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\menubar.tsx
+// File: frontend\landlord-app\src\components\ui\menubar.tsx
 import * as React from "react"
 import * as MenubarPrimitive from "@radix-ui/react-menubar"
 import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
@@ -27513,7 +36079,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\navigation-menu.tsx
+// File: frontend\landlord-app\src\components\ui\navigation-menu.tsx
 import * as React from "react"
 import * as NavigationMenuPrimitive from "@radix-ui/react-navigation-menu"
 import { cva } from "class-variance-authority"
@@ -27685,7 +36251,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\pagination.tsx
+// File: frontend\landlord-app\src\components\ui\pagination.tsx
 import * as React from "react"
 import {
   ChevronLeftIcon,
@@ -27816,7 +36382,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\popover.tsx
+// File: frontend\landlord-app\src\components\ui\popover.tsx
 "use client"
 
 import * as React from "react"
@@ -27868,7 +36434,7 @@ export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\progress.tsx
+// File: frontend\landlord-app\src\components\ui\progress.tsx
 import * as React from "react"
 import * as ProgressPrimitive from "@radix-ui/react-progress"
 
@@ -27901,7 +36467,7 @@ export { Progress }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\radio-group.tsx
+// File: frontend\landlord-app\src\components\ui\radio-group.tsx
 "use client"
 
 import * as React from "react"
@@ -27950,7 +36516,7 @@ export { RadioGroup, RadioGroupItem }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\resizable.tsx
+// File: frontend\landlord-app\src\components\ui\resizable.tsx
 import * as React from "react"
 import { GripVerticalIcon } from "lucide-react"
 import * as ResizablePrimitive from "react-resizable-panels"
@@ -28008,7 +36574,7 @@ export { ResizablePanelGroup, ResizablePanel, ResizableHandle }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\scroll-area.tsx
+// File: frontend\landlord-app\src\components\ui\scroll-area.tsx
 "use client"
 
 import * as React from "react"
@@ -28070,7 +36636,7 @@ export { ScrollArea, ScrollBar }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\select.tsx
+// File: frontend\landlord-app\src\components\ui\select.tsx
 import * as React from "react"
 import * as SelectPrimitive from "@radix-ui/react-select"
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
@@ -28262,7 +36828,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\separator.tsx
+// File: frontend\landlord-app\src\components\ui\separator.tsx
 "use client"
 
 import * as React from "react"
@@ -28294,7 +36860,7 @@ export { Separator }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\sheet.tsx
+// File: frontend\landlord-app\src\components\ui\sheet.tsx
 import * as React from "react"
 import * as SheetPrimitive from "@radix-ui/react-dialog"
 import { XIcon } from "lucide-react"
@@ -28435,7 +37001,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\sidebar.tsx
+// File: frontend\landlord-app\src\components\ui\sidebar.tsx
 "use client"
 
 import * as React from "react"
@@ -29165,7 +37731,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\skeleton.tsx
+// File: frontend\landlord-app\src\components\ui\skeleton.tsx
 import { cn } from "@/lib/utils"
 
 function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
@@ -29182,7 +37748,7 @@ export { Skeleton }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\slider.tsx
+// File: frontend\landlord-app\src\components\ui\slider.tsx
 "use client"
 
 import * as React from "react"
@@ -29249,7 +37815,7 @@ export { Slider }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\sonner.tsx
+// File: frontend\landlord-app\src\components\ui\sonner.tsx
 import {
   CircleCheckIcon,
   InfoIcon,
@@ -29257,7 +37823,7 @@ import {
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react"
-import { useTheme } from "next-themes"
+import { useTheme } from "@/contexts/ThemeContext"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
@@ -29291,7 +37857,7 @@ export { Toaster }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\spinner.tsx
+// File: frontend\landlord-app\src\components\ui\spinner.tsx
 import { Loader2Icon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -29311,7 +37877,7 @@ export { Spinner }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\switch.tsx
+// File: frontend\landlord-app\src\components\ui\switch.tsx
 "use client"
 
 import * as React from "react"
@@ -29346,7 +37912,7 @@ export { Switch }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\table.tsx
+// File: frontend\landlord-app\src\components\ui\table.tsx
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -29464,7 +38030,7 @@ export {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\tabs.tsx
+// File: frontend\landlord-app\src\components\ui\tabs.tsx
 "use client"
 
 import * as React from "react"
@@ -29534,7 +38100,7 @@ export { Tabs, TabsList, TabsTrigger, TabsContent }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\textarea.tsx
+// File: frontend\landlord-app\src\components\ui\textarea.tsx
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
@@ -29556,7 +38122,7 @@ export { Textarea }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\toggle-group.tsx
+// File: frontend\landlord-app\src\components\ui\toggle-group.tsx
 import * as React from "react"
 import * as ToggleGroupPrimitive from "@radix-ui/react-toggle-group"
 import { type VariantProps } from "class-variance-authority"
@@ -29641,7 +38207,7 @@ export { ToggleGroup, ToggleGroupItem }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\toggle.tsx
+// File: frontend\landlord-app\src\components\ui\toggle.tsx
 import * as React from "react"
 import * as TogglePrimitive from "@radix-ui/react-toggle"
 import { cva, type VariantProps } from "class-variance-authority"
@@ -29690,7 +38256,7 @@ export { Toggle, toggleVariants }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\components\ui\tooltip.tsx
+// File: frontend\landlord-app\src\components\ui\tooltip.tsx
 "use client"
 
 import * as React from "react"
@@ -29755,7 +38321,7 @@ export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\contexts\AuthContext.tsx
+// File: frontend\landlord-app\src\contexts\AuthContext.tsx
 import {
   createContext,
   useCallback,
@@ -29765,25 +38331,39 @@ import {
   type ReactNode,
 } from "react";
 import { ROUTES } from "@/lib/routes";
-import { encryptPayload } from "@/lib/encryption";
+import { extractLandlordUuid } from "@/lib/runtime";
+import { apiPost } from "@/hooks/useApi";
 
-type LoginStep = "success" | "totp_required" | "failed";
+type LoginResult =
+  | { status: "success"; landlordUuid: string }
+  | { status: "totp_required" }
+  | { status: "password_change_required"; landlordUuid: string }
+  | { status: "failed" };
 
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
+  landlordUuid: string | null;
+  hasTotp: boolean;
+  requiresPasswordChange: boolean;
   login: (
     username: string,
     password: string,
     rememberMe?: boolean
-  ) => Promise<LoginStep>;
+  ) => Promise<LoginResult>;
   verifyTotp: (
     username: string,
     password: string,
     totpToken: string,
     rememberMe?: boolean
-  ) => Promise<boolean>;
+  ) => Promise<LoginResult | false>;
   logout: () => Promise<void>;
+  changePassword: (
+    currentPassword: string,
+    newPassword: string,
+    confirmPassword: string
+  ) => Promise<{ status: string; message?: string; next_step?: string; totp?: any }>;
+  refreshMe: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29791,78 +38371,89 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [publicKey, setPublicKey] = useState("");
+  const [landlordUuid, setLandlordUuid] = useState<string | null>(null);
+  const [hasTotp, setHasTotp] = useState(false);
+  const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
 
-  useEffect(() => {
-    fetch(ROUTES.ADMINAPIAUTHPUBLICKEY)
-      .then((response) => response.json())
-      .then((data) => setPublicKey(data.publicKey))
-      .catch(console.error);
+  const refreshMe = useCallback(async () => {
+    try {
+      const response = await fetch(ROUTES.LANDLORDAPIAUTHME, { credentials: "include" });
+      if (!response.ok) throw new Error("Not authenticated");
+      const data = await response.json();
+      const uuid = data?.landlord?.landlordUuid ?? null;
+      setIsAuthenticated(true);
+      setLandlordUuid(uuid);
+      setHasTotp(data?.landlord?.hasTotp ?? false);
+      setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
+      if (uuid) localStorage.setItem("landlordUuid", uuid);
+    } catch {
+      setIsAuthenticated(false);
+      setLandlordUuid(null);
+      setHasTotp(false);
+      setRequiresPasswordChange(false);
+      localStorage.removeItem("landlordUuid");
+    }
   }, []);
 
   useEffect(() => {
-    fetch(ROUTES.ADMINAPIAUTHME, { credentials: "include" })
-      .then((response) => setIsAuthenticated(response.ok))
-      .catch(() => setIsAuthenticated(false))
-      .finally(() => setIsLoading(false));
-  }, []);
+    // Pre-seed UUID from URL or localStorage before /api/auth/me responds
+    const urlUuid = extractLandlordUuid();
+    const storedUuid = localStorage.getItem("landlordUuid");
+    const initialUuid = urlUuid || storedUuid;
+    if (initialUuid) {
+      setLandlordUuid(initialUuid);
+      setIsAuthenticated(true);
+    }
 
-  const encryptRequest = useCallback(
-    async (payload: Record<string, unknown>) => {
-      if (!publicKey) {
-        throw new Error("Encryption key is still loading. Please try again.");
-      }
-
-      return encryptPayload(payload, publicKey);
-    },
-    [publicKey]
-  );
+    refreshMe().finally(() => setIsLoading(false));
+  }, [refreshMe]);
 
   const login = useCallback(
     async (
       username: string,
       password: string,
       rememberMe = false
-    ): Promise<LoginStep> => {
+    ): Promise<LoginResult> => {
       setIsLoading(true);
 
       try {
-        const encrypted = await encryptRequest({
-          username,
-          password,
-          remember_me: rememberMe,
-        });
-
-        const response = await fetch(ROUTES.ADMINAPIAUTHLOGIN, {
+        const response = await fetch(ROUTES.LANDLORDAPIAUTHLOGIN, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...encrypted, remember_me: rememberMe }),
+          body: JSON.stringify({ username, password, rememberMe }),
         });
 
         if (!response.ok) {
-          return "failed";
+          return { status: "failed" };
         }
 
         const data = await response.json();
 
         if (data.status === "totp_required") {
-          return "totp_required";
+          return { status: "totp_required" };
+        }
+
+        if (data.status === "password_change_required") {
+          return { status: "password_change_required", landlordUuid: data.landlordUuid };
         }
 
         if (data.status === "success") {
+          const uuid = data?.landlord?.landlordUuid ?? "";
           setIsAuthenticated(true);
-          return "success";
+          setLandlordUuid(uuid);
+          localStorage.setItem("landlordUuid", uuid);
+          return { status: "success", landlordUuid: uuid };
         }
 
-        return "failed";
+        return { status: "failed" };
       } catch {
-        return "failed";
+        return { status: "failed" };
       } finally {
         setIsLoading(false);
       }
     },
-    [encryptRequest]
+    []
   );
 
   const verifyTotp = useCallback(
@@ -29871,22 +38462,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string,
       totpToken: string,
       rememberMe = false
-    ): Promise<boolean> => {
+    ): Promise<LoginResult | false> => {
       setIsLoading(true);
 
       try {
-        const encrypted = await encryptRequest({
-          username,
-          password,
-          totp_token: totpToken,
-          remember_me: rememberMe,
-        });
-
-        const response = await fetch(ROUTES.ADMINAPIAUTHLOGINTOTP, {
+        const response = await fetch(ROUTES.LANDLORDAPIAUTHLOGINTOTP, {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...encrypted, remember_me: rememberMe }),
+          body: JSON.stringify({ username, password, totpToken, rememberMe }),
         });
 
         if (!response.ok) {
@@ -29895,34 +38479,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const data = await response.json();
 
+        if (data.status === "password_change_required") {
+          return { status: "password_change_required", landlordUuid: data.landlordUuid };
+        }
+
         if (data.status !== "success") {
           return false;
         }
 
+        const uuid = data?.landlord?.landlordUuid ?? "";
         setIsAuthenticated(true);
-        return true;
+        setLandlordUuid(uuid);
+        localStorage.setItem("landlordUuid", uuid);
+        return { status: "success", landlordUuid: uuid };
       } catch {
         return false;
       } finally {
         setIsLoading(false);
       }
     },
-    [encryptRequest]
+    []
+  );
+
+  const changePassword = useCallback(
+    async (
+      currentPassword: string,
+      newPassword: string,
+      confirmPassword: string
+    ): Promise<{ status: string; message?: string; next_step?: string; totp?: any }> => {
+      try {
+        const data = await apiPost(ROUTES.LANDLORDAPIAUTHCHANGEPASSWORD, {
+          currentPassword,
+          newPassword,
+          confirmPassword,
+        });
+
+        // Refresh auth state after successful password change
+        await refreshMe();
+
+        return {
+          status: data?.status ?? "error",
+          message: data?.message,
+          next_step: data?.next_step,
+          totp: data?.totp,
+        };
+      } catch (err: any) {
+        return { status: "error", message: err?.message || "Failed to change password" };
+      }
+    },
+    [refreshMe]
   );
 
   const logout = useCallback(async () => {
-    await fetch(ROUTES.ADMINAPIAUTHLOGOUT, {
-      method: "POST",
-      credentials: "include",
-    });
-
-    setIsAuthenticated(false);
-    window.location.assign("/rent/admin/login");
+    try {
+      await fetch(ROUTES.LANDLORDAPIAUTHLOGOUT, {
+        method: "POST",
+        credentials: "include",
+      });
+    } finally {
+      setIsAuthenticated(false);
+      setLandlordUuid(null);
+      localStorage.removeItem("landlordUuid");
+      window.location.assign(ROUTES.LANDLORDPAGELOGIN);
+    }
   }, []);
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, login, verifyTotp, logout }}
+      value={{ isAuthenticated, isLoading, landlordUuid, hasTotp, requiresPasswordChange, login, verifyTotp, logout, changePassword, refreshMe }}
     >
       {children}
     </AuthContext.Provider>
@@ -29941,69 +38565,95 @@ export function useAuth() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\contexts\ThemeContext.tsx
+// File: frontend\landlord-app\src\contexts\ThemeContext.tsx
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { ROUTES } from '../lib/routes';
+import { useAuth } from './AuthContext';
 
 type Theme = 'light' | 'dark' | 'system';
 
 interface ThemeContextType {
   theme: Theme;
-  effectiveTheme: 'light' | 'dark';
   setTheme: (theme: Theme) => void;
+  resolvedTheme: 'light' | 'dark';
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'rrg-theme';
-
-function getEffectiveTheme(theme: Theme): 'light' | 'dark' {
-  if (theme === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  return theme;
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    return (localStorage.getItem(STORAGE_KEY) as Theme) || 'system';
-  });
-
-  const effectiveTheme = getEffectiveTheme(theme);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.remove('light', 'dark');
-    root.classList.add(effectiveTheme);
-    root.setAttribute('data-bs-theme', effectiveTheme);
-  }, [effectiveTheme]);
-
-  useEffect(() => {
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => {
-      if (theme === 'system') {
-        const newEffective = media.matches ? 'dark' : 'light';
-        document.documentElement.classList.remove('light', 'dark');
-        document.documentElement.classList.add(newEffective);
-        document.documentElement.setAttribute('data-bs-theme', newEffective);
-      }
-    };
-    media.addEventListener('change', handler);
-    return () => media.removeEventListener('change', handler);
-  }, [theme]);
-
-  const setTheme = useCallback((newTheme: Theme) => {
-    localStorage.setItem(STORAGE_KEY, newTheme);
-    setThemeState(newTheme);
-    fetch('/rent/admin/api/ui/theme', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ theme: newTheme }),
-    }).catch(() => {});
+  const { landlordUuid } = useAuth();
+  const [theme, setThemeState] = useState<Theme>('system');
+  
+  // Compute the actual theme to render based on system preference if needed
+  const getResolvedTheme = useCallback((t: Theme): 'light' | 'dark' => {
+    if (t === 'system') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return t;
   }, []);
 
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>(getResolvedTheme('system'));
+
+  // Initial load from server or localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('theme') as Theme;
+    if (saved) {
+      setThemeState(saved);
+      setResolvedTheme(getResolvedTheme(saved));
+    } else if (landlordUuid) {
+      // Try to fetch from server config
+      fetch(ROUTES.LANDLORDAPICONFIGTHEMEGET(landlordUuid), { credentials: 'include' })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && data.theme) {
+            setThemeState(data.theme);
+            setResolvedTheme(getResolvedTheme(data.theme));
+            localStorage.setItem('theme', data.theme);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [getResolvedTheme, landlordUuid]);
+
+  // Apply classes whenever resolvedTheme changes
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+    root.classList.add(resolvedTheme);
+  }, [resolvedTheme]);
+
+  // Handle system preference changes
+  useEffect(() => {
+    if (theme !== 'system') return;
+
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = () => {
+      setResolvedTheme(mediaQuery.matches ? 'dark' : 'light');
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, [theme]);
+
+  // Global setter that also updates server and localStorage
+  const setTheme = useCallback((newTheme: Theme) => {
+    setThemeState(newTheme);
+    setResolvedTheme(getResolvedTheme(newTheme));
+    localStorage.setItem('theme', newTheme);
+    
+    // Attempt to persist to server
+    if (landlordUuid) {
+      fetch(ROUTES.LANDLORDAPICONFIGTHEME(landlordUuid), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme: newTheme }),
+        credentials: 'include',
+      }).catch(console.error);
+    }
+  }, [getResolvedTheme, landlordUuid]);
+
   return (
-    <ThemeContext.Provider value={{ theme, effectiveTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -30011,13 +38661,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
 export function useTheme() {
   const context = useContext(ThemeContext);
-  if (!context) throw new Error('useTheme must be used within ThemeProvider');
+  if (context === undefined) {
+    throw new Error('useTheme must be used within a ThemeProvider');
+  }
   return context;
 }
 ```
 
 ```typescript
-// File: frontend\admin-app\src\hooks\use-mobile.ts
+// File: frontend\landlord-app\src\hooks\use-mobile.ts
 import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768
@@ -30040,50 +38692,66 @@ export function useIsMobile() {
 ```
 
 ```typescript
-// File: frontend\admin-app\src\hooks\useApi.ts
-import { useState, useCallback } from 'react';
-import { encryptPayload } from '@/lib/encryption';
-
-const API_BASE = '/rent'; // Relative to current host
+// File: frontend\landlord-app\src\hooks\useApi.ts
+import { useState, useCallback } from "react";
+import { encryptPayload } from "../lib/encryption";
+import { ROUTES } from "../lib/routes";
+import { API_BASE } from "../lib/runtime";
 
 export interface ApiResponse<T = any> {
   data?: T;
   error?: string;
-  status: 'idle' | 'loading' | 'success' | 'error';
+  status: "idle" | "loading" | "success" | "error";
+}
+
+function buildUrl(endpoint: string): string {
+  if (/^https?:\/\//i.test(endpoint)) return endpoint;
+  if (endpoint.startsWith("/")) return endpoint;
+  return `${API_BASE}/${endpoint.replace(/^\/+/, "")}`;
+}
+
+async function readJsonSafe(res: Response) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function getErrorMessage(res: Response): Promise<string> {
+  const data = await readJsonSafe(res);
+  return data?.detail || data?.message || `HTTP ${res.status}`;
 }
 
 export function useApi() {
-  const [response, setResponse] = useState<ApiResponse>({ status: 'idle' });
+  const [response, setResponse] = useState<ApiResponse>({ status: "idle" });
 
-  const request = useCallback(async <T = any>(
-    endpoint: string,
-    options: RequestInit = {}
-  ): Promise<T | null> => {
-    setResponse({ status: 'loading' });
-    
+  const request = useCallback(async <T = any>(endpoint: string, options: RequestInit = {}) => {
+    setResponse({ status: "loading" });
+
     try {
-      const res = await fetch(`${API_BASE}${endpoint}`, {
+      const res = await fetch(buildUrl(endpoint), {
         ...options,
         headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
         },
-        credentials: 'include',
+        credentials: "include",
       });
 
-      const data = await res.json().catch(() => null);
+      const data = await readJsonSafe(res);
 
       if (!res.ok) {
         const errorMsg = data?.detail || data?.message || `HTTP ${res.status}`;
-        setResponse({ status: 'error', error: errorMsg });
+        setResponse({ status: "error", error: errorMsg });
         throw new Error(errorMsg);
       }
 
-      setResponse({ status: 'success', data });
+      setResponse({ status: "success", data });
       return data as T;
     } catch (err: any) {
-      const errorMsg = err.message || 'Network error';
-      setResponse({ status: 'error', error: errorMsg });
+      const errorMsg = err?.message || "Network error";
+      setResponse({ status: "error", error: errorMsg });
       return null;
     }
   }, []);
@@ -30092,40 +38760,152 @@ export function useApi() {
 }
 
 export async function apiGet(endpoint: string) {
-  const res = await fetch(`${API_BASE}${endpoint}`, { credentials: 'include' });
-  if (!res.ok) throw new Error((await res.json()).detail || `HTTP ${res.status}`);
-  return res.json();
+  const res = await fetch(buildUrl(endpoint), {
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    throw new Error(await getErrorMessage(res));
+  }
+
+  return readJsonSafe(res);
 }
 
 export async function apiPost(endpoint: string, body: any) {
   let finalBody = body;
-  
-  if (body.password || body.totp_token || body.new_password || body.confirm_password) {
-    try {
-      const pubKeyRes = await fetch('/rent/admin/api/auth/public-key');
-      if (pubKeyRes.ok) {
-        const { publicKey } = await pubKeyRes.json();
-        const encrypted = await encryptPayload(body, publicKey);
-        finalBody = { ...encrypted, remember_me: body.remember_me || body.rememberMe };
+
+  if (
+    body?.password ||
+    body?.totptoken ||
+    body?.newpassword ||
+    body?.confirmpassword ||
+    body?.new_password ||
+    body?.confirm_password ||
+    body?.totp_token ||
+    body?.currentPassword ||
+    body?.newPassword ||
+    body?.confirmPassword
+  ) {
+    const pubKeyRes = await fetch(ROUTES.LANDLORDAPIAUTHPUBLICKEY, {
+      credentials: "include",
+    });
+
+    if (pubKeyRes.ok) {
+      const publicKeyData = await readJsonSafe(pubKeyRes);
+      if (publicKeyData?.publicKey) {
+        const encrypted = await encryptPayload(body, publicKeyData.publicKey);
+        finalBody = {
+          ...encrypted,
+          remember_me: body?.remember_me ?? body?.rememberMe ?? false,
+        };
       }
-    } catch (e) {
-      console.error('Encryption failed', e);
     }
   }
 
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const res = await fetch(buildUrl(endpoint), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(finalBody),
-    credentials: 'include',
+    credentials: "include",
   });
-  if (!res.ok) throw new Error((await res.json()).detail || `HTTP ${res.status}`);
-  return res.json();
+
+  if (!res.ok) {
+    throw new Error(await getErrorMessage(res));
+  }
+
+  return readJsonSafe(res);
 }
 ```
 
 ```typescript
-// File: frontend\admin-app\src\hooks\useToast.ts
+// File: frontend\landlord-app\src\hooks\useSync.ts
+import { useEffect, useRef, useCallback } from "react";
+import { API_BASE } from "@/lib/runtime";
+
+export interface SyncEvent {
+  type: string;
+  [key: string]: any;
+}
+
+type EventHandler = (event: SyncEvent) => void;
+
+/**
+ * Subscribe to real-time sync events via WebSocket.
+ * Automatically reconnects on disconnect.
+ *
+ * @param channel - Channel to subscribe to (e.g., "landlord:{uuid}", "platform_admin", "global")
+ * @param onEvent - Callback invoked when an event is received
+ * @param enabled - Whether to enable the connection (default: true)
+ */
+export function useSync(channel: string, onEvent: EventHandler, enabled = true) {
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
+
+  useEffect(() => {
+    if (!enabled || !channel) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let unmounted = false;
+
+    function connect() {
+      if (unmounted) return;
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}${API_BASE}/ws/sync?channel=${encodeURIComponent(channel)}`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        // Send periodic pings to keep alive
+        pingTimer = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send("ping");
+          }
+        }, 30000);
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          if (event.type !== "pong") {
+            onEventRef.current(event);
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      };
+
+      ws.onclose = () => {
+        if (pingTimer) clearInterval(pingTimer);
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (pingTimer) clearInterval(pingTimer);
+      ws?.close();
+    };
+  }, [channel, enabled]);
+}
+```
+
+```typescript
+// File: frontend\landlord-app\src\hooks\useToast.ts
 import { toast } from 'sonner';
 
 export function useToast() {
@@ -30160,7 +38940,7 @@ export function useToast() {
 ```
 
 ```css
-// File: frontend\admin-app\src\index.css
+// File: frontend\landlord-app\src\index.css
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -30239,7 +39019,7 @@ export function useToast() {
 ```
 
 ```typescript
-// File: frontend\admin-app\src\lib\encryption.ts
+// File: frontend\landlord-app\src\lib\encryption.ts
 /**
  * frontend/lib/encryption.ts
  * Hybrid AES-256-GCM + RSA-OAEP encryption using native WebCrypto API.
@@ -30261,12 +39041,12 @@ const AES_GCM_PARAMS: AesKeyAlgorithm = {
  * 1. Generate random AES-256 key
  * 2. Encrypt payload with AES-GCM
  * 3. Encrypt AES key with RSA public key
- * 4. Return { encryptedKey, encryptedData, nonce }
+ * 4. Return { key, data, nonce }
  */
 export async function encryptPayload(
     payload: Record<string, unknown>,
     publicKeyPem: string
-): Promise<{ encryptedKey: string; encryptedData: string; nonce: string }> {
+): Promise<{ key: string; data: string; nonce: string }> {
     // 1. Import RSA public key from PEM
     const publicKey = await importPublicKey(publicKeyPem);
 
@@ -30300,8 +39080,8 @@ export async function encryptPayload(
 
     // 7. Return base64-encoded values
     return {
-        encryptedKey: arrayBufferToBase64(encryptedKey),
-        encryptedData: arrayBufferToBase64(encryptedData),
+        key: arrayBufferToBase64(encryptedKey),
+        data: arrayBufferToBase64(encryptedData),
         nonce: arrayBufferToBase64(nonce.buffer),
     };
 }
@@ -30344,7 +39124,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 ```
 
 ```typescript
-// File: frontend\admin-app\src\lib\routes.ts
+// File: frontend\landlord-app\src\lib\routes.ts
 /**
  * src/lib/routes.ts
  * Shared routes manifest — single source of truth for ALL routes.
@@ -30352,6 +39132,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
  */
 
 import routesJson from "@shared/routes.json";
+import { APP_BASE, API_BASE } from "./runtime";
 
 interface RouteManifest {
     basePath: string;
@@ -30383,6 +39164,23 @@ interface RouteManifest {
             kyc: Record<string, string>
         };
     };
+    landlord: {
+        pages: Record<string, string>;
+        api: {
+            auth: Record<string, string>;
+            dashboard: Record<string, string>;
+            config: Record<string, string>;
+            billing: Record<string, string>;
+            tenants: Record<string, string>;
+            occupants: Record<string, string>;
+            pdf: Record<string, string>;
+            whatsapp: Record<string, string>;
+            sync: Record<string, string>;
+            backups: Record<string, string>;
+            settings: Record<string, string>;
+            totp: Record<string, string>;
+        };
+    };
     static: {
         uploads: string;
         static: string;
@@ -30406,17 +39204,34 @@ function fullPath(template: string, params?: Record<string, string | number>): s
     return `${manifest.basePath || ""}${resolvePath(template, params)}`;
 }
 
-function api(domain: "admin" | "tenant", section: string, key: string, params?: Record<string, string | number>): string {
+function clean(part: string): string {
+    return part.replace(/^\/+/, "").replace(/\/+$/, "");
+}
+
+function build(base: string, ...parts: string[]): string {
+    const suffix = parts.filter(Boolean).map(clean).join("/");
+    const normalizedBase = (base || "").replace(/\/+$/, "");
+    if (!suffix) return normalizedBase || "/";
+    if (!normalizedBase) return `/${suffix}`;
+    return `${normalizedBase}/${suffix}`;
+}
+
+function api(domain: "admin" | "tenant" | "landlord", section: string, key: string, params?: Record<string, string | number>): string {
     const node = (manifest as any)[domain];
     const sectionNode = node?.api?.[section];
     const template = sectionNode?.[key];
     if (typeof template !== "string") throw new Error(`Route ${domain}.api.${section}.${key} not found`);
+    
+    let path = resolvePath(template, params);
+    // we just return the full path since it's already absolute (e.g. /landlord/api/...)
     return fullPath(template, params);
 }
 
-function page(domain: "admin" | "tenant", key: string, params?: Record<string, string | number>): string {
+function page(domain: "admin" | "tenant" | "landlord", key: string, params?: Record<string, string | number>): string {
     const template = (manifest as any)[domain]?.pages?.[key];
     if (typeof template !== "string") throw new Error(`Page route ${domain}.pages.${key} not found`);
+    
+    // just return the full path since it's absolute
     return fullPath(template, params);
 }
 
@@ -30486,7 +39301,7 @@ export const ROUTES = {
     ADMINAPITENANTSGET(tenantId: number) { return api("admin", "tenants", "get", { tenantId }); },
     ADMINAPITENANTSUPDATE(tenantId: number) { return api("admin", "tenants", "update", { tenantId }); },
     ADMINAPITENANTSDELETE(tenantId: number) { return api("admin", "tenants", "delete", { tenantId }); },
-    ADMINAPITENANTSRESTORE(tenantId: number) { return `${manifest.basePath || ""}/admin/api/tenants/${tenantId}/restore`; },
+    ADMINAPITENANTSRESTORE(tenantId: number) { return api("admin", "tenants", "restore", { tenantId }); },
     ADMINAPITENANTSCHANGEPIN(tenantId: number) { return api("admin", "tenants", "changePin", { tenantId }); },
     ADMINAPITENANTSREVEALPIN(tenantId: number) { return api("admin", "tenants", "revealPin", { tenantId }); },
     ADMINAPITENANTSRECEIPTS(tenantId: number | string) { return api("admin", "tenants", "receipts", { tenantId }); },
@@ -30495,11 +39310,11 @@ export const ROUTES = {
     ADMINAPITENANTSNAPSHOT_RESTORE(snapshotId: string) { return api("admin", "tenants", "recoverySnapshotRestore", { snapshotId }); },
 
     // Admin API: Occupants
-    get ADMINAPIOCCUPANTSLIST() { return api("admin", "occupants", "list"); },
-    get ADMINAPIOCCUPANTSCREATE() { return api("admin", "occupants", "create"); },
+    ADMINAPIOCCUPANTSLIST(tenantId: number) { return api("admin", "occupants", "list", { tenantId }); },
+    ADMINAPIOCCUPANTSCREATE(tenantId: number) { return api("admin", "occupants", "create", { tenantId }); },
     ADMINAPIOCCUPANTSMARKINACTIVE(tenantId: number, occupantUuid: string) { return api("admin", "occupants", "markInactive", { tenantId, occupantUuid }); },
     ADMINAPIOCCUPANTSDELETE(tenantId: number, occupantUuid: string) { return api("admin", "occupants", "delete", { tenantId, occupantUuid }); },
-    ADMINAPIOCCUPANTSGETFILE(filename: string) { return api("admin", "occupants", "getFile", { filename }); },
+    ADMINAPIOCCUPANTSGETFILE(tenantId: number, filename: string) { return api("admin", "occupants", "getFile", { tenantId, filename }); },
 
     // Admin API: PDF
     ADMINAPIPDFDOWNLOAD(tenantId: number, billNo: string) { return api("admin", "pdf", "download", { tenantId, billNo }); },
@@ -30547,6 +39362,100 @@ export const ROUTES = {
     TENANTAPIKYCMARKINACTIVE(viewToken: string, occupantUuid: string) { return api("tenant", "kyc", "markInactive", { viewToken, occupantUuid }); },
     TENANTAPIKYCDELETE(viewToken: string, occupantUuid: string) { return api("tenant", "kyc", "delete", { viewToken, occupantUuid }); },
     TENANTAPIKYCGETFILE(filename: string) { return api("tenant", "kyc", "getFile", { filename }); },
+
+    // Landlord Pages
+    get LANDLORDPAGEROOT() { return page("landlord", "root"); },
+    get LANDLORDPAGELOGIN() { return page("landlord", "login"); },
+    get LANDLORDPAGESIGNUP() { return page("landlord", "signup"); },
+    get LANDLORDPAGEDASHBOARD() { return page("landlord", "dashboard"); },
+    get LANDLORDPAGELOGOUT() { return page("landlord", "logout"); },
+
+    // Landlord API: Auth
+    get LANDLORDAPIAUTHPUBLICKEY() { return api("landlord", "auth", "publicKey"); },
+    get LANDLORDAPIAUTHCHECKUSERNAME() { return api("landlord", "auth", "checkUsername"); },
+    get LANDLORDAPIAUTHCHECKEMAIL() { return api("landlord", "auth", "checkEmail"); },
+    get LANDLORDAPIAUTHSIGNUP() { return api("landlord", "auth", "signup"); },
+    get LANDLORDAPIAUTHLOGIN() { return api("landlord", "auth", "login"); },
+    get LANDLORDAPIAUTHLOGINTOTP() { return api("landlord", "auth", "loginTotp"); },
+    get LANDLORDAPIAUTHREFRESH() { return api("landlord", "auth", "refresh"); },
+    get LANDLORDAPIAUTHLOGOUT() { return api("landlord", "auth", "logout"); },
+    get LANDLORDAPIAUTHME() { return api("landlord", "auth", "me"); },
+    get LANDLORDAPIAUTHCHANGEPASSWORD() { return api("landlord", "auth", "changePassword"); },
+
+    // Landlord API: Dashboard
+    LANDLORDAPIDASHBOARDSTATS(landlordUuid: string) { return api("landlord", "dashboard", "stats", { landlordUuid }); },
+
+    // Landlord API: Config
+    LANDLORDAPICONFIGGET(landlordUuid: string) { return api("landlord", "config", "get", { landlordUuid }); },
+    LANDLORDAPICONFIGUPDATE(landlordUuid: string) { return api("landlord", "config", "update", { landlordUuid }); },
+    LANDLORDAPICONFIGTHEMEGET(landlordUuid: string) { return api("landlord", "config", "themeGet", { landlordUuid }); },
+    LANDLORDAPICONFIGTHEME(landlordUuid: string) { return api("landlord", "config", "theme", { landlordUuid }); },
+
+    // Landlord API: Billing
+    LANDLORDAPIBILLINGFILTER(landlordUuid: string) { return api("landlord", "billing", "filter", { landlordUuid }); },
+    LANDLORDAPIBILLINGMONTHS(landlordUuid: string) { return api("landlord", "billing", "months", { landlordUuid }); },
+    LANDLORDAPIBILLINGPREVIEW(landlordUuid: string) { return api("landlord", "billing", "preview", { landlordUuid }); },
+    LANDLORDAPIBILLINGCREATE(landlordUuid: string, tenantId: number) { return api("landlord", "billing", "create", { landlordUuid, tenantId }); },
+    LANDLORDAPIBILLINGGET(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "get", { landlordUuid, tenantId, billNo }); },
+    LANDLORDAPIBILLINGUPDATE(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "update", { landlordUuid, tenantId, billNo }); },
+    LANDLORDAPIBILLINGUPDATEPAYMENT(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "updatePayment", { landlordUuid, tenantId, billNo }); },
+    LANDLORDAPIBILLINGARCHIVE(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "archive", { landlordUuid, tenantId, billNo }); },
+    LANDLORDAPIBILLINGRESTORE(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "restore", { landlordUuid, tenantId, billNo }); },
+    LANDLORDAPIBILLINGDELETE(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "delete", { landlordUuid, tenantId, billNo }); },
+    LANDLORDAPIBILLINGARCHIVEDATA(landlordUuid: string) { return api("landlord", "billing", "archiveData", { landlordUuid }); },
+
+    // Landlord API: Tenants
+    LANDLORDAPITENANTSLIST(landlordUuid: string) { return api("landlord", "tenants", "list", { landlordUuid }); },
+    LANDLORDAPITENANTSCREATE(landlordUuid: string) { return api("landlord", "tenants", "create", { landlordUuid }); },
+    LANDLORDAPITENANTSGET(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "get", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSUPDATE(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "update", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSDELETE(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "delete", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSRESTORE(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "restore", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSCHANGEPIN(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "changePin", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSREVEALPIN(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "revealPin", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSRECEIPTS(landlordUuid: string, tenantId: number | string) { return api("landlord", "tenants", "receipts", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTRECOVERYSNAPSHOTS(landlordUuid: string) { return api("landlord", "tenants", "recoverySnapshots", { landlordUuid }); },
+    LANDLORDAPITENANTSNAPSHOT_PREVIEW(landlordUuid: string, snapshotId: string) { return api("landlord", "tenants", "recoverySnapshotPreview", { landlordUuid, snapshotId }); },
+    LANDLORDAPITENANTSNAPSHOT_RESTORE(landlordUuid: string, snapshotId: string) { return api("landlord", "tenants", "recoverySnapshotRestore", { landlordUuid, snapshotId }); },
+
+    // Landlord API: Occupants
+    LANDLORDAPIOCCUPANTSLIST(landlordUuid: string, tenantId: number) { return api("landlord", "occupants", "list", { landlordUuid, tenantId }); },
+    LANDLORDAPIOCCUPANTSCREATE(landlordUuid: string, tenantId: number) { return api("landlord", "occupants", "create", { landlordUuid, tenantId }); },
+    LANDLORDAPIOCCUPANTSMARKINACTIVE(landlordUuid: string, tenantId: number, occupantUuid: string) { return api("landlord", "occupants", "markInactive", { landlordUuid, tenantId, occupantUuid }); },
+    LANDLORDAPIOCCUPANTSDELETE(landlordUuid: string, tenantId: number, occupantUuid: string) { return api("landlord", "occupants", "delete", { landlordUuid, tenantId, occupantUuid }); },
+    LANDLORDAPIOCCUPANTSGETFILE(landlordUuid: string, tenantId: number, filename: string) { return api("landlord", "occupants", "getFile", { landlordUuid, tenantId, filename }); },
+
+    // Landlord API: PDF
+    LANDLORDAPIPDFDOWNLOAD(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "pdf", "download", { landlordUuid, tenantId, billNo }); },
+    LANDLORDAPIPDFVIEW(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "pdf", "view", { landlordUuid, tenantId, billNo }); },
+
+    // Landlord API: WhatsApp
+    LANDLORDAPIWHATSAPPSENDSINGLE(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "whatsapp", "sendSingle", { landlordUuid, tenantId, billNo }); },
+
+    // Landlord API: Sync
+    LANDLORDAPISYNCEXPORTCSV(landlordUuid: string) { return api("landlord", "sync", "exportCsv", { landlordUuid }); },
+    LANDLORDAPISYNCEXPORTZIP(landlordUuid: string) { return api("landlord", "sync", "exportZip", { landlordUuid }); },
+    LANDLORDAPISYNCTEMPLATE(landlordUuid: string) { return api("landlord", "sync", "template", { landlordUuid }); },
+    LANDLORDAPISYNCEXPORTEXCEL(landlordUuid: string, format: string) { return api("landlord", "sync", "exportExcel", { landlordUuid, format }); },
+    LANDLORDAPISYNCIMPORTPREVIEW(landlordUuid: string) { return api("landlord", "sync", "importPreview", { landlordUuid }); },
+    LANDLORDAPISYNCIMPORTEXECUTE(landlordUuid: string) { return api("landlord", "sync", "importExecute", { landlordUuid }); },
+
+    // Landlord API: Backups
+    LANDLORDAPIBACKUPSLIST(landlordUuid: string) { return api("landlord", "backups", "list", { landlordUuid }); },
+    LANDLORDAPIBACKUPSCREATEMANUAL(landlordUuid: string) { return api("landlord", "backups", "createManual", { landlordUuid }); },
+    LANDLORDAPIBACKUPSDELETE(landlordUuid: string, backupId: string) { return api("landlord", "backups", "delete", { landlordUuid, backupId }); },
+    LANDLORDAPIBACKUPSVERIFY(landlordUuid: string, backupId: string) { return api("landlord", "backups", "verify", { landlordUuid, backupId }); },
+    LANDLORDAPIBACKUPSRESTORE(landlordUuid: string, backupId: string) { return api("landlord", "backups", "restore", { landlordUuid, backupId }); },
+    LANDLORDAPIBACKUPSDOWNLOAD(landlordUuid: string, backupId: string) { return api("landlord", "backups", "download", { landlordUuid, backupId }); },
+    LANDLORDAPIBACKUPSMETADATA(landlordUuid: string, backupId: string) { return api("landlord", "backups", "metadata", { landlordUuid, backupId }); },
+
+    // Landlord API: Settings
+    LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid: string) { return api("landlord", "settings", "uploadSignature", { landlordUuid }); },
+    LANDLORDAPISETTINGSDELETESIGNATURE(landlordUuid: string) { return api("landlord", "settings", "deleteSignature", { landlordUuid }); },
+
+    // Landlord API: TOTP
+    LANDLORDAPITOTPQR(landlordUuid: string) { return api("landlord", "totp", "qr", { landlordUuid }); },
+    LANDLORDAPITOTPREGENERATE(landlordUuid: string) { return api("landlord", "totp", "regenerate", { landlordUuid }); },
 } as const;
 
 export type RoutesType = typeof ROUTES;
@@ -30554,7 +39463,41 @@ export default ROUTES;
 ```
 
 ```typescript
-// File: frontend\admin-app\src\lib\utils.ts
+// File: frontend\landlord-app\src\lib\runtime.ts
+/**
+ * src/lib/runtime.ts
+ * Determines base paths dynamically at runtime based on the actual URL.
+ */
+
+function getAppBase(): string {
+  const path = window.location.pathname;
+  // Match /{prefix}/landlord/{uuid} when accessed through proxy (e.g. /rent/landlord/abc-123/dashboard)
+  // Match /landlord/{uuid} when accessed directly (e.g. /landlord/abc-123/dashboard)
+  // Falls back to /{prefix}/landlord or /landlord for login/signup (no UUID in URL)
+  const match = path.match(/^(\/[^/]+)?\/landlord(\/[a-f0-9-]+)?/);
+  return match ? match[0] : '/landlord';
+}
+
+export const APP_BASE = getAppBase();
+export const API_BASE = APP_BASE;
+
+export function extractLandlordUuid(): string | null {
+  const path = window.location.pathname;
+  const match = path.match(/\/landlord\/([a-f0-9-]{36})/);
+  return match ? match[1] : null;
+}
+
+export function getFullApiUrl(path: string): string {
+  // path from ROUTES already includes /landlord if it's a page, but API routes
+  // from shared/routes.json might have /landlord/api/...
+  // Usually, just return the path directly as long as it starts with /
+  if (path.startsWith('http')) return path;
+  return path;
+}
+```
+
+```typescript
+// File: frontend\landlord-app\src\lib\utils.ts
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -30564,7 +39507,7 @@ export function cn(...inputs: ClassValue[]) {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\main.tsx
+// File: frontend\landlord-app\src\main.tsx
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
@@ -30578,401 +39521,7 @@ createRoot(document.getElementById('root')!).render(
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\AdminLoginPage.tsx
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { apiPost, apiGet } from '@/hooks/useApi';
-import { useAuth } from '@/contexts/AuthContext';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Eye, EyeOff, Shield, AlertTriangle, ArrowLeft, KeyRound } from 'lucide-react';
-import { ROUTES } from '@/lib/routes';
-
-interface LoginResponse {
-  status: string;
-  message?: string;
-  username?: string;
-  admin_id?: number;
-}
-
-export default function AdminLoginPage() {
-  const navigate = useNavigate();
-  const { login, verifyTotp } = useAuth();
-  const [loginData, setLoginData] = useState({ username: '', password: '', totpToken: '', rememberMe: false });
-  const [forgotData, setForgotData] = useState({ username: '', totpToken: '', newPassword: '', confirmPassword: '' });
-  const [showPassword, setShowPassword] = useState(false);
-  const [showNewPassword, setShowNewPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [needsTOTP, setNeedsTOTP] = useState(false);
-  const [showForgotDialog, setShowForgotDialog] = useState(false);
-  const [forgotStep, setForgotStep] = useState<'verify' | 'reset'>('verify');
-  const [setupRequired, setSetupRequired] = useState(false);
-
-  useEffect(() => {
-    apiGet(ROUTES.ADMINAPISETUPREQUIRED)
-      .then((data: any) => {
-        if (data.setup_required) {
-          setSetupRequired(true);
-          navigate('/setup', { replace: true });
-        }
-      })
-      .catch(() => {});
-  }, [navigate]);
-
-  const handleLogin = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError("");
-    setLoading(true);
-
-    try {
-      if (needsTOTP) {
-        const authenticated = await verifyTotp(
-          loginData.username,
-          loginData.password,
-          loginData.totpToken,
-          loginData.rememberMe,
-        );
-
-        if (!authenticated) {
-          setError("Invalid TOTP code. Please try again.");
-          return;
-        }
-
-        navigate("/dashboard", { replace: true });
-        return;
-      }
-
-      const result = await login(
-        loginData.username,
-        loginData.password,
-        loginData.rememberMe,
-      );
-
-      if (result === "totp_required") {
-        setNeedsTOTP(true);
-        return;
-      }
-
-      if (result === "success") {
-        navigate("/dashboard", { replace: true });
-        return;
-      }
-
-      setError("Invalid username or password.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleForgotPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      if (forgotStep === 'verify') {
-        const result = await apiPost(ROUTES.ADMINAPIPASSWORDFORGOTVERIFY, {
-          username: forgotData.username,
-          totp_token: forgotData.totpToken,
-        });
-
-        if (result.status === 'success') {
-          setForgotStep('reset');
-          setSuccess('TOTP verified. Enter your new password.');
-        }
-      } else {
-        if (forgotData.newPassword !== forgotData.confirmPassword) {
-          setError('Passwords do not match');
-          setLoading(false);
-          return;
-        }
-
-        if (forgotData.newPassword.length < 6) {
-          setError('Password must be at least 6 characters');
-          setLoading(false);
-          return;
-        }
-
-        const result = await apiPost(ROUTES.ADMINAPIPASSWORDFORGOTRESET, {
-          username: forgotData.username,
-          totp_token: forgotData.totpToken,
-          new_password: forgotData.newPassword,
-          confirm_password: forgotData.confirmPassword,
-        });
-
-        if (result.status === 'success') {
-          setSuccess('Password reset successfully! Redirecting to login...');
-          setTimeout(() => {
-            setShowForgotDialog(false);
-            setForgotStep('verify');
-            setForgotData({ username: '', totpToken: '', newPassword: '', confirmPassword: '' });
-            setSuccess('');
-          }, 2000);
-        }
-      }
-    } catch (err: any) {
-      setError(err.message || 'Operation failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (setupRequired) {
-    return null; // Will redirect
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <Shield className="h-8 w-8 text-primary" />
-            </div>
-          </div>
-          <CardTitle className="text-2xl text-center">Admin Login</CardTitle>
-          <CardDescription className="text-center">
-            Enter your credentials to access the dashboard
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
-              <Input
-                id="username"
-                placeholder="Enter username"
-                value={loginData.username}
-                onChange={(e) => {
-                  setLoginData({ ...loginData, username: e.target.value });
-                  setNeedsTOTP(false);
-                  setError('');
-                }}
-                required
-                disabled={needsTOTP}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter password"
-                  value={loginData.password}
-                  onChange={(e) => {
-                    setLoginData({ ...loginData, password: e.target.value });
-                    setNeedsTOTP(false);
-                    setError('');
-                  }}
-                  required
-                  disabled={needsTOTP}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </div>
-
-            {needsTOTP && (
-              <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-                <Label htmlFor="totp" className="flex items-center gap-2">
-                  <KeyRound className="h-4 w-4" />
-                  TOTP Code
-                </Label>
-                <Input
-                  id="totp"
-                  placeholder="Enter 6-digit code from authenticator"
-                  value={loginData.totpToken}
-                  onChange={(e) => setLoginData({ ...loginData, totpToken: e.target.value })}
-                  required
-                  maxLength={6}
-                  pattern="\d{6}"
-                  className="font-mono text-lg tracking-widest"
-                  autoFocus
-                />
-                <p className="text-xs text-muted-foreground">
-                  Open your authenticator app and enter the 6-digit code
-                </p>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center space-x-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={loginData.rememberMe}
-                  onChange={(e) => setLoginData({ ...loginData, rememberMe: e.target.checked })}
-                  className="rounded border-gray-300"
-                />
-                <span>Remember me</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowForgotDialog(true);
-                  setForgotStep('verify');
-                  setError('');
-                  setSuccess('');
-                }}
-                className="text-sm text-primary hover:underline"
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Please wait...' : needsTOTP ? 'Verify & Login' : 'Login'}
-            </Button>
-
-            {needsTOTP && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={() => {
-                  setNeedsTOTP(false);
-                  setLoginData({ ...loginData, totpToken: '' });
-                }}
-              >
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Back to password
-              </Button>
-            )}
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Forgot Password Dialog */}
-      <Dialog open={showForgotDialog} onOpenChange={setShowForgotDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Reset Password</DialogTitle>
-            <DialogDescription>
-              {forgotStep === 'verify' 
-                ? 'Enter your username and TOTP code to verify your identity.'
-                : 'Create a new password for your account.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {success && (
-            <Alert className="mb-4 bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800">
-              <AlertDescription className="text-green-800 dark:text-green-200">{success}</AlertDescription>
-            </Alert>
-          )}
-
-          <form onSubmit={handleForgotPassword} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="forgot-username">Username</Label>
-              <Input
-                id="forgot-username"
-                placeholder="Enter your username"
-                value={forgotData.username}
-                onChange={(e) => setForgotData({ ...forgotData, username: e.target.value })}
-                required
-                disabled={forgotStep === 'reset'}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="forgot-totp" className="flex items-center gap-2">
-                <KeyRound className="h-4 w-4" />
-                TOTP Code
-              </Label>
-              <Input
-                id="forgot-totp"
-                placeholder="6-digit code from authenticator"
-                value={forgotData.totpToken}
-                onChange={(e) => setForgotData({ ...forgotData, totpToken: e.target.value })}
-                required
-                maxLength={6}
-                pattern="\d{6}"
-                className="font-mono tracking-widest"
-                disabled={forgotStep === 'reset'}
-              />
-            </div>
-
-            {forgotStep === 'reset' && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="new-password">New Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="new-password"
-                      type={showNewPassword ? 'text' : 'password'}
-                      placeholder="Minimum 6 characters"
-                      value={forgotData.newPassword}
-                      onChange={(e) => setForgotData({ ...forgotData, newPassword: e.target.value })}
-                      required
-                      minLength={6}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Confirm New Password</Label>
-                  <Input
-                    id="confirm-password"
-                    type="password"
-                    placeholder="Confirm your new password"
-                    value={forgotData.confirmPassword}
-                    onChange={(e) => setForgotData({ ...forgotData, confirmPassword: e.target.value })}
-                    required
-                  />
-                </div>
-              </>
-            )}
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading 
-                ? 'Please wait...' 
-                : forgotStep === 'verify' 
-                  ? 'Verify TOTP' 
-                  : 'Reset Password'}
-            </Button>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-```
-
-```tsx
-// File: frontend\admin-app\src\pages\AdminSetupPage.tsx
+// File: frontend\landlord-app\src\pages\AdminSetupPage.tsx
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiPost, apiGet } from '@/hooks/useApi';
@@ -31239,12 +39788,13 @@ export default function AdminSetupPage() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\Archive.tsx
+// File: frontend\landlord-app\src\pages\Archive.tsx
 import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Tenant, Receipt } from '@/types';
 import { Search, Archive as ArchiveIcon, Loader2 } from 'lucide-react';
 import { ArchiveTenantCard } from '@/components/archive/ArchiveTenantCard';
@@ -31253,6 +39803,7 @@ import EditBillModal from '@/components/shared/EditBillModal';
 import ReceiptRow from '@/components/shared/ReceiptRow';
 
 export default function ARCHIVEPAGE() {
+  const { landlordUuid } = useAuth();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31264,7 +39815,7 @@ export default function ARCHIVEPAGE() {
   const loadArchive = async () => {
     try {
       setLoading(true);
-      const data = await api.getArchiveData();
+      const data = await api.getArchiveData(landlordUuid!);
       setTenants(Array.isArray(data.tenants) ? data.tenants : []);
       setReceipts(Array.isArray(data.receipts) ? data.receipts : []);
     } catch {
@@ -31275,8 +39826,8 @@ export default function ARCHIVEPAGE() {
   };
 
   useEffect(() => {
-    loadArchive();
-  }, []);
+    if (landlordUuid) loadArchive();
+  }, [landlordUuid]);
 
   // Group receipts strictly by TenantId — never by Tenant name
   const receiptsByTenantId = useMemo(() => {
@@ -31466,13 +40017,14 @@ export default function ARCHIVEPAGE() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\Backups.tsx
+// File: frontend\landlord-app\src\pages\Backups.tsx
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/contexts/AuthContext';
 import { ROUTES } from '@/lib/routes';
 import type { Backup, TenantRecoverySnapshot, SnapshotRestorePreview } from '@/types';
 import {
@@ -31513,6 +40065,7 @@ const typeConfig: Record<string, { color: string; icon: typeof Archive }> = {
 // ── Tenant Recovery Snapshot Section ─────────────────────────────────────────
 
 function TenantRecoverySection() {
+  const { landlordUuid } = useAuth();
   const toast = useToast();
   const [snapshots, setSnapshots] = useState<TenantRecoverySnapshot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31530,7 +40083,7 @@ function TenantRecoverySection() {
   const loadSnapshots = async () => {
     try {
       setLoading(true);
-      const data = await api.getTenantRecoverySnapshots();
+      const data = await api.getTenantRecoverySnapshots(landlordUuid!);
       setSnapshots(data.snapshots || []);
     } catch {
       toast.error('Failed to load deleted tenant snapshots');
@@ -31540,8 +40093,8 @@ function TenantRecoverySection() {
   };
 
   useEffect(() => {
-    loadSnapshots();
-  }, []);
+    if (landlordUuid) loadSnapshots();
+  }, [landlordUuid]);
 
   const openRestoreDialog = async (snap: TenantRecoverySnapshot) => {
     setPreviewSnapshot(snap);
@@ -31550,7 +40103,7 @@ function TenantRecoverySection() {
     setRestoreSuccess(null);
     setPreviewLoading(true);
     try {
-      const data = await api.getTenantRecoverySnapshotPreview(snap.id);
+      const data = await api.getTenantRecoverySnapshotPreview(landlordUuid!, snap.id);
       setPreview(data);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load restore preview');
@@ -31571,7 +40124,7 @@ function TenantRecoverySection() {
     if (!previewSnapshot || restoring) return;
     try {
       setRestoring(true);
-      const result = await api.restoreTenantFromSnapshot(previewSnapshot.id, forceNewId);
+      const result = await api.restoreTenantFromSnapshot(landlordUuid!, previewSnapshot.id, forceNewId);
       setRestoreSuccess({
         restoredId: result.restored_tenant_id,
         originalId: result.original_tenant_id,
@@ -31861,6 +40414,7 @@ function TenantRecoverySection() {
 // ── Main Backups Page ─────────────────────────────────────────────────────────
 
 export default function Backups() {
+  const { landlordUuid } = useAuth();
   const [backups, setBackups] = useState<Backup[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('All');
@@ -31871,7 +40425,7 @@ export default function Backups() {
   const loadBackups = async () => {
     try {
       setLoading(true);
-      const data = await api.getBackups();
+      const data = await api.getBackups(landlordUuid!);
       setBackups(data.backups || []);
     } catch {
       toast.error('Failed to load backups');
@@ -31881,8 +40435,8 @@ export default function Backups() {
   };
 
   useEffect(() => {
-    loadBackups();
-  }, []);
+    if (landlordUuid) loadBackups();
+  }, [landlordUuid]);
 
   const filtered = activeFilter === 'All'
     ? backups
@@ -31891,7 +40445,7 @@ export default function Backups() {
   const handleCreateBackup = async () => {
     try {
       toast.loading('Creating backup...');
-      await api.createManualBackup();
+      await api.createManualBackup(landlordUuid!);
       toast.success('Backup created successfully');
       loadBackups();
     } catch {
@@ -31901,7 +40455,7 @@ export default function Backups() {
 
   const handleDelete = async (id: string) => {
     try {
-      await api.deleteBackup(id);
+      await api.deleteBackup(landlordUuid!, id);
       toast.success('Backup deleted');
       loadBackups();
     } catch {
@@ -31912,7 +40466,7 @@ export default function Backups() {
   const handleVerify = async (id: string) => {
     try {
       toast.loading('Verifying backup...');
-      const result = await api.verifyBackup(id);
+      const result = await api.verifyBackup(landlordUuid!, id);
       if (result.status === 'success') {
         toast.success(result.message);
       } else {
@@ -31932,7 +40486,7 @@ export default function Backups() {
     if (!restoring) return;
     setRestoreStep(3);
     try {
-      await api.restoreBackup(restoring.id);
+      await api.restoreBackup(landlordUuid!, restoring.id);
       toast.success('System restored successfully! Reloading...');
       setTimeout(() => window.location.reload(), 1500);
     } catch {
@@ -32043,7 +40597,7 @@ export default function Backups() {
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                           const a = document.createElement('a');
-                          a.href = ROUTES.ADMINAPIBACKUPSDOWNLOAD(b.id);
+                          a.href = ROUTES.LANDLORDAPIBACKUPSDOWNLOAD(landlordUuid!, b.id);
                           a.download = b.filename;
                           a.click();
                         }} title="Download">
@@ -32128,7 +40682,7 @@ export default function Backups() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\Billing.tsx
+// File: frontend\landlord-app\src\pages\Billing.tsx
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32145,11 +40699,13 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Tenant } from '@/types';
 import { CheckCircle, FileText, Download, Clock, AlertCircle, Zap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function Billing() {
+  const { landlordUuid } = useAuth();
   const navigate = useNavigate();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [months, setMonths] = useState<string[]>([]);
@@ -32181,7 +40737,8 @@ export default function Billing() {
   const toast = useToast();
 
   useEffect(() => {
-    Promise.all([api.getTenants(), api.getBillingMonths()])
+    if (!landlordUuid) return;
+    Promise.all([api.getTenants(landlordUuid), api.getBillingMonths(landlordUuid)])
       .then(([t, m]) => {
         setTenants(t.filter((x: Tenant) => x.status === 'Active'));
         setMonths(m.months);
@@ -32190,7 +40747,7 @@ export default function Billing() {
       })
       .catch(() => toast.error('Failed to load data'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [landlordUuid]);
 
   const handleTenantChange = useCallback(async (tenantId: string) => {
     setSelectedTenantId(tenantId);
@@ -32199,8 +40756,8 @@ export default function Billing() {
 
     try {
       const [tRes, recRes] = await Promise.all([
-        api.getTenant(tenant.id as number),
-        api.getTenantReceipts(tenant.id as number),
+        api.getTenant(landlordUuid!, tenant.id as number),
+        api.getTenantReceipts(landlordUuid!, tenant.id as number),
       ]);
 
       setRent(tRes.rent || 0);
@@ -32275,7 +40832,7 @@ export default function Billing() {
 
     setSubmitting(true);
     try {
-      const res = await api.createBill(tenant.id as number, {
+      const res = await api.createBill(landlordUuid!, tenant.id as number, {
         tenant: tenant.name,
         month: selectedMonth,
         current_reading: currentVal,
@@ -32536,13 +41093,13 @@ export default function Billing() {
             <p className="text-muted-foreground mt-1">Receipt #{generatedBill}</p>
           </div>
           <div className="space-y-2">
-            <Button variant="outline" className="w-full justify-start" onClick={() => generatedBill && window.open(api.getPDFViewUrl(Number(selectedTenantId), generatedBill), '_blank')}>
+            <Button variant="outline" className="w-full justify-start" onClick={() => generatedBill && window.open(api.getPDFViewUrl(landlordUuid!, Number(selectedTenantId), generatedBill), '_blank')}>
               <FileText className="h-4 w-4 mr-2 text-primary" /> Preview Receipt
             </Button>
             <Button variant="outline" className="w-full justify-start" onClick={() => {
               if (!generatedBill) return;
               const a = document.createElement('a');
-              a.href = api.getPDFDownloadUrl(Number(selectedTenantId), generatedBill);
+              a.href = api.getPDFDownloadUrl(landlordUuid!, Number(selectedTenantId), generatedBill);
               a.download = `Receipt_${generatedBill}.pdf`;
               a.click();
             }}>
@@ -32563,14 +41120,202 @@ export default function Billing() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\Dashboard.tsx
+// File: frontend\landlord-app\src\pages\ChangePasswordPage.tsx
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Eye, EyeOff, KeyRound, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
+
+export default function ChangePasswordPage() {
+  const navigate = useNavigate();
+  const { changePassword, landlordUuid, hasTotp } = useAuth();
+  const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [totpData, setTotpData] = useState<any>(null);
+  const [showTotpModal, setShowTotpModal] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+
+    if (form.newPassword !== form.confirmPassword) {
+      setError('New passwords do not match.');
+      return;
+    }
+    if (form.newPassword.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (form.currentPassword === form.newPassword) {
+      setError('New password must be different from current password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const result = await changePassword(form.currentPassword, form.newPassword, form.confirmPassword);
+      if (result.status === 'success') {
+        if (result.next_step === 'totp_review' && result.totp) {
+          setTotpData(result.totp);
+          setShowTotpModal(true);
+        } else {
+          setSuccess('Password updated successfully! Redirecting...');
+          setTimeout(() => {
+            if (landlordUuid) {
+              navigate(`/${landlordUuid}/dashboard`, { replace: true });
+            } else {
+              navigate('/dashboard', { replace: true });
+            }
+          }, 1500);
+        }
+      } else {
+        setError(result.message || 'Failed to change password.');
+      }
+    } catch {
+      setError('An unexpected error occurred.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTotpClose = () => {
+    setShowTotpModal(false);
+    setSuccess('Password updated successfully! Redirecting...');
+    setTimeout(() => {
+      if (landlordUuid) {
+        navigate(`/${landlordUuid}/dashboard`, { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }, 500);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+      <Card className="w-full max-w-md shadow-xl">
+        <CardHeader className="space-y-1">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-full">
+              <KeyRound className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl text-center">Change Your Password</CardTitle>
+          <CardDescription className="text-center">
+            Your password has been reset by an administrator. Please set a new password to continue.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {success && (
+            <Alert className="mb-4 bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800">
+              <CheckCircle2 className="h-4 w-4 text-green-500" />
+              <AlertDescription className="text-green-800 dark:text-green-200">{success}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <div className="relative">
+                <Input
+                  id="currentPassword"
+                  type={showCurrent ? 'text' : 'password'}
+                  placeholder="Enter current password"
+                  value={form.currentPassword}
+                  onChange={(e) => setForm({ ...form, currentPassword: e.target.value })}
+                  required
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrent(!showCurrent)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <div className="relative">
+                <Input
+                  id="newPassword"
+                  type={showNew ? 'text' : 'password'}
+                  placeholder="Enter new password (min 6 characters)"
+                  value={form.newPassword}
+                  onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
+                  required
+                  minLength={6}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNew(!showNew)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="Confirm new password"
+                value={form.confirmPassword}
+                onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                required
+                minLength={6}
+              />
+            </div>
+
+            <Button type="submit" className="w-full" disabled={loading || !!success}>
+              {loading ? 'Updating...' : 'Update Password'}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <TotpSetupModal
+        isOpen={showTotpModal}
+        onClose={handleTotpClose}
+        totp={totpData}
+        hasExistingTotp={hasTotp}
+      />
+    </div>
+  );
+}
+```
+
+```tsx
+// File: frontend\landlord-app\src\pages\Dashboard.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
-import type { DashboardStats } from '@/types';
+import { useAuth } from '@/contexts/AuthContext';
+import type { DashboardStats, Tenant } from '@/types';
 import {
   TrendingUp,
   TrendingDown,
@@ -32603,12 +41348,14 @@ const statCards = [
 ] as const;
 
 export default function Dashboard() {
+  const { landlordUuid } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewBill, setPreviewBill] = useState<{ billNo: string; tenantId: number } | null>(null);
   const [editBill, setEditBill] = useState<{ billNo: string; tenantId: number } | null>(null);
   const [dueOpen, setDueOpen] = useState(false);
   const [meterOpen, setMeterOpen] = useState(false);
+  const [allTenants, setAllTenants] = useState<Tenant[]>([]);
 
   const toast = useToast();
   const navigate = useNavigate();
@@ -32616,7 +41363,7 @@ export default function Dashboard() {
   const loadStats = async () => {
     try {
       setLoading(true);
-      const data = await api.getDashboardStats();
+      const data = await api.getDashboardStats(landlordUuid!);
       setStats(data);
     } catch {
       toast.error('Failed to load dashboard data');
@@ -32626,8 +41373,10 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
+    if (!landlordUuid) return;
     loadStats();
-  }, []);
+    api.getTenants(landlordUuid).then(setAllTenants).catch(() => {});
+  }, [landlordUuid]);
 
   const formatValue = (key: string, value: number) => {
     if (key.includes('revenue') || key.includes('amount') || key.includes('collected')) {
@@ -32949,7 +41698,7 @@ export default function Dashboard() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (!ensureValid('download receipt')) return;
-                                const url = api.getPDFDownloadUrl(tenantId, billNo);
+                                const url = api.getPDFDownloadUrl(landlordUuid!, tenantId, billNo);
                                 const a = document.createElement('a');
                                 a.href = url;
                                 a.download = `Receipt_${billNo}.pdf`;
@@ -32970,7 +41719,7 @@ export default function Dashboard() {
                                 e.stopPropagation();
                                 if (!ensureValid('share on WhatsApp')) return;
                                 try {
-                                  const data = await api.sendWhatsApp(tenantId, billNo);
+                                  const data = await api.sendWhatsApp(landlordUuid!, tenantId, billNo);
                                   if (data.url) window.open(data.url, '_blank', 'noopener,noreferrer');
                                 } catch (err) {
                                   toast.error(err instanceof Error ? err.message : 'Failed to generate WhatsApp link');
@@ -33043,6 +41792,7 @@ export default function Dashboard() {
         onOpenChange={setMeterOpen}
         tenantId={stats.highest_meter_tenant_id || null}
         billNo={stats.highest_meter_bill_no || null}
+        allTenantIds={allTenants.map(t => t.id)}
       />
     </div>
   );
@@ -33050,13 +41800,14 @@ export default function Dashboard() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\History.tsx
+// File: frontend\landlord-app\src\pages\History.tsx
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Receipt } from '@/types';
 import { Search, Receipt as ReceiptIcon, ChevronDown } from 'lucide-react';
 import ReceiptRow from '@/components/shared/ReceiptRow';
@@ -33070,6 +41821,7 @@ interface GroupedReceipts {
 }
 
 export default function History() {
+  const { landlordUuid } = useAuth();
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -33083,7 +41835,7 @@ export default function History() {
   const loadReceipts = async () => {
     try {
       setLoading(true);
-      const data = await api.getActiveReceipts();
+      const data = await api.getActiveReceipts(landlordUuid!);
       setReceipts(data);
     } catch {
       toast.error('Failed to load receipts');
@@ -33093,8 +41845,8 @@ export default function History() {
   };
 
   useEffect(() => {
-    loadReceipts();
-  }, []);
+    if (landlordUuid) loadReceipts();
+  }, [landlordUuid]);
 
   useEffect(() => {
     if (q) setSearch(q);
@@ -33212,7 +41964,7 @@ export default function History() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\Home.tsx
+// File: frontend\landlord-app\src\pages\Home.tsx
 import { useState } from 'react'
 import '../App.css'
 
@@ -33236,14 +41988,616 @@ export default function Home() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\Login.tsx
+// File: frontend\landlord-app\src\pages\LandlordLoginPage.tsx
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Eye, EyeOff, Shield, AlertTriangle, ArrowLeft, KeyRound } from 'lucide-react';
+
+export default function LandlordLoginPage() {
+  const navigate = useNavigate();
+  const { login, verifyTotp, isAuthenticated, isLoading, landlordUuid } = useAuth();
+  const [loginData, setLoginData] = useState({ username: '', password: '', totpToken: '', rememberMe: false });
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [needsTOTP, setNeedsTOTP] = useState(false);
+
+  // Auth guard: redirect to dashboard if already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && landlordUuid) {
+      navigate(`/${landlordUuid}/dashboard`, { replace: true });
+    }
+  }, [isLoading, isAuthenticated, landlordUuid, navigate]);
+
+  const handleLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      if (needsTOTP) {
+        const result = await verifyTotp(
+          loginData.username,
+          loginData.password,
+          loginData.totpToken,
+          loginData.rememberMe,
+        );
+
+        if (result && result.status === "password_change_required") {
+          navigate("/change-password", { replace: true });
+          return;
+        }
+
+        if (!result || result.status !== "success") {
+          setError("Invalid TOTP code. Please try again.");
+          return;
+        }
+
+        return;
+      }
+
+      const result = await login(
+        loginData.username,
+        loginData.password,
+        loginData.rememberMe,
+      );
+
+      if (result.status === "totp_required") {
+        setNeedsTOTP(true);
+        return;
+      }
+
+      if (result.status === "password_change_required") {
+        navigate("/change-password", { replace: true });
+        return;
+      }
+
+      if (result.status === "success") {
+        navigate(`/${result.landlordUuid}/dashboard`, { replace: true });
+        return;
+      }
+
+      setError("Invalid username or password.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+      <Card className="w-full max-w-md shadow-xl">
+        <CardHeader className="space-y-1">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-3 bg-primary/10 rounded-full">
+              <Shield className="h-8 w-8 text-primary" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl text-center">Landlord Login</CardTitle>
+          <CardDescription className="text-center">
+            Enter your credentials to manage your properties
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input
+                id="username"
+                placeholder="Enter username"
+                value={loginData.username}
+                onChange={(e) => {
+                  setLoginData({ ...loginData, username: e.target.value });
+                  setNeedsTOTP(false);
+                  setError('');
+                }}
+                required
+                disabled={needsTOTP}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter password"
+                  value={loginData.password}
+                  onChange={(e) => {
+                    setLoginData({ ...loginData, password: e.target.value });
+                    setNeedsTOTP(false);
+                    setError('');
+                  }}
+                  required
+                  disabled={needsTOTP}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {needsTOTP && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+                <Label htmlFor="totp" className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" />
+                  TOTP Code
+                </Label>
+                <Input
+                  id="totp"
+                  placeholder="Enter 6-digit code from authenticator"
+                  value={loginData.totpToken}
+                  onChange={(e) => setLoginData({ ...loginData, totpToken: e.target.value })}
+                  required
+                  maxLength={6}
+                  pattern="\d{6}"
+                  className="font-mono text-lg tracking-widest"
+                  autoFocus
+                />
+                <p className="text-xs text-muted-foreground">
+                  Open your authenticator app and enter the 6-digit code
+                </p>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center space-x-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={loginData.rememberMe}
+                  onChange={(e) => setLoginData({ ...loginData, rememberMe: e.target.checked })}
+                  className="rounded border-gray-300"
+                />
+                <span>Remember me</span>
+              </label>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Please wait...' : needsTOTP ? 'Verify & Login' : 'Login'}
+            </Button>
+
+            {needsTOTP && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full"
+                onClick={() => {
+                  setNeedsTOTP(false);
+                  setLoginData({ ...loginData, totpToken: '' });
+                }}
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to password
+              </Button>
+            )}
+          </form>
+        </CardContent>
+        <CardFooter className="flex justify-center border-t p-4 mt-2">
+          <p className="text-sm text-muted-foreground">
+            Don't have an account? <Link to="/signup" className="text-primary hover:underline font-medium">Sign up</Link>
+          </p>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
+```
+
+```tsx
+// File: frontend\landlord-app\src\pages\LandlordSignupPage.tsx
+import { useState, useRef, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Eye, EyeOff, Shield, AlertTriangle, Check, X, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { ROUTES } from '@/lib/routes';
+
+type FieldStatus = 'idle' | 'checking' | 'available' | 'taken' | 'error';
+
+interface Conflict {
+  field: string;
+  code: string;
+  message: string;
+  suggestions?: string[];
+}
+
+export default function LandlordSignupPage() {
+  const navigate = useNavigate();
+  const [signupData, setSignupData] = useState({
+    username: '',
+    password: '',
+    confirmPassword: '',
+    fullName: '',
+    email: '',
+    phone: ''
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const [usernameStatus, setUsernameStatus] = useState<FieldStatus>('idle');
+  const [emailStatus, setEmailStatus] = useState<FieldStatus>('idle');
+  const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+  const [passwordStrength, setPasswordStrength] = useState(0);
+
+  const usernameTimer = useRef<ReturnType<typeof setTimeout>>();
+  const emailTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const checkUsername = useCallback((value: string) => {
+    if (usernameTimer.current) clearTimeout(usernameTimer.current);
+    if (value.length < 3) {
+      setUsernameStatus('idle');
+      setUsernameSuggestions([]);
+      return;
+    }
+    setUsernameStatus('checking');
+    usernameTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${ROUTES.LANDLORDAPIAUTHCHECKUSERNAME}?username=${encodeURIComponent(value)}`);
+        const data = await res.json();
+        if (data.available) {
+          setUsernameStatus('available');
+          setUsernameSuggestions([]);
+        } else {
+          setUsernameStatus('taken');
+          setUsernameSuggestions(data.suggestions || []);
+        }
+      } catch {
+        setUsernameStatus('error');
+      }
+    }, 400);
+  }, []);
+
+  const checkEmail = useCallback((value: string) => {
+    if (emailTimer.current) clearTimeout(emailTimer.current);
+    if (!value.includes('@') || value.length < 5) {
+      setEmailStatus('idle');
+      return;
+    }
+    setEmailStatus('checking');
+    emailTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${ROUTES.LANDLORDAPIAUTHCHECKEMAIL}?email=${encodeURIComponent(value)}`);
+        const data = await res.json();
+        setEmailStatus(data.available ? 'available' : 'taken');
+        if (!data.available) {
+          toast.error('Email is already registered', { description: 'Please use a different email or log in.' });
+        }
+      } catch {
+        setEmailStatus('error');
+      }
+    }, 500);
+  }, []);
+
+  const calcPasswordStrength = (pw: string): number => {
+    let s = 0;
+    if (pw.length >= 8) s++;
+    if (pw.length >= 12) s++;
+    if (/[A-Z]/.test(pw)) s++;
+    if (/[0-9]/.test(pw)) s++;
+    if (/[^A-Za-z0-9]/.test(pw)) s++;
+    return s;
+  };
+
+  const handleChange = (field: string, value: string) => {
+    setSignupData(prev => ({ ...prev, [field]: value }));
+    setError('');
+
+    if (field === 'username') {
+      const clean = value.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      if (clean !== value) setSignupData(prev => ({ ...prev, username: clean }));
+      checkUsername(clean);
+    }
+    if (field === 'email') checkEmail(value);
+    if (field === 'password') setPasswordStrength(calcPasswordStrength(value));
+  };
+
+  const selectSuggestion = (s: string) => {
+    setSignupData(prev => ({ ...prev, username: s }));
+    setUsernameStatus('available');
+    setUsernameSuggestions([]);
+    toast.success(`Username "${s}" is available`);
+  };
+
+  const handleSignup = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+
+    if (signupData.password !== signupData.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (signupData.username.length < 3) {
+      setError('Username must be at least 3 characters.');
+      return;
+    }
+    if (signupData.password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(ROUTES.LANDLORDAPIAUTHSIGNUP, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(signupData),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.detail?.conflicts) {
+          const conflicts: Conflict[] = data.detail.conflicts;
+          conflicts.forEach(c => {
+            toast.error(c.message, { description: c.suggestions ? `Try: ${c.suggestions.slice(0, 3).join(', ')}` : undefined, duration: 6000 });
+            if (c.field === 'username') setUsernameStatus('taken');
+            if (c.field === 'email') setEmailStatus('taken');
+          });
+          setError(data.detail.message || 'Some fields need attention.');
+        } else if (typeof data.detail === 'string') {
+          setError(data.detail);
+        } else {
+          setError('Signup failed. Please check your information.');
+        }
+        return;
+      }
+
+      if (data.status === 'success') {
+        toast.success('Account created!', { description: 'Redirecting to login...' });
+        setTimeout(() => navigate('/login', { replace: true }), 1200);
+        return;
+      }
+      setError('An unexpected error occurred.');
+    } catch {
+      setError('Network error. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fieldIcon = (status: FieldStatus) => {
+    if (status === 'checking') return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
+    if (status === 'available') return <Check className="h-4 w-4 text-green-500" />;
+    if (status === 'taken' || status === 'error') return <X className="h-4 w-4 text-red-500" />;
+    return null;
+  };
+
+  const fieldBorder = (status: FieldStatus) => {
+    if (status === 'available') return 'border-green-500 focus-visible:ring-green-500';
+    if (status === 'taken' || status === 'error') return 'border-red-500 focus-visible:ring-red-500';
+    return '';
+  };
+
+  const strengthColor = (s: number) => s <= 2 ? 'bg-red-400' : s <= 3 ? 'bg-yellow-400' : 'bg-green-500';
+  const strengthLabel = (s: number) => s <= 1 ? 'Very weak' : s <= 2 ? 'Weak' : s <= 3 ? 'Fair' : s <= 4 ? 'Good' : 'Strong';
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+      <Card className="w-full max-w-md shadow-xl">
+        <CardHeader className="space-y-1">
+          <div className="flex items-center justify-center mb-4">
+            <div className="p-3 bg-primary/10 rounded-full">
+              <Shield className="h-8 w-8 text-primary" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl text-center">Landlord Signup</CardTitle>
+          <CardDescription className="text-center">
+            Create an account to manage your properties
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSignup} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name</Label>
+              <Input
+                id="fullName"
+                placeholder="Enter full name"
+                value={signupData.fullName}
+                onChange={e => handleChange('fullName', e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="email">
+                Email Address
+                {emailStatus === 'available' && <span className="ml-2 text-xs text-green-500">Available</span>}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="Enter email address"
+                  value={signupData.email}
+                  onChange={e => handleChange('email', e.target.value)}
+                  className={fieldBorder(emailStatus)}
+                  required
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2">{fieldIcon(emailStatus)}</span>
+              </div>
+              {emailStatus === 'taken' && (
+                <p className="text-xs text-red-500">This email is already registered.</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="username">
+                Username
+                {usernameStatus === 'available' && <span className="ml-2 text-xs text-green-500">Available</span>}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="username"
+                  placeholder="letters, numbers, underscores"
+                  value={signupData.username}
+                  onChange={e => handleChange('username', e.target.value)}
+                  className={fieldBorder(usernameStatus)}
+                  required
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2">{fieldIcon(usernameStatus)}</span>
+              </div>
+              {usernameSuggestions.length > 0 && (
+                <div className="p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-md">
+                  <p className="text-sm text-orange-700 dark:text-orange-300 font-medium mb-2">
+                    "{signupData.username}" is taken. Try one of these:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {usernameSuggestions.map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => selectSuggestion(s)}
+                        className="px-3 py-1 bg-white dark:bg-orange-900 border border-orange-300 dark:border-orange-700 rounded-full text-sm text-orange-700 dark:text-orange-200 hover:bg-orange-100 dark:hover:bg-orange-800 transition-colors"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone (optional)</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="10-digit mobile number"
+                value={signupData.phone}
+                onChange={e => handleChange('phone', e.target.value.replace(/\D/g, ''))}
+                maxLength={10}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="password">
+                Password
+                {signupData.password.length > 0 && signupData.password.length < 8 && (
+                  <span className="ml-2 text-xs text-red-500">Min 8 characters</span>
+                )}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Enter password"
+                  value={signupData.password}
+                  onChange={e => handleChange('password', e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              {signupData.password.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex gap-1 h-1.5">
+                    {[1, 2, 3, 4, 5].map(level => (
+                      <div
+                        key={level}
+                        className={`flex-1 rounded-full transition-colors ${level <= passwordStrength ? strengthColor(passwordStrength) : 'bg-gray-200 dark:bg-gray-700'}`}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">{strengthLabel(passwordStrength)}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <div className="relative">
+                <Input
+                  id="confirmPassword"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Confirm password"
+                  value={signupData.confirmPassword}
+                  onChange={e => handleChange('confirmPassword', e.target.value)}
+                  className={
+                    signupData.confirmPassword && signupData.password !== signupData.confirmPassword
+                      ? 'border-red-500 focus-visible:ring-red-500'
+                      : signupData.confirmPassword && signupData.password === signupData.confirmPassword
+                      ? 'border-green-500 focus-visible:ring-green-500'
+                      : ''
+                  }
+                  required
+                />
+                {signupData.confirmPassword && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                    {signupData.password === signupData.confirmPassword
+                      ? <Check className="h-4 w-4 text-green-500" />
+                      : <X className="h-4 w-4 text-red-500" />}
+                  </span>
+                )}
+              </div>
+              {signupData.confirmPassword && signupData.password !== signupData.confirmPassword && (
+                <p className="text-xs text-red-500">Passwords do not match</p>
+              )}
+            </div>
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Creating Account...
+                </>
+              ) : 'Sign Up'}
+            </Button>
+          </form>
+        </CardContent>
+        <CardFooter className="flex justify-center border-t p-4 mt-2">
+          <p className="text-sm text-muted-foreground">
+            Already have an account? <Link to="/login" className="text-primary hover:underline font-medium">Log in</Link>
+          </p>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
+```
+
+```tsx
+// File: frontend\landlord-app\src\pages\Login.tsx
 import { useState } from 'react';
-import { Shield, User, KeyRound } from 'lucide-react';
+import { Shield, User, KeyRound, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
+import { APP_BASE, ROUTES } from '@/lib/constants';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -33263,7 +42617,7 @@ export default function Login() {
 
     const success = await login(username, password, rememberMe);
     if (success) {
-      window.location.assign('/rent/admin/');
+      window.location.assign(APP_BASE || '/');
     } else {
       setError('Invalid username or password');
     }
@@ -33358,10 +42712,11 @@ export default function Login() {
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\SecuritySettingsPage.tsx
+// File: frontend\landlord-app\src\pages\SecuritySettingsPage.tsx
 import { useState, useEffect } from 'react';
 import { apiGet, apiPost } from '@/hooks/useApi';
 import { ROUTES } from '@/lib/routes';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33374,6 +42729,7 @@ import {
   Shield, KeyRound, Copy, CheckCircle2, AlertTriangle, 
   RefreshCw, Eye, EyeOff, QrCode 
 } from 'lucide-react';
+import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
 
 interface TOTPData {
   secret: string;
@@ -33387,6 +42743,7 @@ interface TOTPResponse {
 }
 
 export default function SecuritySettingsPage() {
+  const { landlordUuid, hasTotp, changePassword } = useAuth();
   const [totpData, setTotpData] = useState<TOTPData | null>(null);
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [password, setPassword] = useState('');
@@ -33397,13 +42754,23 @@ export default function SecuritySettingsPage() {
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
 
+  // Password change form
+  const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [showPwCurrent, setShowPwCurrent] = useState(false);
+  const [showPwNew, setShowPwNew] = useState(false);
+  const [pwLoading, setPwLoading] = useState(false);
+  const [pwError, setPwError] = useState('');
+  const [pwSuccess, setPwSuccess] = useState('');
+  const [totpModalData, setTotpModalData] = useState<any>(null);
+  const [showTotpModal, setShowTotpModal] = useState(false);
+
   useEffect(() => {
-    loadTOTPData();
-  }, []);
+    if (landlordUuid) loadTOTPData();
+  }, [landlordUuid]);
 
   const loadTOTPData = async () => {
     try {
-      const result: TOTPResponse = await apiGet(ROUTES.ADMINAPITOTPQR);
+      const result: TOTPResponse = await apiGet(ROUTES.LANDLORDAPITOTPQR(landlordUuid!));
       if (result.status === 'success') {
         setTotpData(result.totp);
       }
@@ -33426,7 +42793,7 @@ export default function SecuritySettingsPage() {
     setLoading(true);
 
     try {
-      const result: TOTPResponse = await apiPost(ROUTES.ADMINAPITOTPREGENERATE, {
+      const result: TOTPResponse = await apiPost(ROUTES.LANDLORDAPITOTPREGENERATE(landlordUuid!), {
         password: password,
       });
 
@@ -33441,6 +42808,46 @@ export default function SecuritySettingsPage() {
       setError(err.message || 'Failed to regenerate TOTP');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwError('');
+    setPwSuccess('');
+
+    if (pwForm.newPassword !== pwForm.confirmPassword) {
+      setPwError('New passwords do not match.');
+      return;
+    }
+    if (pwForm.newPassword.length < 6) {
+      setPwError('Password must be at least 6 characters.');
+      return;
+    }
+    if (pwForm.currentPassword === pwForm.newPassword) {
+      setPwError('New password must be different from current password.');
+      return;
+    }
+
+    setPwLoading(true);
+    try {
+      const result = await changePassword(pwForm.currentPassword, pwForm.newPassword, pwForm.confirmPassword);
+      if (result.status === 'success') {
+        if (result.next_step === 'totp_review' && result.totp) {
+          setTotpModalData(result.totp);
+          setShowTotpModal(true);
+        } else {
+          setPwSuccess('Password updated successfully!');
+          setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+          setTimeout(() => setPwSuccess(''), 5000);
+        }
+      } else {
+        setPwError(result.message || 'Failed to change password.');
+      }
+    } catch {
+      setPwError('An unexpected error occurred.');
+    } finally {
+      setPwLoading(false);
     }
   };
 
@@ -33580,14 +42987,80 @@ export default function SecuritySettingsPage() {
                 Change Password
               </CardTitle>
               <CardDescription>
-                Update your account password. You will need to use your TOTP code to verify the change.
+                Update your account password. Use a strong, unique password.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                To change your password, please use the "Forgot Password" flow on the login page 
-                with your TOTP verification code.
-              </p>
+              {pwError && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{pwError}</AlertDescription>
+                </Alert>
+              )}
+              {pwSuccess && (
+                <Alert className="mb-4 bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800">
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  <AlertDescription className="text-green-800 dark:text-green-200">{pwSuccess}</AlertDescription>
+                </Alert>
+              )}
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="sec-currentPassword">Current Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="sec-currentPassword"
+                      type={showPwCurrent ? 'text' : 'password'}
+                      placeholder="Enter current password"
+                      value={pwForm.currentPassword}
+                      onChange={(e) => setPwForm({ ...pwForm, currentPassword: e.target.value })}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPwCurrent(!showPwCurrent)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPwCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sec-newPassword">New Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="sec-newPassword"
+                      type={showPwNew ? 'text' : 'password'}
+                      placeholder="Enter new password (min 6 characters)"
+                      value={pwForm.newPassword}
+                      onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })}
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPwNew(!showPwNew)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPwNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="sec-confirmPassword">Confirm New Password</Label>
+                  <Input
+                    id="sec-confirmPassword"
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={pwForm.confirmPassword}
+                    onChange={(e) => setPwForm({ ...pwForm, confirmPassword: e.target.value })}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={pwLoading}>
+                  {pwLoading ? 'Updating...' : 'Update Password'}
+                </Button>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>
@@ -33654,13 +43127,25 @@ export default function SecuritySettingsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <TotpSetupModal
+        isOpen={showTotpModal}
+        onClose={() => {
+          setShowTotpModal(false);
+          setPwSuccess('Password updated successfully!');
+          setPwForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+          setTimeout(() => setPwSuccess(''), 5000);
+        }}
+        totp={totpModalData}
+        hasExistingTotp={hasTotp}
+      />
     </div>
   );
 }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\Settings.tsx
+// File: frontend\landlord-app\src\pages\Settings.tsx
 import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33670,9 +43155,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/services/api';
+import { ROUTES } from '@/lib/routes';
 import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
+
 import type { AppConfig } from '@/types';
 import ImportPreviewModal from '../components/modals/ImportPreviewModal';
 import ExportPreviewModal from '../components/modals/ExportPreviewModal';
@@ -33694,9 +43183,11 @@ import {
   Shield,
   HardDrive,
   Download,
+  QrCode,
 } from 'lucide-react';
 
 export default function Settings() {
+  const { landlordUuid } = useAuth();
   const whatsappTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [whatsappEditMode, setWhatsappEditMode] = useState(false);
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -33708,13 +43199,16 @@ export default function Settings() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [mismatchOpen, setMismatchOpen] = useState(false);
   const [mismatchInfo, setMismatchInfo] = useState<SchemaMismatchInfo | null>(null);
+  const [qrModalOpen, setQrModalOpen] = useState(false);
+  const [qrData, setQrData] = useState<{ secret: string, qr_code_base64: string } | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
   const toast = useToast();
-  const { theme, effectiveTheme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
 
   const loadConfig = async () => {
     try {
       setLoading(true);
-      const data = await api.getConfig();
+      const data = await api.getConfig(landlordUuid!);
       setConfig(data);
     } catch {
       toast.error('Failed to load settings');
@@ -33724,8 +43218,8 @@ export default function Settings() {
   };
 
   useEffect(() => {
-    loadConfig();
-  }, []);
+    if (landlordUuid) loadConfig();
+  }, [landlordUuid]);
 
   useEffect(() => {
     const readonlyByDefault = !!config?.whatsapp?.single_template?.readonly_by_default;
@@ -33736,7 +43230,7 @@ export default function Settings() {
     if (!signatureFile) return;
     const form = new FormData();
     form.append("file", signatureFile);
-    const res = await fetch("/rent/admin/api/settings/upload-signature", {
+    const res = await fetch(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid!), {
       method: "POST",
       credentials: "include",
       body: form,
@@ -33753,7 +43247,7 @@ export default function Settings() {
     setImportFiles(validFiles);
 
     try {
-      const data = await importPreview(validFiles);
+      const data = await importPreview(landlordUuid!, validFiles);
       setImportPreviewData(data);
     } catch (e: any) {
       if (isSchemaMismatchError(e)) {
@@ -33810,7 +43304,7 @@ export default function Settings() {
 
   const handleDownloadTemplate = async () => {
     try {
-      const blob = await downloadImportTemplate();
+      const blob = await downloadImportTemplate(landlordUuid!);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -33825,15 +43319,29 @@ export default function Settings() {
     }
   };
 
+  const handleShowTotpQr = async () => {
+    setQrLoading(true);
+    try {
+      const data = await api.getTotpQr(landlordUuid!);
+      setQrData(data.totp);
+      setQrModalOpen(true);
+    } catch {
+      toast.error('Failed to load TOTP QR code');
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!config) return;
     setSaving(true);
     try {
-      await api.saveConfig({
+      await api.saveConfig(landlordUuid!, {
         landlord: config.landlord,
         billing: config.billing,
         whatsapp: config.whatsapp,
         backup: config.backup,
+        system: config.system,
       });
       await uploadSignature();
       toast.success('Settings saved successfully');
@@ -34301,7 +43809,7 @@ export default function Settings() {
                 </div>
                 <div>
                   <span className="text-xs text-muted-foreground uppercase font-semibold">Applied now</span>
-                  <div className="font-medium capitalize">{effectiveTheme}</div>
+                  <div className="font-medium capitalize">{resolvedTheme}</div>
                 </div>
               </div>
             </CardContent>
@@ -34356,6 +43864,40 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="admin-totp-required">Enable TOTP for Login</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Require TOTP after username and password for login.
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Button variant="outline" size="sm" onClick={handleShowTotpQr} disabled={qrLoading}>
+                    <QrCode className="h-4 w-4 mr-2" />
+                    {qrLoading ? "Loading..." : "Show TOTP QR"}
+                  </Button>
+                  <Switch
+                    id="admin-totp-required"
+                  checked={config.system?.security?.adminTotpRequired ?? true}
+                  onCheckedChange={(v) => {
+                    if (!config) return;
+                    setConfig({
+                      ...config,
+                      system: {
+                        ...config.system,
+                        security: {
+                          ...(config.system?.security || {}),
+                          adminTotpRequired: v
+                        }
+                      }
+                    });
+                  }}
+                />
+                </div>
+              </div>
+
+              <Separator />
+
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Mask Bank Account</Label>
@@ -34478,13 +44020,43 @@ export default function Settings() {
         open={exportModalOpen}
         onOpenChange={setExportModalOpen}
       />
+
+      <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Admin TOTP Settings</DialogTitle>
+            <DialogDescription>
+              Scan this QR code with your authenticator app (like Google Authenticator or Authy).
+            </DialogDescription>
+          </DialogHeader>
+          {qrData && (
+            <div className="flex flex-col items-center space-y-4 py-4">
+              <div className="bg-white p-4 rounded-xl shadow-sm border">
+                <img src={`data:image/png;base64,${qrData.qr_code_base64}`} alt="TOTP QR Code" className="w-48 h-48" />
+              </div>
+              <div className="space-y-1 text-center w-full">
+                <Label>Secret Key</Label>
+                <div className="p-2 bg-muted rounded-md text-sm font-mono break-all font-semibold">
+                  {qrData.secret}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  If you cannot scan the QR code, manually enter this secret key into your app.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={() => setQrModalOpen(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 ```
 
 ```tsx
-// File: frontend\admin-app\src\pages\Tenants.tsx
+// File: frontend\landlord-app\src\pages\Tenants.tsx
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 import { Card, CardContent } from '@/components/ui/card';
@@ -34492,7 +44064,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -34502,8 +44073,10 @@ import {
 } from '@/components/ui/dialog';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Tenant } from '@/types';
 import BillsModal, { type TenantBill } from '@/components/modals/BillsModal';
+import OccupantsModal from '@/components/modals/OccupantsModal';
 import { exportExcel, downloadBlob } from '@/components/modals/ExportService';
 import {
   DropdownMenu,
@@ -34511,6 +44084,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Users,
   Plus,
@@ -34524,6 +44104,8 @@ import {
   MapPin,
   Gauge,
   Download,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -34774,6 +44356,7 @@ function printHtmlInSameWindow(html: string) {
 }
 
 export default function Tenants() {
+  const { landlordUuid } = useAuth();
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -34786,8 +44369,7 @@ export default function Tenants() {
   const [showQrPinEditor, setShowQrPinEditor] = useState(false);
   const [newQrPin, setNewQrPin] = useState('');
   const [savingQrPin, setSavingQrPin] = useState(false);
-  const [occupantTenant, setOccupantTenant] = useState<Tenant | null>(null);
-  const [occupants, setOccupants] = useState<any[]>([]);
+  const [occupantsTenant, setOccupantsTenant] = useState<Tenant | null>(null);
 
   const [billsTenant, setBillsTenant] = useState<Tenant | null>(null);
   const [tenantBills, setTenantBills] = useState<TenantBill[]>([]);
@@ -34796,20 +44378,11 @@ export default function Tenants() {
 
   const toast = useToast();
 
-  const loadOccupants = async (tenantId: number) => {
-    try {
-      const data = await api.getOccupants(tenantId);
-      setOccupants(data ?? []);
-    } catch {
-      toast.error('Failed to load occupants');
-      setOccupants([]);
-    }
-  };
 
   const handleExportTenant = async (tenantId: number, name: string, format: 'xlsx' | 'csv' | 'zip') => {
     try {
       toast.info(`Exporting ${name} as ${format.toUpperCase()}...`);
-      const blob = await exportExcel(format, [tenantId]);
+      const blob = await exportExcel(landlordUuid!, format, [tenantId]);
       downloadBlob(blob, `Tenant_${name}_${format.toUpperCase()}.${format}`);
       toast.success('Export successful');
     } catch (e: any) {
@@ -34824,7 +44397,7 @@ export default function Tenants() {
 
     try {
       setSavingQrPin(true);
-      await api.CHANGETENANTPIN(qrTenant.id, { pin: newQrPin, logout_all: true });
+      await api.CHANGETENANTPIN(landlordUuid!, qrTenant.id, { pin: newQrPin, logout_all: true });
       setQrPin(newQrPin);
       setNewQrPin('');
       setShowQrPinEditor(false);
@@ -34845,7 +44418,7 @@ export default function Tenants() {
     setNewQrPin('');
 
     try {
-      const res = await api.revealTenantPin(tenant.id);
+                const res = await api.revealTenantPin(landlordUuid!, tenant.id);
       setQrPin(res.pin || '----');
     } catch {
       setQrPin('----');
@@ -34854,17 +44427,14 @@ export default function Tenants() {
     }
   };
 
-  const handleOpenOccupants = async (tenant: Tenant) => {
-    if (!tenant.id) return;
-    setOccupantTenant(tenant);
-    await loadOccupants(tenant.id);
+  const handleOpenOccupants = (tenant: Tenant) => {
+    setOccupantsTenant(tenant);
   };
 
   const loadTenantBills = async (tenant: Tenant) => {
     try {
       setBillsLoading(true);
-      const receipts = await api.getTenantReceipts(tenant.id as number);
-      const active = (receipts ?? [])
+      const receipts = await api.getTenantReceipts(landlordUuid!, tenant.id as number);      const active = (receipts ?? [])
         .filter((r: any) => r.Status !== 'ARCHIVED')
         .map((r: any) => ({
           Bill: r.Bill,
@@ -34890,11 +44460,11 @@ export default function Tenants() {
   const loadTenants = async () => {
     try {
       setLoading(true);
-      const data = await api.getTenants();
+      const data = await api.getTenants(landlordUuid!);
 
       for (const t of data) {
         try {
-          const receipts = await api.getTenantReceipts(t.id as number);
+          const receipts = await api.getTenantReceipts(landlordUuid!, t.id as number);
           const active = receipts.filter((r: any) => r.Status !== 'ARCHIVED');
           if (active.length > 0) {
             const latest = active[0];
@@ -34918,8 +44488,8 @@ export default function Tenants() {
   };
 
   useEffect(() => {
-    loadTenants();
-  }, []);
+    if (landlordUuid) loadTenants();
+  }, [landlordUuid]);
 
   const filtered = tenants.filter(
     (t) =>
@@ -34931,7 +44501,7 @@ export default function Tenants() {
   const handleDelete = async (tenant: Tenant, action: string) => {
     if (!tenant.id) return;
     try {
-      await api.deleteTenant(tenant.id, action);
+      await api.deleteTenant(landlordUuid!, tenant.id, action);
       toast.success(`Tenant ${action}d successfully`);
       loadTenants();
     } catch {
@@ -34975,7 +44545,7 @@ export default function Tenants() {
               <TenantForm
                 onSave={async (data) => {
                   try {
-                    await api.addTenant(data as any);
+                    await api.addTenant(landlordUuid!, data as any);
                     toast.success('Tenant added');
                     setShowAdd(false);
                     loadTenants();
@@ -35015,6 +44585,15 @@ export default function Tenants() {
                     onShowOccupants={() => handleOpenOccupants(tenant)}
                     onShowBills={() => loadTenantBills(tenant)}
                     onExport={(format) => tenant.id && handleExportTenant(tenant.id, tenant.name, format)}
+                    onStatusChange={async (newStatus) => {
+                      if (!tenant.id) return;
+                      try {
+                        await api.updateTenant(landlordUuid!, tenant.id, { ...tenant, status: newStatus });
+                        loadTenants();
+                      } catch {
+                        toast.error('Failed to update status');
+                      }
+                    }}
                   />
                 ))}
             </div>
@@ -35040,7 +44619,7 @@ export default function Tenants() {
               onSave={async (data) => {
                 if (!editingTenant.id) return;
                 try {
-                  await api.updateTenant(editingTenant.id, { ...editingTenant, ...data });
+                  await api.updateTenant(landlordUuid!, editingTenant.id, { ...editingTenant, ...data });
                   toast.success('Tenant updated');
                   setEditingTenant(null);
                   loadTenants();
@@ -35051,7 +44630,7 @@ export default function Tenants() {
               onChangePin={async (pin) => {
                 if (!editingTenant.id) return;
                 try {
-                  await api.CHANGETENANTPIN(editingTenant.id, { pin, logout_all: true });
+                  await api.CHANGETENANTPIN(landlordUuid!, editingTenant.id, { pin, logout_all: true });
                   toast.success('Tenant PIN changed');
                   loadTenants();
                 } catch (e: any) {
@@ -35086,7 +44665,7 @@ export default function Tenants() {
 
                 <div className="mt-4 flex justify-center bg-white p-2">
                   <QRCode
-                    value={`${window.location.origin}/rent/t/${qrTenant.id}/${qrTenant.viewToken}`}
+                    value={`${window.location.origin}/rent/${landlordUuid}/t/${qrTenant.id}/${qrTenant.viewToken}`}
                     size={200}
                     level="H"
                   />
@@ -35182,82 +44761,13 @@ export default function Tenants() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!occupantTenant} onOpenChange={() => setOccupantTenant(null)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Occupants - {occupantTenant?.name}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            {occupants.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No occupants found.</p>
-            ) : (
-              occupants.map((o) => (
-                <div key={o['Occupant UUID']} className="flex items-center justify-between border rounded p-3">
-                  <div>
-                    <div className="font-semibold">{o.name}</div>
-                    <div className="text-sm text-muted-foreground">{o.mobile || 'No phone'}</div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-500"
-                    onClick={async () => {
-                      if (!occupantTenant || !occupantTenant.id) return;
-                      try {
-                        await api.deleteOccupant(occupantTenant.id, o['Occupant UUID']);
-                        toast.success('Occupant deleted');
-                        loadOccupants(occupantTenant.id);
-                      } catch {
-                        toast.error('Failed to delete occupant');
-                      }
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              ))
-            )}
-
-            <div className="pt-4 border-t">
-              <h4 className="font-semibold mb-2">Upload New Occupant</h4>
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!occupantTenant || !occupantTenant.id) return;
-                  const form = new FormData(e.target as HTMLFormElement);
-                  try {
-                    await api.saveOccupant(occupantTenant.id, form);
-                    toast.success('Occupant uploaded');
-                    (e.target as HTMLFormElement).reset();
-                    loadOccupants(occupantTenant.id);
-                  } catch {
-                    toast.error('Failed to upload occupant');
-                  }
-                }}
-                className="space-y-3"
-              >
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Name</Label>
-                    <Input name="name" required size={1} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Mobile</Label>
-                    <Input name="mobile" size={1} />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Documents (PDF/JPG/PNG)</Label>
-                  <Input type="file" name="files" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" />
-                </div>
-                <Button type="submit" size="sm" className="w-full">
-                  Upload
-                </Button>
-              </form>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <OccupantsModal
+        tenant={occupantsTenant}
+        open={Boolean(occupantsTenant)}
+        onOpenChange={(open) => {
+          if (!open) setOccupantsTenant(null);
+        }}
+      />
 
       <BillsModal
         open={!!billsTenant}
@@ -35287,6 +44797,7 @@ function TenantCard({
   onShowOccupants,
   onShowBills,
   onExport,
+  onStatusChange,
 }: {
   tenant: Tenant;
   onEdit: () => void;
@@ -35295,7 +44806,9 @@ function TenantCard({
   onShowOccupants: () => void;
   onShowBills: () => void;
   onExport: (format: 'xlsx' | 'csv' | 'zip') => void;
+  onStatusChange: (newStatus: string) => void;
 }) {
+  const { landlordUuid } = useAuth();
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-4">
@@ -35306,9 +44819,31 @@ function TenantCard({
             </div>
             <div>
               <h3 className="font-semibold">{tenant.name}</h3>
-              <Badge variant={tenant.status === 'Active' ? 'default' : 'secondary'} className="text-xs mt-0.5">
-                {tenant.status}
-              </Badge>
+              {/* Inline status toggle */}
+              <div className="flex items-center gap-1 mt-1">
+                <button
+                  title="Set Active"
+                  onClick={(e) => { e.stopPropagation(); if (tenant.status !== 'Active') onStatusChange('Active'); }}
+                  className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
+                    tenant.status === 'Active'
+                      ? 'bg-green-100 text-green-700'
+                      : 'text-muted-foreground hover:bg-green-50 hover:text-green-700'
+                  }`}
+                >
+                  <CheckCircle size={11} /> Active
+                </button>
+                <button
+                  title="Set Inactive"
+                  onClick={(e) => { e.stopPropagation(); if (tenant.status !== 'Inactive') onStatusChange('Inactive'); }}
+                  className={`flex items-center gap-0.5 rounded px-1.5 py-0.5 text-xs font-medium transition-colors ${
+                    tenant.status === 'Inactive'
+                      ? 'bg-slate-200 text-slate-700'
+                      : 'text-muted-foreground hover:bg-slate-100'
+                  }`}
+                >
+                  <XCircle size={11} /> Inactive
+                </button>
+              </div>
             </div>
           </div>
           <div className="flex gap-1">
@@ -35381,7 +44916,7 @@ function TenantCard({
             size="sm"
             className="w-full"
             disabled={!tenant.viewToken}
-            onClick={() => tenant.viewToken && window.open(`/rent/t/${tenant.id}/${tenant.viewToken}`, '_blank')}
+            onClick={() => tenant.viewToken && window.open(`/rent/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`, '_blank')}
             title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Open public profile'}
           >
             Public Profile
@@ -35406,11 +44941,11 @@ function TenantCard({
             onClick={async () => {
               if (!tenant.viewToken || !tenant.id) return;
 
-              const url = `${window.location.origin}/rent/t/${tenant.id}/${tenant.viewToken}`;
+              const url = `${window.location.origin}/rent/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
 
               let pin = '----';
               try {
-                const res = await api.revealTenantPin(tenant.id);
+      const res = await api.revealTenantPin(landlordUuid!, tenant.id);
                 pin = res.pin || '----';
               } catch (e) {
                 console.error('Failed to fetch tenant PIN', e);
@@ -35441,6 +44976,7 @@ function TenantCard({
             className="w-full"
             onClick={onShowOccupants}
           >
+            <Users className="mr-1 h-4 w-4" />
             Occupants
           </Button>
 
@@ -35559,7 +45095,18 @@ function TenantForm({
         </div>
         <div className="space-y-2">
           <Label>Status</Label>
-          <Input value={form.status} disabled className="bg-muted" />
+          <Select
+            value={form.status === "Inactive" ? "Inactive" : "Active"}
+            onValueChange={(status: string) => setForm({ ...form, status })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Active">ACTIVE</SelectItem>
+              <SelectItem value="Inactive">INACTIVE</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -35681,7 +45228,7 @@ function TenantForm({
 ```
 
 ```typescript
-// File: frontend\admin-app\src\services\api.ts
+// File: frontend\landlord-app\src\services\api.ts
 import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult } from "@/types";
 import { ROUTES } from "@/lib/routes";
 
@@ -35700,7 +45247,7 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
     },
   });
   if (res.status === 401 || res.status === 303) {
-    window.location.href = ROUTES.ADMINPAGELOGIN;
+    window.location.href = ROUTES.LANDLORDPAGELOGIN;
     throw new Error("Unauthorized");
   }
   return res;
@@ -35708,8 +45255,8 @@ async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Re
 
 export const api = {
   // Dashboard
-  getDashboardStats: async (): Promise<DashboardStats> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIDASHBOARDSTATS);
+  getDashboardStats: async (landlordUuid: string): Promise<DashboardStats> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIDASHBOARDSTATS(landlordUuid));
     if (!res.ok) throw new Error('Failed to fetch dashboard stats');
     const raw = await res.json();
     const data = raw.stats ?? raw;
@@ -35731,20 +45278,20 @@ export const api = {
   },
 
   // Tenants
-  getTenants: async (): Promise<Tenant[]> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSLIST);
+  getTenants: async (landlordUuid: string): Promise<Tenant[]> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSLIST(landlordUuid));
     if (!res.ok) throw new Error("Failed to fetch tenants");
     return res.json();
   },
 
-  getTenant: async (id: number): Promise<Tenant> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSGET(id));
+  getTenant: async (landlordUuid: string, id: number): Promise<Tenant> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSGET(landlordUuid, id));
     if (!res.ok) throw new Error("Failed to fetch tenant");
     return res.json();
   },
 
-  addTenant: async (tenant: Omit<Tenant, "id">): Promise<{ status: string; tenant: Tenant }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSCREATE, {
+  addTenant: async (landlordUuid: string, tenant: Omit<Tenant, "id">): Promise<{ status: string; tenant: Tenant }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSCREATE(landlordUuid), {
       method: "POST",
       body: JSON.stringify(tenant),
     });
@@ -35752,8 +45299,8 @@ export const api = {
     return res.json();
   },
 
-  updateTenant: async (id: number, tenant: Tenant): Promise<{ status: string; tenant: Tenant }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSUPDATE(id), {
+  updateTenant: async (landlordUuid: string, id: number, tenant: Tenant): Promise<{ status: string; tenant: Tenant }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSUPDATE(landlordUuid, id), {
       method: "PUT",
       body: JSON.stringify(tenant),
     });
@@ -35761,14 +45308,14 @@ export const api = {
     return res.json();
   },
 
-  revealTenantPin: async (id: number): Promise<{ status: string; pin: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSREVEALPIN(id));
+  revealTenantPin: async (landlordUuid: string, id: number): Promise<{ status: string; pin: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSREVEALPIN(landlordUuid, id));
     if (!res.ok) throw new Error("Failed to reveal PIN");
     return res.json();
   },
 
-  CHANGETENANTPIN: async (tenantId: number, payload: { pin: string; logout_all?: boolean }) => {
-    const res = await fetch(ROUTES.ADMINAPITENANTSCHANGEPIN(tenantId), {
+  CHANGETENANTPIN: async (landlordUuid: string, tenantId: number, payload: { pin: string; logout_all?: boolean }) => {
+    const res = await fetch(ROUTES.LANDLORDAPITENANTSCHANGEPIN(landlordUuid, tenantId), {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -35779,37 +45326,35 @@ export const api = {
     return data;
   },
 
-  deleteTenant: async (id: number, action: string = "archive"): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMINAPITENANTSDELETE(id)}?action=${action}`, {
+  deleteTenant: async (landlordUuid: string, id: number, action: string = "archive"): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(`${ROUTES.LANDLORDAPITENANTSDELETE(landlordUuid, id)}?action=${action}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to delete tenant");
     return res.json();
   },
 
-  getTenantReceipts: async (tenantId: number): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSRECEIPTS(tenantId));
+  getTenantReceipts: async (landlordUuid: string, tenantId: number): Promise<Receipt[]> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSRECEIPTS(landlordUuid, tenantId));
     if (!res.ok) throw new Error("Failed to fetch tenant receipts");
     return res.json();
   },
 
   // Bills / Receipts
-  getAllReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGFILTER}?status=all`);
+  getAllReceipts: async (landlordUuid: string): Promise<Receipt[]> => {
+    const res = await fetchWithAuth(`${ROUTES.LANDLORDAPIBILLINGFILTER(landlordUuid)}?status=all`);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     return res.json();
   },
 
-  getActiveReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGFILTER}?status=active`);
+  getActiveReceipts: async (landlordUuid: string): Promise<Receipt[]> => {
+    const res = await fetchWithAuth(`${ROUTES.LANDLORDAPIBILLINGFILTER(landlordUuid)}?status=active`);
     if (!res.ok) throw new Error("Failed to fetch receipts");
     return res.json();
   },
 
-  // Returns both archived tenants and archived receipts — use this for the Archive page.
-  // Groups receipts by TenantId on the frontend to avoid name-based contamination.
-  getArchiveData: async (): Promise<ArchiveDataResponse> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVEDATA);
+  getArchiveData: async (landlordUuid: string): Promise<ArchiveDataResponse> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGARCHIVEDATA(landlordUuid));
     if (!res.ok) throw new Error("Failed to fetch archive data");
     const data = await res.json();
     return {
@@ -35818,27 +45363,23 @@ export const api = {
     };
   },
 
-  // Legacy: flat receipts only — prefer getArchiveData() for the Archive page.
-  getArchivedReceipts: async (): Promise<Receipt[]> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVEDATA);
+  getArchivedReceipts: async (landlordUuid: string): Promise<Receipt[]> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGARCHIVEDATA(landlordUuid));
     if (!res.ok) throw new Error("Failed to fetch receipts");
     const data = await res.json();
     return Array.isArray(data.receipts) ? data.receipts : [];
   },
 
-  // Archive a tenant (marks tenant + all their receipts as Archived)
-  archiveTenant: async (tenantId: number): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMINAPITENANTSDELETE(tenantId)}?action=archive`, {
+  archiveTenant: async (landlordUuid: string, tenantId: number): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(`${ROUTES.LANDLORDAPITENANTSDELETE(landlordUuid, tenantId)}?action=archive`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error("Failed to archive tenant");
     return res.json();
   },
 
-  // Restore an archived tenant back to Active — uses dedicated POST endpoint.
-  // Must NOT use DELETE ?action=restore: archived tenants fail the delete route's pre-check.
-  restoreTenant: async (tenantId: number): Promise<{ status: string; action: string; data: unknown }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSRESTORE(tenantId), {
+  restoreTenant: async (landlordUuid: string, tenantId: number): Promise<{ status: string; action: string; data: unknown }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSRESTORE(landlordUuid, tenantId), {
       method: "POST",
     });
     if (!res.ok) {
@@ -35848,11 +45389,9 @@ export const api = {
     return res.json();
   },
 
-  // Permanently delete an archived tenant with synchronous recovery snapshot.
-  // Recovery is available until the admin-configured retention deadline.
-  permanentlyDeleteArchivedTenant: async (tenantId: number): Promise<PermanentDeleteResult> => {
+  permanentlyDeleteArchivedTenant: async (landlordUuid: string, tenantId: number): Promise<PermanentDeleteResult> => {
     const res = await fetchWithAuth(
-      `${ROUTES.ADMINAPITENANTSDELETE(tenantId)}?action=permanent-with-recovery`,
+      `${ROUTES.LANDLORDAPITENANTSDELETE(landlordUuid, tenantId)}?action=permanent-with-recovery`,
       { method: "DELETE" }
     );
     const data = await res.json();
@@ -35860,27 +45399,25 @@ export const api = {
     return data;
   },
 
-  // List all tenant recovery snapshots (triggers expiry purge on backend first).
-  getTenantRecoverySnapshots: async (): Promise<{ status: string; snapshots: TenantRecoverySnapshot[] }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTRECOVERYSNAPSHOTS);
+  getTenantRecoverySnapshots: async (landlordUuid: string): Promise<{ status: string; snapshots: TenantRecoverySnapshot[] }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTRECOVERYSNAPSHOTS(landlordUuid));
     if (!res.ok) throw new Error("Failed to fetch recovery snapshots");
     return res.json();
   },
 
-  // Get conflict preview for a specific snapshot before restoring.
-  getTenantRecoverySnapshotPreview: async (snapshotId: string): Promise<SnapshotRestorePreview & { status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSNAPSHOT_PREVIEW(snapshotId));
+  getTenantRecoverySnapshotPreview: async (landlordUuid: string, snapshotId: string): Promise<SnapshotRestorePreview & { status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSNAPSHOT_PREVIEW(landlordUuid, snapshotId));
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail ?? "Failed to load restore preview");
     return data;
   },
 
-  // Execute restore of a tenant from a recovery snapshot.
   restoreTenantFromSnapshot: async (
+    landlordUuid: string,
     snapshotId: string,
     forceNewId: boolean = false
   ): Promise<{ status: string; original_tenant_id: number; restored_tenant_id: number; id_changed: boolean }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPITENANTSNAPSHOT_RESTORE(snapshotId), {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSNAPSHOT_RESTORE(landlordUuid, snapshotId), {
       method: "POST",
       body: JSON.stringify({ force_new_id: forceNewId }),
     });
@@ -35889,14 +45426,14 @@ export const api = {
     return data;
   },
 
-  getReceipt: async (tenantId: number, billNo: string): Promise<Receipt> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGGET(tenantId, billNo));
+  getReceipt: async (landlordUuid: string, tenantId: number, billNo: string): Promise<Receipt> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGGET(landlordUuid, tenantId, billNo));
     if (!res.ok) throw new Error("Failed to fetch receipt");
     return res.json();
   },
 
-  createBill: async (tenantId: number, data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGCREATE(tenantId), {
+  createBill: async (landlordUuid: string, tenantId: number, data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGCREATE(landlordUuid, tenantId), {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -35905,8 +45442,8 @@ export const api = {
     return result;
   },
 
-  updateBill: async (tenantId: number, billNo: string, data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGUPDATE(tenantId, billNo), {
+  updateBill: async (landlordUuid: string, tenantId: number, billNo: string, data: Record<string, unknown>): Promise<{ status: string; data: Receipt }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGUPDATE(landlordUuid, tenantId, billNo), {
       method: "PUT",
       body: JSON.stringify(data),
     });
@@ -35915,8 +45452,8 @@ export const api = {
     return result;
   },
 
-  updatePaymentStatus: async (tenantId: number, billNo: string, data: PaymentStatusUpdate): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGUPDATEPAYMENT(tenantId, billNo), {
+  updatePaymentStatus: async (landlordUuid: string, tenantId: number, billNo: string, data: PaymentStatusUpdate): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGUPDATEPAYMENT(landlordUuid, tenantId, billNo), {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -35924,47 +45461,59 @@ export const api = {
     return res.json();
   },
 
-  archiveBill: async (tenantId: number, billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGARCHIVE(tenantId, billNo), { method: "POST" });
+  archiveBill: async (landlordUuid: string, tenantId: number, billNo: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGARCHIVE(landlordUuid, tenantId, billNo), { method: "POST" });
     if (!res.ok) throw new Error("Failed to archive bill");
     return res.json();
   },
 
-  restoreBill: async (tenantId: number, billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGRESTORE(tenantId, billNo), { method: "POST" });
+  restoreBill: async (landlordUuid: string, tenantId: number, billNo: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGRESTORE(landlordUuid, tenantId, billNo), { method: "POST" });
     if (!res.ok) throw new Error("Failed to restore bill");
     return res.json();
   },
 
-  permanentlyDeleteBill: async (tenantId: number, billNo: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGDELETE(tenantId, billNo), { method: "DELETE" });
+  permanentlyDeleteBill: async (landlordUuid: string, tenantId: number, billNo: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGDELETE(landlordUuid, tenantId, billNo), { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete bill");
     return res.json();
   },
 
   // Billing
-  getBillingMonths: async (): Promise<{ months: string[]; currentMonth: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBILLINGMONTHS);
+  getBillingMonths: async (landlordUuid: string): Promise<{ months: string[]; currentMonth: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGMONTHS(landlordUuid));
     if (!res.ok) throw new Error("Failed to fetch billing months");
     return res.json();
   },
 
-  previewBilling: async (params: Record<string, string | number>): Promise<Record<string, number>> => {
+  previewBilling: async (landlordUuid: string, params: Record<string, string | number>): Promise<Record<string, number>> => {
     const query = new URLSearchParams(params as Record<string, string>).toString();
-    const res = await fetchWithAuth(`${ROUTES.ADMINAPIBILLINGPREVIEW}?${query}`);
+    const res = await fetchWithAuth(`${ROUTES.LANDLORDAPIBILLINGPREVIEW(landlordUuid)}?${query}`);
     if (!res.ok) throw new Error("Failed to preview billing");
     return res.json();
   },
 
   // Settings
-  getConfig: async (): Promise<AppConfig> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPICONFIGGET);
+  getConfig: async (landlordUuid: string): Promise<AppConfig> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPICONFIGGET(landlordUuid));
     if (!res.ok) throw new Error('Failed to fetch config');
     return res.json();
   },
 
-  saveConfig: async (config: Partial<AppConfig>): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPICONFIGUPDATE, {
+  getTotpQr: async (landlordUuid: string): Promise<{ status: string, totp: { secret: string, qr_code_base64: string, provisioning_uri: string } }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITOTPQR(landlordUuid));
+    if (!res.ok) throw new Error('Failed to fetch TOTP QR');
+    return res.json();
+  },
+
+  regenerateTotp: async (landlordUuid: string): Promise<{ status: string, totp: { secret: string, qr_code_base64: string, provisioning_uri: string } }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITOTPREGENERATE(landlordUuid), { method: "POST" });
+    if (!res.ok) throw new Error('Failed to regenerate TOTP');
+    return res.json();
+  },
+
+  saveConfig: async (landlordUuid: string, config: Partial<AppConfig>): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPICONFIGUPDATE(landlordUuid), {
       method: 'POST',
       body: JSON.stringify(config),
     });
@@ -35972,8 +45521,8 @@ export const api = {
     return res.json();
   },
 
-  UPDATETHEME: async (theme: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPICONFIGTHEME, {
+  UPDATETHEME: async (landlordUuid: string, theme: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPICONFIGTHEME(landlordUuid), {
       method: 'POST',
       body: JSON.stringify({ theme }),
     });
@@ -35981,12 +45530,18 @@ export const api = {
     return res.json();
   },
 
-  downloadTemplate: (): string => ROUTES.ADMINAPISYNCTEMPLATE,
+  GETTHEME: async (landlordUuid: string): Promise<{ status: string; theme: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPICONFIGTHEMEGET(landlordUuid));
+    if (!res.ok) throw new Error('Failed to fetch theme');
+    return res.json();
+  },
 
-  exportExcel: (format: string): string => ROUTES.ADMINAPISYNCEXPORTEXCEL(format),
+  downloadTemplate: (landlordUuid: string): string => ROUTES.LANDLORDAPISYNCTEMPLATE(landlordUuid),
 
-  importPreview: async (data: FormData): Promise<any> => {
-    const res = await fetch(ROUTES.ADMINAPISYNCIMPORTPREVIEW, {
+  exportExcel: (landlordUuid: string, format: string): string => ROUTES.LANDLORDAPISYNCEXPORTEXCEL(landlordUuid, format),
+
+  importPreview: async (landlordUuid: string, data: FormData): Promise<any> => {
+    const res = await fetch(ROUTES.LANDLORDAPISYNCIMPORTPREVIEW(landlordUuid), {
       method: 'POST',
       body: data,
       credentials: 'include',
@@ -35998,8 +45553,8 @@ export const api = {
     return res.json();
   },
 
-  importExecute: async (data: FormData): Promise<{ status: string }> => {
-    const res = await fetch(ROUTES.ADMINAPISYNCIMPORTEXECUTE, {
+  importExecute: async (landlordUuid: string, data: FormData): Promise<{ status: string }> => {
+    const res = await fetch(ROUTES.LANDLORDAPISYNCIMPORTEXECUTE(landlordUuid), {
       method: 'POST',
       body: data,
       credentials: 'include',
@@ -36012,101 +45567,149 @@ export const api = {
   },
 
   // Backups
-  getBackups: async (): Promise<{ backups: Backup[] }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSLIST);
+  getBackups: async (landlordUuid: string): Promise<{ backups: Backup[] }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBACKUPSLIST(landlordUuid));
     if (!res.ok) throw new Error("Failed to fetch backups");
     return res.json();
   },
 
-  createManualBackup: async (): Promise<{ status: string; data: Backup }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSCREATEMANUAL, { method: "POST" });
+  createManualBackup: async (landlordUuid: string): Promise<{ status: string; data: Backup }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBACKUPSCREATEMANUAL(landlordUuid), { method: "POST" });
     if (!res.ok) throw new Error("Failed to create backup");
     return res.json();
   },
 
-  deleteBackup: async (id: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSDELETE(id), { method: "DELETE" });
+  deleteBackup: async (landlordUuid: string, id: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBACKUPSDELETE(landlordUuid, id), { method: "DELETE" });
     if (!res.ok) throw new Error("Failed to delete backup");
     return res.json();
   },
 
-  verifyBackup: async (id: string): Promise<{ status: string; message: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSVERIFY(id));
+  verifyBackup: async (landlordUuid: string, id: string): Promise<{ status: string; message: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBACKUPSVERIFY(landlordUuid, id));
     return res.json();
   },
 
-  restoreBackup: async (id: string): Promise<{ status: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIBACKUPSRESTORE(id), { method: "POST" });
+  restoreBackup: async (landlordUuid: string, id: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBACKUPSRESTORE(landlordUuid, id), { method: "POST" });
     if (!res.ok) throw new Error("Failed to restore backup");
     return res.json();
   },
 
+  downloadBackup: (landlordUuid: string, id: string): string => ROUTES.LANDLORDAPIBACKUPSDOWNLOAD(landlordUuid, id),
+
   // PDF
-  getPDFViewUrl: (tenantId: number, billNo: string): string => ROUTES.ADMINAPIPDFVIEW(tenantId, billNo),
-  getPDFDownloadUrl: (tenantId: number, billNo: string): string => ROUTES.ADMINAPIPDFDOWNLOAD(tenantId, billNo),
+  getPDFViewUrl: (landlordUuid: string, tenantId: number, billNo: string): string => ROUTES.LANDLORDAPIPDFVIEW(landlordUuid, tenantId, billNo),
+  getPDFDownloadUrl: (landlordUuid: string, tenantId: number, billNo: string): string => ROUTES.LANDLORDAPIPDFDOWNLOAD(landlordUuid, tenantId, billNo),
 
   // WhatsApp
-  sendWhatsApp: async (tenantId: number, billNo: string): Promise<{ status: string; url: string }> => {
-    const res = await fetchWithAuth(ROUTES.ADMINAPIWHATSAPPSENDSINGLE(tenantId, billNo));
+  sendWhatsApp: async (landlordUuid: string, tenantId: number, billNo: string): Promise<{ status: string; url: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIWHATSAPPSENDSINGLE(landlordUuid, tenantId, billNo));
     if (!res.ok) throw new Error("Failed to generate WhatsApp link");
     return res.json();
   },
 
-  // Auth
+  // Auth (no landlordUuid needed — auth routes don't use it)
   login: async (username: string, password: string, rememberMe: boolean = false): Promise<Response> => {
-    const formData = new URLSearchParams();
-    formData.append("username", username);
-    formData.append("password", password);
-    formData.append("remember_me", String(rememberMe));
-    return fetch(ROUTES.ADMINAPIAUTHLOGIN, {
+    return fetch(ROUTES.LANDLORDAPIAUTHLOGIN, {
       method: "POST",
-      body: formData,
+      body: JSON.stringify({ username, password, rememberMe }),
       credentials: "include",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: { "Content-Type": "application/json" },
     });
   },
 
   logout: async (): Promise<void> => {
-    await fetch(ROUTES.ADMINAPIAUTHLOGOUT, { credentials: "include" });
-    window.location.href = ROUTES.ADMINPAGELOGIN;
+    await fetch(ROUTES.LANDLORDAPIAUTHLOGOUT, { method: "POST", credentials: "include" });
+    window.location.href = ROUTES.LANDLORDPAGELOGIN;
   },
 
   // Occupants
-  getOccupants: async (tenantId: string | number): Promise<Occupant[]> => {
-    const res = await fetchWithAuth(`${ROUTES.ADMINAPIOCCUPANTSLIST}?tenantId=${tenantId}`);
+  getOccupants: async (landlordUuid: string, tenantId: string | number): Promise<Occupant[]> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIOCCUPANTSLIST(landlordUuid, Number(tenantId)));
     if (!res.ok) throw new Error("Failed to fetch occupants");
     const data = await res.json();
     return data.occupants || [];
   },
 
-  saveOccupant: async (tenantId: string | number, data: FormData): Promise<{ status: string }> => {
-    const res = await fetch(`${ROUTES.ADMINAPIOCCUPANTSLIST}?tenantId=${tenantId}`, {
+  saveOccupant: async (landlordUuid: string, tenantId: string | number, data: FormData): Promise<{ status: string; occupantUuid: string }> => {
+    const res = await fetch(ROUTES.LANDLORDAPIOCCUPANTSCREATE(landlordUuid, Number(tenantId)), {
       method: "POST",
       body: data,
       credentials: "include",
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || "Failed to save occupant");
+      throw new Error((err as any).detail || "Failed to save occupant");
     }
     return res.json();
   },
 
-  deleteOccupant: async (tenantId: string | number, occupantUuid: string): Promise<{ status: string }> => {
+  markOccupantInactive: async (landlordUuid: string, tenantId: string | number, occupantUuid: string): Promise<{ status: string }> => {
     const res = await fetchWithAuth(
-      ROUTES.ADMINAPIOCCUPANTSDELETE(Number(tenantId), occupantUuid),
+      ROUTES.LANDLORDAPIOCCUPANTSMARKINACTIVE(landlordUuid, Number(tenantId), occupantUuid),
+      { method: "PUT" }
+    );
+    if (!res.ok) throw new Error("Failed to mark occupant inactive");
+    return res.json();
+  },
+
+  deleteOccupant: async (landlordUuid: string, tenantId: string | number, occupantUuid: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(
+      ROUTES.LANDLORDAPIOCCUPANTSDELETE(landlordUuid, Number(tenantId), occupantUuid),
       { method: "DELETE" }
     );
     if (!res.ok) throw new Error("Failed to delete occupant");
     return res.json();
   },
 
-  // downloadTemplate: (): string => ROUTES.ADMINAPISYNCTEMPLATE,
+  getOccupantFileUrl: (landlordUuid: string, tenantId: string | number, filename: string): string =>
+    ROUTES.LANDLORDAPIOCCUPANTSGETFILE(landlordUuid, Number(tenantId), filename),
 };
 ```
 
 ```typescript
-// File: frontend\admin-app\src\types\index.ts
+// File: frontend\landlord-app\src\services\base.ts
+// frontend/landlord-app/src/services/base.ts
+import { APP_BASE, API_BASE } from "../lib/runtime";
+
+export { APP_BASE, API_BASE };
+
+/** Prepend APP_BASE to any page-level path */
+export function withBase(path: string): string {
+  const clean = path.startsWith("/") ? path : `/${path}`;
+  return `${APP_BASE}${clean}`;
+}
+
+/** Prepend API_BASE to any API path */
+export function withApi(path: string): string {
+  const clean = path.startsWith("/") ? path : `/${path}`;
+  return `${API_BASE}${clean}`;
+}
+
+/** Centralised fetch through the API base */
+export async function apiFetch(path: string, init?: RequestInit): Promise<unknown> {
+  const res = await fetch(withApi(path), {
+    ...init,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Request failed with ${res.status}`);
+  }
+
+  const contentType = res.headers.get("content-type") || "";
+  return contentType.includes("application/json") ? res.json() : res.text();
+}
+```
+
+```typescript
+// File: frontend\landlord-app\src\types\index.ts
 // Types matching backend models
 
 export interface Tenant {
@@ -36302,8 +45905,8 @@ export interface DeviceSession {
 }
 
 export interface EncryptedPayload {
-  encryptedKey: string;
-  encryptedData: string;
+  key: string;
+  data: string;
   nonce: string;
   remember_me?: boolean;
 }
@@ -36437,6 +46040,7 @@ export interface AppConfig {
   ui: { theme: string };
   backup: Record<string, unknown>;
   whatsapp: WhatsappConfig;
+  system?: any;
 }
 
 export interface Backup {
@@ -36453,17 +46057,40 @@ export interface Backup {
 }
 
 export interface Occupant {
-  "Occupant UUID": string;
+  // Primary key — always present
+  occupantUuid: string;
+  /** Legacy alias for occupantUuid — kept for backward compat */
+  "Occupant UUID"?: string;
+
   name: string;
   mobile: string;
+  address?: string;
+  residentSince?: string;
   status: string;
-  "Aadhaar Front": string;
-  "Aadhaar Back": string;
-  "Aadhaar Combined": string;
-  "Emp Front": string;
-  "Emp Back": string;
-  "Upload Date": string;
-  "Upload Month": string;
+
+  // Document filenames — camelCase/joined names returned by get_occupants
+  aadhaarfront?: string;
+  aadhaarback?: string;
+  aadhaarcombined?: string;
+  empfront?: string;
+  empback?: string;
+
+  // Kept for backward compatibility with old DB rows or code
+  aadhaar_front?: string;
+  aadhaar_back?: string;
+  aadhaar_combined?: string;
+  emp_front?: string;
+  emp_back?: string;
+  "Aadhaar Front"?: string;
+  "Aadhaar Back"?: string;
+  "Aadhaar Combined"?: string;
+  "Emp Front"?: string;
+  "Emp Back"?: string;
+
+  uploaddate?: string;
+  uploadmonth?: string;
+  "Upload Date"?: string;
+  "Upload Month"?: string;
 }
 
 export interface TenantRecoverySnapshot {
@@ -36517,7 +46144,7 @@ export interface PermanentDeleteResult {
 ```
 
 ```javascript
-// File: frontend\admin-app\tailwind.config.js
+// File: frontend\landlord-app\tailwind.config.js
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: ["class"],
@@ -36605,7 +46232,7 @@ module.exports = {
 ```
 
 ```json
-// File: frontend\admin-app\tsconfig.app.json
+// File: frontend\landlord-app\tsconfig.app.json
 {
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
@@ -36653,7 +46280,7 @@ module.exports = {
 ```
 
 ```json
-// File: frontend\admin-app\tsconfig.json
+// File: frontend\landlord-app\tsconfig.json
 {
   "files": [],
   "references": [
@@ -36674,7 +46301,7 @@ module.exports = {
 ```
 
 ```json
-// File: frontend\admin-app\tsconfig.node.json
+// File: frontend\landlord-app\tsconfig.node.json
 {
   "compilerOptions": {
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
@@ -36704,13 +46331,13 @@ module.exports = {
 ```
 
 ```typescript
-// File: frontend\admin-app\vite.config.ts
+// File: frontend\landlord-app\vite.config.ts
 import path from "path"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/rent/admin/',
+  base: '/rent/landlord/',
   plugins: [react()],
   server: {
     port: 3000,
@@ -36721,6 +46348,3700 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "../../shared"),
     },
   },
+});
+```
+
+```html
+// File: frontend\platform-admin-app\index.html
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Platform Admin</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+```
+
+```json
+// File: frontend\platform-admin-app\package-lock.json
+{
+  "name": "platform-admin-app",
+  "version": "0.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "platform-admin-app",
+      "version": "0.0.0",
+      "dependencies": {
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "react-router-dom": "^6.26.2"
+      },
+      "devDependencies": {
+        "@types/react": "^18.3.3",
+        "@types/react-dom": "^18.3.0",
+        "@vitejs/plugin-react": "^4.3.1",
+        "typescript": "^5.5.3",
+        "vite": "^5.4.1"
+      }
+    },
+    "node_modules/@babel/code-frame": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/code-frame/-/code-frame-7.29.7.tgz",
+      "integrity": "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/helper-validator-identifier": "^7.29.7",
+        "js-tokens": "^4.0.0",
+        "picocolors": "^1.1.1"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/compat-data": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/compat-data/-/compat-data-7.29.7.tgz",
+      "integrity": "sha512-locTkQyKvwIEgBzVrn8693ebc97F2U8ZHjbXwDXJ5Fn2TCpNwTlKcaKLkdHop5c/icOFE7qt7Q9JC5hnKNa6Gg==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/core": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/core/-/core-7.29.7.tgz",
+      "integrity": "sha512-RgHBCvtjbOK2gXSNBNIkNoEc9qoVEtau3hj8gEqKQuL3HZAibKarWFEI3Lfm6EYKkLalOh8eSrj9b+ch9H/VBA==",
+      "dev": true,
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "@babel/code-frame": "^7.29.7",
+        "@babel/generator": "^7.29.7",
+        "@babel/helper-compilation-targets": "^7.29.7",
+        "@babel/helper-module-transforms": "^7.29.7",
+        "@babel/helpers": "^7.29.7",
+        "@babel/parser": "^7.29.7",
+        "@babel/template": "^7.29.7",
+        "@babel/traverse": "^7.29.7",
+        "@babel/types": "^7.29.7",
+        "@jridgewell/remapping": "^2.3.5",
+        "convert-source-map": "^2.0.0",
+        "debug": "^4.1.0",
+        "gensync": "^1.0.0-beta.2",
+        "json5": "^2.2.3",
+        "semver": "^6.3.1"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      },
+      "funding": {
+        "type": "opencollective",
+        "url": "https://opencollective.com/babel"
+      }
+    },
+    "node_modules/@babel/generator": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/generator/-/generator-7.29.7.tgz",
+      "integrity": "sha512-DkXD5OJQaAQIdZ1bt3UZdEnHAn9Imd3IVBdX03UFe+ony9Ojw5pzr9YVKGDY1jt+Gcn/FnGkNf8r+Vj5NOJWtQ==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/parser": "^7.29.7",
+        "@babel/types": "^7.29.7",
+        "@jridgewell/gen-mapping": "^0.3.12",
+        "@jridgewell/trace-mapping": "^0.3.28",
+        "jsesc": "^3.0.2"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-compilation-targets": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-compilation-targets/-/helper-compilation-targets-7.29.7.tgz",
+      "integrity": "sha512-wem6WaBj4NaVYVdNhLPPVacES6ZJ+KBBfSkTMD3YZxbP3rm3Di85tJU5ljaUNhaOynt+Aj0xruhYuzQBt8n71g==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/compat-data": "^7.29.7",
+        "@babel/helper-validator-option": "^7.29.7",
+        "browserslist": "^4.24.0",
+        "lru-cache": "^5.1.1",
+        "semver": "^6.3.1"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-globals": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-globals/-/helper-globals-7.29.7.tgz",
+      "integrity": "sha512-3nQVUAtvkKH9zahfWgw96Jc/uFOmjACE1kQz82E2lqWmHBgjzbNlsC22nuQTfahmWeQtTq5nQ/4Nnd2A1wj4zA==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-module-imports": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-module-imports/-/helper-module-imports-7.29.7.tgz",
+      "integrity": "sha512-ejHwrQQYcm9xnTivShn2IDOlIzInN34AXskvq9QicvCtEzq1Vzclu/tKF8Jq1Cg8JG2GL6/EmjgsCT7lXepE3g==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/traverse": "^7.29.7",
+        "@babel/types": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-module-transforms": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-module-transforms/-/helper-module-transforms-7.29.7.tgz",
+      "integrity": "sha512-UPUVSyXbOh627KiCIGQSgwWzGeBKLkaJ9PJEdrngIwMSzxLR4jS4+f1f1jb7VzBbg8nFLaYotvVPFCTqdrmTAg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/helper-module-imports": "^7.29.7",
+        "@babel/helper-validator-identifier": "^7.29.7",
+        "@babel/traverse": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      },
+      "peerDependencies": {
+        "@babel/core": "^7.0.0"
+      }
+    },
+    "node_modules/@babel/helper-plugin-utils": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-plugin-utils/-/helper-plugin-utils-7.29.7.tgz",
+      "integrity": "sha512-G7sHYigPY17oO5SYWnfD/0MTBwVR781S/JI643e/JhUYgVgWE/61SoW3NH9KWUKyKq5LVh3npif99Wkt6j86Jw==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-string-parser": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-string-parser/-/helper-string-parser-7.29.7.tgz",
+      "integrity": "sha512-Pb5ijPrZ89GDH8223L4UP8i6QApWxs04RbPQJTeWDV0/keR2E36MeKnyr6LYmUUvqRRI+Iv87SuF1W6ErINzYw==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-validator-identifier": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-validator-identifier/-/helper-validator-identifier-7.29.7.tgz",
+      "integrity": "sha512-qehxGkRj55h/ff8EMaJ+cYhyaKlHIxqYDn682wQD7RNp9UujOQsHog2uS0r2vzr4pW+sXf90NeeayjcNaX3fFg==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helper-validator-option": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helper-validator-option/-/helper-validator-option-7.29.7.tgz",
+      "integrity": "sha512-N9ZErrD+yW5geCDtBqnOoxmR8+tNKiGuxKlDpuJxfsqpa2dFcexaziGAE/qoHLiDDreVNMupxGmSoNlyvsA3gw==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/helpers": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/helpers/-/helpers-7.29.7.tgz",
+      "integrity": "sha512-1k2lAGRMfHTcwuNYcCNUmaUffmQv8KWMfh2iJUUeRlwlwH4FdNG7mfPI10NPfLHJFThE4Tyr4mv7kTNZOiPuBg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/template": "^7.29.7",
+        "@babel/types": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/parser": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/parser/-/parser-7.29.7.tgz",
+      "integrity": "sha512-hnORnjP/1P/zFEndoeX+n+t1RwWRJiJpM/jO7FW32Kn9r5+sJB2JWOdYo4L6k78j15eCwY3Gm/7364B1EMwtNg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/types": "^7.29.7"
+      },
+      "bin": {
+        "parser": "bin/babel-parser.js"
+      },
+      "engines": {
+        "node": ">=6.0.0"
+      }
+    },
+    "node_modules/@babel/plugin-transform-react-jsx-self": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/plugin-transform-react-jsx-self/-/plugin-transform-react-jsx-self-7.29.7.tgz",
+      "integrity": "sha512-TL0hMc9xzy86VD31nUiwzd5otRAcyEPcsegCxolO0PvcXuH1v0kECe/UIznYFihpkvU5wg/jk4v0TTEFfm53fw==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/helper-plugin-utils": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      },
+      "peerDependencies": {
+        "@babel/core": "^7.0.0-0"
+      }
+    },
+    "node_modules/@babel/plugin-transform-react-jsx-source": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/plugin-transform-react-jsx-source/-/plugin-transform-react-jsx-source-7.29.7.tgz",
+      "integrity": "sha512-06IyK09H3wi4cGbhDBwp5gUGo0IKtnYa8tyTiephirPCK6fbobVGiXMMI5zLQ4aKEYP3wZ3ArU44o+8KMrSG/Q==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/helper-plugin-utils": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      },
+      "peerDependencies": {
+        "@babel/core": "^7.0.0-0"
+      }
+    },
+    "node_modules/@babel/template": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/template/-/template-7.29.7.tgz",
+      "integrity": "sha512-puq+Gf35oI24FeN11LkoUQFqv9uwNeWpxXZi/Ji3rRIoKAzKnxRaZ+Gkj0vKS9ZCiTESfng1N9LyOyXvo+m+Gg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/code-frame": "^7.29.7",
+        "@babel/parser": "^7.29.7",
+        "@babel/types": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/traverse": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/traverse/-/traverse-7.29.7.tgz",
+      "integrity": "sha512-EhlfNQtZ+NK22w5BM61ciuiq1m58ed33Wr1Xan//ZRTy6hgjnwyCffRYwzsGXdASJSUJ1guZILsErh1eQcl+zw==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/code-frame": "^7.29.7",
+        "@babel/generator": "^7.29.7",
+        "@babel/helper-globals": "^7.29.7",
+        "@babel/parser": "^7.29.7",
+        "@babel/template": "^7.29.7",
+        "@babel/types": "^7.29.7",
+        "debug": "^4.3.1"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@babel/types": {
+      "version": "7.29.7",
+      "resolved": "https://registry.npmjs.org/@babel/types/-/types-7.29.7.tgz",
+      "integrity": "sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/helper-string-parser": "^7.29.7",
+        "@babel/helper-validator-identifier": "^7.29.7"
+      },
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/@esbuild/aix-ppc64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/aix-ppc64/-/aix-ppc64-0.21.5.tgz",
+      "integrity": "sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==",
+      "cpu": [
+        "ppc64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "aix"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/android-arm": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/android-arm/-/android-arm-0.21.5.tgz",
+      "integrity": "sha512-vCPvzSjpPHEi1siZdlvAlsPxXl7WbOVUBBAowWug4rJHb68Ox8KualB+1ocNvT5fjv6wpkX6o/iEpbDrf68zcg==",
+      "cpu": [
+        "arm"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/android-arm64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/android-arm64/-/android-arm64-0.21.5.tgz",
+      "integrity": "sha512-c0uX9VAUBQ7dTDCjq+wdyGLowMdtR/GoC2U5IYk/7D1H1JYC0qseD7+11iMP2mRLN9RcCMRcjC4YMclCzGwS/A==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/android-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/android-x64/-/android-x64-0.21.5.tgz",
+      "integrity": "sha512-D7aPRUUNHRBwHxzxRvp856rjUHRFW1SdQATKXH2hqA0kAZb1hKmi02OpYRacl0TxIGz/ZmXWlbZgjwWYaCakTA==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/darwin-arm64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.21.5.tgz",
+      "integrity": "sha512-DwqXqZyuk5AiWWf3UfLiRDJ5EDd49zg6O9wclZ7kUMv2WRFr4HKjXp/5t8JZ11QbQfUS6/cRCKGwYhtNAY88kQ==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/darwin-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/darwin-x64/-/darwin-x64-0.21.5.tgz",
+      "integrity": "sha512-se/JjF8NlmKVG4kNIuyWMV/22ZaerB+qaSi5MdrXtd6R08kvs2qCN4C09miupktDitvh8jRFflwGFBQcxZRjbw==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/freebsd-arm64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/freebsd-arm64/-/freebsd-arm64-0.21.5.tgz",
+      "integrity": "sha512-5JcRxxRDUJLX8JXp/wcBCy3pENnCgBR9bN6JsY4OmhfUtIHe3ZW0mawA7+RDAcMLrMIZaf03NlQiX9DGyB8h4g==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/freebsd-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/freebsd-x64/-/freebsd-x64-0.21.5.tgz",
+      "integrity": "sha512-J95kNBj1zkbMXtHVH29bBriQygMXqoVQOQYA+ISs0/2l3T9/kj42ow2mpqerRBxDJnmkUDCaQT/dfNXWX/ZZCQ==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-arm": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-arm/-/linux-arm-0.21.5.tgz",
+      "integrity": "sha512-bPb5AHZtbeNGjCKVZ9UGqGwo8EUu4cLq68E95A53KlxAPRmUyYv2D6F0uUI65XisGOL1hBP5mTronbgo+0bFcA==",
+      "cpu": [
+        "arm"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-arm64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-arm64/-/linux-arm64-0.21.5.tgz",
+      "integrity": "sha512-ibKvmyYzKsBeX8d8I7MH/TMfWDXBF3db4qM6sy+7re0YXya+K1cem3on9XgdT2EQGMu4hQyZhan7TeQ8XkGp4Q==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-ia32": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-ia32/-/linux-ia32-0.21.5.tgz",
+      "integrity": "sha512-YvjXDqLRqPDl2dvRODYmmhz4rPeVKYvppfGYKSNGdyZkA01046pLWyRKKI3ax8fbJoK5QbxblURkwK/MWY18Tg==",
+      "cpu": [
+        "ia32"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-loong64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-loong64/-/linux-loong64-0.21.5.tgz",
+      "integrity": "sha512-uHf1BmMG8qEvzdrzAqg2SIG/02+4/DHB6a9Kbya0XDvwDEKCoC8ZRWI5JJvNdUjtciBGFQ5PuBlpEOXQj+JQSg==",
+      "cpu": [
+        "loong64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-mips64el": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-mips64el/-/linux-mips64el-0.21.5.tgz",
+      "integrity": "sha512-IajOmO+KJK23bj52dFSNCMsz1QP1DqM6cwLUv3W1QwyxkyIWecfafnI555fvSGqEKwjMXVLokcV5ygHW5b3Jbg==",
+      "cpu": [
+        "mips64el"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-ppc64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-ppc64/-/linux-ppc64-0.21.5.tgz",
+      "integrity": "sha512-1hHV/Z4OEfMwpLO8rp7CvlhBDnjsC3CttJXIhBi+5Aj5r+MBvy4egg7wCbe//hSsT+RvDAG7s81tAvpL2XAE4w==",
+      "cpu": [
+        "ppc64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-riscv64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-riscv64/-/linux-riscv64-0.21.5.tgz",
+      "integrity": "sha512-2HdXDMd9GMgTGrPWnJzP2ALSokE/0O5HhTUvWIbD3YdjME8JwvSCnNGBnTThKGEB91OZhzrJ4qIIxk/SBmyDDA==",
+      "cpu": [
+        "riscv64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-s390x": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-s390x/-/linux-s390x-0.21.5.tgz",
+      "integrity": "sha512-zus5sxzqBJD3eXxwvjN1yQkRepANgxE9lgOW2qLnmr8ikMTphkjgXu1HR01K4FJg8h1kEEDAqDcZQtbrRnB41A==",
+      "cpu": [
+        "s390x"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/linux-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.21.5.tgz",
+      "integrity": "sha512-1rYdTpyv03iycF1+BhzrzQJCdOuAOtaqHTWJZCWvijKD2N5Xu0TtVC8/+1faWqcP9iBCWOmjmhoH94dH82BxPQ==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/netbsd-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/netbsd-x64/-/netbsd-x64-0.21.5.tgz",
+      "integrity": "sha512-Woi2MXzXjMULccIwMnLciyZH4nCIMpWQAs049KEeMvOcNADVxo0UBIQPfSmxB3CWKedngg7sWZdLvLczpe0tLg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "netbsd"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/openbsd-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/openbsd-x64/-/openbsd-x64-0.21.5.tgz",
+      "integrity": "sha512-HLNNw99xsvx12lFBUwoT8EVCsSvRNDVxNpjZ7bPn947b8gJPzeHWyNVhFsaerc0n3TsbOINvRP2byTZ5LKezow==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "openbsd"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/sunos-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/sunos-x64/-/sunos-x64-0.21.5.tgz",
+      "integrity": "sha512-6+gjmFpfy0BHU5Tpptkuh8+uw3mnrvgs+dSPQXQOv3ekbordwnzTVEb4qnIvQcYXq6gzkyTnoZ9dZG+D4garKg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "sunos"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/win32-arm64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/win32-arm64/-/win32-arm64-0.21.5.tgz",
+      "integrity": "sha512-Z0gOTd75VvXqyq7nsl93zwahcTROgqvuAcYDUr+vOv8uHhNSKROyU961kgtCD1e95IqPKSQKH7tBTslnS3tA8A==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/win32-ia32": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/win32-ia32/-/win32-ia32-0.21.5.tgz",
+      "integrity": "sha512-SWXFF1CL2RVNMaVs+BBClwtfZSvDgtL//G/smwAc5oVK/UPu2Gu9tIaRgFmYFFKrmg3SyAjSrElf0TiJ1v8fYA==",
+      "cpu": [
+        "ia32"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@esbuild/win32-x64": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.21.5.tgz",
+      "integrity": "sha512-tQd/1efJuzPC6rCFwEvLtci/xNFcTZknmXs98FYDfGE4wP9ClFV98nyKrzJKVPMhdDnjzLhdUyMX4PsQAPjwIw==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=12"
+      }
+    },
+    "node_modules/@jridgewell/gen-mapping": {
+      "version": "0.3.13",
+      "resolved": "https://registry.npmjs.org/@jridgewell/gen-mapping/-/gen-mapping-0.3.13.tgz",
+      "integrity": "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@jridgewell/sourcemap-codec": "^1.5.0",
+        "@jridgewell/trace-mapping": "^0.3.24"
+      }
+    },
+    "node_modules/@jridgewell/remapping": {
+      "version": "2.3.5",
+      "resolved": "https://registry.npmjs.org/@jridgewell/remapping/-/remapping-2.3.5.tgz",
+      "integrity": "sha512-LI9u/+laYG4Ds1TDKSJW2YPrIlcVYOwi2fUC6xB43lueCjgxV4lffOCZCtYFiH6TNOX+tQKXx97T4IKHbhyHEQ==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@jridgewell/gen-mapping": "^0.3.5",
+        "@jridgewell/trace-mapping": "^0.3.24"
+      }
+    },
+    "node_modules/@jridgewell/resolve-uri": {
+      "version": "3.1.2",
+      "resolved": "https://registry.npmjs.org/@jridgewell/resolve-uri/-/resolve-uri-3.1.2.tgz",
+      "integrity": "sha512-bRISgCIjP20/tbWSPWMEi54QVPRZExkuD9lJL+UIxUKtwVJA8wW1Trb1jMs1RFXo1CBTNZ/5hpC9QvmKWdopKw==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.0.0"
+      }
+    },
+    "node_modules/@jridgewell/sourcemap-codec": {
+      "version": "1.5.5",
+      "resolved": "https://registry.npmjs.org/@jridgewell/sourcemap-codec/-/sourcemap-codec-1.5.5.tgz",
+      "integrity": "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/@jridgewell/trace-mapping": {
+      "version": "0.3.31",
+      "resolved": "https://registry.npmjs.org/@jridgewell/trace-mapping/-/trace-mapping-0.3.31.tgz",
+      "integrity": "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@jridgewell/resolve-uri": "^3.1.0",
+        "@jridgewell/sourcemap-codec": "^1.4.14"
+      }
+    },
+    "node_modules/@remix-run/router": {
+      "version": "1.23.3",
+      "resolved": "https://registry.npmjs.org/@remix-run/router/-/router-1.23.3.tgz",
+      "integrity": "sha512-4An71tdz9X8+3sI4Qqqd2LWd9vS39J7sqd9EU4Scw7TJE/qB10Flv/UuqbPVgfQV9XoK8Np6jNquZitnZq5i+Q==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=14.0.0"
+      }
+    },
+    "node_modules/@rolldown/pluginutils": {
+      "version": "1.0.0-beta.27",
+      "resolved": "https://registry.npmjs.org/@rolldown/pluginutils/-/pluginutils-1.0.0-beta.27.tgz",
+      "integrity": "sha512-+d0F4MKMCbeVUJwG96uQ4SgAznZNSq93I3V+9NHA4OpvqG8mRCpGdKmK8l/dl02h2CCDHwW2FqilnTyDcAnqjA==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/@rollup/rollup-android-arm-eabi": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-android-arm-eabi/-/rollup-android-arm-eabi-4.62.2.tgz",
+      "integrity": "sha512-6o7ZLZK+BeenkZCFNDXqpbjw9bD6nuWonvS/lwQJp7NoVVxm6p3qE7qQ5jGuBjiFsgvqjD8mZAU5oWxTmbOeOg==",
+      "cpu": [
+        "arm"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ]
+    },
+    "node_modules/@rollup/rollup-android-arm64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-android-arm64/-/rollup-android-arm64-4.62.2.tgz",
+      "integrity": "sha512-BaH7BllCACHoH1LguOU56UItGfUWjujlO65kS9LAodViaN4bwIKd7oeW/ZHJ/4ljr/7MIiENnNy3HJ0zXv8Zkw==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ]
+    },
+    "node_modules/@rollup/rollup-darwin-arm64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-darwin-arm64/-/rollup-darwin-arm64-4.62.2.tgz",
+      "integrity": "sha512-v39RCCvj4He82I9sFmk+M1VZ0PLM9sfsLVikjfx2hYBNALhrrOR2D3JjQA6AhlaSOgcR+RzrKY7e1+bT6SUO/A==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ]
+    },
+    "node_modules/@rollup/rollup-darwin-x64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-darwin-x64/-/rollup-darwin-x64-4.62.2.tgz",
+      "integrity": "sha512-yl0y2vq3S3lHeuXhEdss6TWfKW8vkujImO12tn4ZkG/4oghr09LvdYm2RElVjokTQiUvDUGXLGsYeLqUMCKpGA==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ]
+    },
+    "node_modules/@rollup/rollup-freebsd-arm64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-freebsd-arm64/-/rollup-freebsd-arm64-4.62.2.tgz",
+      "integrity": "sha512-tT4pvt4qXD+vEoezupCWi+a1F0vvDiksiHc+PxRlYTOH1I6/X4id9jPxTP+Fg+545euaFT1jJVs4CEdHZAU1vw==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ]
+    },
+    "node_modules/@rollup/rollup-freebsd-x64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-freebsd-x64/-/rollup-freebsd-x64-4.62.2.tgz",
+      "integrity": "sha512-6nU5F2wCW+qvCBhTn1pdIU3bzsIoF7EUwsCDRxilWGprQR6yd508YnH9+OKFCwpfS8pjZqDUmnCAr7exax0XCg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-arm-gnueabihf": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-arm-gnueabihf/-/rollup-linux-arm-gnueabihf-4.62.2.tgz",
+      "integrity": "sha512-n1GJHPOvpIfhi3TmrCeh6S6URt9BFCt0KQE3qvexyGCTAKpR4Lg+eWvNZEqu7epxwus/8ElT3hacYEucm49SZg==",
+      "cpu": [
+        "arm"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-arm-musleabihf": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-arm-musleabihf/-/rollup-linux-arm-musleabihf-4.62.2.tgz",
+      "integrity": "sha512-JqgflS8wEB+UXV/vS1RpRbifGBeN4D5lz8D8oOFbFZw4vedvdOgCFAjfBmIMdW3yL10XpQQ0Ambepw6MXrhOnA==",
+      "cpu": [
+        "arm"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-arm64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-arm64-gnu/-/rollup-linux-arm64-gnu-4.62.2.tgz",
+      "integrity": "sha512-wnFJkogWvN4jm/hQRF2UBaeUmk20j5+DmHvoyWii2b8HJDyvz1MF2OU/6ynXt2KR63rbZLWkFpoytpdc/yBuSA==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-arm64-musl": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-arm64-musl/-/rollup-linux-arm64-musl-4.62.2.tgz",
+      "integrity": "sha512-HVu2bp0zhvJ8xHEV9+UUs7S90VadmBSY3LcIMvozbPo4AuMGDWlz3ymHLHZPX4hR67TKTt8Qp5PJ5RBg/i+RMQ==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-loong64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-loong64-gnu/-/rollup-linux-loong64-gnu-4.62.2.tgz",
+      "integrity": "sha512-mQqqAV8QaoSgr9I2fKDLY2BAVvmKjWoGiu/cSYQonsLvtqwEn1E4QYfnCOcp5zoEqNhsDYin1s6jx/VJmrxlZg==",
+      "cpu": [
+        "loong64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-loong64-musl": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-loong64-musl/-/rollup-linux-loong64-musl-4.62.2.tgz",
+      "integrity": "sha512-IxKLoxCQ2IWi6bT2akyDUBGsOImDKB+sPp4EsTmwFQ/fMwpCKm8uLSSgP/Kx/QYUgKis6SEZ5/Nlhup0DIA0PQ==",
+      "cpu": [
+        "loong64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-ppc64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-ppc64-gnu/-/rollup-linux-ppc64-gnu-4.62.2.tgz",
+      "integrity": "sha512-Mk5ha2RQSgyFfmYYLkBpPnUk8D8FriBxesO1u9O75X0mHgXL1UQcH5Itl2lurWL2tj0RxV9b9tJgipac0hRY9A==",
+      "cpu": [
+        "ppc64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-ppc64-musl": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-ppc64-musl/-/rollup-linux-ppc64-musl-4.62.2.tgz",
+      "integrity": "sha512-CjvEnqJL/0/TQ3TXX3OPIJ/kmBellrWd4heXUmHeJlTnmwjKpSJzoehLaL6Xk0ZnMHBu9dZuFADNOrtjF4v+2w==",
+      "cpu": [
+        "ppc64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-riscv64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-riscv64-gnu/-/rollup-linux-riscv64-gnu-4.62.2.tgz",
+      "integrity": "sha512-1SiZbzwdkaDURsew/tSOrooKiYy7EQGT6m8ufavAi9NEyQb/6VuIxFXAL1fqa4iZe3g4NbNk4P7J32z2tw5Mgg==",
+      "cpu": [
+        "riscv64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-riscv64-musl": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-riscv64-musl/-/rollup-linux-riscv64-musl-4.62.2.tgz",
+      "integrity": "sha512-nQts12zJ3NQRoE6uYljOH89v7szzLDvG2JD/vsX+vGXU8w/At1GowTZ5/7qeFQ8m7L55rpR8Okugnuo5bgjy2Q==",
+      "cpu": [
+        "riscv64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-s390x-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-s390x-gnu/-/rollup-linux-s390x-gnu-4.62.2.tgz",
+      "integrity": "sha512-E9/ll019jhPIJgpzfZoIkBGhcz+kKNgVWYRY0zr9srBdPPFVpvOKW8VaJKUbeK+eZXyQF9ltME+Kk6affeaPgg==",
+      "cpu": [
+        "s390x"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-x64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-x64-gnu/-/rollup-linux-x64-gnu-4.62.2.tgz",
+      "integrity": "sha512-5BqxR/pshjey51iliyzTD5Xi3EN0aLmQ2lZ3lvefVV9c82BvrLo2/6OT55iifpWBufs6kdwWbuOKS841DrmK9A==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-linux-x64-musl": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-linux-x64-musl/-/rollup-linux-x64-musl-4.62.2.tgz",
+      "integrity": "sha512-uNN83XxQrRAh/w0/pmAfibcwyb6YWt4gP+dpnQKPVJshAloQ785ii8CT8ZCIxkGg9opVsvAlGhFitSm6D1Jjpg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ]
+    },
+    "node_modules/@rollup/rollup-openbsd-x64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-openbsd-x64/-/rollup-openbsd-x64-4.62.2.tgz",
+      "integrity": "sha512-srjEIxSH3LRnJN6THczDHWQplqEMFiAJrTab0msUryh9kwNpkICf3Ea6q6MN/2cZwRFUNx5w+h6Hpi4QuHS6Zg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "openbsd"
+      ]
+    },
+    "node_modules/@rollup/rollup-openharmony-arm64": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-openharmony-arm64/-/rollup-openharmony-arm64-4.62.2.tgz",
+      "integrity": "sha512-8hOJnxgbyObnCm5AlRA3A931xX19xq80RjVTKgJOvEKWqJruP/Uf12IbAOaDjjEXYRewwHLfmF0YRIdK3OwKWA==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "openharmony"
+      ]
+    },
+    "node_modules/@rollup/rollup-win32-arm64-msvc": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-win32-arm64-msvc/-/rollup-win32-arm64-msvc-4.62.2.tgz",
+      "integrity": "sha512-mmF4AY1i0hG/bLWUctUq59gtmgaSIRa3cu/A3JFRp/sCNEme2bgDEiDS22P9FbnJB8NJNF4jPJiSP5RHQpUTDg==",
+      "cpu": [
+        "arm64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ]
+    },
+    "node_modules/@rollup/rollup-win32-ia32-msvc": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-win32-ia32-msvc/-/rollup-win32-ia32-msvc-4.62.2.tgz",
+      "integrity": "sha512-DZgkknc6jhHrk46V25vbAM0zZkyP0nSDkJB8/dRkLTxv470dOmWDqGoEJl/9A0dFfS7yE3REOwNDxpHwSLSt0Q==",
+      "cpu": [
+        "ia32"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ]
+    },
+    "node_modules/@rollup/rollup-win32-x64-gnu": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-win32-x64-gnu/-/rollup-win32-x64-gnu-4.62.2.tgz",
+      "integrity": "sha512-T6xr6ucWSFto+VGajA8YH26LdpHRuP4YLHEKAtCWvJDOlnmWcDZVCI2Jmjr+IFHDlt2zRaTAKE4tfjTaWLgJBg==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ]
+    },
+    "node_modules/@rollup/rollup-win32-x64-msvc": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/@rollup/rollup-win32-x64-msvc/-/rollup-win32-x64-msvc-4.62.2.tgz",
+      "integrity": "sha512-BfzEnDJOt9T8M989/lA37EcJgat01wLRnoi5dQf3QzOH7jzpqTAzdDbVfRljVr5r+jzKqpbHeyOfAaXxAd0PAA==",
+      "cpu": [
+        "x64"
+      ],
+      "dev": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ]
+    },
+    "node_modules/@types/babel__core": {
+      "version": "7.20.5",
+      "resolved": "https://registry.npmjs.org/@types/babel__core/-/babel__core-7.20.5.tgz",
+      "integrity": "sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/parser": "^7.20.7",
+        "@babel/types": "^7.20.7",
+        "@types/babel__generator": "*",
+        "@types/babel__template": "*",
+        "@types/babel__traverse": "*"
+      }
+    },
+    "node_modules/@types/babel__generator": {
+      "version": "7.27.0",
+      "resolved": "https://registry.npmjs.org/@types/babel__generator/-/babel__generator-7.27.0.tgz",
+      "integrity": "sha512-ufFd2Xi92OAVPYsy+P4n7/U7e68fex0+Ee8gSG9KX7eo084CWiQ4sdxktvdl0bOPupXtVJPY19zk6EwWqUQ8lg==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/types": "^7.0.0"
+      }
+    },
+    "node_modules/@types/babel__template": {
+      "version": "7.4.4",
+      "resolved": "https://registry.npmjs.org/@types/babel__template/-/babel__template-7.4.4.tgz",
+      "integrity": "sha512-h/NUaSyG5EyxBIp8YRxo4RMe2/qQgvyowRwVMzhYhBCONbW8PUsg4lkFMrhgZhUe5z3L3MiLDuvyJ/CaPa2A8A==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/parser": "^7.1.0",
+        "@babel/types": "^7.0.0"
+      }
+    },
+    "node_modules/@types/babel__traverse": {
+      "version": "7.28.0",
+      "resolved": "https://registry.npmjs.org/@types/babel__traverse/-/babel__traverse-7.28.0.tgz",
+      "integrity": "sha512-8PvcXf70gTDZBgt9ptxJ8elBeBjcLOAcOtoO/mPJjtji1+CdGbHgm77om1GrsPxsiE+uXIpNSK64UYaIwQXd4Q==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/types": "^7.28.2"
+      }
+    },
+    "node_modules/@types/estree": {
+      "version": "1.0.9",
+      "resolved": "https://registry.npmjs.org/@types/estree/-/estree-1.0.9.tgz",
+      "integrity": "sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/@types/prop-types": {
+      "version": "15.7.15",
+      "resolved": "https://registry.npmjs.org/@types/prop-types/-/prop-types-15.7.15.tgz",
+      "integrity": "sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/@types/react": {
+      "version": "18.3.31",
+      "resolved": "https://registry.npmjs.org/@types/react/-/react-18.3.31.tgz",
+      "integrity": "sha512-vfEqpXTvwT91yhmwdfouStN2hSKwTvyRs8qpLfADyrq/kxDw0hZM7Wk9Ug1FELj8hIby+S/+kQCSRFF32nv2Qw==",
+      "dev": true,
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "@types/prop-types": "*",
+        "csstype": "^3.2.2"
+      }
+    },
+    "node_modules/@types/react-dom": {
+      "version": "18.3.7",
+      "resolved": "https://registry.npmjs.org/@types/react-dom/-/react-dom-18.3.7.tgz",
+      "integrity": "sha512-MEe3UeoENYVFXzoXEWsvcpg6ZvlrFNlOQ7EOsvhI3CfAXwzPfO8Qwuxd40nepsYKqyyVQnTdEfv68q91yLcKrQ==",
+      "dev": true,
+      "license": "MIT",
+      "peerDependencies": {
+        "@types/react": "^18.0.0"
+      }
+    },
+    "node_modules/@vitejs/plugin-react": {
+      "version": "4.7.0",
+      "resolved": "https://registry.npmjs.org/@vitejs/plugin-react/-/plugin-react-4.7.0.tgz",
+      "integrity": "sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@babel/core": "^7.28.0",
+        "@babel/plugin-transform-react-jsx-self": "^7.27.1",
+        "@babel/plugin-transform-react-jsx-source": "^7.27.1",
+        "@rolldown/pluginutils": "1.0.0-beta.27",
+        "@types/babel__core": "^7.20.5",
+        "react-refresh": "^0.17.0"
+      },
+      "engines": {
+        "node": "^14.18.0 || >=16.0.0"
+      },
+      "peerDependencies": {
+        "vite": "^4.2.0 || ^5.0.0 || ^6.0.0 || ^7.0.0"
+      }
+    },
+    "node_modules/baseline-browser-mapping": {
+      "version": "2.10.44",
+      "resolved": "https://registry.npmjs.org/baseline-browser-mapping/-/baseline-browser-mapping-2.10.44.tgz",
+      "integrity": "sha512-T3ghW+sl/ZJ8w1v/yQx3qvJ9040DWoLBz8JT/CILbAKcFyG9b2MRe75v6W5uXjv6uH1lumK2Kv46y2zSkcej0Q==",
+      "dev": true,
+      "license": "Apache-2.0",
+      "bin": {
+        "baseline-browser-mapping": "dist/cli.cjs"
+      },
+      "engines": {
+        "node": ">=6.0.0"
+      }
+    },
+    "node_modules/browserslist": {
+      "version": "4.28.6",
+      "resolved": "https://registry.npmjs.org/browserslist/-/browserslist-4.28.6.tgz",
+      "integrity": "sha512-FQBYNK15VMslhLHpA7+n+n1GOlF1kId2xcCg7/j95f24AOF6VDYMNH4mFxF7KuaTdv627faazpOAjFzMrfJOUw==",
+      "dev": true,
+      "funding": [
+        {
+          "type": "opencollective",
+          "url": "https://opencollective.com/browserslist"
+        },
+        {
+          "type": "tidelift",
+          "url": "https://tidelift.com/funding/github/npm/browserslist"
+        },
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/ai"
+        }
+      ],
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "baseline-browser-mapping": "^2.10.42",
+        "caniuse-lite": "^1.0.30001803",
+        "electron-to-chromium": "^1.5.389",
+        "node-releases": "^2.0.51",
+        "update-browserslist-db": "^1.2.3"
+      },
+      "bin": {
+        "browserslist": "cli.js"
+      },
+      "engines": {
+        "node": "^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7"
+      }
+    },
+    "node_modules/caniuse-lite": {
+      "version": "1.0.30001806",
+      "resolved": "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001806.tgz",
+      "integrity": "sha512-72Cuvd95zbSYPKq6Fhg8eDJRlzgWDf7/mtoZv6Qe/DYNCEBdNxoA3+rZAU2ZhGCpZlns3EssFavaZomckT5Uuw==",
+      "dev": true,
+      "funding": [
+        {
+          "type": "opencollective",
+          "url": "https://opencollective.com/browserslist"
+        },
+        {
+          "type": "tidelift",
+          "url": "https://tidelift.com/funding/github/npm/caniuse-lite"
+        },
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/ai"
+        }
+      ],
+      "license": "CC-BY-4.0"
+    },
+    "node_modules/convert-source-map": {
+      "version": "2.0.0",
+      "resolved": "https://registry.npmjs.org/convert-source-map/-/convert-source-map-2.0.0.tgz",
+      "integrity": "sha512-Kvp459HrV2FEJ1CAsi1Ku+MY3kasH19TFykTz2xWmMeq6bk2NU3XXvfJ+Q61m0xktWwt+1HSYf3JZsTms3aRJg==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/csstype": {
+      "version": "3.2.3",
+      "resolved": "https://registry.npmjs.org/csstype/-/csstype-3.2.3.tgz",
+      "integrity": "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/debug": {
+      "version": "4.4.3",
+      "resolved": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz",
+      "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "ms": "^2.1.3"
+      },
+      "engines": {
+        "node": ">=6.0"
+      },
+      "peerDependenciesMeta": {
+        "supports-color": {
+          "optional": true
+        }
+      }
+    },
+    "node_modules/electron-to-chromium": {
+      "version": "1.5.394",
+      "resolved": "https://registry.npmjs.org/electron-to-chromium/-/electron-to-chromium-1.5.394.tgz",
+      "integrity": "sha512-Wmt2Gm0o8JWBuGgmc4XZ0u9s1RaCRqhxP47phplmfg04+qypTUurpeJGP45A7Fhv7jdrrVH44PLlR9qXo37cVQ==",
+      "dev": true,
+      "license": "ISC"
+    },
+    "node_modules/esbuild": {
+      "version": "0.21.5",
+      "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.21.5.tgz",
+      "integrity": "sha512-mg3OPMV4hXywwpoDxu3Qda5xCKQi+vCTZq8S9J/EpkhB2HzKXq4SNFZE3+NK93JYxc8VMSep+lOUSC/RVKaBqw==",
+      "dev": true,
+      "hasInstallScript": true,
+      "license": "MIT",
+      "bin": {
+        "esbuild": "bin/esbuild"
+      },
+      "engines": {
+        "node": ">=12"
+      },
+      "optionalDependencies": {
+        "@esbuild/aix-ppc64": "0.21.5",
+        "@esbuild/android-arm": "0.21.5",
+        "@esbuild/android-arm64": "0.21.5",
+        "@esbuild/android-x64": "0.21.5",
+        "@esbuild/darwin-arm64": "0.21.5",
+        "@esbuild/darwin-x64": "0.21.5",
+        "@esbuild/freebsd-arm64": "0.21.5",
+        "@esbuild/freebsd-x64": "0.21.5",
+        "@esbuild/linux-arm": "0.21.5",
+        "@esbuild/linux-arm64": "0.21.5",
+        "@esbuild/linux-ia32": "0.21.5",
+        "@esbuild/linux-loong64": "0.21.5",
+        "@esbuild/linux-mips64el": "0.21.5",
+        "@esbuild/linux-ppc64": "0.21.5",
+        "@esbuild/linux-riscv64": "0.21.5",
+        "@esbuild/linux-s390x": "0.21.5",
+        "@esbuild/linux-x64": "0.21.5",
+        "@esbuild/netbsd-x64": "0.21.5",
+        "@esbuild/openbsd-x64": "0.21.5",
+        "@esbuild/sunos-x64": "0.21.5",
+        "@esbuild/win32-arm64": "0.21.5",
+        "@esbuild/win32-ia32": "0.21.5",
+        "@esbuild/win32-x64": "0.21.5"
+      }
+    },
+    "node_modules/escalade": {
+      "version": "3.2.0",
+      "resolved": "https://registry.npmjs.org/escalade/-/escalade-3.2.0.tgz",
+      "integrity": "sha512-WUj2qlxaQtO4g6Pq5c29GTcWGDyd8itL8zTlipgECz3JesAiiOKotd8JU6otB3PACgG6xkJUyVhboMS+bje/jA==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6"
+      }
+    },
+    "node_modules/fsevents": {
+      "version": "2.3.3",
+      "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz",
+      "integrity": "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==",
+      "dev": true,
+      "hasInstallScript": true,
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": "^8.16.0 || ^10.6.0 || >=11.0.0"
+      }
+    },
+    "node_modules/gensync": {
+      "version": "1.0.0-beta.2",
+      "resolved": "https://registry.npmjs.org/gensync/-/gensync-1.0.0-beta.2.tgz",
+      "integrity": "sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=6.9.0"
+      }
+    },
+    "node_modules/js-tokens": {
+      "version": "4.0.0",
+      "resolved": "https://registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz",
+      "integrity": "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==",
+      "license": "MIT"
+    },
+    "node_modules/jsesc": {
+      "version": "3.1.0",
+      "resolved": "https://registry.npmjs.org/jsesc/-/jsesc-3.1.0.tgz",
+      "integrity": "sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA==",
+      "dev": true,
+      "license": "MIT",
+      "bin": {
+        "jsesc": "bin/jsesc"
+      },
+      "engines": {
+        "node": ">=6"
+      }
+    },
+    "node_modules/json5": {
+      "version": "2.2.3",
+      "resolved": "https://registry.npmjs.org/json5/-/json5-2.2.3.tgz",
+      "integrity": "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==",
+      "dev": true,
+      "license": "MIT",
+      "bin": {
+        "json5": "lib/cli.js"
+      },
+      "engines": {
+        "node": ">=6"
+      }
+    },
+    "node_modules/loose-envify": {
+      "version": "1.4.0",
+      "resolved": "https://registry.npmjs.org/loose-envify/-/loose-envify-1.4.0.tgz",
+      "integrity": "sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==",
+      "license": "MIT",
+      "dependencies": {
+        "js-tokens": "^3.0.0 || ^4.0.0"
+      },
+      "bin": {
+        "loose-envify": "cli.js"
+      }
+    },
+    "node_modules/lru-cache": {
+      "version": "5.1.1",
+      "resolved": "https://registry.npmjs.org/lru-cache/-/lru-cache-5.1.1.tgz",
+      "integrity": "sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==",
+      "dev": true,
+      "license": "ISC",
+      "dependencies": {
+        "yallist": "^3.0.2"
+      }
+    },
+    "node_modules/ms": {
+      "version": "2.1.3",
+      "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+      "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
+      "dev": true,
+      "license": "MIT"
+    },
+    "node_modules/nanoid": {
+      "version": "3.3.16",
+      "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.16.tgz",
+      "integrity": "sha512-bzlKTyNJ7+LdGIIwy8ijFpIqEQIvafahV7eYykJ8Cvh42EdJeODoJ6gUJXpQJvej1BddH8OqTXZNE/KfbWAu8Q==",
+      "dev": true,
+      "funding": [
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/ai"
+        }
+      ],
+      "license": "MIT",
+      "bin": {
+        "nanoid": "bin/nanoid.cjs"
+      },
+      "engines": {
+        "node": "^10 || ^12 || ^13.7 || ^14 || >=15.0.1"
+      }
+    },
+    "node_modules/node-releases": {
+      "version": "2.0.51",
+      "resolved": "https://registry.npmjs.org/node-releases/-/node-releases-2.0.51.tgz",
+      "integrity": "sha512-wRNIrw4DmVLKQlbgOMdkMx27Wrpzes2hh5Jtbi2bjPd+4wJstWIqP5A+lscnqbm0xxmT5Bpg8Lec5ItEBwx6BQ==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/picocolors": {
+      "version": "1.1.1",
+      "resolved": "https://registry.npmjs.org/picocolors/-/picocolors-1.1.1.tgz",
+      "integrity": "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==",
+      "dev": true,
+      "license": "ISC"
+    },
+    "node_modules/postcss": {
+      "version": "8.5.20",
+      "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.5.20.tgz",
+      "integrity": "sha512-lW616l85ucIQL+FocMmL7pQFPqBmwejrCMg+iPxyImlrANNJG9NHq/RkyCZopDhd8C3LA03PHRJDjkbGu8vvug==",
+      "dev": true,
+      "funding": [
+        {
+          "type": "opencollective",
+          "url": "https://opencollective.com/postcss/"
+        },
+        {
+          "type": "tidelift",
+          "url": "https://tidelift.com/funding/github/npm/postcss"
+        },
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/ai"
+        }
+      ],
+      "license": "MIT",
+      "dependencies": {
+        "nanoid": "^3.3.16",
+        "picocolors": "^1.1.1",
+        "source-map-js": "^1.2.1"
+      },
+      "engines": {
+        "node": "^10 || ^12 || >=14"
+      }
+    },
+    "node_modules/react": {
+      "version": "18.3.1",
+      "resolved": "https://registry.npmjs.org/react/-/react-18.3.1.tgz",
+      "integrity": "sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==",
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "loose-envify": "^1.1.0"
+      },
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/react-dom": {
+      "version": "18.3.1",
+      "resolved": "https://registry.npmjs.org/react-dom/-/react-dom-18.3.1.tgz",
+      "integrity": "sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==",
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "loose-envify": "^1.1.0",
+        "scheduler": "^0.23.2"
+      },
+      "peerDependencies": {
+        "react": "^18.3.1"
+      }
+    },
+    "node_modules/react-refresh": {
+      "version": "0.17.0",
+      "resolved": "https://registry.npmjs.org/react-refresh/-/react-refresh-0.17.0.tgz",
+      "integrity": "sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ==",
+      "dev": true,
+      "license": "MIT",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/react-router": {
+      "version": "6.30.4",
+      "resolved": "https://registry.npmjs.org/react-router/-/react-router-6.30.4.tgz",
+      "integrity": "sha512-SVUsDe+DybHM/WmYKIVYhZh1o5Dcuf16yM6WjG02Q9XVFMZIJyHYhwrr6bFBXZkVP6z69kNkMyBCujt8FaFLJA==",
+      "license": "MIT",
+      "dependencies": {
+        "@remix-run/router": "1.23.3"
+      },
+      "engines": {
+        "node": ">=14.0.0"
+      },
+      "peerDependencies": {
+        "react": ">=16.8"
+      }
+    },
+    "node_modules/react-router-dom": {
+      "version": "6.30.4",
+      "resolved": "https://registry.npmjs.org/react-router-dom/-/react-router-dom-6.30.4.tgz",
+      "integrity": "sha512-q4HvNl+mmDdkS0g+MqiBZNteQJCuimWoOyHMy4T/RQLAn9Z29+E91QXRaxOujeMl2HTzRSS0KFPd7lxX3PjV0Q==",
+      "license": "MIT",
+      "dependencies": {
+        "@remix-run/router": "1.23.3",
+        "react-router": "6.30.4"
+      },
+      "engines": {
+        "node": ">=14.0.0"
+      },
+      "peerDependencies": {
+        "react": ">=16.8",
+        "react-dom": ">=16.8"
+      }
+    },
+    "node_modules/rollup": {
+      "version": "4.62.2",
+      "resolved": "https://registry.npmjs.org/rollup/-/rollup-4.62.2.tgz",
+      "integrity": "sha512-RFnrW4lhXA3s3eqHDZvN654g8OTjzRfqpIRJYczCGB6HzphckVAi/Qh4tbPUbRuDi7s1Llv8g/NspLkttY3gTA==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@types/estree": "1.0.9"
+      },
+      "bin": {
+        "rollup": "dist/bin/rollup"
+      },
+      "engines": {
+        "node": ">=18.0.0",
+        "npm": ">=8.0.0"
+      },
+      "optionalDependencies": {
+        "@rollup/rollup-android-arm-eabi": "4.62.2",
+        "@rollup/rollup-android-arm64": "4.62.2",
+        "@rollup/rollup-darwin-arm64": "4.62.2",
+        "@rollup/rollup-darwin-x64": "4.62.2",
+        "@rollup/rollup-freebsd-arm64": "4.62.2",
+        "@rollup/rollup-freebsd-x64": "4.62.2",
+        "@rollup/rollup-linux-arm-gnueabihf": "4.62.2",
+        "@rollup/rollup-linux-arm-musleabihf": "4.62.2",
+        "@rollup/rollup-linux-arm64-gnu": "4.62.2",
+        "@rollup/rollup-linux-arm64-musl": "4.62.2",
+        "@rollup/rollup-linux-loong64-gnu": "4.62.2",
+        "@rollup/rollup-linux-loong64-musl": "4.62.2",
+        "@rollup/rollup-linux-ppc64-gnu": "4.62.2",
+        "@rollup/rollup-linux-ppc64-musl": "4.62.2",
+        "@rollup/rollup-linux-riscv64-gnu": "4.62.2",
+        "@rollup/rollup-linux-riscv64-musl": "4.62.2",
+        "@rollup/rollup-linux-s390x-gnu": "4.62.2",
+        "@rollup/rollup-linux-x64-gnu": "4.62.2",
+        "@rollup/rollup-linux-x64-musl": "4.62.2",
+        "@rollup/rollup-openbsd-x64": "4.62.2",
+        "@rollup/rollup-openharmony-arm64": "4.62.2",
+        "@rollup/rollup-win32-arm64-msvc": "4.62.2",
+        "@rollup/rollup-win32-ia32-msvc": "4.62.2",
+        "@rollup/rollup-win32-x64-gnu": "4.62.2",
+        "@rollup/rollup-win32-x64-msvc": "4.62.2",
+        "fsevents": "~2.3.2"
+      }
+    },
+    "node_modules/scheduler": {
+      "version": "0.23.2",
+      "resolved": "https://registry.npmjs.org/scheduler/-/scheduler-0.23.2.tgz",
+      "integrity": "sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==",
+      "license": "MIT",
+      "dependencies": {
+        "loose-envify": "^1.1.0"
+      }
+    },
+    "node_modules/semver": {
+      "version": "6.3.1",
+      "resolved": "https://registry.npmjs.org/semver/-/semver-6.3.1.tgz",
+      "integrity": "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==",
+      "dev": true,
+      "license": "ISC",
+      "bin": {
+        "semver": "bin/semver.js"
+      }
+    },
+    "node_modules/source-map-js": {
+      "version": "1.2.1",
+      "resolved": "https://registry.npmjs.org/source-map-js/-/source-map-js-1.2.1.tgz",
+      "integrity": "sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==",
+      "dev": true,
+      "license": "BSD-3-Clause",
+      "engines": {
+        "node": ">=0.10.0"
+      }
+    },
+    "node_modules/typescript": {
+      "version": "5.9.3",
+      "resolved": "https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz",
+      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
+      "dev": true,
+      "license": "Apache-2.0",
+      "bin": {
+        "tsc": "bin/tsc",
+        "tsserver": "bin/tsserver"
+      },
+      "engines": {
+        "node": ">=14.17"
+      }
+    },
+    "node_modules/update-browserslist-db": {
+      "version": "1.2.3",
+      "resolved": "https://registry.npmjs.org/update-browserslist-db/-/update-browserslist-db-1.2.3.tgz",
+      "integrity": "sha512-Js0m9cx+qOgDxo0eMiFGEueWztz+d4+M3rGlmKPT+T4IS/jP4ylw3Nwpu6cpTTP8R1MAC1kF4VbdLt3ARf209w==",
+      "dev": true,
+      "funding": [
+        {
+          "type": "opencollective",
+          "url": "https://opencollective.com/browserslist"
+        },
+        {
+          "type": "tidelift",
+          "url": "https://tidelift.com/funding/github/npm/browserslist"
+        },
+        {
+          "type": "github",
+          "url": "https://github.com/sponsors/ai"
+        }
+      ],
+      "license": "MIT",
+      "dependencies": {
+        "escalade": "^3.2.0",
+        "picocolors": "^1.1.1"
+      },
+      "bin": {
+        "update-browserslist-db": "cli.js"
+      },
+      "peerDependencies": {
+        "browserslist": ">= 4.21.0"
+      }
+    },
+    "node_modules/vite": {
+      "version": "5.4.21",
+      "resolved": "https://registry.npmjs.org/vite/-/vite-5.4.21.tgz",
+      "integrity": "sha512-o5a9xKjbtuhY6Bi5S3+HvbRERmouabWbyUcpXXUA1u+GNUKoROi9byOJ8M0nHbHYHkYICiMlqxkg1KkYmm25Sw==",
+      "dev": true,
+      "license": "MIT",
+      "peer": true,
+      "dependencies": {
+        "esbuild": "^0.21.3",
+        "postcss": "^8.4.43",
+        "rollup": "^4.20.0"
+      },
+      "bin": {
+        "vite": "bin/vite.js"
+      },
+      "engines": {
+        "node": "^18.0.0 || >=20.0.0"
+      },
+      "funding": {
+        "url": "https://github.com/vitejs/vite?sponsor=1"
+      },
+      "optionalDependencies": {
+        "fsevents": "~2.3.3"
+      },
+      "peerDependencies": {
+        "@types/node": "^18.0.0 || >=20.0.0",
+        "less": "*",
+        "lightningcss": "^1.21.0",
+        "sass": "*",
+        "sass-embedded": "*",
+        "stylus": "*",
+        "sugarss": "*",
+        "terser": "^5.4.0"
+      },
+      "peerDependenciesMeta": {
+        "@types/node": {
+          "optional": true
+        },
+        "less": {
+          "optional": true
+        },
+        "lightningcss": {
+          "optional": true
+        },
+        "sass": {
+          "optional": true
+        },
+        "sass-embedded": {
+          "optional": true
+        },
+        "stylus": {
+          "optional": true
+        },
+        "sugarss": {
+          "optional": true
+        },
+        "terser": {
+          "optional": true
+        }
+      }
+    },
+    "node_modules/yallist": {
+      "version": "3.1.1",
+      "resolved": "https://registry.npmjs.org/yallist/-/yallist-3.1.1.tgz",
+      "integrity": "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==",
+      "dev": true,
+      "license": "ISC"
+    }
+  }
+}
+```
+
+```json
+// File: frontend\platform-admin-app\package.json
+{
+  "name": "platform-admin-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.1"
+  }
+}
+```
+
+```typescript
+// File: frontend\platform-admin-app\src\api\client.ts
+import { API_BASE } from "../lib/runtime";
+export const fetchApi = (path: string) => fetch(`${API_BASE}${path}`);
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\App.tsx
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useAuth, AuthProvider } from "./contexts/AuthContext";
+import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashboardPage";
+import LandlordsPage from "./pages/LandlordsPage";
+import LandlordDetailPage from "./pages/LandlordDetailPage";
+import DataExplorerPage from "./pages/DataExplorerPage";
+import SettingsPage from "./pages/SettingsPage";
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const { admin, loading } = useAuth();
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+        fontFamily: "system-ui, sans-serif", color: "#9ca3af", fontSize: 16,
+      }}>
+        Loading…
+      </div>
+    );
+  }
+  if (!admin) return <Navigate to="/login" replace />;
+  return <>{children}</>;
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
+      <Route path="/landlords" element={<RequireAuth><LandlordsPage /></RequireAuth>} />
+      <Route path="/landlords/:id" element={<RequireAuth><LandlordDetailPage /></RequireAuth>} />
+      <Route path="/explorer" element={<RequireAuth><DataExplorerPage /></RequireAuth>} />
+      <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
+      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
+  );
+}
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\components\Layout.tsx
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+
+const NAV = [
+  { to: "/dashboard", label: "Dashboard", icon: "📊" },
+  { to: "/landlords", label: "Landlords", icon: "🏠" },
+  { to: "/explorer", label: "Data Explorer", icon: "🔍" },
+  { to: "/settings",  label: "Settings",  icon: "⚙️"  },
+];
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  const { admin, logout } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    await logout();
+    navigate("/login", { replace: true });
+  }
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "system-ui, sans-serif", background: "#f4f6fa" }}>
+      <aside style={{
+        width: 220,
+        background: "#1a1d2e",
+        color: "#c9cdd8",
+        display: "flex",
+        flexDirection: "column",
+        padding: "24px 0",
+        position: "fixed",
+        inset: "0 auto 0 0",
+        zIndex: 100,
+      }}>
+        <div style={{ padding: "0 20px 24px", borderBottom: "1px solid #2c2f3f" }}>
+          <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Platform Admin</p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#e9ecf2", margin: 0 }}>Control Panel</p>
+        </div>
+        <nav style={{ flex: 1, padding: "16px 12px" }}>
+          {NAV.map(({ to, label, icon }) => {
+            const active = to === "/landlords"
+              ? location.pathname.startsWith("/landlords")
+              : location.pathname.startsWith(to);
+            return (
+              <Link
+                key={to}
+                to={to}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, marginBottom: 4,
+                  color: active ? "#fff" : "#9ca3af",
+                  background: active ? "#3b4a6b" : "transparent",
+                  textDecoration: "none", fontSize: 14, fontWeight: active ? 600 : 400,
+                  transition: "background 0.15s",
+                }}
+              >
+                <span>{icon}</span>
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div style={{ padding: "16px 20px", borderTop: "1px solid #2c2f3f" }}>
+          <p style={{ margin: "0 0 8px", fontSize: 13, color: "#9ca3af" }}>
+            Logged in as <strong style={{ color: "#e9ecf2" }}>{admin?.username ?? "…"}</strong>
+          </p>
+          <button
+            onClick={handleLogout}
+            style={{
+              width: "100%", padding: "8px 0", borderRadius: 6, border: "none",
+              background: "#ef4444", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 600,
+            }}
+          >
+            Log out
+          </button>
+        </div>
+      </aside>
+
+      <main style={{ marginLeft: 220, flex: 1, padding: 32 }}>
+        {children}
+      </main>
+    </div>
+  );
+}
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\contexts\AuthContext.tsx
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { API_BASE } from "../lib/runtime";
+
+interface Admin {
+  id: number;
+  username: string;
+  email: string | null;
+  is_platform_admin: boolean;
+  has_totp: boolean;
+}
+
+interface TOTPResult {
+  requires_totp: boolean;
+}
+
+interface AuthContextValue {
+  admin: Admin | null;
+  loading: boolean;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<TOTPResult>;
+  loginTOTP: (totpToken: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [admin, setAdmin] = useState<Admin | null>(null);
+  const [loading, setLoading] = useState(true);
+  const pendingCreds = useRef<{ username: string; password: string; rememberMe: boolean } | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/auth/me`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setAdmin(data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const login = useCallback(async (username: string, password: string, rememberMe = false): Promise<TOTPResult> => {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, remember_me: rememberMe }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Login failed" }));
+      throw new Error(err.detail ?? "Login failed");
+    }
+    const data = await res.json();
+    if (data.status === "totp_required") {
+      pendingCreds.current = { username, password, rememberMe };
+      return { requires_totp: true };
+    }
+    const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
+    setAdmin(me);
+    return { requires_totp: false };
+  }, []);
+
+  const loginTOTP = useCallback(async (totpToken: string) => {
+    const creds = pendingCreds.current;
+    if (!creds) throw new Error("No pending credentials. Please login again.");
+    const res = await fetch(`${API_BASE}/auth/login-totp`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: creds.username,
+        password: creds.password,
+        totpToken,
+        remember_me: creds.rememberMe,
+      }),
+    });
+    pendingCreds.current = null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "TOTP verification failed" }));
+      throw new Error(err.detail ?? "TOTP verification failed");
+    }
+    const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
+    setAdmin(me);
+  }, []);
+
+  const logout = useCallback(async () => {
+    await fetch(`${API_BASE}/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+    setAdmin(null);
+    pendingCreds.current = null;
+  }, []);
+
+  return (
+    <AuthContext.Provider value={{ admin, loading, login, loginTOTP, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
+}
+```
+
+```typescript
+// File: frontend\platform-admin-app\src\lib\runtime.ts
+export const APP_BASE = "/rent/platform-admin";
+export const API_BASE = "/rent/platform-admin/api";
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\main.tsx
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App";
+import { APP_BASE } from "./lib/runtime";
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <BrowserRouter basename={APP_BASE}>
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>
+);
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\pages\DashboardPage.tsx
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+interface Stats {
+  total_landlords: number;
+  active_landlords: number;
+  total_admins: number;
+  total_tenants: number;
+}
+
+function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number | string; color: string }) {
+  return (
+    <div style={{
+      background: "#fff", borderRadius: 14, padding: "24px 28px",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.07)", flex: "1 1 200px", minWidth: 180,
+      borderTop: `4px solid ${color}`,
+    }}>
+      <div style={{ fontSize: 28, marginBottom: 10 }}>{icon}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: "#1a1d2e" }}>{value}</div>
+      <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{label}</div>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/stats`, { credentials: "include" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(setStats)
+      .catch((e) => setError(e.message));
+  }, []);
+
+  return (
+    <Layout>
+      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>
+        Dashboard
+      </h1>
+
+      {error && (
+        <div style={{ background: "#fef2f2", color: "#dc2626", padding: "12px 16px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
+          Error loading stats: {error}
+        </div>
+      )}
+
+      {!stats && !error && (
+        <p style={{ color: "#9ca3af" }}>Loading stats…</p>
+      )}
+
+      {stats && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 20, marginBottom: 32 }}>
+          <StatCard icon="🏢" label="Total Landlords"  value={stats.total_landlords}  color="#3b82f6" />
+          <StatCard icon="✅" label="Active Landlords" value={stats.active_landlords} color="#22c55e" />
+          <StatCard icon="👤" label="Admin Accounts"  value={stats.total_admins}     color="#a855f7" />
+          <StatCard icon="🏠" label="Total Tenants"   value={stats.total_tenants}    color="#f59e0b" />
+        </div>
+      )}
+
+      <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600, color: "#374151" }}>Quick Actions</h2>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Link to="/landlords"
+            style={{ padding: "10px 20px", borderRadius: 8, background: "#3b4a6b", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
+            Manage Landlords
+          </Link>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\pages\DataExplorerPage.tsx
+import { useEffect, useState, useCallback } from "react";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+type Tab = "tenants" | "receipts" | "kyc";
+
+interface Landlord {
+  id: number;
+  full_name: string;
+  username: string;
+}
+
+interface PageResult {
+  items: Record<string, unknown>[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+interface TenantAuth {
+  tenant_id: number;
+  name: string;
+  status: string;
+  failed_attempts: number;
+  locked_until: string | null;
+  has_pin: boolean;
+  pin: string | null;
+  pin_updated_at?: string;
+}
+
+const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: "tenants", label: "Tenants", icon: "👤" },
+  { key: "receipts", label: "Receipts", icon: "🧾" },
+  { key: "kyc", label: "KYC Files", icon: "📄" },
+];
+
+const thStyle: React.CSSProperties = {
+  padding: "12px 14px", textAlign: "left", fontWeight: 600, color: "#374151",
+  borderBottom: "1px solid #e5e7eb", fontSize: 13,
+};
+const tdStyle: React.CSSProperties = {
+  padding: "12px 14px", fontSize: 14, color: "#1a1d2e",
+};
+const btnSm: React.CSSProperties = {
+  padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer",
+  fontSize: 12, fontWeight: 600,
+};
+
+function TenantsTable({ items, onAuth }: { items: Record<string, unknown>[]; onAuth: (id: number) => void }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr style={{ background: "#f9fafb" }}>
+          <th style={thStyle}>ID</th>
+          <th style={thStyle}>Name</th>
+          <th style={thStyle}>Unit</th>
+          <th style={thStyle}>Status</th>
+          <th style={thStyle}>Rent</th>
+          <th style={thStyle}>Landlord</th>
+          <th style={thStyle}>Auth</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((r) => (
+          <tr key={Number(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
+            <td style={tdStyle}>{String(r.id)}</td>
+            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.name)}</td>
+            <td style={tdStyle}>{String(r.unit ?? "—")}</td>
+            <td style={tdStyle}>
+              <span style={{
+                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+                background: r.status === "Active" ? "#dcfce7" : "#fee2e2",
+                color: r.status === "Active" ? "#16a34a" : "#dc2626",
+              }}>
+                {String(r.status)}
+              </span>
+            </td>
+            <td style={tdStyle}>₱{String(r.rent_amount ?? 0)}</td>
+            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
+            <td style={tdStyle}>
+              <button
+                onClick={() => onAuth(Number(r.id))}
+                style={{ ...btnSm, background: "#e0e7ff", color: "#3730a3" }}
+              >
+                View PIN
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function ReceiptsTable({ items }: { items: Record<string, unknown>[] }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr style={{ background: "#f9fafb" }}>
+          <th style={thStyle}>Bill #</th>
+          <th style={thStyle}>Tenant</th>
+          <th style={thStyle}>Unit</th>
+          <th style={thStyle}>Total</th>
+          <th style={thStyle}>Status</th>
+          <th style={thStyle}>Date</th>
+          <th style={thStyle}>Month</th>
+          <th style={thStyle}>Landlord</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((r) => (
+          <tr key={String(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
+            <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 13 }}>{String(r.id)}</td>
+            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.tenant_name ?? "—")}</td>
+            <td style={tdStyle}>{String(r.tenant_unit ?? "—")}</td>
+            <td style={tdStyle}>₱{String(r.total ?? 0)}</td>
+            <td style={tdStyle}>
+              <span style={{
+                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+                background: r.paymentstatus === "PAID" ? "#dcfce7" : r.paymentstatus === "PENDING" ? "#fef9c3" : "#fee2e2",
+                color: r.paymentstatus === "PAID" ? "#16a34a" : r.paymentstatus === "PENDING" ? "#92400e" : "#dc2626",
+              }}>
+                {String(r.paymentstatus)}
+              </span>
+            </td>
+            <td style={tdStyle}>{r.issued_at ? new Date(String(r.issued_at)).toLocaleDateString() : "—"}</td>
+            <td style={tdStyle}>{String(r.month ?? "—")}</td>
+            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function KYCTable({ items }: { items: Record<string, unknown>[] }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr style={{ background: "#f9fafb" }}>
+          <th style={thStyle}>UUID</th>
+          <th style={thStyle}>Name</th>
+          <th style={thStyle}>Status</th>
+          <th style={thStyle}>Mobile</th>
+          <th style={thStyle}>Since</th>
+          <th style={thStyle}>Tenant</th>
+          <th style={thStyle}>Unit</th>
+          <th style={thStyle}>Landlord</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((r) => (
+          <tr key={String(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
+            <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>{String(r.id).slice(0, 8)}…</td>
+            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.name)}</td>
+            <td style={tdStyle}>
+              <span style={{
+                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+                background: r.status === "Active" ? "#dcfce7" : "#f3f4f6",
+                color: r.status === "Active" ? "#16a34a" : "#6b7280",
+              }}>
+                {String(r.status ?? "—")}
+              </span>
+            </td>
+            <td style={tdStyle}>{String(r.mobile ?? "—")}</td>
+            <td style={tdStyle}>{String(r.residentSince ?? "—")}</td>
+            <td style={tdStyle}>{String(r.tenant_name ?? "—")}</td>
+            <td style={tdStyle}>{String(r.tenant_unit ?? "—")}</td>
+            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+export default function DataExplorerPage() {
+  const [landlords, setLandlords] = useState<Landlord[]>([]);
+  const [selectedLandlord, setSelectedLandlord] = useState<Landlord | null>(null);
+  const [landlordSearch, setLandlordSearch] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const [tab, setTab] = useState<Tab>("tenants");
+  const [data, setData] = useState<PageResult>({ items: [], total: 0, limit: 20, offset: 0 });
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const [authModal, setAuthModal] = useState<TenantAuth | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // Fetch landlords for dropdown
+  useEffect(() => {
+    fetch(`${API_BASE}/landlords?limit=1000`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => setLandlords(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  const filteredLandlords = landlords.filter((l) => {
+    if (!landlordSearch) return true;
+    const q = landlordSearch.toLowerCase();
+    return l.full_name?.toLowerCase().includes(q) || l.username?.toLowerCase().includes(q);
+  });
+
+  // Fetch preview data
+  const fetchData = useCallback(async () => {
+    if (!selectedLandlord) { setData({ items: [], total: 0, limit: 20, offset: 0 }); return; }
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set("landlord_id", String(selectedLandlord.id));
+    if (search) params.set("search", search);
+    if (statusFilter) params.set("status", statusFilter);
+    params.set("limit", "20");
+    params.set("offset", String(data.offset));
+    try {
+      const res = await fetch(`${API_BASE}/preview/${tab}?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setData(await res.json());
+    } catch {
+      setData({ items: [], total: 0, limit: 20, offset: 0 });
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedLandlord, tab, search, statusFilter, data.offset]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setData((d) => ({ ...d, offset: 0 })); }, [tab, search, statusFilter, selectedLandlord]);
+
+  async function showTenantAuth(tenantId: number) {
+    setAuthLoading(true);
+    setAuthModal(null);
+    try {
+      const res = await fetch(`${API_BASE}/preview/tenants/${tenantId}/auth`, { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setAuthModal(await res.json());
+    } catch {
+      setAuthModal({ tenant_id: tenantId, name: "Error", status: "?", failed_attempts: 0, locked_until: null, has_pin: false, pin: null });
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  return (
+    <Layout>
+      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Data Explorer</h1>
+
+      {/* Landlord Selector */}
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: "16px 20px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
+      }}>
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+          Select Landlord
+        </label>
+        <div style={{ position: "relative" }}>
+          <input
+            type="text"
+            value={selectedLandlord ? `${selectedLandlord.full_name} (@${selectedLandlord.username})` : landlordSearch}
+            onChange={(e) => {
+              setLandlordSearch(e.target.value);
+              setSelectedLandlord(null);
+              setShowDropdown(true);
+            }}
+            onFocus={() => setShowDropdown(true)}
+            placeholder="Search landlord by name or username…"
+            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, boxSizing: "border-box" }}
+          />
+          {showDropdown && !selectedLandlord && filteredLandlords.length > 0 && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
+              background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8,
+              maxHeight: 240, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+            }}>
+              {filteredLandlords.map((l) => (
+                <div
+                  key={l.id}
+                  onClick={() => { setSelectedLandlord(l); setLandlordSearch(""); setShowDropdown(false); setSearch(""); setStatusFilter(""); }}
+                  style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: 14 }}
+                >
+                  <div style={{ fontWeight: 600, color: "#1a1d2e" }}>{l.full_name}</div>
+                  <div style={{ fontSize: 12, color: "#9ca3af" }}>@{l.username}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {selectedLandlord && (
+          <button
+            onClick={() => { setSelectedLandlord(null); setLandlordSearch(""); }}
+            style={{ marginTop: 8, padding: "4px 12px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer", color: "#6b7280" }}
+          >
+            Clear selection
+          </button>
+        )}
+      </div>
+
+      {!selectedLandlord && (
+        <div style={{ background: "#fff", borderRadius: 14, padding: "48px 24px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)", textAlign: "center", color: "#9ca3af" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+          <p style={{ fontSize: 15 }}>Select a landlord above to explore their data</p>
+        </div>
+      )}
+
+      {selectedLandlord && (
+        <>
+          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                style={{
+                  padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600,
+                  background: tab === t.key ? "#3b4a6b" : "#f3f4f6",
+                  color: tab === t.key ? "#fff" : "#374151",
+                  transition: "all 0.15s",
+                }}
+              >
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{
+            background: "#fff", borderRadius: 14, padding: "16px 20px",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
+            display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
+          }}>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search…"
+              style={{ flex: 1, minWidth: 200, padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
+            >
+              <option value="">All statuses</option>
+              {tab === "tenants" && (
+                <>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </>
+              )}
+              {tab === "receipts" && (
+                <>
+                  <option value="PAID">Paid</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="OVERDUE">Overdue</option>
+                </>
+              )}
+              {tab === "kyc" && (
+                <>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </>
+              )}
+            </select>
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+            {loading ? (
+              <p style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>Loading…</p>
+            ) : data.items.length === 0 ? (
+              <p style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>No results found for this landlord.</p>
+            ) : tab === "tenants" ? (
+              <TenantsTable items={data.items} onAuth={showTenantAuth} />
+            ) : tab === "receipts" ? (
+              <ReceiptsTable items={data.items} />
+            ) : (
+              <KYCTable items={data.items} />
+            )}
+          </div>
+
+          {data.total > data.limit && (
+            <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 20 }}>
+              <button
+                disabled={data.offset === 0}
+                onClick={() => setData((d) => ({ ...d, offset: Math.max(0, d.offset - d.limit) }))}
+                style={{
+                  padding: "8px 20px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff",
+                  cursor: data.offset === 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
+                  opacity: data.offset === 0 ? 0.5 : 1,
+                }}
+              >
+                Previous
+              </button>
+              <span style={{ padding: "8px 0", fontSize: 13, color: "#6b7280" }}>
+                {data.offset + 1}–{Math.min(data.offset + data.limit, data.total)} of {data.total}
+              </span>
+              <button
+                disabled={data.offset + data.limit >= data.total}
+                onClick={() => setData((d) => ({ ...d, offset: d.offset + d.limit }))}
+                style={{
+                  padding: "8px 20px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff",
+                  cursor: data.offset + data.limit >= data.total ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
+                  opacity: data.offset + data.limit >= data.total ? 0.5 : 1,
+                }}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Tenant Auth Modal */}
+      {(authModal || authLoading) && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
+          onClick={() => { setAuthModal(null); setAuthLoading(false); }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff", borderRadius: 16, padding: "28px 32px", width: 400,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            }}
+          >
+            <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 700, color: "#1a1d2e" }}>
+              Tenant Auth Details
+            </h2>
+            {authLoading && <p style={{ color: "#9ca3af" }}>Loading…</p>}
+            {authModal && !authLoading && (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <tbody>
+                  {[
+                    ["Name", authModal.name],
+                    ["Status", authModal.status],
+                    ["Portal PIN", authModal.pin ?? "Not set"],
+                    ["Has PIN", authModal.has_pin ? "Yes" : "No"],
+                    ["Failed Attempts", String(authModal.failed_attempts)],
+                    ["Locked Until", authModal.locked_until ? new Date(authModal.locked_until).toLocaleString() : "Not locked"],
+                  ].map(([label, value]) => (
+                    <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 130 }}>{label}</td>
+                      <td style={{ padding: "10px 0", color: "#1a1d2e", fontFamily: label === "Portal PIN" ? "monospace" : "inherit" }}>
+                        {String(value)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <button
+              onClick={() => { setAuthModal(null); setAuthLoading(false); }}
+              style={{
+                marginTop: 20, width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
+                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </Layout>
+  );
+}
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\pages\LandlordDetailPage.tsx
+import { useEffect, useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+interface LandlordDetail {
+  landlord: Record<string, unknown>;
+  has_password: boolean;
+  has_totp: boolean;
+  stats: {
+    tenants: number;
+    receipts: number;
+    kyc: number;
+    pending_revenue: number;
+  };
+}
+
+interface CreatorInfo {
+  landlord_id: number;
+  username: string;
+  full_name: string;
+  self_registered: boolean;
+  created_at: string;
+  signup_details: {
+    ip_address: string | null;
+    timestamp: string | null;
+    user_agent: string | null;
+  };
+  last_login: {
+    timestamp: string | null;
+    ip_address: string | null;
+  };
+}
+
+function StatBox({ label, value, color }: { label: string; value: number | string; color: string }) {
+  return (
+    <div style={{
+      background: "#f9fafb", borderRadius: 10, padding: "16px 20px", flex: "1 1 140px", minWidth: 130,
+      borderLeft: `4px solid ${color}`,
+    }}>
+      <div style={{ fontSize: 24, fontWeight: 700, color: "#1a1d2e" }}>{value}</div>
+      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{label}</div>
+    </div>
+  );
+}
+
+export default function LandlordDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const [detail, setDetail] = useState<LandlordDetail | null>(null);
+  const [creator, setCreator] = useState<CreatorInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([
+      fetch(`${API_BASE}/landlords/${id}/details`, { credentials: "include" }).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
+      fetch(`${API_BASE}/landlords/${id}/creator-info`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
+    ])
+      .then(([d, c]) => { setDetail(d); setCreator(c); })
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) return <Layout><p style={{ color: "#9ca3af" }}>Loading…</p></Layout>;
+  if (error) return <Layout><p style={{ color: "#dc2626" }}>{error}</p></Layout>;
+  if (!detail) return <Layout><p style={{ color: "#9ca3af" }}>Landlord not found.</p></Layout>;
+
+  const l = detail.landlord;
+  const statusColor = l.status === "Active" ? "#22c55e" : l.status === "Locked" ? "#ef4444" : "#6b7280";
+
+  return (
+    <Layout>
+      <Link to="/landlords" style={{ fontSize: 13, color: "#3b4a6b", textDecoration: "none", marginBottom: 16, display: "inline-block" }}>
+        ← Back to Landlords
+      </Link>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#1a1d2e" }}>
+            {String(l.full_name || l.username)}
+          </h1>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
+            @{String(l.username)} · {String(l.email || "no email")}
+          </p>
+        </div>
+        <span style={{
+          display: "inline-block", padding: "4px 14px", borderRadius: 99, fontSize: 13, fontWeight: 600,
+          background: `${statusColor}20`, color: statusColor,
+        }}>
+          {String(l.status)}
+        </span>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
+        <StatBox label="Tenants" value={detail.stats.tenants} color="#3b82f6" />
+        <StatBox label="Receipts" value={detail.stats.receipts} color="#22c55e" />
+        <StatBox label="KYC Files" value={detail.stats.kyc} color="#a855f7" />
+        <StatBox label="Pending Revenue" value={`₱${detail.stats.pending_revenue.toLocaleString()}`} color="#f59e0b" />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
+          <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "#374151" }}>Account Details</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <tbody>
+              {[
+                ["Landlord ID", l.id],
+                ["UUID", l.landlord_uuid],
+                ["Phone", l.phone],
+                ["Created", l.created_at ? new Date(String(l.created_at)).toLocaleString() : "—"],
+                ["Updated", l.updated_at ? new Date(String(l.updated_at)).toLocaleString() : "—"],
+                ["Has Password", detail.has_password ? "Yes" : "No"],
+                ["Has TOTP", detail.has_totp ? "Yes" : "No"],
+                ["Failed Attempts", l.failed_attempts ?? 0],
+                ["Locked Until", l.locked_until ? new Date(String(l.locked_until)).toLocaleString() : "—"],
+                ["PW Change Required", l.requires_password_change ? "Yes (forced)" : "No"],
+              ].map(([label, value]) => (
+                <tr key={String(label)} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 140 }}>{String(label)}</td>
+                  <td style={{ padding: "10px 0", color: "#1a1d2e" }}>{String(value ?? "—")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {creator && (
+          <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
+            <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "#374151" }}>Creator Info</h2>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <tbody>
+                {[
+                  ["Registered By", creator.self_registered ? "Self-registered" : "Platform Admin"],
+                  ["Signup IP", creator.signup_details.ip_address ?? "—"],
+                  ["Signup Time", creator.signup_details.timestamp ? new Date(creator.signup_details.timestamp).toLocaleString() : "—"],
+                  ["Last Login", creator.last_login.timestamp ? new Date(creator.last_login.timestamp).toLocaleString() : "Never"],
+                  ["Last Login IP", creator.last_login.ip_address ?? "—"],
+                ].map(([label, value]) => (
+                  <tr key={String(label)} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 140 }}>{String(label)}</td>
+                    <td style={{ padding: "10px 0", color: "#1a1d2e" }}>{String(value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\pages\LandlordsPage.tsx
+import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+interface Landlord {
+  id: number;
+  landlord_uuid: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  username: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  has_totp: boolean;
+  failed_attempts: number;
+  locked_until: string | null;
+  requires_password_change: boolean;
+  tenant_count: number;
+  receipt_count: number;
+  kyc_count: number;
+}
+
+interface ModalData {
+  type: "totp" | "password" | "reset" | "reset_whatsapp";
+  landlord: Landlord;
+  result?: { password?: string; secret?: string; qr_code_base64?: string; message?: string; updated_at?: string; whatsapp_url?: string; requires_password_change?: boolean };
+  error?: string;
+  loading: boolean;
+}
+
+const badgeStyle = (status: string): React.CSSProperties => ({
+  display: "inline-block",
+  padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+  background: status === "Active" ? "#dcfce7" : status === "Locked" ? "#fee2e2" : "#f3f4f6",
+  color: status === "Active" ? "#16a34a" : status === "Locked" ? "#dc2626" : "#6b7280",
+});
+
+export default function LandlordsPage() {
+  const [landlords, setLandlords] = useState<Landlord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [modal, setModal] = useState<ModalData | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (statusFilter) params.set("status", statusFilter);
+      params.set("limit", "50");
+      const res = await fetch(`${API_BASE}/landlords?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setLandlords(await res.json());
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load landlords");
+    } finally {
+      setLoading(false);
+    }
+  }, [search, statusFilter]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  async function toggleTOTP(l: Landlord) {
+    setModal({ type: "totp", landlord: l, loading: true });
+    try {
+      const res = await fetch(`${API_BASE}/landlords/${l.id}/totp-toggle`, {
+        method: "POST", credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Failed");
+      setModal({ type: "totp", landlord: l, result: data, loading: false });
+      fetchData();
+    } catch (e: unknown) {
+      setModal({ type: "totp", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
+    }
+  }
+
+  async function revealPassword(l: Landlord) {
+    setModal({ type: "password", landlord: l, loading: true });
+    try {
+      const res = await fetch(`${API_BASE}/landlords/${l.id}/reveal-password`, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) {
+        // Password not in vault — offer reset
+        setModal({ type: "password", landlord: l, error: data.detail ?? "Password not available. Use Reset instead.", loading: false });
+        return;
+      }
+      setModal({ type: "password", landlord: l, result: data, loading: false });
+    } catch (e: unknown) {
+      setModal({ type: "password", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
+    }
+  }
+
+  async function resetPassword(l: Landlord) {
+    if (!confirm(`Reset password for ${l.username}? The new password will be shown once.`)) return;
+    setModal({ type: "reset", landlord: l, loading: true });
+    try {
+      const res = await fetch(`${API_BASE}/landlords/${l.id}/reset-password`, {
+        method: "POST", credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Failed");
+      setModal({ type: "reset", landlord: l, result: data, loading: false });
+    } catch (e: unknown) {
+      setModal({ type: "reset", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
+    }
+  }
+
+  async function resetWithWhatsApp(l: Landlord) {
+    if (!l.phone) {
+      setModal({ type: "reset_whatsapp", landlord: l, error: "No phone number on file. Add one first.", loading: false });
+      return;
+    }
+    setModal({ type: "reset_whatsapp", landlord: l, loading: true });
+    try {
+      const res = await fetch(`${API_BASE}/landlords/${l.id}/reset-password`, {
+        method: "POST", credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Failed");
+      setModal({ type: "reset_whatsapp", landlord: l, result: data, loading: false });
+    } catch (e: unknown) {
+      setModal({ type: "reset_whatsapp", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
+    }
+  }
+
+  return (
+    <Layout>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Landlords</h1>
+      </div>
+
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: "16px 20px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
+        display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
+      }}>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, username, or email…"
+          style={{ flex: 1, minWidth: 200, padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
+        >
+          <option value="">All statuses</option>
+          <option value="Active">Active</option>
+          <option value="Locked">Locked</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </div>
+
+      {error && (
+        <div style={{ background: "#fef2f2", color: "#dc2626", padding: "12px 16px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <p style={{ color: "#9ca3af" }}>Loading…</p>
+      ) : (
+        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr style={{ background: "#f9fafb" }}>
+                  {["ID", "Name", "Username", "Status", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
+                    <th key={h} style={{ padding: "12px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb", fontSize: 13, whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {landlords.length === 0 && (
+                  <tr>
+                    <td colSpan={11} style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>
+                      No landlords found.
+                    </td>
+                  </tr>
+                )}
+                {landlords.map((l) => (
+                  <tr key={l.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "12px 12px", color: "#6b7280" }}>{l.id}</td>
+                    <td style={{ padding: "12px 12px", fontWeight: 600, color: "#1a1d2e" }}>
+                      <Link to={`/landlords/${l.id}`} style={{ color: "#3b4a6b", textDecoration: "none" }}>
+                        {l.full_name || "—"}
+                      </Link>
+                      {l.email && <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 400 }}>{l.email}</div>}
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      <code style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 6, fontSize: 13 }}>{l.username}</code>
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      <span style={badgeStyle(l.status)}>{l.status}</span>
+                    </td>
+                    <td style={{ padding: "12px 12px", fontSize: 13 }}>
+                      {l.has_totp ? "✅" : "—"}
+                    </td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>
+                      {l.requires_password_change ? (
+                        <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: "#fef3c7", color: "#92400e" }}>
+                          PW Pending
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.tenant_count}</td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.receipt_count}</td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.kyc_count}</td>
+                    <td style={{ padding: "12px 12px", fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>
+                      {l.created_at ? new Date(l.created_at).toLocaleDateString() : "—"}
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <button
+                          onClick={() => toggleTOTP(l)}
+                          style={{
+                            padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
+                            background: l.has_totp ? "#fef9c3" : "#dcfce7",
+                            color: l.has_totp ? "#92400e" : "#166534",
+                          }}
+                        >
+                          {l.has_totp ? "Disable TOTP" : "Enable TOTP"}
+                        </button>
+                        <button
+                          onClick={() => revealPassword(l)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#e0e7ff", color: "#3730a3" }}
+                        >
+                          Show PW
+                        </button>
+                        <button
+                          onClick={() => resetPassword(l)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#fee2e2", color: "#dc2626" }}
+                        >
+                          Reset PW
+                        </button>
+                        <button
+                          onClick={() => resetWithWhatsApp(l)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#dcfce7", color: "#166534" }}
+                          title="Reset password and send via WhatsApp"
+                        >
+                          Send WA
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal */}
+      {modal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
+          onClick={() => setModal(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff", borderRadius: 16, padding: "28px 32px", width: 440, maxHeight: "80vh", overflowY: "auto",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            }}
+          >
+            <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 700, color: "#1a1d2e" }}>
+              {modal.type === "totp" && (modal.landlord.has_totp ? "Disable TOTP" : "Enable TOTP")}
+              {modal.type === "password" && "Reveal Password"}
+              {modal.type === "reset" && "Reset Password"}
+              {modal.type === "reset_whatsapp" && "Reset & Send via WhatsApp"}
+              <span style={{ fontWeight: 400, color: "#6b7280", fontSize: 14 }}> — {modal.landlord.username}</span>
+            </h2>
+
+            {modal.loading && <p style={{ color: "#9ca3af" }}>Loading…</p>}
+
+            {modal.error && (
+              <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
+                {modal.error}
+              </div>
+            )}
+
+            {modal.result && (
+              <div>
+                {modal.type === "totp" && (
+                  <div style={{ textAlign: "center" }}>
+                    {modal.result.qr_code_base64 && (
+                      <>
+                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>Scan this QR code with the landlord's authenticator app:</p>
+                        <img
+                          src={`data:image/png;base64,${modal.result.qr_code_base64}`}
+                          alt="TOTP QR"
+                          style={{ width: 200, height: 200, borderRadius: 8, border: "1px solid #e5e7eb", marginBottom: 12 }}
+                        />
+                      </>
+                    )}
+                    {modal.result.secret && (
+                      <div style={{ background: "#f1f5f9", padding: "10px 14px", borderRadius: 8, fontSize: 13, fontFamily: "monospace" }}>
+                        Secret: {modal.result.secret}
+                      </div>
+                    )}
+                    {modal.result.message && (
+                      <p style={{ fontSize: 13, color: "#16a34a", marginTop: 8 }}>{modal.result.message}</p>
+                    )}
+                  </div>
+                )}
+
+                {(modal.type === "password" || modal.type === "reset") && modal.result.password && (
+                  <div>
+                    <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
+                      {modal.type === "reset" ? "New password (copy now — shown only once):" : "Current password:"}
+                    </p>
+                    <div style={{
+                      background: "#f1f5f9", padding: "12px 16px", borderRadius: 8,
+                      fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: "#1a1d2e",
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                    }}>
+                      <span>{modal.result.password}</span>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(modal.result!.password!)}
+                        style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    {modal.result.updated_at && (
+                      <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
+                        Last updated: {new Date(modal.result.updated_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {modal.type === "reset_whatsapp" && modal.result && (
+                  <div>
+                    {modal.result.password && (
+                      <>
+                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
+                          New password (copy now — shown only once):
+                        </p>
+                        <div style={{
+                          background: "#f1f5f9", padding: "12px 16px", borderRadius: 8,
+                          fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: "#1a1d2e",
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                        }}>
+                          <span>{modal.result.password}</span>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(modal.result!.password!)}
+                            style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}
+                          >
+                            Copy
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {modal.result.whatsapp_url ? (
+                      <div style={{ marginTop: 16 }}>
+                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
+                          Open WhatsApp to send the credentials:
+                        </p>
+                        <a
+                          href={modal.result.whatsapp_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 8,
+                            padding: "10px 20px", borderRadius: 8,
+                            background: "#25D366", color: "#fff", fontWeight: 600, fontSize: 14,
+                            textDecoration: "none",
+                          }}
+                        >
+                          Open WhatsApp
+                        </a>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 12 }}>
+                        No phone number on file — WhatsApp URL not generated.
+                      </p>
+                    )}
+
+                    {modal.result.requires_password_change && (
+                      <p style={{ fontSize: 12, color: "#92400e", marginTop: 12, background: "#fef3c7", padding: "8px 12px", borderRadius: 6 }}>
+                        The landlord will be required to change their password on next login.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={() => setModal(null)}
+              style={{
+                marginTop: 20, width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
+                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </Layout>
+  );
+}
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\pages\LoginPage.tsx
+import { useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+
+export default function LoginPage() {
+  const { login, loginTOTP } = useAuth();
+  const navigate = useNavigate();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [totpRequired, setTotpRequired] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await login(username, password, rememberMe);
+      if (result.requires_totp) {
+        setTotpRequired(true);
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTOTPSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await loginTOTP(totpCode);
+      navigate("/dashboard", { replace: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "TOTP verification failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{
+      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
+      background: "linear-gradient(135deg, #1a1d2e 0%, #2d3561 100%)",
+      fontFamily: "system-ui, sans-serif",
+    }}>
+      <form
+        onSubmit={totpRequired ? handleTOTPSubmit : handleSubmit}
+        style={{
+          background: "#fff", borderRadius: 16, padding: "40px 36px",
+          width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>{totpRequired ? "🔐" : "🏢"}</div>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#1a1d2e" }}>
+            {totpRequired ? "Two-Factor Authentication" : "Platform Admin"}
+          </h1>
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#6b7280" }}>
+            {totpRequired ? "Enter your 6-digit authenticator code" : "Sign in to manage landlords"}
+          </p>
+        </div>
+
+        {error && (
+          <div style={{
+            background: "#fef2f2", border: "1px solid #fca5a5", color: "#dc2626",
+            borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13,
+          }}>
+            {error}
+          </div>
+        )}
+
+        {!totpRequired ? (
+          <>
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                Username
+              </span>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoFocus
+                style={inputStyle}
+                placeholder="admin"
+              />
+            </label>
+
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                Password
+              </span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={inputStyle}
+                placeholder="••••••••"
+              />
+            </label>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24, fontSize: 13, color: "#374151", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
+              Remember me for 180 days
+            </label>
+          </>
+        ) : (
+          <label style={{ display: "block", marginBottom: 24 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+              Authenticator Code
+            </span>
+            <input
+              type="text"
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              required
+              autoFocus
+              maxLength={6}
+              pattern="[0-9]{6}"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
+              placeholder="000000"
+            />
+          </label>
+        )}
+
+        <button
+          type="submit"
+          disabled={busy}
+          style={{
+            width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+            background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
+            fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
+            transition: "background 0.2s",
+          }}
+        >
+          {busy ? (totpRequired ? "Verifying…" : "Signing in…") : (totpRequired ? "Verify" : "Sign In")}
+        </button>
+
+        {totpRequired && (
+          <button
+            type="button"
+            onClick={() => { setTotpRequired(false); setTotpCode(""); setError(null); }}
+            style={{
+              width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
+              background: "transparent", color: "#6b7280",
+              fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 12,
+            }}
+          >
+            Back to login
+          </button>
+        )}
+      </form>
+    </div>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "10px 12px", borderRadius: 8,
+  border: "1.5px solid #d1d5db", fontSize: 14, outline: "none",
+  boxSizing: "border-box",
+  transition: "border-color 0.15s",
+};
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\pages\SettingsPage.tsx
+import { useState, useEffect } from "react";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+interface Profile {
+  id: number;
+  username: string;
+  email: string | null;
+  is_platform_admin: boolean;
+  has_totp: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export default function SettingsPage() {
+  const [profile, setProfile] = useState<Profile | null>(null);
+
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState<string | null>(null);
+  const [pwErr, setPwErr] = useState<string | null>(null);
+
+  const [totpQr, setTotpQr] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/settings/profile`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((p) => {
+        setProfile(p);
+        setUsername(p.username);
+        setEmail(p.email ?? "");
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveMsg(null);
+    setSaveErr(null);
+    try {
+      const res = await fetch(`${API_BASE}/settings/profile`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Save failed" }));
+        throw new Error(err.detail ?? "Save failed");
+      }
+      setSaveMsg("Profile updated successfully");
+    } catch (err: unknown) {
+      setSaveErr(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPw !== confirmPw) { setPwErr("Passwords do not match"); return; }
+    setPwSaving(true);
+    setPwMsg(null);
+    setPwErr(null);
+    try {
+      const res = await fetch(`${API_BASE}/settings/change-password`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current_password: currentPw, new_password: newPw, confirm_password: confirmPw }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Change failed" }));
+        throw new Error(err.detail ?? "Change failed");
+      }
+      setPwMsg("Password changed successfully");
+      setCurrentPw("");
+      setNewPw("");
+      setConfirmPw("");
+    } catch (err: unknown) {
+      setPwErr(err instanceof Error ? err.message : "Change failed");
+    } finally {
+      setPwSaving(false);
+    }
+  }
+
+  async function handleRegenerateTOTP() {
+    setRegenerating(true);
+    try {
+      const res = await fetch(`${API_BASE}/totp-regenerate`, { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error("Failed to regenerate");
+      const data = await res.json();
+      setTotpQr(data.qr_base64);
+    } catch {
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
+  return (
+    <Layout>
+      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Settings</h1>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, maxWidth: 900 }}>
+        {/* Profile */}
+        <form onSubmit={handleSaveProfile} style={{
+          background: "#fff", borderRadius: 14, padding: "28px 32px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.07)",
+        }}>
+          <h2 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Profile</h2>
+
+          {saveMsg && <div style={successStyle}>{saveMsg}</div>}
+          {saveErr && <div style={errorStyle}>{saveErr}</div>}
+
+          <label style={labelStyle}>
+            <span>Username</span>
+            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required style={inputStyle} />
+          </label>
+          <label style={labelStyle}>
+            <span>Email</span>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="admin@example.com" />
+          </label>
+
+          <div style={{ marginTop: 16, fontSize: 13, color: "#6b7280" }}>
+            <div>ID: {profile?.id ?? "—"}</div>
+            <div>Role: Platform Super Admin</div>
+            {profile?.created_at && <div>Created: {new Date(profile.created_at).toLocaleString()}</div>}
+          </div>
+
+          <button type="submit" disabled={saving} style={primaryBtn}>
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </form>
+
+        {/* Password */}
+        <form onSubmit={handleChangePassword} style={{
+          background: "#fff", borderRadius: 14, padding: "28px 32px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.07)",
+        }}>
+          <h2 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Change Password</h2>
+
+          {pwMsg && <div style={successStyle}>{pwMsg}</div>}
+          {pwErr && <div style={errorStyle}>{pwErr}</div>}
+
+          <label style={labelStyle}>
+            <span>Current Password</span>
+            <input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required style={inputStyle} />
+          </label>
+          <label style={labelStyle}>
+            <span>New Password</span>
+            <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={6} style={inputStyle} />
+          </label>
+          <label style={labelStyle}>
+            <span>Confirm New Password</span>
+            <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} required minLength={6} style={inputStyle} />
+          </label>
+
+          <button type="submit" disabled={pwSaving} style={primaryBtn}>
+            {pwSaving ? "Changing…" : "Change Password"}
+          </button>
+        </form>
+      </div>
+
+      {/* TOTP */}
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: "28px 32px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
+      }}>
+        <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Two-Factor Authentication</h2>
+        <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
+          {profile?.has_totp
+            ? "TOTP is currently enabled. Regenerating will invalidate your current authenticator."
+            : "TOTP is not configured. Regenerating will create a new secret and show the QR code."}
+        </p>
+
+        {totpQr && (
+          <div style={{ marginBottom: 20, textAlign: "center" }}>
+            <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>Scan this QR code with your authenticator app:</p>
+            <img src={`data:image/png;base64,${totpQr}`} alt="TOTP QR Code" style={{ width: 200, height: 200, borderRadius: 8, border: "1px solid #e5e7eb" }} />
+          </div>
+        )}
+
+        <button
+          onClick={handleRegenerateTOTP}
+          disabled={regenerating}
+          style={{
+            padding: "10px 20px", borderRadius: 8, border: "1.5px solid #d1d5db",
+            background: regenerating ? "#f3f4f6" : "#fff",
+            fontSize: 14, fontWeight: 600, cursor: regenerating ? "not-allowed" : "pointer",
+          }}
+        >
+          {regenerating ? "Regenerating…" : "Regenerate TOTP Secret"}
+        </button>
+      </div>
+
+      {/* System Info */}
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: "28px 32px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
+      }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>System Info</h2>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <tbody>
+            {[
+              ["API Base", "/rent/platform-admin/api"],
+              ["Frontend Base", "/rent/platform-admin"],
+              ["Auth Scope", "Cookie: platform_access_token"],
+            ].map(([label, value]) => (
+              <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>
+                <td style={{ padding: "12px 0" }}><code style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 6 }}>{value}</code></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Layout>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "10px 12px", borderRadius: 8,
+  border: "1.5px solid #d1d5db", fontSize: 14, outline: "none", boxSizing: "border-box",
+};
+const labelStyle: React.CSSProperties = {
+  display: "block", marginBottom: 16,
+};
+const primaryBtn: React.CSSProperties = {
+  marginTop: 8, padding: "10px 24px", borderRadius: 8, border: "none",
+  background: "#3b4a6b", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
+};
+const successStyle: React.CSSProperties = {
+  background: "#dcfce7", color: "#16a34a", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13,
+};
+const errorStyle: React.CSSProperties = {
+  background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13,
+};
+```
+
+```json
+// File: frontend\platform-admin-app\tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"]
+}
+```
+
+```
+// File: frontend\platform-admin-app\tsconfig.tsbuildinfo
+{"root":["./src/app.tsx","./src/main.tsx","./src/api/client.ts","./src/components/layout.tsx","./src/contexts/authcontext.tsx","./src/lib/runtime.ts","./src/pages/dashboardpage.tsx","./src/pages/dataexplorerpage.tsx","./src/pages/landlorddetailpage.tsx","./src/pages/landlordspage.tsx","./src/pages/loginpage.tsx","./src/pages/settingspage.tsx"],"version":"5.9.3"}
+```
+
+```typescript
+// File: frontend\platform-admin-app\vite.config.ts
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  base: "/rent/platform-admin/",
+  plugins: [react()],
 });
 ```
 
@@ -36803,6 +50124,7 @@ dist-ssr
         "@radix-ui/react-tabs": "^1.1.17",
         "@tailwindcss/vite": "^4.3.2",
         "@tanstack/react-query": "^5.101.2",
+        "axios": "^1.18.1",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "lucide-react": "^1.23.0",
@@ -36821,6 +50143,27 @@ dist-ssr
         "oxlint": "^1.71.0",
         "typescript": "~6.0.2",
         "vite": "^8.1.1"
+      }
+    },
+    "node_modules/@emnapi/core": {
+      "version": "1.11.3",
+      "resolved": "https://registry.npmjs.org/@emnapi/core/-/core-1.11.3.tgz",
+      "integrity": "sha512-zLpS5asjEb7lq8jYLq37N6XKaE41DIexlY1rF/z4/tIl3wo13Sqm28fRyfIsKZD+NZ8mM5RoKkpW/rBcuoSZSg==",
+      "license": "MIT",
+      "optional": true,
+      "dependencies": {
+        "@emnapi/wasi-threads": "1.2.3",
+        "tslib": "^2.4.0"
+      }
+    },
+    "node_modules/@emnapi/core/node_modules/@emnapi/wasi-threads": {
+      "version": "1.2.3",
+      "resolved": "https://registry.npmjs.org/@emnapi/wasi-threads/-/wasi-threads-1.2.3.tgz",
+      "integrity": "sha512-ELEBe8PsLvvJ6QMr0zLt8ffvOHW/dc1m3CEzNMg7aJUv3bMaoDtw2TXyDAwkYBuroxxuHEwhRTLJSe5sya547g==",
+      "license": "MIT",
+      "optional": true,
+      "dependencies": {
+        "tslib": "^2.4.0"
       }
     },
     "node_modules/@emnapi/wasi-threads": {
@@ -38597,6 +51940,18 @@ dist-ssr
         }
       }
     },
+    "node_modules/agent-base": {
+      "version": "6.0.2",
+      "resolved": "https://registry.npmjs.org/agent-base/-/agent-base-6.0.2.tgz",
+      "integrity": "sha512-RZNwNclF7+MS/8bDg70amg32dyeZGZxiDuQmZxKLAlQjr3jGyLx+4Kkk58UO7D2QdgFIQCovuSuZESne6RG6XQ==",
+      "license": "MIT",
+      "dependencies": {
+        "debug": "4"
+      },
+      "engines": {
+        "node": ">= 6.0.0"
+      }
+    },
     "node_modules/aria-hidden": {
       "version": "1.2.6",
       "resolved": "https://registry.npmjs.org/aria-hidden/-/aria-hidden-1.2.6.tgz",
@@ -38607,6 +51962,37 @@ dist-ssr
       },
       "engines": {
         "node": ">=10"
+      }
+    },
+    "node_modules/asynckit": {
+      "version": "0.4.0",
+      "resolved": "https://registry.npmjs.org/asynckit/-/asynckit-0.4.0.tgz",
+      "integrity": "sha512-Oei9OH4tRh0YqU3GxhX79dM/mwVgvbZJaSNaRk+bshkj0S5cfHcgYakreBjrHwatXKbz+IoIdYLxrKim2MjW0Q==",
+      "license": "MIT"
+    },
+    "node_modules/axios": {
+      "version": "1.18.1",
+      "resolved": "https://registry.npmjs.org/axios/-/axios-1.18.1.tgz",
+      "integrity": "sha512-3nTvFlvpn9Zu/RkHUqtc7/+al4UpRW5az71ap5zccp6e8RAYEzhMTecX8Dz1wWDYrPpUoB1HAQEGEAEvUr7S9g==",
+      "license": "MIT",
+      "dependencies": {
+        "follow-redirects": "^1.16.0",
+        "form-data": "^4.0.5",
+        "https-proxy-agent": "^5.0.1",
+        "proxy-from-env": "^2.1.0"
+      }
+    },
+    "node_modules/call-bind-apply-helpers": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/call-bind-apply-helpers/-/call-bind-apply-helpers-1.0.2.tgz",
+      "integrity": "sha512-Sp1ablJ0ivDkSzjcaJdxEunN5/XvksFJ2sMBFfq6x0ryhQV/2b/KwFe21cMpmHtPOSij8K99/wSfoEuTObmuMQ==",
+      "license": "MIT",
+      "dependencies": {
+        "es-errors": "^1.3.0",
+        "function-bind": "^1.1.2"
+      },
+      "engines": {
+        "node": ">= 0.4"
       }
     },
     "node_modules/class-variance-authority": {
@@ -38630,6 +52016,18 @@ dist-ssr
         "node": ">=6"
       }
     },
+    "node_modules/combined-stream": {
+      "version": "1.0.8",
+      "resolved": "https://registry.npmjs.org/combined-stream/-/combined-stream-1.0.8.tgz",
+      "integrity": "sha512-FQN4MRfuJeHf7cBbBMJFXhKSDq+2kAArBlmRBvcvFE5BB1HZKXtSFASDhdlz9zOYwxh8lDdnvmMOe/+5cdoEdg==",
+      "license": "MIT",
+      "dependencies": {
+        "delayed-stream": "~1.0.0"
+      },
+      "engines": {
+        "node": ">= 0.8"
+      }
+    },
     "node_modules/cookie": {
       "version": "1.1.1",
       "resolved": "https://registry.npmjs.org/cookie/-/cookie-1.1.1.tgz",
@@ -38650,6 +52048,32 @@ dist-ssr
       "devOptional": true,
       "license": "MIT"
     },
+    "node_modules/debug": {
+      "version": "4.4.3",
+      "resolved": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz",
+      "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
+      "license": "MIT",
+      "dependencies": {
+        "ms": "^2.1.3"
+      },
+      "engines": {
+        "node": ">=6.0"
+      },
+      "peerDependenciesMeta": {
+        "supports-color": {
+          "optional": true
+        }
+      }
+    },
+    "node_modules/delayed-stream": {
+      "version": "1.0.0",
+      "resolved": "https://registry.npmjs.org/delayed-stream/-/delayed-stream-1.0.0.tgz",
+      "integrity": "sha512-ZySD7Nf91aLB0RxL4KGrKHBXl7Eds1DAmEdcoVawXnLD7SDhpNgtuII2aAkg7a7QS41jxPSZ17p4VdGnMHk3MQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=0.4.0"
+      }
+    },
     "node_modules/detect-libc": {
       "version": "2.1.2",
       "resolved": "https://registry.npmjs.org/detect-libc/-/detect-libc-2.1.2.tgz",
@@ -38665,6 +52089,20 @@ dist-ssr
       "integrity": "sha512-ypdmJU/TbBby2Dxibuv7ZLW3Bs1QEmM7nHjEANfohJLvE0XVujisn1qPJcZxg+qDucsr+bP6fLD1rPS3AhJ7EQ==",
       "license": "MIT"
     },
+    "node_modules/dunder-proto": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/dunder-proto/-/dunder-proto-1.0.1.tgz",
+      "integrity": "sha512-KIN/nDJBQRcXw0MLVhZE9iQHmG68qAVIBg9CqmUYjmQIhgij9U5MFvrqkUL5FbtyyzZuOeOt0zdeRe4UY7ct+A==",
+      "license": "MIT",
+      "dependencies": {
+        "call-bind-apply-helpers": "^1.0.1",
+        "es-errors": "^1.3.0",
+        "gopd": "^1.2.0"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
     "node_modules/enhanced-resolve": {
       "version": "5.21.6",
       "resolved": "https://registry.npmjs.org/enhanced-resolve/-/enhanced-resolve-5.21.6.tgz",
@@ -38676,6 +52114,51 @@ dist-ssr
       },
       "engines": {
         "node": ">=10.13.0"
+      }
+    },
+    "node_modules/es-define-property": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/es-define-property/-/es-define-property-1.0.1.tgz",
+      "integrity": "sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/es-errors": {
+      "version": "1.3.0",
+      "resolved": "https://registry.npmjs.org/es-errors/-/es-errors-1.3.0.tgz",
+      "integrity": "sha512-Zf5H2Kxt2xjTvbJvP2ZWLEICxA6j+hAmMzIlypy4xcBg1vKVnx89Wy0GbS+kf5cwCVFFzdCFh2XSCFNULS6csw==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/es-object-atoms": {
+      "version": "1.1.2",
+      "resolved": "https://registry.npmjs.org/es-object-atoms/-/es-object-atoms-1.1.2.tgz",
+      "integrity": "sha512-HWcBoN6NileqtSydK2FqHbS/LoDd2pqrnQHLyJzBj4kOp/ky2MWMN694xOfkK8/SnUsW2DH7EfyVlydKCsm1Zw==",
+      "license": "MIT",
+      "dependencies": {
+        "es-errors": "^1.3.0"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/es-set-tostringtag": {
+      "version": "2.1.0",
+      "resolved": "https://registry.npmjs.org/es-set-tostringtag/-/es-set-tostringtag-2.1.0.tgz",
+      "integrity": "sha512-j6vWzfrGVfyXxge+O0x5sh6cvxAog0a/4Rdd2K36zCMV5eJ+/+tOAngRO8cODMNWbVRdVlmGZQL2YS3yR8bIUA==",
+      "license": "MIT",
+      "dependencies": {
+        "es-errors": "^1.3.0",
+        "get-intrinsic": "^1.2.6",
+        "has-tostringtag": "^1.0.2",
+        "hasown": "^2.0.2"
+      },
+      "engines": {
+        "node": ">= 0.4"
       }
     },
     "node_modules/fdir": {
@@ -38695,6 +52178,42 @@ dist-ssr
         }
       }
     },
+    "node_modules/follow-redirects": {
+      "version": "1.16.0",
+      "resolved": "https://registry.npmjs.org/follow-redirects/-/follow-redirects-1.16.0.tgz",
+      "integrity": "sha512-y5rN/uOsadFT/JfYwhxRS5R7Qce+g3zG97+JrtFZlC9klX/W5hD7iiLzScI4nZqUS7DNUdhPgw4xI8W2LuXlUw==",
+      "funding": [
+        {
+          "type": "individual",
+          "url": "https://github.com/sponsors/RubenVerborgh"
+        }
+      ],
+      "license": "MIT",
+      "engines": {
+        "node": ">=4.0"
+      },
+      "peerDependenciesMeta": {
+        "debug": {
+          "optional": true
+        }
+      }
+    },
+    "node_modules/form-data": {
+      "version": "4.0.6",
+      "resolved": "https://registry.npmjs.org/form-data/-/form-data-4.0.6.tgz",
+      "integrity": "sha512-vKatAh4SlVfgbv+YtmhiRjhEMJsYpsG1Y2rMQtR+SVSbytsSD1YGzDIcrAJmdFec88u/+VoGmxnl+80gL1tRCQ==",
+      "license": "MIT",
+      "dependencies": {
+        "asynckit": "^0.4.0",
+        "combined-stream": "^1.0.8",
+        "es-set-tostringtag": "^2.1.0",
+        "hasown": "^2.0.4",
+        "mime-types": "^2.1.35"
+      },
+      "engines": {
+        "node": ">= 6"
+      }
+    },
     "node_modules/fsevents": {
       "version": "2.3.3",
       "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz",
@@ -38709,6 +52228,39 @@ dist-ssr
         "node": "^8.16.0 || ^10.6.0 || >=11.0.0"
       }
     },
+    "node_modules/function-bind": {
+      "version": "1.1.2",
+      "resolved": "https://registry.npmjs.org/function-bind/-/function-bind-1.1.2.tgz",
+      "integrity": "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA==",
+      "license": "MIT",
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/get-intrinsic": {
+      "version": "1.3.0",
+      "resolved": "https://registry.npmjs.org/get-intrinsic/-/get-intrinsic-1.3.0.tgz",
+      "integrity": "sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==",
+      "license": "MIT",
+      "dependencies": {
+        "call-bind-apply-helpers": "^1.0.2",
+        "es-define-property": "^1.0.1",
+        "es-errors": "^1.3.0",
+        "es-object-atoms": "^1.1.1",
+        "function-bind": "^1.1.2",
+        "get-proto": "^1.0.1",
+        "gopd": "^1.2.0",
+        "has-symbols": "^1.1.0",
+        "hasown": "^2.0.2",
+        "math-intrinsics": "^1.1.0"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
     "node_modules/get-nonce": {
       "version": "1.0.1",
       "resolved": "https://registry.npmjs.org/get-nonce/-/get-nonce-1.0.1.tgz",
@@ -38718,11 +52270,88 @@ dist-ssr
         "node": ">=6"
       }
     },
+    "node_modules/get-proto": {
+      "version": "1.0.1",
+      "resolved": "https://registry.npmjs.org/get-proto/-/get-proto-1.0.1.tgz",
+      "integrity": "sha512-sTSfBjoXBp89JvIKIefqw7U2CCebsc74kiY6awiGogKtoSGbgjYE/G/+l9sF3MWFPNc9IcoOC4ODfKHfxFmp0g==",
+      "license": "MIT",
+      "dependencies": {
+        "dunder-proto": "^1.0.1",
+        "es-object-atoms": "^1.0.0"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/gopd": {
+      "version": "1.2.0",
+      "resolved": "https://registry.npmjs.org/gopd/-/gopd-1.2.0.tgz",
+      "integrity": "sha512-ZUKRh6/kUFoAiTAtTYPZJ3hw9wNxx+BIBOijnlG9PnrJsCcSjs1wyyD6vJpaYtgnzDrKYRSqf3OO6Rfa93xsRg==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
     "node_modules/graceful-fs": {
       "version": "4.2.11",
       "resolved": "https://registry.npmjs.org/graceful-fs/-/graceful-fs-4.2.11.tgz",
       "integrity": "sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==",
       "license": "ISC"
+    },
+    "node_modules/has-symbols": {
+      "version": "1.1.0",
+      "resolved": "https://registry.npmjs.org/has-symbols/-/has-symbols-1.1.0.tgz",
+      "integrity": "sha512-1cDNdwJ2Jaohmb3sg4OmKaMBwuC48sYni5HUw2DvsC8LjGTLK9h+eb1X6RyuOHe4hT0ULCW68iomhjUoKUqlPQ==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/has-tostringtag": {
+      "version": "1.0.2",
+      "resolved": "https://registry.npmjs.org/has-tostringtag/-/has-tostringtag-1.0.2.tgz",
+      "integrity": "sha512-NqADB8VjPFLM2V0VvHUewwwsw0ZWBaIdgo+ieHtK3hasLz4qeCRjYcqfB6AQrBggRKppKF8L52/VqdVsO47Dlw==",
+      "license": "MIT",
+      "dependencies": {
+        "has-symbols": "^1.0.3"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      },
+      "funding": {
+        "url": "https://github.com/sponsors/ljharb"
+      }
+    },
+    "node_modules/hasown": {
+      "version": "2.0.4",
+      "resolved": "https://registry.npmjs.org/hasown/-/hasown-2.0.4.tgz",
+      "integrity": "sha512-T2UbfbBEF32wiepXIsMlTW9+dDYC6wMh/t/vYA4tuOMKqWz/n3vr1NFSxQiyP+zk2mXsoMA/i/7qV6LKut1t1A==",
+      "license": "MIT",
+      "dependencies": {
+        "function-bind": "^1.1.2"
+      },
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/https-proxy-agent": {
+      "version": "5.0.1",
+      "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-5.0.1.tgz",
+      "integrity": "sha512-dFcAjpTQFgoLMzC2VwU+C/CbS7uRL0lWmxDITmqm7C+7F0Odmj6s9l6alZc6AELXhrnggM2CeWSXHGOdX2YtwA==",
+      "license": "MIT",
+      "dependencies": {
+        "agent-base": "6",
+        "debug": "4"
+      },
+      "engines": {
+        "node": ">= 6"
+      }
     },
     "node_modules/jiti": {
       "version": "2.7.0",
@@ -39000,6 +52629,42 @@ dist-ssr
         "@jridgewell/sourcemap-codec": "^1.5.5"
       }
     },
+    "node_modules/math-intrinsics": {
+      "version": "1.1.0",
+      "resolved": "https://registry.npmjs.org/math-intrinsics/-/math-intrinsics-1.1.0.tgz",
+      "integrity": "sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.4"
+      }
+    },
+    "node_modules/mime-db": {
+      "version": "1.52.0",
+      "resolved": "https://registry.npmjs.org/mime-db/-/mime-db-1.52.0.tgz",
+      "integrity": "sha512-sPU4uV7dYlvtWJxwwxHD0PuihVNiE7TyAbQ5SWxDCB9mUYvOgroQOwYQQOKPJ8CIbE+1ETVlOoK1UC2nU3gYvg==",
+      "license": "MIT",
+      "engines": {
+        "node": ">= 0.6"
+      }
+    },
+    "node_modules/mime-types": {
+      "version": "2.1.35",
+      "resolved": "https://registry.npmjs.org/mime-types/-/mime-types-2.1.35.tgz",
+      "integrity": "sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==",
+      "license": "MIT",
+      "dependencies": {
+        "mime-db": "1.52.0"
+      },
+      "engines": {
+        "node": ">= 0.6"
+      }
+    },
+    "node_modules/ms": {
+      "version": "2.1.3",
+      "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+      "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
+      "license": "MIT"
+    },
     "node_modules/nanoid": {
       "version": "3.3.15",
       "resolved": "https://registry.npmjs.org/nanoid/-/nanoid-3.3.15.tgz",
@@ -39112,6 +52777,15 @@ dist-ssr
       },
       "engines": {
         "node": "^10 || ^12 || >=14"
+      }
+    },
+    "node_modules/proxy-from-env": {
+      "version": "2.1.0",
+      "resolved": "https://registry.npmjs.org/proxy-from-env/-/proxy-from-env-2.1.0.tgz",
+      "integrity": "sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==",
+      "license": "MIT",
+      "engines": {
+        "node": ">=10"
       }
     },
     "node_modules/react": {
@@ -39529,6 +53203,7 @@ dist-ssr
     "@radix-ui/react-tabs": "^1.1.17",
     "@tailwindcss/vite": "^4.3.2",
     "@tanstack/react-query": "^5.101.2",
+    "axios": "^1.18.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.23.0",
@@ -39582,52 +53257,6 @@ If you are developing a production application, we recommend enabling type-aware
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
   }
 }
-```
-
-```tsx
-// File: frontend\tenant-app\src\app\App.tsx
-import { Routes, Route } from 'react-router-dom'
-import TenantPortal from '../pages/TenantPortal'
-
-function App() {
-    return (
-        <Routes>
-            <Route path=":tenantId/:token" element={<TenantPortal />} />
-            <Route path="*" element={<div className="p-8 text-center">Invalid URL</div>} />
-        </Routes>
-    )
-}
-
-export default App
-```
-
-```typescript
-// File: frontend\tenant-app\src\app\queryClient.ts
-import { QueryClient } from '@tanstack/react-query';
-
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-```
-
-```tsx
-// File: frontend\tenant-app\src\app\router.tsx
-import { createBrowserRouter } from 'react-router-dom';
-import PublicTenantPage from '../pages/PublicTenantPage';
-
-export const router = createBrowserRouter([
-  {
-    path: '/:tenantId/:viewToken',
-    element: <PublicTenantPage />
-  },
-], {
-  basename: "/rent/t",
-});
 ```
 
 ```css
@@ -39820,163 +53449,546 @@ export const router = createBrowserRouter([
 
 ```tsx
 // File: frontend\tenant-app\src\App.tsx
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from '@/context/AuthContext';
-import PublicTenantPage from '@/pages/PublicTenantPage';
-import TenantPortal from '@/pages/TenantPortal';
+import { useState, useMemo } from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useTenant } from "@/context/TenantContext";
+import LoginModal from "@/components/LoginModal";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { toast } from "sonner";
+import { ReceiptRoller } from "@/components/receipts";
+import PdfPreviewModal from "@/components/modals/PdfPreviewModal";
+import OccupantList from "@/components/OccupantList";
+import { DashboardSkeleton } from "@/components/Skeletons";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PaymentStatusCard from "@/components/PaymentStatusCard";
+import ArchiveReceiptCard from "@/components/ArchiveReceiptCard";
+import { Receipt as ReceiptIcon, Users, Archive } from "lucide-react";
+import { isOlderThan12Months } from "@/lib/utils";
+import type { Receipt } from "@/types";
 
-function AppRoutes() {
-  const { isAuthenticated, isLoading } = useAuth();
+function TenantPortal() {
+  const { profile, receipts, occupants, login, logout, isUnlocked, isLoading } = useTenant();
+  const [loginError, setLoginError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [previewBill, setPreviewBill] = useState<string | null>(null);
 
-  if (isLoading) return <div>Loading...</div>;
+  const tenant = profile?.tenant;
+
+  const { currentReceipts, archivedReceipts } = useMemo(() => {
+    const current: Receipt[] = [];
+    const archived: Receipt[] = [];
+    receipts.forEach((r) => {
+      if (r.Status === "ARCHIVED" || isOlderThan12Months(r.Month)) {
+        archived.push(r);
+      } else {
+        current.push(r);
+      }
+    });
+    current.sort(
+      (a, b) => new Date(b.Date || 0).getTime() - new Date(a.Date || 0).getTime()
+    );
+    archived.sort(
+      (a, b) => new Date(b.Date || 0).getTime() - new Date(a.Date || 0).getTime()
+    );
+    return {
+      currentReceipts: current.slice(0, 12),
+      archivedReceipts: archived,
+    };
+  }, [receipts]);
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  if (!tenant) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-3xl border bg-card p-8 text-center shadow-sm">
+          <h2 className="text-xl font-bold mb-2">Invalid tenant link</h2>
+          <p className="text-muted-foreground">
+            This portal link is missing, expired, or not mapped to a tenant.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isUnlocked) {
+    return (
+      <LoginModal
+        tenantName={tenant.name}
+        error={loginError}
+        loading={isLoggingIn}
+        onSubmit={async (pin) => {
+          setLoginError("");
+          setIsLoggingIn(true);
+          try {
+            await login(pin);
+            toast.success("Portal unlocked");
+          } catch (err: any) {
+            setLoginError(err?.response?.data?.detail || err?.message || "Login failed");
+          } finally {
+            setIsLoggingIn(false);
+          }
+        }}
+      />
+    );
+  }
 
   return (
-    <Routes>
-      {/* Tenant portal entry point - captures viewToken */}
-      <Route path="/t/:viewToken" element={<PublicTenantPage />} />
-      <Route path="/t/:viewToken/*" element={<TenantPortal />} />
+    <div className="min-h-screen bg-muted/30">
+      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold">Welcome, {tenant.name}</h1>
+            <p className="text-sm text-muted-foreground">Tenant portal</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <button
+              onClick={logout}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Lock Portal
+            </button>
+          </div>
+        </div>
+      </header>
 
-      {/* Legacy or direct access without token */}
-      <Route path="/login" element={<PublicTenantPage />} />
+      <main className="max-w-5xl mx-auto p-4 md:p-6">
+        <Tabs defaultValue="receipts" className="space-y-6">
+          <TabsList className="w-full justify-start h-auto gap-1 bg-background border rounded-xl p-1">
+            <TabsTrigger
+              value="receipts"
+              className="gap-1.5 data-[state=active]:bg-muted"
+            >
+              <ReceiptIcon className="h-3.5 w-3.5" />
+              Receipts
+              {currentReceipts.length > 0 && (
+                <span className="ml-1 text-[10px] font-bold text-muted-foreground">
+                  {currentReceipts.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="occupants"
+              className="gap-1.5 data-[state=active]:bg-muted"
+            >
+              <Users className="h-3.5 w-3.5" />
+              Occupants
+              {occupants.length > 0 && (
+                <span className="ml-1 text-[10px] font-bold text-muted-foreground">
+                  {occupants.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger
+              value="archive"
+              className="gap-1.5 data-[state=active]:bg-muted"
+            >
+              <Archive className="h-3.5 w-3.5" />
+              Archive
+              {archivedReceipts.length > 0 && (
+                <span className="ml-1 text-[10px] font-bold text-muted-foreground">
+                  {archivedReceipts.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="receipts" className="space-y-6 mt-2">
+            <PaymentStatusCard receipts={receipts} />
+
+            <div>
+              <h2 className="text-lg font-bold mb-3">Recent Receipts</h2>
+              {currentReceipts.length === 0 ? (
+                <p className="text-muted-foreground">No receipts found.</p>
+              ) : (
+                <ReceiptRoller
+                  receipts={currentReceipts}
+                  onViewPdf={setPreviewBill}
+                />
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="occupants" className="mt-2">
+            <OccupantList />
+          </TabsContent>
+
+          <TabsContent value="archive" className="space-y-4 mt-2">
+            <div>
+              <h2 className="text-lg font-bold mb-1">Archived Receipts</h2>
+              <p className="text-sm text-muted-foreground">
+                Receipts older than 12 months with occupant context.
+              </p>
+            </div>
+            {archivedReceipts.length === 0 ? (
+              <p className="text-muted-foreground">
+                No archived receipts yet. Older receipts will appear here automatically.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {archivedReceipts.map((r) => (
+                  <ArchiveReceiptCard
+                    key={r.Bill}
+                    receipt={r}
+                    occupants={occupants}
+                    onViewPdf={setPreviewBill}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </main>
+
+      <PdfPreviewModal
+        billNo={previewBill ?? ""}
+        open={!!previewBill}
+        onOpenChange={(open) => {
+          if (!open) setPreviewBill(null);
+        }}
+      />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/:landlordUuid/t/:tenantId/:viewToken" element={<TenantPortal />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
+```
 
-function App() {
+```tsx
+// File: frontend\tenant-app\src\components\ArchiveReceiptCard.tsx
+import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Archive, ChevronDown, ChevronUp, Download, Eye, Users } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  getPaymentState,
+  getGrandTotal,
+  getAmountReceived,
+  formatCurrency,
+  daysInMonth,
+  formatResidentSince,
+} from "@/lib/utils";
+import { tenantApi } from "@/lib/api";
+import type { Receipt, Occupant, PaymentState } from "@/types";
+
+const statusStyles: Record<PaymentState, string> = {
+  PAID: "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20",
+  ADVANCE: "bg-cyan-500/10 text-cyan-600 hover:bg-cyan-500/20",
+  PARTIAL: "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20",
+  PENDING: "bg-red-500/10 text-red-600 hover:bg-red-500/20",
+};
+
+const statusLabels: Record<PaymentState, string> = {
+  PAID: "Paid",
+  ADVANCE: "Advance",
+  PARTIAL: "Partial",
+  PENDING: "Pending",
+};
+
+export default function ArchiveReceiptCard({
+  receipt,
+  occupants,
+  onViewPdf,
+}: {
+  receipt: Receipt;
+  occupants: Occupant[];
+  onViewPdf?: (billNo: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const state = getPaymentState(receipt);
+  const grandTotal = getGrandTotal(receipt);
+  const received = getAmountReceived(receipt);
+
+  const presentOccupants = occupants.filter((o) => {
+    const start = new Date(`${o.residentSince}T00:00:00`);
+    const monthEnd = new Date(
+      new Date(receipt.Date || 0).getFullYear(),
+      new Date(receipt.Date || 0).getMonth() + 1,
+      0
+    );
+    return !Number.isNaN(start.getTime()) && start <= monthEnd;
+  });
+
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
+    <Card className="rounded-2xl border shadow-sm overflow-hidden">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center">
+              <Archive className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <div>
+              <span className="font-semibold">{receipt.Month}</span>
+              <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                <span>{receipt.Bill}</span>
+                <span>&middot;</span>
+                <span>{receipt.Date}</span>
+              </div>
+            </div>
+          </div>
+          <Badge variant="outline" className={cn("shrink-0", statusStyles[state])}>
+            {statusLabels[state]}
+          </Badge>
+        </div>
+
+        <div className="flex items-center gap-4 text-sm mt-3 mb-1">
+          <span className="text-muted-foreground">
+            Total: <span className="font-semibold text-foreground">{formatCurrency(grandTotal)}</span>
+          </span>
+          <span className="text-muted-foreground">
+            Received: <span className="font-semibold text-foreground">{formatCurrency(received)}</span>
+          </span>
+        </div>
+
+        <Collapsible open={open} onOpenChange={setOpen}>
+          <CollapsibleTrigger asChild>
+            <button className="w-full flex items-center justify-between mt-3 py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Users className="h-3.5 w-3.5" />
+                <span>Occupants during this period</span>
+                <Badge variant="outline" className="h-5 min-w-[1.25rem] px-1.5 text-[10px]">
+                  {presentOccupants.length}
+                </Badge>
+              </div>
+              {open ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-2 space-y-2">
+            {presentOccupants.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-2">
+                No occupant records for this period.
+              </p>
+            ) : (
+              presentOccupants.map((o) => {
+                const days = daysInMonth(o.residentSince, receipt.Month);
+                const isActive = (o.status || "").toUpperCase() === "ACTIVE";
+                return (
+                  <div
+                    key={o["Occupant UUID"] || o.occupantUuid}
+                    className="flex items-center justify-between rounded-lg border p-3 bg-background"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={cn(
+                          "h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
+                          isActive
+                            ? "bg-emerald-500/10 text-emerald-600"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {(o.name || "?").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{o.name}</p>
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "h-4 px-1 text-[9px] font-semibold",
+                              isActive
+                                ? "bg-emerald-500/10 text-emerald-600"
+                                : "bg-muted text-muted-foreground"
+                            )}
+                          >
+                            {isActive ? "Active" : "Inactive"}
+                          </Badge>
+                          <span>Since {formatResidentSince(o.residentSince)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-xs text-muted-foreground">Days</p>
+                      <p className="text-sm font-bold">{days}</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+
+        <div className="flex gap-2 mt-3 pt-3 border-t border-border/50">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => onViewPdf?.(receipt.Bill)}
+          >
+            <Eye className="h-3.5 w-3.5 mr-1.5" />
+            View PDF
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1"
+            onClick={() => window.open(tenantApi.pdf.downloadUrl(receipt.Bill), "_blank")}
+          >
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            Download
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
+```
 
-export default App;
-// import { ThemeToggle } from "./components/theme-toggle"
-// import { useState } from 'react'
-// import reactLogo from './assets/react.svg'
-// import viteLogo from './assets/vite.svg'
-// import heroImg from './assets/hero.png'
-// import './App.css'
+```tsx
+// File: frontend\tenant-app\src\components\ErrorBoundary.tsx
+import { Component, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 
-// function App() {
-//   const [count, setCount] = useState(0)
+interface Props {
+  children: ReactNode;
+}
 
-//   return (
-//     <>
-//       <section id="center">
-//         <div className="hero">
-//           <img src={heroImg} className="base" width="170" height="179" alt="" />
-//           <img src={reactLogo} className="framework" alt="React logo" />
-//           <img src={viteLogo} className="vite" alt="Vite logo" />
-//         </div>
-//         <div>
-//           <h1>Get started</h1>
-//           <p>
-//             Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-//           </p>
-//         </div>
-//         <button
-//           type="button"
-//           className="counter"
-//           onClick={() => setCount((count) => count + 1)}
-//         >
-//           Count is {count}
-//         </button>
-//       </section>
+interface State {
+  hasError: boolean;
+  error: Error | null;
+}
 
-//       <div className="ticks"></div>
+export default class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false, error: null };
 
-//       <section id="next-steps">
-//         <div id="docs">
-//           <svg className="icon" role="presentation" aria-hidden="true">
-//             <use href="/icons.svg#documentation-icon"></use>
-//           </svg>
-//           <h2>Documentation</h2>
-//           <p>Your questions, answered</p>
-//           <ul>
-//             <li>
-//               <a href="https://vite.dev/" target="_blank">
-//                 <img className="logo" src={viteLogo} alt="" />
-//                 Explore Vite
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://react.dev/" target="_blank">
-//                 <img className="button-icon" src={reactLogo} alt="" />
-//                 Learn more
-//               </a>
-//             </li>
-//           </ul>
-//         </div>
-//         <div id="social">
-//           <svg className="icon" role="presentation" aria-hidden="true">
-//             <use href="/icons.svg#social-icon"></use>
-//           </svg>
-//           <h2>Connect with us</h2>
-//           <p>Join the Vite community</p>
-//           <ul>
-//             <li>
-//               <a href="https://github.com/vitejs/vite" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#github-icon"></use>
-//                 </svg>
-//                 GitHub
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://chat.vite.dev/" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#discord-icon"></use>
-//                 </svg>
-//                 Discord
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://x.com/vite_js" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#x-icon"></use>
-//                 </svg>
-//                 X.com
-//               </a>
-//             </li>
-//             <li>
-//               <a href="https://bsky.app/profile/vite.dev" target="_blank">
-//                 <svg
-//                   className="button-icon"
-//                   role="presentation"
-//                   aria-hidden="true"
-//                 >
-//                   <use href="/icons.svg#bluesky-icon"></use>
-//                 </svg>
-//                 Bluesky
-//               </a>
-//             </li>
-//           </ul>
-//         </div>
-//       </section>
+  static getDerivedStateFromError(error: Error): State {
+    return { hasError: true, error };
+  }
 
-//       <div className="ticks"></div>
-//       <section id="spacer"></section>
-//     </>
-//   )
-// }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-3xl border bg-card p-8 text-center shadow-sm">
+            <h2 className="text-xl font-bold mb-2">Something went wrong</h2>
+            <p className="text-muted-foreground mb-4">
+              {this.state.error?.message || "An unexpected error occurred."}
+            </p>
+            <Button onClick={() => window.location.reload()}>Reload</Button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+```
 
-// export default App
+```tsx
+// File: frontend\tenant-app\src\components\LoginModal.tsx
+import { useState } from "react";
+import { Lock, ShieldCheck, Receipt, Users } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+export default function LoginModal({
+  tenantName,
+  onSubmit,
+  error,
+  loading,
+}: {
+  tenantName: string;
+  onSubmit: (pin: string) => void;
+  error?: string;
+  loading: boolean;
+}) {
+  const [pin, setPin] = useState("");
+
+  return (
+    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md rounded-3xl border-0 shadow-xl">
+        <CardContent className="p-8">
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-7 h-7 text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold">Tenant Portal</h1>
+            <p className="text-muted-foreground mt-2">{tenantName}</p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="rounded-2xl bg-muted p-3 text-center">
+              <Receipt className="w-4 h-4 mx-auto mb-1 text-primary" />
+              <div className="text-xs text-muted-foreground">Bills</div>
+            </div>
+            <div className="rounded-2xl bg-muted p-3 text-center">
+              <Users className="w-4 h-4 mx-auto mb-1 text-primary" />
+              <div className="text-xs text-muted-foreground">Occupants</div>
+            </div>
+            <div className="rounded-2xl bg-muted p-3 text-center">
+              <ShieldCheck className="w-4 h-4 mx-auto mb-1 text-primary" />
+              <div className="text-xs text-muted-foreground">Secure</div>
+            </div>
+          </div>
+
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (pin.length === 4) onSubmit(pin);
+            }}
+            className="space-y-4"
+          >
+            <div>
+              <label className="text-sm font-medium block mb-2">
+                Enter 4-digit PIN
+              </label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
+                autoFocus
+                required
+                value={pin}
+                onChange={(e) =>
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
+                placeholder="••••"
+                className="h-14 text-center text-2xl tracking-[0.5em] rounded-2xl"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading || pin.length !== 4}
+              className="w-full h-12 rounded-2xl"
+            >
+              {loading ? "Unlocking..." : "Unlock Portal"}
+            </Button>
+
+            <p className="text-xs text-center text-muted-foreground">
+              Your bills and occupant KYC are shown only after PIN verification.
+            </p>
+          </form>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 ```
 
 ```tsx
@@ -39992,20 +54004,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { FileText, Download, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
-import { TENANTROUTES } from "@/lib/routes";
+import { tenantApi } from "@/lib/api";
 
 interface PdfPreviewModalProps {
-  tenantId: number | string;
   billNo: string;
-  viewToken: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export default function PdfPreviewModal({
-  tenantId,
   billNo,
-  viewToken,
   open,
   onOpenChange,
 }: PdfPreviewModalProps) {
@@ -40013,11 +54021,11 @@ export default function PdfPreviewModal({
   const [pdfUrl, setPdfUrl] = useState<string>("");
   const [error, setError] = useState("");
 
-  const pdfViewUrl = TENANTROUTES.TENANTAPIPDFVIEW(tenantId, viewToken, billNo);
-  const pdfDownloadUrl = TENANTROUTES.TENANTAPIPDFDOWNLOAD(tenantId, viewToken, billNo);
+  const pdfViewUrl = tenantApi.pdf.viewUrl(billNo);
+  const pdfDownloadUrl = tenantApi.pdf.downloadUrl(billNo);
 
   useEffect(() => {
-    if (!open || !billNo || !viewToken) return;
+    if (!open || !billNo) return;
 
     setLoading(true);
     setError("");
@@ -40043,7 +54051,7 @@ export default function PdfPreviewModal({
     return () => {
       if (pdfUrl) URL.revokeObjectURL(pdfUrl);
     };
-  }, [open, billNo, viewToken]);
+  }, [open, billNo]);
 
   const handleDownload = async () => {
     try {
@@ -40155,6 +54163,670 @@ export default function PdfPreviewModal({
 }
 ```
 
+```tsx
+// File: frontend\tenant-app\src\components\OccupantCard.tsx
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Eye, MapPin, Calendar, Clock } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { daysResided, formatResidentSince } from "@/lib/utils";
+import type { Occupant } from "@/types";
+
+export default function OccupantCard({
+  occupant,
+  onView,
+}: {
+  occupant: Occupant;
+  onView: (occupant: Occupant) => void;
+}) {
+  const isActive = (occupant.status || "Active").toUpperCase() === "ACTIVE";
+  const days = occupant.residentSince ? daysResided(occupant.residentSince) : null;
+  const hasDocs =
+    occupant.aadhaarfront || occupant.aadhaarback || occupant.aadhaarcombined;
+
+  return (
+    <Card
+      className="rounded-2xl border shadow-sm cursor-pointer hover:shadow-md hover:border-border/80 transition-all"
+      onClick={() => onView(occupant)}
+    >
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              className={cn(
+                "h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
+                isActive
+                  ? "bg-emerald-500/10 text-emerald-600"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
+              {(occupant.name || "?").charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <span className="font-semibold truncate block">{occupant.name}</span>
+              <Badge
+                variant="outline"
+                className={cn(
+                  "mt-0.5",
+                  isActive
+                    ? "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-100"
+                )}
+              >
+                {isActive ? "Active" : "Inactive"}
+              </Badge>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              onView(occupant);
+            }}
+            title="View documents"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="space-y-1.5 text-sm text-muted-foreground">
+          {occupant.mobile && (
+            <p>{occupant.mobile}</p>
+          )}
+          {occupant.address && (
+            <div className="flex items-start gap-1.5">
+              <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span className="truncate">{occupant.address}</span>
+            </div>
+          )}
+          {occupant.residentSince && (
+            <div className="flex items-center gap-1.5">
+              <Calendar className="h-3.5 w-3.5 shrink-0" />
+              <span>Since {formatResidentSince(occupant.residentSince)}</span>
+            </div>
+          )}
+          {days !== null && (
+            <div className="flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 shrink-0" />
+              <span>{days} days resided</span>
+            </div>
+          )}
+          {hasDocs && (
+            <p className="text-xs text-muted-foreground/70 pt-1">Documents uploaded</p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+```tsx
+// File: frontend\tenant-app\src\components\OccupantDocumentViewer.tsx
+import React, { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { FileText } from "lucide-react";
+import { tenantApi } from "@/lib/api";
+
+export interface Occupant {
+  "Occupant UUID"?: string;
+  occupantuuid?: string;
+  name?: string;
+  mobile?: string;
+  address?: string;
+  residentSince?: string;
+  status?: string;
+  aadhaarfront?: string;
+  aadhaarback?: string;
+  aadhaarcombined?: string;
+  empfront?: string;
+  empback?: string;
+}
+
+export interface OccupantDocumentViewerProps {
+  occupant: Occupant | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onMarkInactive: (occupantUuid: string) => void;
+}
+
+function daysStayed(residentSince?: string) {
+  if (!residentSince) return null;
+  const start = new Date(`${residentSince}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.floor((today.getTime() - start.getTime()) / 86_400_000));
+}
+
+function getDocumentItems(occupant: Occupant) {
+  return [
+    ["Aadhaar Combined", occupant.aadhaarcombined],
+    ["Aadhaar Front", occupant.aadhaarfront],
+    ["Aadhaar Back", occupant.aadhaarback],
+    ["Employment Proof Front", occupant.empfront],
+    ["Employment Proof Back", occupant.empback],
+  ].filter(([, filename]) => Boolean(filename)) as Array<[string, string]>;
+}
+
+function isPdf(filename: string) {
+  return filename.toLowerCase().endsWith(".pdf");
+}
+
+export function OccupantDocumentViewer({
+  occupant,
+  open,
+  onOpenChange,
+  onMarkInactive,
+}: OccupantDocumentViewerProps) {
+  const [selectedDocument, setSelectedDocument] = useState<string | null>(null);
+
+  // Initialize selected document when dialog opens
+  React.useEffect(() => {
+    if (open && occupant) {
+      const docs = getDocumentItems(occupant);
+      if (docs.length > 0) {
+        setSelectedDocument(docs[0][1]);
+      } else {
+        setSelectedDocument(null);
+      }
+    }
+  }, [open, occupant]);
+
+  if (!occupant) return null;
+
+  const isActive = String(occupant.status || "Active").toUpperCase() === "ACTIVE";
+  const stayed = daysStayed(occupant.residentSince);
+  const uuid = occupant["Occupant UUID"] || occupant.occupantuuid || "";
+  const documents = getDocumentItems(occupant);
+
+  const documentUrl = selectedDocument
+    ? tenantApi.kyc.getFileUrl(selectedDocument)
+    : undefined;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[95vw] xl:max-w-6xl">
+        <DialogHeader>
+          <DialogTitle>{occupant.name}</DialogTitle>
+          <DialogDescription>
+            {occupant.mobile || "No mobile"} &middot; {occupant.address || "No address"}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
+          <aside className="space-y-4">
+            <div>
+              <Badge className={isActive ? "bg-green-100 text-green-700 hover:bg-green-100" : "bg-slate-100 text-slate-700 hover:bg-slate-100"}>
+                {isActive ? "ACTIVE" : "INACTIVE"}
+              </Badge>
+            </div>
+
+            <div className="text-sm space-y-1">
+              <p>Residing since: {occupant.residentSince ? new Date(`${occupant.residentSince}T00:00:00`).toLocaleDateString("en-IN") : "—"}</p>
+              <p>{stayed === null ? "—" : `${stayed} days stayed`}</p>
+            </div>
+
+            <div className="space-y-2">
+              {documents.map(([label, filename]) => (
+                <Button
+                  key={filename}
+                  variant={selectedDocument === filename ? "default" : "outline"}
+                  className="w-full justify-start"
+                  onClick={() => setSelectedDocument(filename)}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  {label}
+                </Button>
+              ))}
+            </div>
+
+            {isActive && (
+              <Button
+                variant="destructive"
+                className="w-full mt-4"
+                onClick={() => {
+                  onMarkInactive(uuid);
+                  onOpenChange(false);
+                }}
+              >
+                Mark inactive
+              </Button>
+            )}
+          </aside>
+
+          <section className="min-h-[55vh] overflow-hidden rounded-xl border bg-muted/30 relative">
+            {selectedDocument && documentUrl ? (
+              isPdf(selectedDocument) ? (
+                <iframe
+                  className="h-full min-h-[55vh] w-full border-0"
+                  src={documentUrl}
+                  title="Occupant KYC document"
+                />
+              ) : (
+                <div className="flex h-full min-h-[55vh] items-center justify-center p-4">
+                  <img
+                    className="max-h-[55vh] max-w-full object-contain"
+                    src={documentUrl}
+                    alt="Occupant KYC document"
+                  />
+                </div>
+              )
+            ) : (
+              <div className="flex h-full min-h-[55vh] items-center justify-center text-sm text-muted-foreground">
+                Select a document to preview
+              </div>
+            )}
+          </section>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+```tsx
+// File: frontend\tenant-app\src\components\OccupantKycUploadDialog.tsx
+import React, { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import { tenantApi } from "@/lib/api";
+
+export interface OccupantKycUploadDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSuccess: () => void;
+}
+
+export function OccupantKycUploadDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+}: OccupantKycUploadDialogProps) {
+  const [submitting, setSubmitting] = useState(false);
+  const [aadhaarMode, setAadhaarMode] = useState<"combined" | "split">("combined");
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const rawForm = new FormData(e.currentTarget);
+    const combined = rawForm.get("aadhaarcombined") as File | null;
+    const front = rawForm.get("aadhaarfront") as File | null;
+    const back = rawForm.get("aadhaarback") as File | null;
+
+    const hasCombined = combined instanceof File && combined.size > 0;
+    const hasBoth =
+      front instanceof File && front.size > 0 &&
+      back instanceof File && back.size > 0;
+
+    if (!hasCombined && !hasBoth) {
+      toast.error("Upload Aadhaar combined, or both front and back.");
+      return;
+    }
+
+    // Build a clean FormData with only non-empty file fields so the backend
+    // validation isn't tripped by empty browser file inputs from the hidden mode
+    const data = new FormData();
+    data.append("name", (rawForm.get("name") as string)?.trim() ?? "");
+    data.append("mobile", (rawForm.get("mobile") as string)?.trim() ?? "");
+    data.append("address", (rawForm.get("address") as string)?.trim() ?? "");
+    data.append("residentSince", rawForm.get("residentSince") as string ?? "");
+
+    if (hasCombined) data.append("aadhaarcombined", combined!);
+    if (hasBoth) {
+      data.append("aadhaarfront", front!);
+      data.append("aadhaarback", back!);
+    }
+    const empFront = rawForm.get("empfront") as File | null;
+    const empBack = rawForm.get("empback") as File | null;
+    if (empFront instanceof File && empFront.size > 0) data.append("empfront", empFront);
+    if (empBack instanceof File && empBack.size > 0) data.append("empback", empBack);
+
+    setSubmitting(true);
+    try {
+      await tenantApi.kyc.upload(data);
+      toast.success("Occupant uploaded");
+      onSuccess();
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error(err?.message || "Upload failed");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Upload Occupant KYC</DialogTitle>
+          <DialogDescription>
+            Add a new occupant by providing their details and ID documents.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Name *</Label>
+              <Input name="name" required placeholder="Full name" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Mobile</Label>
+              <Input name="mobile" placeholder="10-digit number" />
+            </div>
+          </div>
+          
+          <div className="space-y-1">
+            <Label className="text-xs">Address *</Label>
+            <Input name="address" required placeholder="Permanent address" />
+          </div>
+          
+          <div className="space-y-1">
+            <Label className="text-xs">Residing Since *</Label>
+            <Input name="residentSince" type="date" required max={new Date().toISOString().split('T')[0]} />
+          </div>
+          
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <Label className="text-xs font-medium">Aadhaar *</Label>
+              <div className="flex gap-1">
+                {(["combined", "split"] as const).map((m) => (
+                  <Button
+                    key={m}
+                    type="button"
+                    size="sm"
+                    variant={aadhaarMode === m ? "default" : "outline"}
+                    className="h-6 px-2 text-xs"
+                    onClick={() => setAadhaarMode(m)}
+                  >
+                    {m === "combined" ? "Combined" : "Front + Back"}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            {aadhaarMode === "combined" ? (
+              <Input name="aadhaarcombined" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Front</Label>
+                  <Input name="aadhaarfront" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Back</Label>
+                  <Input name="aadhaarback" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Employment Proof (optional)</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Front</Label>
+                <Input name="empfront" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Back</Label>
+                <Input name="empback" type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" />
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex gap-2 pt-2">
+            <Button type="submit" className="flex-1" disabled={submitting}>
+              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Upload
+            </Button>
+            <Button type="button" variant="outline" className="flex-1" disabled={submitting} onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+```tsx
+// File: frontend\tenant-app\src\components\OccupantList.tsx
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
+import OccupantCard from "@/components/OccupantCard";
+import { OccupantDocumentViewer } from "@/components/OccupantDocumentViewer";
+import { OccupantKycUploadDialog } from "@/components/OccupantKycUploadDialog";
+import { useTenant } from "@/context/TenantContext";
+import type { Occupant } from "@/types";
+import { toast } from "sonner";
+import { tenantApi } from "@/lib/api";
+
+export default function OccupantList() {
+  const { occupants, readOnly, refetch } = useTenant();
+  const [selectedOccupant, setSelectedOccupant] = useState<Occupant | null>(null);
+  const [viewerOpen, setViewerOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+
+  const handleView = (occupant: Occupant) => {
+    setSelectedOccupant(occupant);
+    setViewerOpen(true);
+  };
+
+  const handleMarkInactive = async (occupantUuid: string) => {
+    try {
+      await tenantApi.kyc.markInactive(occupantUuid);
+      toast.success("Occupant marked as inactive");
+      refetch();
+    } catch {
+      toast.error("Failed to mark occupant as inactive");
+    }
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-bold">Occupants</h2>
+        <Button size="sm" onClick={() => setUploadOpen(true)} disabled={readOnly}>
+          <Plus className="h-4 w-4 mr-1" />
+          Add
+        </Button>
+      </div>
+
+      {occupants.length === 0 ? (
+        <p className="text-muted-foreground">No occupants registered.</p>
+      ) : (
+        <div className="grid md:grid-cols-2 gap-3">
+          {occupants.map((o) => (
+            <OccupantCard
+              key={o["Occupant UUID"] || o.occupantUuid}
+              occupant={o}
+              onView={handleView}
+            />
+          ))}
+        </div>
+      )}
+
+      <OccupantDocumentViewer
+        occupant={selectedOccupant}
+        open={viewerOpen}
+        onOpenChange={setViewerOpen}
+        onMarkInactive={handleMarkInactive}
+      />
+
+      <OccupantKycUploadDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        onSuccess={() => refetch()}
+      />
+    </>
+  );
+}
+```
+
+```tsx
+// File: frontend\tenant-app\src\components\PaymentStatusCard.tsx
+import { Card, CardContent } from "@/components/ui/card";
+import { Receipt as ReceiptIcon, CheckCircle2, AlertCircle, Clock, TrendingUp } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  getPaymentState,
+  getGrandTotal,
+  getAmountReceived,
+  getRemainingAmount,
+  formatCurrency,
+} from "@/lib/utils";
+import type { Receipt, PaymentState } from "@/types";
+
+const statusConfig: Record<
+  PaymentState,
+  {
+    label: string;
+    color: string;
+    bg: string;
+    border: string;
+    barColor: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }
+> = {
+  PAID: {
+    label: "Paid",
+    color: "text-emerald-600",
+    bg: "bg-emerald-500/5",
+    border: "border-emerald-500/20",
+    barColor: "bg-emerald-500",
+    icon: CheckCircle2,
+  },
+  ADVANCE: {
+    label: "Advance Paid",
+    color: "text-cyan-600",
+    bg: "bg-cyan-500/5",
+    border: "border-cyan-500/20",
+    barColor: "bg-cyan-500",
+    icon: TrendingUp,
+  },
+  PARTIAL: {
+    label: "Partial",
+    color: "text-amber-600",
+    bg: "bg-amber-500/5",
+    border: "border-amber-500/20",
+    barColor: "bg-amber-500",
+    icon: AlertCircle,
+  },
+  PENDING: {
+    label: "Pending",
+    color: "text-red-600",
+    bg: "bg-red-500/5",
+    border: "border-red-500/20",
+    barColor: "bg-red-500",
+    icon: Clock,
+  },
+};
+
+export default function PaymentStatusCard({ receipts }: { receipts: Receipt[] }) {
+  const active = receipts.filter((r) => r.Status !== "ARCHIVED");
+
+  if (active.length === 0) {
+    return (
+      <Card className="rounded-2xl border border-dashed shadow-sm">
+        <CardContent className="p-6 text-center">
+          <ReceiptIcon className="mx-auto h-8 w-8 text-muted-foreground/50 mb-2" />
+          <p className="text-sm text-muted-foreground">No active receipts yet</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const sorted = [...active].sort(
+    (a, b) => new Date(b.Date || 0).getTime() - new Date(a.Date || 0).getTime()
+  );
+  const latest = sorted[0];
+  const state = getPaymentState(latest);
+  const config = statusConfig[state];
+  const Icon = config.icon;
+
+  const grandTotal = getGrandTotal(latest);
+  const received = getAmountReceived(latest);
+  const remaining = getRemainingAmount(latest);
+  const progress = grandTotal > 0 ? Math.min(100, (received / grandTotal) * 100) : 0;
+
+  const totalOutstanding = active
+    .filter((r) => {
+      const s = getPaymentState(r);
+      return s === "PENDING" || s === "PARTIAL";
+    })
+    .reduce((sum, r) => sum + getRemainingAmount(r), 0);
+
+  return (
+    <Card className={cn("rounded-2xl border shadow-sm", config.bg, config.border)}>
+      <CardContent className="p-5">
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <p className="text-xs font-medium text-muted-foreground mb-1">
+              Latest Receipt — {latest.Month}
+            </p>
+            <div className="flex items-center gap-2">
+              <Icon className={cn("h-5 w-5", config.color)} />
+              <h3 className={cn("text-xl font-bold", config.color)}>{config.label}</h3>
+            </div>
+          </div>
+          <span className="text-xs font-medium text-muted-foreground">Bill {latest.Bill}</span>
+        </div>
+
+        <div className="mb-3">
+          <div className="flex justify-between text-sm mb-1.5">
+            <span className="text-muted-foreground">
+              {state === "PENDING" && (
+                <>Amount Due: <span className="font-semibold text-foreground">{formatCurrency(grandTotal)}</span></>
+              )}
+              {state === "PARTIAL" && (
+                <>Remaining: <span className="font-semibold text-foreground">{formatCurrency(remaining)}</span></>
+              )}
+              {state === "PAID" && (
+                <span className="text-emerald-600 font-medium">Fully Paid</span>
+              )}
+              {state === "ADVANCE" && (
+                <>Advance: <span className="font-semibold text-foreground">{formatCurrency(received - grandTotal)}</span></>
+              )}
+            </span>
+            <span className="text-muted-foreground">{Math.round(progress)}%</span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-border overflow-hidden">
+            <div
+              className={cn("h-full rounded-full transition-all duration-500", config.barColor)}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+            <span>Paid: {formatCurrency(received)}</span>
+            <span>Total: {formatCurrency(grandTotal)}</span>
+          </div>
+        </div>
+
+        {totalOutstanding > 0 && state !== "PENDING" && (
+          <div className="pt-3 border-t border-border/50">
+            <p className="text-xs text-muted-foreground">
+              Total outstanding:{" "}
+              <span className="font-semibold text-foreground">{formatCurrency(totalOutstanding)}</span>
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
 ```typescript
 // File: frontend\tenant-app\src\components\receipts\index.ts
 export { default as ReceiptRoller } from "./ReceiptRoller";
@@ -40164,66 +54836,69 @@ export { default as ReceiptCard } from "./ReceiptCard";
 ```tsx
 // File: frontend\tenant-app\src\components\receipts\ReceiptCard.tsx
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Download, Eye } from "lucide-react";
 import { tenantApi } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { getPaymentState, getGrandTotal, formatCurrency } from "@/lib/utils";
+import StatusBadge from "@/components/StatusBadge";
+import type { Receipt } from "@/types";
 
 export default function ReceiptCard({
-    receipt,
-    variant,
-    tenantId,
-    viewToken
+  receipt,
+  onViewPdf,
 }: {
-    receipt: any;
-    variant?: string;
-    tenantId: number | string;
-    viewToken: string;
+  receipt: Receipt;
+  onViewPdf?: (billNo: string) => void;
 }) {
-    const handleDownload = () => {
-        window.open(tenantApi.pdf.download(tenantId, viewToken, receipt.Bill), '_blank');
-    };
+  const grandTotal = getGrandTotal(receipt);
+  const state = getPaymentState(receipt);
 
-    const handleView = () => {
-        window.open(tenantApi.pdf.view(tenantId, viewToken, receipt.Bill), '_blank');
-    };
+  return (
+    <Card className="rounded-2xl border shadow-sm">
+      <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-lg">{receipt.Month}</span>
+            <StatusBadge status={state} />
+          </div>
+          <div className="text-sm text-muted-foreground flex items-center gap-2">
+            <span>Bill No: {receipt.Bill}</span>
+            <span>&middot;</span>
+            <span>{receipt.Date}</span>
+          </div>
+        </div>
 
-    const grandTotal = (receipt.Total || 0) + (receipt.previousArrears || 0);
-    const isPaid = receipt.paymentStatus === "PAID";
-
-    return (
-        <Card className="rounded-2xl border shadow-sm mb-3">
-            <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2">
-                        <span className="font-semibold text-lg">{receipt.Month}</span>
-                        <Badge variant={isPaid ? "default" : "destructive"} className={isPaid ? "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20" : ""}>
-                            {receipt.paymentStatus}
-                        </Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground flex items-center gap-2">
-                        <span>Bill No: {receipt.Bill}</span>
-                        <span>•</span>
-                        <span>{receipt.Date}</span>
-                    </div>
-                </div>
-
-                <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                    <div className="text-right flex-grow sm:flex-grow-0">
-                        <div className="font-bold text-xl">₹{grandTotal.toLocaleString('en-IN')}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" onClick={handleView} title="View PDF">
-                            <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="default" size="icon" onClick={handleDownload} title="Download PDF">
-                            <Download className="w-4 h-4" />
-                        </Button>
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-    );
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="text-right">
+            <div className="font-bold text-lg">
+              {formatCurrency(grandTotal)}
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => onViewPdf?.(receipt.Bill)}
+              title="View PDF"
+            >
+              <Eye className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() =>
+                window.open(tenantApi.pdf.downloadUrl(receipt.Bill), "_blank")
+              }
+              title="Download PDF"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 ```
 
@@ -40232,41 +54907,170 @@ export default function ReceiptCard({
 import { useState } from "react";
 import ReceiptCard from "./ReceiptCard";
 import { Button } from "@/components/ui/button";
+import type { Receipt } from "@/types";
 
 export default function ReceiptRoller({
-    receipts,
-    maxVisible = 12,
-    tenantId,
-    viewToken
+  receipts,
+  maxVisible = 12,
+  onViewPdf,
 }: {
-    receipts: any[];
-    maxVisible?: number;
-    tenantId: number | string;
-    viewToken: string;
+  receipts: Receipt[];
+  maxVisible?: number;
+  onViewPdf?: (billNo: string) => void;
 }) {
-    const [visibleCount, setVisibleCount] = useState(maxVisible);
+  const [visibleCount, setVisibleCount] = useState(maxVisible);
+  const visibleReceipts = receipts.slice(0, visibleCount);
 
-    const visibleReceipts = receipts.slice(0, visibleCount);
-
-    return (
-        <div className="space-y-4">
-            {visibleReceipts.map((receipt) => (
-                <ReceiptCard
-                    key={receipt.Bill}
-                    receipt={receipt}
-                    tenantId={tenantId}
-                    viewToken={viewToken}
-                />
-            ))}
-            {receipts.length > visibleCount && (
-                <div className="flex justify-center pt-2">
-                    <Button variant="outline" onClick={() => setVisibleCount(v => v + maxVisible)}>
-                        Load More
-                    </Button>
-                </div>
-            )}
+  return (
+    <div className="space-y-3">
+      {visibleReceipts.map((receipt) => (
+        <ReceiptCard key={receipt.Bill} receipt={receipt} onViewPdf={onViewPdf} />
+      ))}
+      {receipts.length > visibleCount && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            onClick={() => setVisibleCount((v) => v + maxVisible)}
+          >
+            Load More
+          </Button>
         </div>
-    );
+      )}
+    </div>
+  );
+}
+```
+
+```tsx
+// File: frontend\tenant-app\src\components\Skeletons.tsx
+import { Card, CardContent } from "@/components/ui/card";
+
+export function ReceiptSkeleton() {
+  return (
+    <Card className="rounded-2xl border shadow-sm">
+      <CardContent className="p-4 flex items-center justify-between gap-4">
+        <div className="space-y-2 flex-1">
+          <div className="h-5 w-32 bg-muted animate-pulse rounded" />
+          <div className="h-3 w-48 bg-muted animate-pulse rounded" />
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="h-6 w-20 bg-muted animate-pulse rounded" />
+          <div className="flex gap-1">
+            <div className="h-8 w-8 bg-muted animate-pulse rounded" />
+            <div className="h-8 w-8 bg-muted animate-pulse rounded" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function OccupantSkeleton() {
+  return (
+    <Card className="rounded-2xl border shadow-sm">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 bg-muted animate-pulse rounded-full" />
+          <div className="space-y-1.5 flex-1">
+            <div className="h-4 w-28 bg-muted animate-pulse rounded" />
+            <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="h-8 w-8 bg-muted animate-pulse rounded" />
+        </div>
+        <div className="space-y-1.5">
+          <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+          <div className="h-3 w-40 bg-muted animate-pulse rounded" />
+          <div className="h-3 w-32 bg-muted animate-pulse rounded" />
+          <div className="h-3 w-20 bg-muted animate-pulse rounded" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function PaymentStatusCardSkeleton() {
+  return (
+    <Card className="rounded-2xl border shadow-sm">
+      <CardContent className="p-5 space-y-4">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <div className="h-3 w-36 bg-muted animate-pulse rounded" />
+            <div className="h-6 w-24 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="h-3 w-16 bg-muted animate-pulse rounded" />
+        </div>
+        <div className="space-y-2">
+          <div className="flex justify-between">
+            <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-8 bg-muted animate-pulse rounded" />
+          </div>
+          <div className="h-2 w-full bg-muted animate-pulse rounded-full" />
+          <div className="flex justify-between">
+            <div className="h-3 w-20 bg-muted animate-pulse rounded" />
+            <div className="h-3 w-20 bg-muted animate-pulse rounded" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function DashboardSkeleton() {
+  return (
+    <div className="min-h-screen bg-muted/30">
+      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-6 w-48 bg-muted animate-pulse rounded" />
+            <div className="h-3 w-24 bg-muted animate-pulse rounded" />
+          </div>
+        </div>
+      </header>
+      <main className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
+        <div className="flex gap-2 border rounded-xl p-1 bg-background w-fit">
+          <div className="h-8 w-24 bg-muted animate-pulse rounded-md" />
+          <div className="h-8 w-24 bg-muted animate-pulse rounded-md" />
+          <div className="h-8 w-20 bg-muted animate-pulse rounded-md" />
+        </div>
+        <div className="space-y-6">
+          <PaymentStatusCardSkeleton />
+          <div className="space-y-3">
+            <div className="h-5 w-32 bg-muted animate-pulse rounded" />
+            <ReceiptSkeleton />
+            <ReceiptSkeleton />
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+```
+
+```tsx
+// File: frontend\tenant-app\src\components\StatusBadge.tsx
+import { Badge } from "@/components/ui/badge";
+import type { PaymentState } from "@/types";
+
+const styles: Record<PaymentState, string> = {
+  PAID: "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20",
+  PARTIAL: "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20",
+  PENDING: "bg-red-500/10 text-red-600 hover:bg-red-500/20",
+  ADVANCE: "bg-cyan-500/10 text-cyan-600 hover:bg-cyan-500/20",
+};
+
+const labels: Record<PaymentState, string> = {
+  PAID: "Paid",
+  PARTIAL: "Partial",
+  PENDING: "Pending",
+  ADVANCE: "Advance",
+};
+
+export default function StatusBadge({ status }: { status: PaymentState }) {
+  return (
+    <Badge variant="outline" className={styles[status] ?? ""}>
+      {labels[status] ?? status}
+    </Badge>
+  );
 }
 ```
 
@@ -41130,6 +55934,34 @@ export { Input }
 ```
 
 ```tsx
+// File: frontend\tenant-app\src\components\ui\label.tsx
+"use client"
+
+import * as React from "react"
+import * as LabelPrimitive from "@radix-ui/react-label"
+
+import { cn } from "@/lib/utils"
+
+function Label({
+  className,
+  ...props
+}: React.ComponentProps<typeof LabelPrimitive.Root>) {
+  return (
+    <LabelPrimitive.Root
+      data-slot="label"
+      className={cn(
+        "flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Label }
+```
+
+```tsx
 // File: frontend\tenant-app\src\components\ui\scroll-area.tsx
 "use client"
 
@@ -41294,100 +56126,112 @@ export { Tabs, TabsList, TabsTrigger, TabsContent }
 ```
 
 ```tsx
-// File: frontend\tenant-app\src\context\AuthContext.tsx
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import { tenantApi, getTenantParams } from '@/lib/api';
+// File: frontend\tenant-app\src\context\TenantContext.tsx
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  type ReactNode,
+} from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { tenantApi } from "@/lib/api";
+import { getTenantRuntime } from "@/lib/tenant-runtime";
+import type { PortalResponse, Receipt, Occupant } from "@/types";
 
-interface AuthContextType {
-    isAuthenticated: boolean;
-    isLoading: boolean;
-    viewToken: string | null;
-    tenantId: string | null;
-    login: (tenantId: string | number, viewToken: string, pin: string, rememberMe?: boolean) => Promise<void>;
-    logout: () => Promise<void>;
-    refreshToken: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | null>(null);
-
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
-    const [viewToken, setViewToken] = useState<string | null>(null);
-    const [tenantId, setTenantId] = useState<string | null>(null);
-
-    // On mount: extract viewToken from URL and check existing session
-    useEffect(() => {
-        const { tenantId: idFromUrl, viewToken: tokenFromUrl } = getTenantParams();
-
-        if (tokenFromUrl && idFromUrl) {
-            setViewToken(tokenFromUrl);
-            setTenantId(idFromUrl);
-            localStorage.setItem('viewToken', tokenFromUrl);
-            localStorage.setItem('tenantId', idFromUrl);
-
-            // Optionally verify session is still valid
-            tenantApi.profile.get(idFromUrl, tokenFromUrl)
-                .then((data) => {
-                    setIsAuthenticated(data.tenant?.unlocked ?? false);
-                })
-                .catch(() => {
-                    setIsAuthenticated(false);
-                })
-                .finally(() => setIsLoading(false));
-        } else {
-            setIsLoading(false);
-        }
-    }, []);
-
-    const login = useCallback(async (tenantIdArg: string | number, token: string, pin: string, rememberMe = false) => {
-        await tenantApi.auth.login(tenantIdArg, token, pin, rememberMe);
-        setViewToken(token);
-        setTenantId(String(tenantIdArg));
-        setIsAuthenticated(true);
-        localStorage.setItem('viewToken', token);
-        localStorage.setItem('tenantId', String(tenantIdArg));
-    }, []);
-
-    const logout = useCallback(async () => {
-        try {
-            if (viewToken && tenantId) {
-                await tenantApi.auth.logout();
-            }
-        } finally {
-            setIsAuthenticated(false);
-            setViewToken(null);
-            setTenantId(null);
-            localStorage.removeItem('viewToken');
-            localStorage.removeItem('tenantId');
-        }
-    }, [viewToken, tenantId]);
-
-    const refreshToken = useCallback(async () => {
-        // The viewToken is automatically extracted from URL in apiClient
-        await tenantApi.auth.refresh();
-    }, []);
-
-    return (
-        <AuthContext.Provider value={{
-            isAuthenticated,
-            isLoading,
-            viewToken,
-            tenantId,
-            login,
-            logout,
-            refreshToken
-        }}>
-            {children}
-        </AuthContext.Provider>
-    );
-}
-
-export const useAuth = () => {
-    const ctx = useContext(AuthContext);
-    if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-    return ctx;
+type TenantContextType = {
+  landlordUuid: string;
+  tenantId: string;
+  viewToken: string;
+  profile: PortalResponse | undefined;
+  receipts: Receipt[];
+  occupants: Occupant[];
+  isUnlocked: boolean;
+  readOnly: boolean;
+  isLoading: boolean;
+  login: (pin: string, rememberMe?: boolean) => Promise<void>;
+  logout: () => Promise<void>;
+  refetch: () => void;
 };
+
+const TenantContext = createContext<TenantContextType | undefined>(undefined);
+
+export function TenantProvider({ children }: { children: ReactNode }) {
+  const { landlordUuid, tenantId, viewToken } = getTenantRuntime();
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, refetch } = useQuery<PortalResponse>({
+    queryKey: ["tenant-profile", viewToken],
+    queryFn: async () => {
+      const res = await tenantApi.profile.get();
+      return res.data as PortalResponse;
+    },
+    enabled: !!viewToken,
+    retry: false,
+  });
+
+  const isUnlocked = Boolean(data?.tenant?.unlocked);
+  const readOnly = Boolean(data?.tenant?.readOnly);
+  const receipts = useMemo(() => data?.receipts ?? [], [data]);
+  const occupants = useMemo(() => data?.occupants ?? [], [data]);
+
+  const login = useCallback(
+    async (pin: string, rememberMe = false) => {
+      await tenantApi.auth.login(pin, rememberMe);
+      await refetch();
+    },
+    [refetch]
+  );
+
+  const logout = useCallback(async () => {
+    try {
+      await tenantApi.auth.logout();
+    } finally {
+      window.location.reload();
+    }
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      landlordUuid: landlordUuid!,
+      tenantId: tenantId!,
+      viewToken: viewToken!,
+      profile: data,
+      receipts,
+      occupants,
+      isUnlocked,
+      readOnly,
+      isLoading,
+      login,
+      logout,
+      refetch,
+    }),
+    [
+      landlordUuid,
+      tenantId,
+      viewToken,
+      data,
+      receipts,
+      occupants,
+      isUnlocked,
+      readOnly,
+      isLoading,
+      login,
+      logout,
+      refetch,
+    ]
+  );
+
+  return (
+    <TenantContext.Provider value={value}>{children}</TenantContext.Provider>
+  );
+}
+
+export function useTenant() {
+  const ctx = useContext(TenantContext);
+  if (!ctx) throw new Error("useTenant must be used within TenantProvider");
+  return ctx;
+}
 ```
 
 ```css
@@ -41490,123 +56334,81 @@ export const useAuth = () => {
 
 ```typescript
 // File: frontend\tenant-app\src\lib\api.ts
-import { TENANTROUTES } from "./routes";
+import axios from "axios";
+import { getTenantRuntime } from "./tenant-runtime";
+import { encryptPayload } from "./encryption";
 
-// Extract tenantId and viewToken from URL path: /t/{tenantId}/{viewToken}/...
-export const getTenantParams = (): { tenantId: string; viewToken: string } => {
-    const pathParts = window.location.pathname.split('/');
-    const tIndex = pathParts.indexOf('t');
-    if (tIndex !== -1 && pathParts[tIndex + 1] && pathParts[tIndex + 2]) {
-        return {
-            tenantId: pathParts[tIndex + 1],
-            viewToken: pathParts[tIndex + 2]
-        };
+const { tenantBase } = getTenantRuntime();
+
+const http = axios.create({
+  baseURL: tenantBase,
+  withCredentials: true,
+  headers: { "Content-Type": "application/json" },
+});
+
+http.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      window.location.reload();
     }
-    // Fallback: try from localStorage if stored
-    return {
-        tenantId: localStorage.getItem('tenantId') || '',
-        viewToken: localStorage.getItem('viewToken') || ''
-    };
-};
+    return Promise.reject(err);
+  }
+);
 
-export const APP_BASE_PATH = import.meta.env.VITE_APP_BASE_PATH?.replace(/\/$/, "") || "/rent";
-
-// Base API client
-const apiClient = {
-    async post(url: string, body?: unknown, options?: RequestInit) {
-        const res = await fetch(url, {
-            method: 'POST',
-            credentials: 'include', // Important: send cookies
-            headers: {
-                'Content-Type': 'application/json',
-                ...options?.headers,
-            },
-            body: body ? JSON.stringify(body) : undefined,
-            ...options,
-        });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-            throw new Error(err.detail || `HTTP ${res.status}`);
-        }
-
-        return res.json();
-    },
-
-    async get(url: string, options?: RequestInit) {
-        const res = await fetch(url, {
-            method: 'GET',
-            credentials: 'include',
-            ...options,
-        });
-
-        if (!res.ok) {
-            const err = await res.json().catch(() => ({ detail: 'Request failed' }));
-            throw new Error(err.detail || `HTTP ${res.status}`);
-        }
-
-        return res.json();
-    }
-};
-
-// Export route builders that use the shared routes.json structure via TENANTROUTES
 export const tenantApi = {
-    auth: {
-        publicKey: () => apiClient.get(TENANTROUTES.TENANTAPIAUTHPUBLICKEY),
+  auth: {
+    async login(pin: string, rememberMe = false) {
+      const { data: keyRes } = await http.get<{ publicKey: string }>(
+        "api/auth/public-key"
+      );
+      if (!keyRes.publicKey) throw new Error("Failed to load tenant public key");
 
-        login: (tenantId: string | number, viewToken: string, pin: string, rememberMe: boolean = false) =>
-            apiClient.post(TENANTROUTES.TENANTAPIAUTHLOGIN(tenantId, viewToken), { viewToken, pin, remember_me: rememberMe }),
-
-        refresh: () => {
-            const { tenantId, viewToken } = getTenantParams();
-            return apiClient.post(TENANTROUTES.TENANTAPIAUTHREFRESH(tenantId, viewToken));
-        },
-
-        logout: () => {
-            const { tenantId, viewToken } = getTenantParams();
-            return apiClient.post(TENANTROUTES.TENANTAPIAUTHLOGOUT(tenantId, viewToken));
-        },
-
-        logoutAll: () => {
-            const { tenantId, viewToken } = getTenantParams();
-            return apiClient.post(TENANTROUTES.TENANTAPIAUTHLOGOUTALL(tenantId, viewToken));
-        },
+      const encrypted = await encryptPayload(
+        { pin, rememberme: rememberMe },
+        keyRes.publicKey
+      );
+      return http.post("api/auth/login", encrypted);
     },
-
-    profile: {
-        get: (tenantId: string | number, viewToken: string) => 
-            apiClient.get(TENANTROUTES.TENANTAPIPROFILEGET(tenantId, viewToken)),
+    refresh() {
+      return http.post("api/auth/refresh");
     },
-
-    kyc: {
-        upload: (tenantId: string | number, viewToken: string, formData: FormData) => {
-            // Note: FormData requires different headers than standard JSON requests
-            return fetch(TENANTROUTES.TENANTAPIKYCUPLOAD(tenantId, viewToken), {
-                method: 'POST',
-                credentials: 'include',
-                body: formData,
-            }).then(async res => {
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({ detail: 'Upload failed' }));
-                    throw new Error(err.detail || `HTTP ${res.status}`);
-                }
-                return res.json();
-            });
-        },
-        markInactive: (tenantId: string | number, viewToken: string, occupantUuid: string) =>
-            apiClient.post(TENANTROUTES.TENANTAPIKYCMARKINACTIVE(tenantId, viewToken, occupantUuid)),
-        delete: (tenantId: string | number, viewToken: string, occupantUuid: string) =>
-            apiClient.post(TENANTROUTES.TENANTAPIKYCDELETE(tenantId, viewToken, occupantUuid)),
-        getFile: (tenantId: string | number, viewToken: string, filename: string) =>
-            TENANTROUTES.TENANTAPIKYCGETFILE(tenantId, viewToken, filename),
+    logout() {
+      return http.post("api/auth/logout");
     },
+  },
 
-    pdf: {
-        view: (tenantId: number | string, viewToken: string, billNo: string) =>
-            TENANTROUTES.TENANTAPIPDFVIEW(tenantId, viewToken, billNo),
-        download: (tenantId: number | string, viewToken: string, billNo: string) =>
-            TENANTROUTES.TENANTAPIPDFDOWNLOAD(tenantId, viewToken, billNo),
-    }
+  profile: {
+    get() {
+      return http.get("api/profile");
+    },
+  },
+
+  kyc: {
+    upload(formData: FormData) {
+      return http.post("api/kyc", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+    },
+    markInactive(occupantUuid: string) {
+      return http.put(`api/kyc/${occupantUuid}/inactive`);
+    },
+    delete(occupantUuid: string) {
+      return http.delete(`api/kyc/${occupantUuid}`);
+    },
+    getFileUrl(filename: string) {
+      return `${tenantBase}/api/kyc/file/${encodeURIComponent(filename)}`;
+    },
+  },
+
+  pdf: {
+    viewUrl(billNo: string) {
+      return `${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/view`;
+    },
+    downloadUrl(billNo: string) {
+      return `${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/download`;
+    },
+  },
 };
 ```
 
@@ -41633,12 +56435,12 @@ const AES_GCM_PARAMS: AesKeyAlgorithm = {
  * 1. Generate random AES-256 key
  * 2. Encrypt payload with AES-GCM
  * 3. Encrypt AES key with RSA public key
- * 4. Return { encryptedKey, encryptedData, nonce }
+ * 4. Return { key, data, nonce }
  */
 export async function encryptPayload(
     payload: Record<string, unknown>,
     publicKeyPem: string
-): Promise<{ encryptedKey: string; encryptedData: string; nonce: string }> {
+): Promise<{ key: string; data: string; nonce: string }> {
     // 1. Import RSA public key from PEM
     const publicKey = await importPublicKey(publicKeyPem);
 
@@ -41672,8 +56474,8 @@ export async function encryptPayload(
 
     // 7. Return base64-encoded values
     return {
-        encryptedKey: arrayBufferToBase64(encryptedKey),
-        encryptedData: arrayBufferToBase64(encryptedData),
+        key: arrayBufferToBase64(encryptedKey),
+        data: arrayBufferToBase64(encryptedData),
         nonce: arrayBufferToBase64(nonce.buffer),
     };
 }
@@ -41716,198 +56518,53 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 ```
 
 ```typescript
-// File: frontend\tenant-app\src\lib\http.ts
-export const apiFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-  let url = input;
-  if (typeof url === 'string' && url.startsWith('/api/')) {
-    url = `/rent${url}`;
-  }
+// File: frontend\tenant-app\src\lib\queryClient.ts
+import { QueryClient } from "@tanstack/react-query";
 
-  const response = await fetch(url, init);
-  
-  if (response.status === 401 || response.status === 403) {
-    if (response.headers.get('X-Session-Expired') === '1') {
-      const redirectUrl = response.headers.get('X-Redirect-Url');
-      if (redirectUrl) {
-        window.location.href = redirectUrl;
-        return response;
-      }
-      window.location.reload();
-    }
-  }
-  
-  return response;
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: false,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+```
+
+```typescript
+// File: frontend\tenant-app\src\lib\tenant-runtime.ts
+// frontend/tenant-app/src/lib/tenant-runtime.ts
+const APP_BASE = (import.meta.env.VITE_APP_BASE_PATH || "/rent").replace(/\/+$/, "");
+
+export type TenantRuntime = {
+  appBase: string;
+  landlordUuid: string | null;
+  tenantId: string | null;
+  viewToken: string | null;
+  tenantBase: string;
 };
-```
 
-```typescript
-// File: frontend\tenant-app\src\lib\routes.ts
-/**
- * src/lib/routes.ts — Tenant App
- * Shared routes manifest from routes.json (via @shared alias).
- */
+export function getTenantRuntime(pathname = window.location.pathname): TenantRuntime {
+  const cleanPath = pathname.replace(/\/+$/, "");
+  const appBase = APP_BASE === "/" ? "" : APP_BASE;
 
-import routesJson from "@shared/routes.json";
+  const escapedBase = appBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^${escapedBase}/([^/]+)/t/([^/]+)/([^/]+)`);
+  const match = cleanPath.match(re);
 
-interface RouteManifest {
-    basePath: string;
-    health: { check: string };
-    admin: { pages: Record<string, string>; api: Record<string, any> };
-    tenant: {
-        pages: Record<string, string>;
-        api: {
-            auth: Record<string, string>;
-            profile: Record<string, string>;
-            kyc: Record<string, string>;
-            pdf: Record<string, string>;  // ← ADDED
-        };
-    };
-}
+  const landlordUuid = match?.[1] ?? null;
+  const tenantId = match?.[2] ?? null;
+  const viewToken = match?.[3] ?? null;
+  const tenantBase =
+    landlordUuid && tenantId && viewToken ? `${appBase}/${landlordUuid}/t/${tenantId}/${viewToken}` : `${appBase}/t`;
 
-const manifest = routesJson as unknown as RouteManifest;
-
-export const APP_BASE_PATH = import.meta.env.VITE_APP_BASE_PATH?.replace(/\/$/, "") || "/rent";
-
-function resolvePath(template: string, params?: Record<string, string | number>): string {
-    if (!params) return template;
-    return Object.entries(params).reduce(
-        (path, [key, value]) => path.replace(`{${key}}`, String(value)),
-        template
-    );
-}
-
-function fullPath(template: string, params?: Record<string, string | number>): string {
-    return `${APP_BASE_PATH}${resolvePath(template, params)}`;
-}
-
-function tenantApi(section: string, key: string, params?: Record<string, string | number>): string {
-    const template = manifest.tenant?.api?.[section as keyof typeof manifest.tenant.api]?.[key];
-    if (typeof template !== "string") throw new Error(`Tenant API route ${section}.${key} not found`);
-    return fullPath(template, params);
-}
-
-function tenantPage(key: string, params?: Record<string, string | number>): string {
-    const template = manifest.tenant?.pages?.[key];
-    if (typeof template !== "string") throw new Error(`Tenant page route ${key} not found`);
-    return fullPath(template, params);
-}
-
-export const TENANTROUTES = {
-    get basePath() { return APP_BASE_PATH; },
-    get HEALTHCHECK() { return fullPath(manifest.health.check); },
-
-    // Tenant Pages
-    TENANTPAGEROOT(tenantId: string | number, viewToken: string) { return tenantPage("root", { tenantId, viewToken }); },
-    tenantPageProfile(tenantId: string | number, viewToken: string) { return tenantPage("profile", { tenantId, viewToken }); },
-
-    // Tenant API: Auth
-    get TENANTAPIAUTHPUBLICKEY() { return tenantApi("auth", "publicKey"); },
-    TENANTAPIAUTHLOGIN(tenantId: string | number, viewToken: string) { return tenantApi("auth", "login", { tenantId, viewToken }); },
-    TENANTAPIAUTHREFRESH(tenantId: string | number, viewToken: string) { return tenantApi("auth", "refresh", { tenantId, viewToken }); },
-    TENANTAPIAUTHLOGOUT(tenantId: string | number, viewToken: string) { return tenantApi("auth", "logout", { tenantId, viewToken }); },
-    TENANTAPIAUTHLOGOUTALL(tenantId: string | number, viewToken: string) { return tenantApi("auth", "logoutAll", { tenantId, viewToken }); },
-
-    // Tenant API: Profile
-    TENANTAPIPROFILEGET(tenantId: string | number, viewToken: string) { return tenantApi("profile", "get", { tenantId, viewToken }); },
-
-    // Tenant API: PDF — FIXED: proper view/download methods
-    TENANTAPIPDFVIEW(tenantId: number | string, viewToken: string, billNo: string) {
-        return tenantApi("pdf", "view", { tenantId, viewToken, billNo });
-    },
-    TENANTAPIPDFDOWNLOAD(tenantId: number | string, viewToken: string, billNo: string) {
-        return tenantApi("pdf", "download", { tenantId, viewToken, billNo });
-    },
-
-    // Tenant API: KYC
-    TENANTAPIKYCUPLOAD(tenantId: string | number, viewToken: string) { return tenantApi("kyc", "upload", { tenantId, viewToken }); },
-    TENANTAPIKYCMARKINACTIVE(tenantId: string | number, viewToken: string, occupantUuid: string) {
-        return tenantApi("kyc", "markInactive", { tenantId, viewToken, occupantUuid });
-    },
-    TENANTAPIKYCDELETE(tenantId: string | number, viewToken: string, occupantUuid: string) {
-        return tenantApi("kyc", "delete", { tenantId, viewToken, occupantUuid });
-    },
-    TENANTAPIKYCGETFILE(tenantId: string | number, viewToken: string, filename: string) { return tenantApi("kyc", "getFile", { tenantId, viewToken, filename }); },
-} as const;
-
-export type RoutesType = typeof TENANTROUTES;
-export default TENANTROUTES;
-```
-
-```typescript
-// File: frontend\tenant-app\src\lib\tenant-api-contract.ts
-/**
- * src/lib/tenant-api-contract.ts
- * 
- * Strict Data Transfer Objects (DTOs) aligned with the backend's SQLite schema 
- * and API responses for the Tenant Portal.
- */
-
-export interface Tenant {
-    id: number;
-    name: string;
-    viewToken: string;
-    unlocked: boolean;
-    roomnumber?: string;
-    phone?: string;
-    email?: string;
-    rent?: number;
-    electricityrate?: number;
-}
-
-export interface Receipt {
-    billNo: string;
-    date: string;
-    month: string;
-    tenantId: number;
-    tenant: string;
-    previous: number;
-    current: number;
-    units: number;
-    rent: number;
-    additional: number;
-    water: number;
-    tankWater: number;
-    electricity: number;
-    total: number;
-    pdf?: string;
-    status: string;
-    paymentstatus: string;
-    maintenancecharge: number;
-    maintenancedesc?: string;
-    previousarrears: number;
-    amountreceived: number;
-}
-
-export interface Occupant {
-    occupantUuid?: string;
-    "Occupant UUID"?: string;
-    uuid?: string;
-    name: string;
-    mobile: string;
-    status: string;
-    aadhaar_front?: string;
-    aadhaar_back?: string;
-    aadhaar_combined?: string;
-    emp_front?: string;
-    emp_back?: string;
-    uploaddate?: string;
-    uploadmonth?: string;
-}
-
-export interface TenantProfileResponse {
-    tenant: Tenant;
-    receipts?: Receipt[];
-    occupants?: Occupant[];
-}
-
-export interface ApiError {
-    detail?: string;
-    message?: string;
-}
-
-export interface AuthResponse {
-    status: string;
-    message: string;
+  return {
+    appBase: appBase || "/",
+    landlordUuid,
+    tenantId,
+    viewToken,
+    tenantBase,
+  };
 }
 ```
 
@@ -41915,9 +56572,104 @@ export interface AuthResponse {
 // File: frontend\tenant-app\src\lib\utils.ts
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import type { Receipt, PaymentState } from "@/types"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+// ── Date helpers ──────────────────────────────────────────
+
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+export function parseMonthYear(monthStr: string): Date {
+  const parts = monthStr.trim().split(" ");
+  if (parts.length !== 2) return new Date(0);
+  const monthIndex = MONTH_NAMES.indexOf(parts[0]);
+  const year = parseInt(parts[1], 10);
+  if (monthIndex === -1 || isNaN(year)) return new Date(0);
+  return new Date(year, monthIndex, 1);
+}
+
+export function getMonthEndDate(monthStr: string): Date {
+  const d = parseMonthYear(monthStr);
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0);
+}
+
+export function isOlderThan12Months(monthStr: string): boolean {
+  const receiptDate = parseMonthYear(monthStr);
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+  return receiptDate < cutoff;
+}
+
+export function daysResided(residentSince: string): number {
+  const start = new Date(`${residentSince}T00:00:00`);
+  if (Number.isNaN(start.getTime())) return 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.floor((today.getTime() - start.getTime()) / 86_400_000));
+}
+
+export function daysInMonth(residentSince: string, monthStr: string): number {
+  const monthStart = parseMonthYear(monthStr);
+  const monthEnd = getMonthEndDate(monthStr);
+  const start = new Date(`${residentSince}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || start > monthEnd) return 0;
+  const effectiveStart = start > monthStart ? start : monthStart;
+  return Math.max(0, Math.ceil((monthEnd.getTime() - effectiveStart.getTime()) / 86_400_000));
+}
+
+// ── Currency ──────────────────────────────────────────────
+
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+// ── Payment helpers ───────────────────────────────────────
+
+export function getPaymentState(receipt: Receipt): PaymentState {
+  const total = Number(receipt.Total ?? 0);
+  const arrears = Number(receipt.previousArrears ?? 0);
+  const received = Number(receipt.amountReceived ?? 0);
+  const payable = total + arrears;
+  const stored = String(receipt.paymentStatus ?? "").toUpperCase();
+
+  if (stored === "ADVANCE" || received > payable) return "ADVANCE";
+  if (stored === "PARTIAL" || (received > 0 && received < payable)) return "PARTIAL";
+  if (stored === "PAID" || received >= payable) return "PAID";
+  return "PENDING";
+}
+
+export function getGrandTotal(receipt: Receipt): number {
+  return Number(receipt.Total ?? 0) + Number(receipt.previousArrears ?? 0);
+}
+
+export function getAmountReceived(receipt: Receipt): number {
+  return Number(receipt.amountReceived ?? 0);
+}
+
+export function getRemainingAmount(receipt: Receipt): number {
+  return Math.max(0, getGrandTotal(receipt) - getAmountReceived(receipt));
+}
+
+export function formatResidentSince(dateStr: string): string {
+  if (!dateStr) return "—";
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return dateStr;
+  return d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 ```
 
@@ -41926,1019 +56678,98 @@ export function cn(...inputs: ClassValue[]) {
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { ThemeProvider } from "@/components/theme-provider";
-import App from "@/app/App";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "./components/theme-provider";
+import ErrorBoundary from "./components/ErrorBoundary";
+import App from "./App";
 import "./index.css";
-import routesJson from "@shared/routes.json";
+import { getTenantRuntime } from "./lib/tenant-runtime";
+import { queryClient } from "./lib/queryClient";
+import { TenantProvider } from "./context/TenantContext";
 
-// Compute the effective basename for the tenant app
-// The tenant app is served from /rent/t/{viewToken}
-// So the router basename should be /rent/t to handle the /{viewToken} part as routes
-const TENANT_BASE = `${routesJson.basePath}/t`;
+const { appBase } = getTenantRuntime();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <BrowserRouter basename={TENANT_BASE}>
-      <ThemeProvider defaultTheme="system" storageKey="tenant-ui-theme">
-        <App />
-      </ThemeProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter basename={appBase}>
+          <ThemeProvider defaultTheme="system" storageKey="tenant-ui-theme">
+            <TenantProvider>
+              <App />
+            </TenantProvider>
+          </ThemeProvider>
+        </BrowserRouter>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );
-// import React from "react";
-// import ReactDOM from "react-dom/client";
-// import { BrowserRouter } from "react-router-dom";
-// import { ThemeProvider } from "@/components/theme-provider";
-// import App from "@/app/App";
-// import "./index.css";
-// import routesJson from "@shared/routes.json";
-
-// ReactDOM.createRoot(document.getElementById("root")!).render(
-//   <React.StrictMode>
-//     {/* <BrowserRouter basename={routesJson.basePath}> */}
-//     <BrowserRouter basename="/rent/t">
-//       <ThemeProvider defaultTheme="system" storageKey="tenant-ui-theme">
-//         <App />
-//       </ThemeProvider>
-//     </BrowserRouter>
-//   </React.StrictMode>
-// );
 ```
 
-```tsx
-// File: frontend\tenant-app\src\pages\PublicTenantPage.tsx
-import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import { Lock, ShieldCheck, Receipt, Users, LogOut } from 'lucide-react'
-
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { apiFetch } from '@/lib/http'
-
-import TENANTROUTES from '@/lib/routes';
-import { ReceiptRoller } from "@/components/receipts";
-
-type ReceiptItem = {
-  Bill?: string
-  ReceiptNo?: string
-  Month?: string
-  PaymentStatus?: string
-  Total?: number | string
-  PreviousArrears?: number | string
-  AmountReceived?: number | string
+```typescript
+// File: frontend\tenant-app\src\types\index.ts
+export interface TenantProfile {
+  id: number;
+  name: string;
+  viewToken: string;
+  unlocked: boolean;
+  readOnly?: boolean;
 }
 
-type OccupantItem = {
-  ['Occupant UUID']?: string
-  occupantuuid?: string
-  Name?: string
-  name?: string
-  Mobile?: string
-  mobile?: string
+export interface Receipt {
+  Bill: string;
+  Date: string;
+  Month: string;
+  Tenant: string;
+  TenantId: number;
+  Previous: number;
+  Current: number;
+  Units: number;
+  Rent: number;
+  Additional: number;
+  Water: number;
+  tankWater: number;
+  Electricity: number;
+  Total: number;
+  PDF: string;
+  paymentStatus: "PENDING" | "PARTIAL" | "PAID" | "ADVANCE";
+  amountReceived: number;
+  previousArrears: number;
+  Status: "ACTIVE" | "ARCHIVED";
+  MaintenanceCharge: number;
+  MaintenanceDesc: string;
 }
 
-type TENANTPROFILE = {
-  name: string
-  roomnumber?: string
-  phone?: string
-  email?: string
-  rent?: number
-  electricityrate?: number
-  unlocked?: boolean
+export interface Occupant {
+  "Occupant UUID": string;
+  occupantUuid: string;
+  name: string;
+  mobile: string;
+  status: string;
+  address: string;
+  residentSince: string;
+  aadhaarfront: string;
+  aadhaarback: string;
+  aadhaarcombined: string;
+  empfront: string;
+  empback: string;
+  uploaddate: string;
+  uploadmonth: string;
 }
 
-type PortalResponse = {
-  tenant?: TENANTPROFILE
-  receipts?: ReceiptItem[]
-  occupants?: OccupantItem[]
-  unlocked?: boolean
-  viewToken?: string
+export interface PortalResponse {
+  tenant: TenantProfile;
+  receipts?: Receipt[];
+  occupants?: Occupant[];
 }
 
-function formatCurrency(value: number) {
-  return value.toLocaleString('en-IN', { maximumFractionDigits: 0 })
+export interface AuthResponse {
+  status: string;
+  message: string;
+  tenant: { id: number; name: string; unlocked: boolean; readOnly?: boolean };
 }
 
-function getReceiptTotal(r: ReceiptItem) {
-  const total = Number(r.Total || 0)
-  const prev = Number(r.PreviousArrears || 0)
-  return total + prev
-}
-
-async function safeJson(res: Response) {
-  try {
-    return await res.json()
-  } catch {
-    return {}
-  }
-}
-
-function TenantLockScreen({
-  tenantName,
-  roomNumber,
-  error,
-  loading,
-  onUnlock,
-}: {
-  tenantName: string
-  roomNumber?: string
-  error?: string
-  loading: boolean
-  onUnlock: (pin: string) => void
-}) {
-  const [pin, setPin] = useState('')
-
-  return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md rounded-3xl border-0 shadow-xl">
-        <CardContent className="p-8">
-          <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Lock className="w-7 h-7 text-primary" />
-            </div>
-
-            <h1 className="text-2xl font-bold">Tenant Portal</h1>
-            <p className="text-muted-foreground mt-2">{tenantName}</p>
-            {roomNumber ? (
-              <p className="text-sm text-muted-foreground">Room {roomNumber}</p>
-            ) : null}
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <div className="rounded-2xl bg-muted p-3 text-center">
-              <Receipt className="w-4 h-4 mx-auto mb-1 text-primary" />
-              <div className="text-xs text-muted-foreground">Bills</div>
-            </div>
-            <div className="rounded-2xl bg-muted p-3 text-center">
-              <Users className="w-4 h-4 mx-auto mb-1 text-primary" />
-              <div className="text-xs text-muted-foreground">Occupants</div>
-            </div>
-            <div className="rounded-2xl bg-muted p-3 text-center">
-              <ShieldCheck className="w-4 h-4 mx-auto mb-1 text-primary" />
-              <div className="text-xs text-muted-foreground">Secure</div>
-            </div>
-          </div>
-
-          {error ? (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (pin.length === 4) onUnlock(pin)
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label className="text-sm font-medium block mb-2">Enter 4-digit PIN</label>
-              <Input
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={4}
-                autoFocus
-                required
-                value={pin}
-                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                placeholder="••••"
-                className="h-14 text-center text-2xl tracking-[0.5em] rounded-2xl"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading || pin.length !== 4}
-              className="w-full h-12 rounded-2xl"
-            >
-              {loading ? 'Unlocking...' : 'Unlock Portal'}
-            </Button>
-
-            <p className="text-xs text-center text-muted-foreground">
-              Your bills and occupant KYC are shown only after PIN verification.
-            </p>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
-  )
-}
-
-export default function PublicTenantPage() {
-  const { tenantId, viewToken } = useParams<{ tenantId: string; viewToken: string }>()
-  const [loginError, setLoginError] = useState('')
-  const [isLoggingIn, setIsLoggingIn] = useState(false)
-
-  const {
-    data,
-    isLoading,
-    isFetching,
-    refetch,
-  } = useQuery<PortalResponse>({
-    queryKey: ['tenant-profile', viewToken],
-    queryFn: async () => {
-      const res = await apiFetch(TENANTROUTES.TENANTAPIPROFILEGET(tenantId || '', viewToken || ''), {
-        credentials: 'include',
-      })
-
-      const result = await safeJson(res)
-
-      if (!res.ok) {
-        throw new Error((result as any)?.detail || 'Failed to load profile')
-      }
-
-      return result as PortalResponse
-    },
-    enabled: !!viewToken,
-    retry: false,
-  })
-
-  const tenant = data?.tenant
-  const isUnlocked = Boolean(data?.unlocked || data?.tenant?.unlocked)
-  const receipts = useMemo(() => data?.receipts ?? [], [data])
-  const occupants = useMemo(() => data?.occupants ?? [], [data])
-
-  const handleLogin = async (pin: string) => {
-    if (!viewToken) return
-
-    setLoginError('')
-    setIsLoggingIn(true)
-
-    try {
-      const res = await apiFetch(TENANTROUTES.TENANTAPIAUTHLOGIN(tenantId || '', viewToken), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ pin }),
-      })
-
-      const result = await safeJson(res)
-
-      if (!res.ok) {
-        throw new Error((result as any)?.detail || 'Incorrect PIN')
-      }
-
-      await refetch()
-    } catch (err: any) {
-      setLoginError(err?.message || 'Login failed')
-    } finally {
-      setIsLoggingIn(false)
-    }
-  }
-
-  const handleLogout = async () => {
-    setLoginError('')
-    await apiFetch(TENANTROUTES.TENANTAPIAUTHLOGOUT(tenantId || '', viewToken || ''), {
-      method: 'POST',
-      credentials: 'include',
-    })
-    await refetch()
-  }
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading tenant portal...</div>
-      </div>
-    )
-  }
-
-  if (!tenant) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="w-full max-w-md rounded-3xl">
-          <CardContent className="p-8 text-center">
-            <h2 className="text-xl font-bold mb-2">Invalid tenant link</h2>
-            <p className="text-muted-foreground">
-              This portal link is missing, expired, or not mapped to a tenant.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
-  if (!isUnlocked) {
-    return (
-      <TenantLockScreen
-        tenantName={tenant.name}
-        roomNumber={tenant.roomnumber}
-        error={loginError}
-        loading={isLoggingIn}
-        onUnlock={handleLogin}
-      />
-
-    )
-  }
-
-  return (
-    <div className="min-h-screen bg-muted/30">
-      <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-bold">Welcome, {tenant.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              {tenant.roomnumber ? `Room ${tenant.roomnumber}` : 'Tenant portal'}
-            </p>
-          </div>
-
-          <Button variant="outline" onClick={handleLogout} className="rounded-full">
-            <LogOut className="w-4 h-4 mr-2" />
-            Lock Portal
-          </Button>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
-        <div className="grid md:grid-cols-3 gap-4">
-          <Card className="rounded-3xl border-0 shadow-sm">
-            <CardContent className="p-5">
-              <div className="text-sm text-muted-foreground">Monthly Rent</div>
-              <div className="text-2xl font-bold mt-1">
-                {formatCurrency(Number(tenant.rent || 0))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl border-0 shadow-sm">
-            <CardContent className="p-5">
-              <div className="text-sm text-muted-foreground">Electricity Rate</div>
-              <div className="text-2xl font-bold mt-1">
-                {tenant.electricityrate ?? 0}/unit
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-3xl border-0 shadow-sm">
-            <CardContent className="p-5">
-              <div className="text-sm text-muted-foreground">Registered Occupants</div>
-              <div className="text-2xl font-bold mt-1">{occupants.length}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="rounded-3xl border-0 shadow-sm">
-          <CardContent className="p-5">
-            <h2 className="text-lg font-bold mb-4">Recent Receipts</h2>
-
-            {receipts.length === 0 ? (
-              <p className="text-muted-foreground">No receipts found.</p>
-            ) : (
-              <div className="space-y-3">
-                {receipts.map((r, idx) => (
-                  <div
-                    key={r.Bill || r.ReceiptNo || idx}
-                    className="flex items-center justify-between gap-4 border rounded-2xl p-4"
-                  >
-                    <div>
-                      <div className="font-semibold">{r.Month || 'Receipt'}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {r.Bill || r.ReceiptNo || '-'} · {r.PaymentStatus || 'PENDING'}
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <div className="text-sm text-muted-foreground">Payable</div>
-                      <div className="font-bold">
-                        {formatCurrency(getReceiptTotal(r))}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-3xl border-0 shadow-sm">
-          <CardContent className="p-5">
-            <h2 className="text-lg font-bold mb-4">Occupants</h2>
-
-            {occupants.length === 0 ? (
-              <p className="text-muted-foreground">No occupants registered.</p>
-            ) : (
-              <div className="grid md:grid-cols-2 gap-3">
-                {occupants.map((o, idx) => (
-                  <div
-                    key={o.occupantuuid || o['Occupant UUID'] || idx}
-                    className="border rounded-2xl p-4"
-                  >
-                    <div className="font-semibold">{o.name || o.Name || 'Unnamed'}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {o.mobile || o.Mobile || 'No mobile'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {(isFetching || isLoggingIn) ? (
-          <p className="text-sm text-muted-foreground">Refreshing portal data...</p>
-        ) : null}
-      </main>
-    </div>
-  )
-}
-```
-
-```tsx
-// File: frontend\tenant-app\src\pages\TenantPortal.tsx
-// File: frontend/tenant-app/src/pages/TenantPortal.tsx
-import { useState, useEffect, useCallback } from "react";
-import { useParams } from "react-router-dom";
-import { TENANTROUTES } from "@/lib/routes";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-
-import { toast } from "sonner";
-import {
-    Loader2,
-    Lock,
-    Unlock,
-    Receipt,
-    Users,
-    FileText,
-    Download,
-    LogOut,
-    Eye,
-    EyeOff,
-    KeyRound,
-    Archive,
-} from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { ReceiptRoller, ReceiptCard } from "@/components/receipts";
-
-// ─── Types ──────────────────────────────────────────────────────────
-
-interface ReceiptData {
-    Bill: string;
-    Date: string;
-    Month: string;
-    Tenant: string;
-    Previous: number;
-    Current: number;
-    Units: number;
-    Rent: number;
-    Additional: number;
-    Water: number;
-    tankWater: number;
-    Electricity: number;
-    Total: number;
-    PDF: string;
-    paymentStatus: string;
-    Status?: string;
-    MaintenanceCharge: number;
-    MaintenanceDesc: string;
-    previousArrears: number;
-    amountReceived: number;
-}
-
-interface Occupant {
-    "Occupant UUID": string;
-    name: string;
-    mobile: string;
-    status: string;
-    aadhaar_front?: string;
-    aadhaar_back?: string;
-    aadhaar_combined?: string;
-    emp_front?: string;
-    emp_back?: string;
-    uploaddate?: string;
-    uploadmonth?: string;
-}
-
-interface TENANTPROFILE {
-    id: number;
-    name: string;
-    viewToken: string;
-    unlocked: boolean;
-}
-
-interface ProfileResponse {
-    tenant: TENANTPROFILE;
-    receipts?: ReceiptData[];
-    occupants?: Occupant[];
-}
-
-// ─── Helper: Extract viewToken robustly ───────────────────────────
-
-function useTenantParams(): { tenantId: string | null, viewToken: string | null } {
-    const params = useParams();
-
-    // React Router parsing
-    let viewToken = params.token || params.viewToken || params.id;
-    let tenantId = params.tenantId;
-
-    if (viewToken && tenantId && viewToken !== "undefined" && tenantId !== "undefined") {
-        return { tenantId, viewToken };
-    }
-
-    // Fallback: parse from current URL path
-    // URL pattern: /rent/t/<tenantId>/<token>
-    const path = window.location.pathname;
-    const match = path.match(/\/t\/([^/]+)\/([a-f0-9-]{36})/i);
-    if (match) {
-        return { tenantId: match[1], viewToken: match[2] };
-    }
-
-    console.error("[TenantPortal] Could not extract tenantId and viewToken from:", { params, path });
-    return { tenantId: null, viewToken: null };
-}
-
-function formatCurrency(amount: number): string {
-    return new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-        minimumFractionDigits: 2,
-    }).format(amount);
-}
-
-// ─── Component ───────────────────────────────────────────────────────
-
-export default function TenantPortal() {
-    const { tenantId, viewToken } = useTenantParams();
-
-    // ── Auth / UI State ──
-    const [profile, setProfile] = useState<ProfileResponse | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [pin, setPin] = useState("");
-    const [showPin, setShowPin] = useState(false);
-    const [pinError, setPinError] = useState("");
-    const [loggingIn, setLoggingIn] = useState(false);
-    const [activeTab, setActiveTab] = useState<"receipts" | "occupants" | "archive">("receipts");
-    const [currentPage, setCurrentPage] = useState(1);
-    const receiptsPerPage = 6;
-    const [publicKey, setPublicKey] = useState<string>("");
-
-    // Fetch public key on mount
-    useEffect(() => {
-        fetch(TENANTROUTES.TENANTAPIAUTHPUBLICKEY)
-            .then(r => r.json())
-            .then(d => setPublicKey(d.publicKey))
-            .catch(() => toast.error("Failed to load encryption key"));
-    }, []);
-
-    // ── Fetch profile (called on mount AND after login) ──
-    const fetchProfile = useCallback(async () => {
-        if (!viewToken || !tenantId) {
-            setLoading(false);
-            setProfile(null);
-            toast.error("Invalid portal link. Missing access token or tenant ID.");
-            return;
-        }
-
-        setLoading(true);
-        try {
-            const res = await fetch(TENANTROUTES.TENANTAPIPROFILEGET(tenantId, viewToken), {
-                credentials: "include",
-                cache: "no-store",
-                headers: {
-                    "Cache-Control": "no-cache",
-                    Pragma: "no-cache",
-                },
-            });
-            if (!res.ok) {
-                if (res.status === 404) {
-                    toast.error("Invalid or expired link.");
-                } else {
-                    toast.error("Failed to load profile.");
-                }
-                setProfile(null);
-                return;
-            }
-            const data: ProfileResponse = await res.json();
-            setProfile(data);
-        } catch {
-            toast.error("Network error. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    }, [tenantId, viewToken]);
-
-    // Initial load
-    useEffect(() => {
-        fetchProfile();
-    }, [fetchProfile]);
-
-    // ── PIN Login ──
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!viewToken || !tenantId) {
-            setPinError("Invalid portal link.");
-            return;
-        }
-
-        setPinError("");
-        setLoggingIn(true);
-
-        try {
-            const { encryptPayload } = await import("@/lib/encryption");
-            const encrypted = await encryptPayload({ pin }, publicKey);
-
-            const res = await fetch(TENANTROUTES.TENANTAPIAUTHLOGIN(tenantId, viewToken), {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                credentials: "include",
-                body: JSON.stringify(encrypted),
-            });
-
-            if (res.ok) {
-                const data = await res.json();
-                toast.success(data.message || "Unlocked successfully");
-                setPin("");
-                // 🔑 CRITICAL: Re-fetch profile to get unlocked data with new cookies
-                await fetchProfile();
-            } else {
-                const err = await res.json().catch(() => ({}));
-                setPinError(err.detail || "Invalid PIN. Please try again.");
-                setPin("");  // Clear on error
-            }
-        } catch {
-            setPinError("Network error. Please try again.");
-            setPin("");  // Clear on error
-        } finally {
-            setLoggingIn(false);
-        }
-    };
-
-    // ── Logout ──
-    const handleLogout = async () => {
-        try {
-            await fetch(TENANTROUTES.TENANTAPIAUTHLOGOUT(tenantId!, viewToken!), {
-                method: "POST",
-                credentials: "include",
-            });
-        } catch {
-            // ignore
-        }
-        setProfile(null);
-        setActiveTab("receipts");
-        setCurrentPage(1);
-        await fetchProfile();
-        toast.info("Logged out successfully.");
-    };
-
-    // ── Helpers ──
-    const isUnlocked = profile?.tenant?.unlocked === true;
-
-    const receipts = profile?.receipts || [];
-    const totalPages = Math.max(1, Math.ceil(receipts.length / receiptsPerPage));
-    const paginatedReceipts = receipts.slice(
-        (currentPage - 1) * receiptsPerPage,
-        currentPage * receiptsPerPage
-    );
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case "PAID":
-                return <Badge className="bg-emerald-500 hover:bg-emerald-600">Paid</Badge>;
-            case "PARTIAL":
-                return <Badge className="bg-amber-500 hover:bg-amber-600">Partial</Badge>;
-            case "PENDING":
-                return <Badge variant="secondary">Pending</Badge>;
-            default:
-                return <Badge variant="outline">{status}</Badge>;
-        }
-    };
-
-    // ── Loading State ──
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-                <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                    <p className="text-muted-foreground">Loading your portal...</p>
-                </div>
-            </div>
-        );
-    }
-
-    // ── Error: No viewToken ──
-    if (!viewToken) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
-                <Card className="w-full max-w-md">
-                    <CardContent className="pt-6 text-center">
-                        <p className="text-destructive font-medium">Invalid portal link.</p>
-                        <p className="text-muted-foreground text-sm mt-2">
-                            The access token is missing or malformed. Please scan the QR code again or contact your landlord.
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
-
-    // ── Error: No Profile ──
-    if (!profile) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
-                <Card className="w-full max-w-md">
-                    <CardContent className="pt-6 text-center">
-                        <p className="text-destructive font-medium">Invalid or expired link.</p>
-                        <p className="text-muted-foreground text-sm mt-2">
-                            Please scan the QR code again or contact your landlord.
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  LOCKED VIEW: Show Login Form ONLY (no data exposed)
-    // ═══════════════════════════════════════════════════════════════════
-    if (!isUnlocked) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 p-4">
-                <Card className="w-full max-w-md shadow-xl">
-                    <CardHeader className="text-center pb-2">
-                        <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-                            <Lock className="h-8 w-8 text-primary" />
-                        </div>
-                        <CardTitle className="text-2xl">Tenant Portal</CardTitle>
-                        <p className="text-muted-foreground">
-                            Welcome, <span className="font-semibold text-foreground">{profile.tenant.name}</span>
-                        </p>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <div>
-                                <label className="text-sm font-medium mb-1.5 block">
-                                    Enter your 4-digit PIN
-                                </label>
-                                <div className="relative">
-                                    <Input
-                                        type={showPin ? "text" : "password"}
-                                        inputMode="numeric"
-                                        maxLength={4}
-                                        value={pin}
-                                        onChange={(e) => {
-                                            const val = e.target.value.replace(/\D/g, "").slice(0, 4);
-                                            setPin(val);
-                                            setPinError("");
-                                        }}
-                                        placeholder="••••"
-                                        className="text-center text-2xl tracking-[0.5em] pr-10"
-                                        autoFocus
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPin(!showPin)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                                    >
-                                        {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                </div>
-                                {pinError && (
-                                    <p className="text-destructive text-sm mt-2">{pinError}</p>
-                                )}
-                            </div>
-                            <Button type="submit" className="w-full" disabled={pin.length !== 4 || loggingIn}>
-                                {loggingIn ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Verifying...
-                                    </>
-                                ) : (
-                                    <>
-                                        <KeyRound className="mr-2 h-4 w-4" />
-                                        Unlock Portal
-                                    </>
-                                )}
-                            </Button>
-                        </form>
-                        <p className="text-xs text-center text-muted-foreground mt-4">
-                            Forgot your PIN? Contact your landlord for assistance.
-                        </p>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    }
-
-    // ═══════════════════════════════════════════════════════════════════
-    //  UNLOCKED VIEW: Full Dashboard (only after successful login)
-    // ═══════════════════════════════════════════════════════════════════
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
-            {/* Header */}
-            <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b sticky top-0 z-50">
-                <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                            <Unlock className="h-5 w-5 text-emerald-500" />
-                        </div>
-                        <div>
-                            <h1 className="font-semibold text-lg leading-tight">{profile.tenant.name}</h1>
-                            <p className="text-xs text-muted-foreground">Tenant Portal</p>
-
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <ThemeToggle />
-                        <Button variant="ghost" size="sm" onClick={handleLogout}>
-                            <LogOut className="h-4 w-4 mr-2" />
-                            Logout
-                        </Button>
-                    </div>
-                </div>
-            </header>
-
-            <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-
-                {/* Tabs */}
-                <div className="flex gap-2">
-                    <Button
-                        variant={activeTab === "receipts" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => { setActiveTab("receipts"); setCurrentPage(1); }}
-                    >
-                        <Receipt className="h-4 w-4 mr-2" />
-                        Receipts
-                    </Button>
-                    <Button
-                        variant={activeTab === "occupants" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setActiveTab("occupants")}
-                    >
-                        <Users className="h-4 w-4 mr-2" />
-                        Occupants
-                    </Button>
-                    <Button
-                        variant={activeTab === "archive" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setActiveTab("archive")}
-                    >
-                        <Archive className="h-4 w-4 mr-2" />
-                        Archive
-                    </Button>
-                </div>
-
-                {/* Stats Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Total Receipts</p>
-                                    <p className="text-2xl font-bold">{receipts.length}</p>
-                                </div>
-                                <Receipt className="h-8 w-8 text-primary/60" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Pending Amount</p>
-                                    <p className="text-2xl font-bold text-destructive">
-                                        {formatCurrency(receipts.reduce((sum, r) => {
-                                            const grandTotal = (r.Total || 0) + (r.previousArrears || 0);
-                                            const received = Number(r.amountReceived) || 0;
-                                            return r.paymentStatus === "PENDING"
-                                                ? sum + Math.max(grandTotal - received, 0)
-                                                : sum;
-                                        }, 0))}
-                                    </p>
-                                </div>
-                                <FileText className="h-8 w-8 text-amber-500/60" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="pt-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-muted-foreground">Occupants</p>
-                                    <p className="text-2xl font-bold">{(profile.occupants || []).length}</p>
-                                </div>
-                                <Users className="h-8 w-8 text-blue-500/60" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
-
-                {/* Receipts Tab */}
-                {activeTab === "receipts" && (
-                    <div className="space-y-6">
-                        {receipts.length === 0 ? (
-                            <Card>
-                                <CardContent className="pt-6 text-center py-12">
-                                    <Receipt className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-                                    <p className="text-muted-foreground">No receipts found.</p>
-                                </CardContent>
-                            </Card>
-                        ) : (
-                            <>
-
-                                {/* Pagination */}
-                                {totalPages > 1 && (
-                                    <div className="flex items-center justify-center gap-2 pt-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                                            disabled={currentPage === 1}
-                                        >
-                                            Previous
-                                        </Button>
-                                        <span className="text-sm text-muted-foreground">
-                                            Page {currentPage} of {totalPages}
-                                        </span>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                                            disabled={currentPage === totalPages}
-                                        >
-                                            Next
-                                        </Button>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                        <ReceiptRoller receipts={receipts as ReceiptData[]} maxVisible={12} tenantId={profile?.tenant.id || 0} viewToken={viewToken || ""} />
-                    </div>
-                )}
-
-                {/* Occupants Tab */}
-                {activeTab === "occupants" && (
-                    <div className="space-y-4">
-                        {(profile.occupants || []).length === 0 ? (
-                            <Card>
-                                <CardContent className="pt-6 text-center py-12">
-                                    <Users className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-                                    <p className="text-muted-foreground">No occupants registered.</p>
-                                </CardContent>
-                            </Card>
-                        ) : (
-                            <div className="grid gap-4">
-                                {(profile.occupants || []).map((o) => (
-                                    <Card key={o["Occupant UUID"]}>
-                                        <CardContent className="p-4">
-                                            <div className="flex items-center justify-between">
-                                                <div>
-                                                    <p className="font-semibold">{o.name}</p>
-                                                    <p className="text-sm text-muted-foreground">{o.mobile}</p>
-                                                </div>
-                                                <Badge variant={o.status === "Active" ? "default" : "secondary"}>
-                                                    {o.status}
-                                                </Badge>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Archive Tab */}
-                {activeTab === "archive" && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-base flex items-center gap-2">
-                                <Archive className="h-4 w-4" />
-                                Archived Receipts
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {receipts.filter(r => r.Status === "ARCHIVED").length === 0 ? (
-                                <p className="text-muted-foreground text-sm">No archived receipts yet.</p>
-                            ) : (
-                                <div className="space-y-2">
-                                    {receipts
-                                        .filter(r => r.Status === "ARCHIVED")
-                                        .map(receipt => (
-                                            <ReceiptCard
-                                                key={receipt.Bill}
-                                                receipt={receipt}
-                                                variant="archive"
-                                                tenantId={profile?.tenant.id || 0}
-                                                viewToken={viewToken || ""}
-                                            />
-                                        ))}
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                )}
-            </main>
-        </div>
-    );
-}
+export type PaymentState = "PENDING" | "PARTIAL" | "PAID" | "ADVANCE";
 ```
 
 ```json
@@ -43018,7 +56849,7 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/rent/t/',  // CRITICAL: Must match server mount point
+  base: '/rent/t/',  // Assets served through /rent/ nginx proxy → /t/assets/ mount
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -43026,6 +56857,281 @@ export default defineConfig({
     },
   },
 })
+```
+
+```python
+// File: scripts\backfill_tenant_ids.py
+import sys
+import os
+import sqlite3
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app")))
+from app.core.db import DB_PATH  # type: ignore
+db_path = DB_PATH
+
+def backfill():
+    if not os.path.exists(db_path):
+        print(f"Database not found at {db_path}")
+        return
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Check if tenantId column exists
+    cursor.execute("PRAGMA table_info(receipts)")
+    columns = [col["name"] for col in cursor.fetchall()]
+    if "tenantId" not in columns:
+        print("Adding tenantId column to receipts table...")
+        cursor.execute("ALTER TABLE receipts ADD COLUMN tenantId INTEGER")
+        conn.commit()
+
+    # Get all tenants
+    cursor.execute("SELECT id, name FROM tenants")
+    tenants = cursor.fetchall()
+    tenant_map = {t["name"].lower(): t["id"] for t in tenants}
+
+    # Get all receipts that might be missing a tenantId
+    cursor.execute("SELECT billNo, tenant, tenantId FROM receipts")
+    receipts = cursor.fetchall()
+
+    updated_count = 0
+    missing_count = 0
+
+    for r in receipts:
+        # If tenantId is not set, or we just want to ensure it's correct based on name
+        if not r["tenantId"]:
+            t_name = (r["tenant"] or "").strip().lower()
+            if t_name in tenant_map:
+                t_id = tenant_map[t_name]
+                cursor.execute("UPDATE receipts SET tenantId = ? WHERE billNo = ?", (t_id, r["billNo"]))
+                updated_count += 1
+            else:
+                print(f"Warning: Tenant name '{r['tenant']}' not found for bill {r['billNo']}")
+                missing_count += 1
+
+    conn.commit()
+    conn.close()
+
+    print(f"Backfill complete. Updated {updated_count} receipts. {missing_count} receipts had unresolved tenants.")
+
+if __name__ == "__main__":
+    backfill()
+```
+
+```python
+// File: scripts\migrate_platform_admin.py
+import sqlite3
+import os
+
+# the rent.db is in app/app/database/rent.db actually wait, no, final_schema.py says DB_PATH = os.environ.get("RENT_DB_PATH", "/code/storage/database/rent.db")
+# But in development, where is it? 
+# Let me check where the current rent.db is. In the file list, there's `app\app\database\rent.db`.
+DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'storage', 'database', 'rent.db'))
+
+def migrate():
+    print(f"Connecting to database: {DB_PATH}")
+    if not os.path.exists(DB_PATH):
+        print("Database not found. Exiting.")
+        return
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+
+    try:
+        # Check if the column already exists
+        cursor.execute("PRAGMA table_info(admins)")
+        columns = [col[1] for col in cursor.fetchall()]
+        
+        if "is_platform_admin" not in columns:
+            print("Adding is_platform_admin column to admins table...")
+            cursor.execute("ALTER TABLE admins ADD COLUMN is_platform_admin INTEGER NOT NULL DEFAULT 0")
+            
+            # Set the default admin to be a platform admin
+            print("Setting 'admin' as platform admin...")
+            cursor.execute("UPDATE admins SET is_platform_admin = 1 WHERE username = 'admin'")
+            
+            conn.commit()
+            print("Migration successful.")
+        else:
+            print("Column is_platform_admin already exists. Skipping migration.")
+            
+    except Exception as e:
+        print(f"Migration failed: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    migrate()
+```
+
+```python
+// File: scripts\validate_routes.py
+import os
+import re
+import sys
+
+# Define directories to scan
+DIRECTORIES = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app", "app")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend")),
+]
+
+# Exclude these files (the manifest generators and manifests themselves)
+EXCLUDE_FILES = [
+    "routes.json",
+    "routes_manifest.py",
+    "routes.ts",
+    "gen_routes.py",
+    "replace_routes.py",
+    "validate_routes.py"
+]
+
+# Patterns to look for
+PATTERNS = [
+    r'(?<![A-Za-z0-9_])"/admin/api/[a-zA-Z0-9_/-]+"?',
+    r"(?<![A-Za-z0-9_])'/admin/api/[a-zA-Z0-9_/-]+'?",
+    r"(?<![A-Za-z0-9_])`/admin/api/[a-zA-Z0-9_/-]+`?",
+    r'(?<![A-Za-z0-9_])"/api/[a-zA-Z0-9_/-]+"?',
+    r"(?<![A-Za-z0-9_])'/api/[a-zA-Z0-9_/-]+'?",
+    r"(?<![A-Za-z0-9_])`/api/[a-zA-Z0-9_/-]+`?",
+]
+
+def scan_files():
+    found_issues = []
+    
+    for directory in DIRECTORIES:
+        for root, dirs, files in os.walk(directory):
+            if "node_modules" in dirs:
+                dirs.remove("node_modules")
+            for file in files:
+                if any(file.endswith(ext) for ext in [".py", ".ts", ".tsx"]):
+                    if file in EXCLUDE_FILES:
+                        continue
+                        
+                    file_path = os.path.join(root, file)
+                    
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            lines = f.readlines()
+                            
+                        for i, line in enumerate(lines):
+                            # Check each pattern
+                            for pattern in PATTERNS:
+                                matches = re.findall(pattern, line)
+                                # Filter out any matches that are just "/api/" or "/admin/api/" without actual paths
+                                valid_matches = [m for m in matches if len(m) > 7 and not m.endswith('/api/"') and not m.endswith('/api/\'')]
+                                
+                                # Special exception for APIRouter(prefix="/api/auth") or similar where it's prefix
+                                if 'prefix=' in line and 'router = APIRouter' in line:
+                                    continue
+                                
+                                if valid_matches:
+                                    found_issues.append({
+                                        "file": file_path,
+                                        "line": i + 1,
+                                        "content": line.strip(),
+                                        "matches": valid_matches
+                                    })
+                                    break # Avoid duplicate reporting for same line
+                                    
+                    except Exception as e:
+                        print(f"Error reading {file_path}: {e}")
+                        
+    return found_issues
+
+import json
+
+def get_expected_constants():
+    json_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared", "routes.json"))
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+        
+    expected = []
+    
+    def flatten(prefix, d):
+        for k, v in d.items():
+            snake_k = re.sub(r'(?<!^)(?=[A-Z])', '_', k).upper()
+            curr_prefix = f"{prefix}_{snake_k}" if prefix else snake_k
+            if isinstance(v, dict):
+                flatten(curr_prefix, v)
+            else:
+                expected.append(curr_prefix)
+                
+    flatten("ADMIN_API", data.get("admin", {}).get("api", {}))
+    flatten("TENANT_API", data.get("tenant", {}).get("api", {}))
+    flatten("ADMIN_PAGE", data.get("admin", {}).get("pages", {}))
+    flatten("TENANT_PAGE", data.get("tenant", {}).get("pages", {}))
+    flatten("STATIC", data.get("static", {}))
+    flatten("HEALTH", data.get("health", {}))
+    
+    return expected
+
+def scan_unused_routes():
+    constants = get_expected_constants()
+    usage_counts = {c: 0 for c in constants}
+    
+    def to_camel(snake_str):
+        components = snake_str.lower().split('_')
+        return components[0] + ''.join(x.title() for x in components[1:])
+        
+    camel_map = {c: to_camel(c) for c in constants}
+    
+    for directory in DIRECTORIES:
+        for root, dirs, files in os.walk(directory):
+            if "node_modules" in dirs:
+                dirs.remove("node_modules")
+            for file in files:
+                if any(file.endswith(ext) for ext in [".py", ".ts", ".tsx"]):
+                    if file in EXCLUDE_FILES:
+                        continue
+                        
+                    file_path = os.path.join(root, file)
+                    try:
+                        with open(file_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+                            for c in constants:
+                                if c in content or camel_map[c] in content:
+                                    usage_counts[c] += 1
+                    except Exception:
+                        pass
+                        
+    return [c for c, count in usage_counts.items() if count == 0]
+
+def main():
+    print("Scanning codebase for hardcoded API routes...")
+    issues = scan_files()
+    unused = scan_unused_routes()
+    
+    has_errors = False
+    
+    if issues:
+        has_errors = True
+        print(f"Found {len(issues)} hardcoded API routes:")
+        for issue in issues:
+            rel_path = os.path.relpath(issue['file'], start=os.path.join(os.path.dirname(__file__), ".."))
+            print(f"  {rel_path}:{issue['line']}")
+            print(f"    Matches: {', '.join(issue['matches'])}")
+            print(f"    Line: {issue['content']}")
+            print()
+    else:
+        print("Success: No hardcoded API routes found!")
+        
+    if unused:
+        has_errors = True
+        print("\nWARNING: The following routes are defined in routes.json but are never used in the codebase:")
+        for u in unused:
+            print(f"  - {u}")
+            
+    if has_errors:
+        sys.exit(1)
+    else:
+        print("\nAll routes are validated and used!")
+        sys.exit(0)
+
+if __name__ == "__main__":
+    main()
 ```
 
 ```json
@@ -43114,11 +57220,11 @@ export default defineConfig({
         "recoverySnapshotRestore": "/admin/api/tenant-recovery-snapshots/{snapshotId}/restore"
       },
       "occupants": {
-        "list": "/admin/api/occupants",
-        "create": "/admin/api/occupants",
+        "list": "/admin/api/occupants/{tenantId}",
+        "create": "/admin/api/occupants/{tenantId}",
         "markInactive": "/admin/api/occupants/{tenantId}/{occupantUuid}/inactive",
         "delete": "/admin/api/occupants/{tenantId}/{occupantUuid}",
-        "getFile": "/admin/api/occupants/file/{filename}"
+        "getFile": "/admin/api/occupants/{tenantId}/file/{filename}"
       },
       "pdf": {
         "download": "/admin/api/tenants/{tenantId}/receipts/{billNo}/pdf/download",
@@ -43152,29 +57258,128 @@ export default defineConfig({
   },
   "tenant": {
     "pages": {
-      "root": "/t/{tenantId}/{viewToken}",
+      "root": "/{landlordUuid}/t/{tenantId}/{viewToken}",
       "catchAll": "/*"
     },
     "api": {
       "auth": {
-        "publicKey": "/t/api/auth/public-key",
-        "login": "/t/api/{tenantId}/{viewToken}/auth/login",
-        "refresh": "/t/api/{tenantId}/{viewToken}/auth/refresh",
-        "logout": "/t/api/{tenantId}/{viewToken}/auth/logout",
-        "logoutAll": "/t/api/{tenantId}/{viewToken}/auth/logout-all"
+        "publicKey": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/public-key",
+        "login": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/login",
+        "refresh": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/refresh",
+        "logout": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout",
+        "logoutAll": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout-all"
       },
       "profile": {
-        "get": "/t/api/{tenantId}/{viewToken}/profile"
+        "get": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/profile"
       },
       "kyc": {
-        "upload": "/t/api/{tenantId}/{viewToken}/kyc",
-        "markInactive": "/t/api/{tenantId}/{viewToken}/kyc/{occupantUuid}/inactive",
-        "delete": "/t/api/{tenantId}/{viewToken}/kyc/{occupantUuid}",
-        "getFile": "/t/api/{tenantId}/{viewToken}/kyc/file/{filename}"
+        "upload": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc",
+        "markInactive": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive",
+        "delete": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
+        "getFile": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/file/{filename}"
       },
       "pdf": {
-        "view": "/t/api/{tenantId}/{viewToken}/pdf/{billNo}/view",
-        "download": "/t/api/{tenantId}/{viewToken}/pdf/{billNo}/download"
+        "view": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
+        "download": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
+      }
+    }
+  },
+  "landlord": {
+    "pages": {
+      "root": "/landlord",
+      "login": "/landlord/login",
+      "signup": "/landlord/signup",
+      "dashboard": "/landlord/dashboard",
+      "logout": "/landlord/logout",
+      "catchAll": "/landlord/*"
+    },
+    "api": {
+      "auth": {
+        "publicKey": "/landlord/api/auth/public-key",
+        "checkUsername": "/landlord/api/auth/check-username",
+        "checkEmail": "/landlord/api/auth/check-email",
+        "signup": "/landlord/api/auth/signup",
+        "login": "/landlord/api/auth/login",
+        "loginTotp": "/landlord/api/login/totp",
+        "refresh": "/landlord/api/auth/refresh",
+        "logout": "/landlord/api/auth/logout",
+        "me": "/landlord/api/auth/me",
+        "changePassword": "/landlord/api/auth/change-password"
+      },
+      "dashboard": {
+        "stats": "/landlord/{landlordUuid}/api/dashboard"
+      },
+      "config": {
+        "get": "/landlord/{landlordUuid}/api/config",
+        "update": "/landlord/{landlordUuid}/api/config/update",
+        "themeGet": "/landlord/{landlordUuid}/api/ui/theme",
+        "theme": "/landlord/{landlordUuid}/api/ui/theme"
+      },
+      "billing": {
+        "filter": "/landlord/{landlordUuid}/api/receipts/filter",
+        "months": "/landlord/{landlordUuid}/api/receipts/months",
+        "preview": "/landlord/{landlordUuid}/api/receipts/preview",
+        "create": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
+        "get": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
+        "update": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
+        "updatePayment": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/payment-status",
+        "archive": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/archive",
+        "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/restore",
+        "delete": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
+        "archiveData": "/landlord/{landlordUuid}/api/archive-data"
+      },
+      "tenants": {
+        "list": "/landlord/{landlordUuid}/api/tenants",
+        "create": "/landlord/{landlordUuid}/api/tenants",
+        "get": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
+        "update": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
+        "delete": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
+        "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/restore",
+        "changePin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/change-pin",
+        "revealPin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/reveal-pin",
+        "receipts": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
+        "recoverySnapshots": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots",
+        "recoverySnapshotPreview": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/preview",
+        "recoverySnapshotRestore": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/restore"
+      },
+      "occupants": {
+        "list": "/landlord/{landlordUuid}/api/occupants/{tenantId}",
+        "create": "/landlord/{landlordUuid}/api/occupants/{tenantId}",
+        "markInactive": "/landlord/{landlordUuid}/api/occupants/{tenantId}/{occupantUuid}/inactive",
+        "delete": "/landlord/{landlordUuid}/api/occupants/{tenantId}/{occupantUuid}",
+        "getFile": "/landlord/{landlordUuid}/api/occupants/{tenantId}/file/{filename}"
+      },
+      "pdf": {
+        "download": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/pdf/download",
+        "view": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/pdf/view"
+      },
+      "whatsapp": {
+        "sendSingle": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/whatsapp"
+      },
+      "sync": {
+        "exportCsv": "/landlord/{landlordUuid}/api/export-csv",
+        "exportZip": "/landlord/{landlordUuid}/api/export-zip",
+        "template": "/landlord/{landlordUuid}/api/import-template",
+        "exportExcel": "/landlord/{landlordUuid}/api/export-excel",
+        "importPreview": "/landlord/{landlordUuid}/api/import-preview",
+        "importExecute": "/landlord/{landlordUuid}/api/import-execute"
+      },
+      "backups": {
+        "list": "/landlord/{landlordUuid}/api/backups",
+        "createManual": "/landlord/{landlordUuid}/api/backups/manual",
+        "delete": "/landlord/{landlordUuid}/api/backups/{backupId}",
+        "verify": "/landlord/{landlordUuid}/api/backups/{backupId}/verify",
+        "restore": "/landlord/{landlordUuid}/api/backups/{backupId}/restore",
+        "download": "/landlord/{landlordUuid}/api/backups/{backupId}/download",
+        "metadata": "/landlord/{landlordUuid}/api/backups/{backupId}/metadata"
+      },
+      "settings": {
+        "uploadSignature": "/landlord/{landlordUuid}/api/settings/upload-signature",
+        "deleteSignature": "/landlord/{landlordUuid}/api/settings/delete-signature"
+      },
+      "totp": {
+        "qr": "/landlord/{landlordUuid}/api/totp/qr",
+        "regenerate": "/landlord/{landlordUuid}/api/totp/regenerate"
       }
     }
   }

@@ -85,7 +85,7 @@ def hash_directory(dirpath):
 def create_manifest(backupId, backup_type, timestamp_str):
     schema_conf = config.get("schema", {})
     return {
-        "application": "Rent Receipt System",
+        "application": "PROPAURA",
         "version": "3.0.0",
         "schema": schema_conf.get("receipt_schema", 4),
         "created": timestamp_str,

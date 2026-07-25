@@ -1,27 +1,28 @@
 # app/app/core/routes_manifest_tenant.py
 
 class TenantRoutes:
-    TENANTPAGEROOT = "/t/{tenantId}/{viewToken}"
+    TENANTPAGEROOT = "/{landlordUuid}/t/{tenantId}/{viewToken}"
 
-    # Tenant API: Auth
-    TENANTAPIAUTHPUBLICKEY = "/t/api/auth/public-key"
-    TENANTAPIAUTHLOGIN = "/t/api/{tenantId}/{viewToken}/auth/login"
-    TENANTAPIAUTHREFRESH = "/t/api/{tenantId}/{viewToken}/auth/refresh"
-    TENANTAPIAUTHLOGOUT = "/t/api/{tenantId}/{viewToken}/auth/logout"
-    TENANTAPIAUTHLOGOUTALL = "/t/api/{tenantId}/{viewToken}/auth/logout-all"
+    # Tenant API: Auth — paths follow /{landlordUuid}/t/{tenantId}/{viewToken}/api/...
+    TENANTAPIAUTHPUBLICKEY = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/public-key"
+    TENANTAPIAUTHLOGIN = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/login"
+    TENANTAPIAUTHREFRESH = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/refresh"
+    TENANTAPIAUTHLOGOUT = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout"
+    TENANTAPIAUTHLOGOUTALL = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout-all"
 
     # Tenant API: Profile
-    TENANTAPIPROFILEGET = "/t/api/{tenantId}/{viewToken}/profile"
+    TENANTAPIPROFILEGET = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/profile"
 
     # Tenant API: KYC
-    TENANTAPIKYCUPLOAD = "/t/api/{tenantId}/{viewToken}/kyc"
-    TENANTAPIKYCMARKINACTIVE = "/t/api/{tenantId}/{viewToken}/kyc/{occupantUuid}/inactive"
-    TENANTAPIKYCDELETE = "/t/api/{tenantId}/{viewToken}/kyc/{occupantUuid}"
-    TENANTAPIKYCGETFILE = "/t/api/{tenantId}/{viewToken}/kyc/file/{filename}"
+    TENANTAPIKYCUPLOAD = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc"
+    TENANTAPIKYCMARKINACTIVE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive"
+    TENANTAPIKYCDELETE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}"
+    TENANTAPIKYCGETFILE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/file/{filename}"
 
     # Tenant API: PDF
-    TENANTAPIPDFVIEW = "/t/api/{tenantId}/{viewToken}/pdf/{billNo}/view"
-    TENANTAPIPDFDOWNLOAD = "/t/api/{tenantId}/{viewToken}/pdf/{billNo}/download"
+    TENANTAPIPDFVIEW = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view"
+    TENANTAPIPDFDOWNLOAD = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
+
 
 
 class TenantNames:

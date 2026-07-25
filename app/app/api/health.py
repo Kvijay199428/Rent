@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+from fastapi import APIRouter
 from app.core.routes_manifest import Names
 
 from app.core.routes_manifest import Routes
@@ -18,9 +18,10 @@ async def health_check():
         "version": APP_INFO["version"],
         "schema": APP_INFO["schema"],
         "config_loaded": bool(ConfigService().get("system")),
-        "storage_ready": True,  # Monitored at startup
+        "storage_ready": True,
         "database": "SQLite (rent.db)",
-        "database_ready": True, 
-        "uptime": "N/A" # Trackable if needed
+        "database_ready": True,
+        "uptime": "N/A",
+        "broadcast": ConfigService().get("broadcast", {"enabled": False, "message": "", "type": "info", "dismissible": True})
     }
 

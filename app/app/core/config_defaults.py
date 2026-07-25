@@ -38,6 +38,17 @@ DEFAULT_CONFIGS = {
             "default_message": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenantPin}\n\nThank you!",
             "message": "Hello {tenantName},\n\nYour rent receipt for {month} has been generated.\n\n*Bill No:* {billNo}\n*Total Amount:* {currency}{total}\n\nYou can view and download your receipt securely here: {link}\n*Tenant Portal PIN:* {tenantPin}\n\nThank you!"
         },
+        "landlord_password_reset": {
+            "label": "Landlord Password Reset Template",
+            "readonly_by_default": False,
+            "allowed_variables": [
+                "{landlordName}",
+                "{username}",
+                "{tempPassword}"
+            ],
+            "default_message": "Hello {landlordName},\n\nYour account password has been reset by an administrator.\n\n*Username:* {username}\n*Temporary Password:* {tempPassword}\n\nPlease log in and change your password immediately.\n\nThank you!",
+            "message": "Hello {landlordName},\n\nYour account password has been reset by an administrator.\n\n*Username:* {username}\n*Temporary Password:* {tempPassword}\n\nPlease log in and change your password immediately.\n\nThank you!"
+        },
         "country_code": "91"
     },
     "ui": {
@@ -88,6 +99,7 @@ DEFAULT_CONFIGS = {
         "security": {
             "tenantPinlength": 4,
             "adminTotpRequired": True,
+            "kyc_daily_upload_limit": 5,
         },
         "server": {
             "host": "0.0.0.0",
@@ -95,8 +107,8 @@ DEFAULT_CONFIGS = {
             "debug": True
         },
         "app": {
-            "title": "Rent Receipt Web Application",
-            "short_name": "RRG Suite",
+            "title": "PROPAURA",
+            "short_name": "PROPAURA",
             "currency_symbol": "₹",
             "locale": "en-IN"
         },
@@ -118,6 +130,12 @@ DEFAULT_CONFIGS = {
     "archive": {},
     "pdf": {},
     "features": {},
+    "broadcast": {
+        "enabled": False,
+        "message": "",
+        "type": "info",
+        "dismissible": True
+    },
     "theme": {},
     "validation": {}
 }
