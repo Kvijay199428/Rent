@@ -217,7 +217,7 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
 
 @router.post("/api/auth/refresh")
 async def platform_refresh(request: Request, response: Response):
-    refresh_token = request.cookies.get("platform_refresh_token")
+    refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="No refresh token")
 

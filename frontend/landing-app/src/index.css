@@ -225,7 +225,7 @@ main {
 }
 
 .logo-text {
-  font-size: 1.15rem;
+  font-size: 1.4rem;
   font-weight: 700;
   color: var(--text);
 }
@@ -346,7 +346,7 @@ main {
   border: 1px solid rgba(108,99,255,0.2);
   border-radius: 100px;
   padding: 8px 18px;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--accent);

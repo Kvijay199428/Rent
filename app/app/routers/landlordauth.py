@@ -25,7 +25,7 @@ from app.authentication.landlord.cookies import (
     clear_landlord_auth_cookies,
     set_landlord_auth_cookies,
 )
-from app.authentication.landlord.jwt import create_landlord_access_token
+from app.authentication.landlord.jwt import create_access_token
 from app.authentication.landlord.middleware import get_current_landlord_api
 from app.authentication.landlord.sessions import (
     create_landlord_session,
@@ -288,7 +288,7 @@ async def landlord_login(
         session_id, refresh_token = create_landlord_session(
             landlord["id"], request, payload.rememberMe
         )
-        access_token = create_landlord_access_token(landlord["id"], session_id)
+        access_token = create_access_token(landlord["id"], session_id)
         cookie_value = f"{session_id}:{refresh_token}"
         set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
 
@@ -310,7 +310,7 @@ async def landlord_login(
     session_id, refresh_token = create_landlord_session(
         landlord["id"], request, payload.rememberMe
     )
-    access_token = create_landlord_access_token(landlord["id"], session_id)
+    access_token = create_access_token(landlord["id"], session_id)
     cookie_value = f"{session_id}:{refresh_token}"
 
     set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
@@ -339,7 +339,7 @@ async def landlord_logout(request: Request, response: Response):
     Clear landlord cookies and revoke the active session.
     """
     clear_landlord_auth_cookies(response, request)
-    token = request.cookies.get("landlord_refresh_token")
+    token = request.cookies.get("refresh_token")
     if token and ":" in token:
         session_id = token.split(":", 1)[0]
         revoke_landlord_session_db(session_id)
@@ -350,7 +350,7 @@ async def landlord_logout(request: Request, response: Response):
 async def landlord_me(principal=Depends(get_current_landlord_api)):
     """
     Return the identity of the currently authenticated landlord.
-    Requires a valid landlord_access_token cookie.
+    Requires a valid access_token cookie.
     Returns TOTP state and password change flag so frontend can sync state.
     """
     with get_conn() as conn:
@@ -448,7 +448,7 @@ async def landlord_login_with_totp(
         session_id, refresh_token = create_landlord_session(
             landlord["id"], request, payload.rememberMe
         )
-        access_token = create_landlord_access_token(landlord["id"], session_id)
+        access_token = create_access_token(landlord["id"], session_id)
         cookie_value = f"{session_id}:{refresh_token}"
         set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
 
@@ -469,7 +469,7 @@ async def landlord_login_with_totp(
     session_id, refresh_token = create_landlord_session(
         landlord["id"], request, payload.rememberMe
     )
-    access_token = create_landlord_access_token(landlord["id"], session_id)
+    access_token = create_access_token(landlord["id"], session_id)
     cookie_value = f"{session_id}:{refresh_token}"
 
     set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
@@ -531,12 +531,12 @@ async def landlord_change_password(
         raise HTTPException(status_code=400, detail="New password must be different from current password.")
 
     # Extract landlord from token
-    token = request.cookies.get("landlord_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    from app.authentication.landlord.jwt import decode_landlord_access_token
-    payload_token = decode_landlord_access_token(token)
+    from app.authentication.landlord.jwt import decode_access_token
+    payload_token = decode_access_token(token)
     landlord_id = int(payload_token.get("landlord_id") or payload_token.get("sub"))
 
     with get_conn() as conn:

@@ -216,7 +216,7 @@ export default function SettingsPage() {
             {[
               ["API Base", "/rent/platform-admin/api"],
               ["Frontend Base", "/rent/platform-admin"],
-              ["Auth Scope", "Cookie: platform_access_token"],
+              ["Auth Scope", "Cookie: access_token"],
             ].map(([label, value]) => (
               <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
                 <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>

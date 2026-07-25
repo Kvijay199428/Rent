@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request, Response, HTTPException, Path
 from app.models.auth import LoginRequest, ChangePinRequest
 from app.authentication.common.utils import verify_pin, hash_pin
-from app.authentication.tenant.jwt import create_tenant_access_token
+from app.authentication.tenant.jwt import create_access_token
 from app.authentication.tenant.sessions import create_tenant_session, get_tenant_session_db, revoke_tenant_session_db, revoke_all_tenant_sessions
 from app.authentication.tenant.cookies import set_tenant_auth_cookies, clear_tenant_auth_cookies
 from app.authentication.tenant.middleware import get_current_tenant
@@ -19,13 +19,13 @@ def _verify_tenant_viewToken(request: Request, viewToken: str) -> None:
     Validates that the viewToken in the URL path matches the tenant 
     identity from the JWT cookie. Prevents cross-tenant session attacks.
     """
-    token = request.cookies.get("tenant_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Access token missing")
     
-    from app.authentication.tenant.jwt import decode_tenant_access_token
+    from app.authentication.tenant.jwt import decode_access_token
     try:
-        payload = decode_tenant_access_token(token)
+        payload = decode_access_token(token)
         tenantId = int(payload.get("tenantId") or payload.get("sub"))
         
         # Look up tenant's viewToken from database
@@ -92,7 +92,7 @@ async def auth_login(tenantId: int, viewToken: str, request: Request, response: 
         
     # Generate Session & Tokens
     session_id, refresh_token = create_tenant_session(tenant["id"], request, payload.remember_me)
-    access_token = create_tenant_access_token(tenant["id"], session_id)
+    access_token = create_access_token(tenant["id"], session_id)
     
     # Format cookie value correctly for rotation
     cookie_val = f"{session_id}:{refresh_token}"
@@ -114,7 +114,7 @@ async def auth_refresh(
     # Security: Validate URL viewToken matches cookie JWT identity
     _verify_tenant_viewToken(request, viewToken)
     
-    refresh_token = request.cookies.get("tenant_refresh_token")
+    refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="No refresh token")
         
@@ -135,7 +135,7 @@ async def auth_refresh(
     
     # Generate new session & tokens
     new_session_id, new_refresh_token = create_tenant_session(session["tenantId"], request, remember_me=True)
-    new_access_token = create_tenant_access_token(session["tenantId"], new_session_id)
+    new_access_token = create_access_token(session["tenantId"], new_session_id)
     
     # Format cookie value correctly
     new_cookie_val = f"{new_session_id}:{new_refresh_token}"
@@ -156,11 +156,11 @@ async def auth_logout(
     # Security: Validate URL viewToken matches cookie JWT identity
     _verify_tenant_viewToken(request, viewToken)
     
-    token = request.cookies.get("tenant_access_token")
+    token = request.cookies.get("access_token")
     if token:
         try:
-            from app.authentication.tenant.jwt import decode_tenant_access_token
-            payload = decode_tenant_access_token(token)
+            from app.authentication.tenant.jwt import decode_access_token
+            payload = decode_access_token(token)
             revoke_tenant_session_db(payload.get("sid"))
             log_audit(int(payload.get("tenantId") or payload.get("sub")), "Logout Success", request.client.host)
         except Exception:
@@ -188,7 +188,7 @@ async def auth_logout_all(
 # from fastapi import APIRouter, Depends, Request, Response, HTTPException
 # from app.models.auth import LoginRequest, ChangePinRequest
 # from app.authentication.common.utils import verify_pin, hash_pin
-# from app.authentication.tenant.jwt import create_tenant_access_token
+# from app.authentication.tenant.jwt import create_access_token
 # from app.authentication.tenant.sessions import create_tenant_session, get_tenant_session_db, revoke_tenant_session_db, revoke_all_tenant_sessions
 # from app.authentication.tenant.cookies import set_tenant_auth_cookies, clear_tenant_auth_cookies
 # from app.authentication.tenant.middleware import get_current_tenant
@@ -237,7 +237,7 @@ async def auth_logout_all(
         
 #     # Generate Session & Tokens
 #     session_id, refresh_token = create_tenant_session(tenant["id"], request, payload.remember_me)
-#     access_token = create_tenant_access_token(tenant["id"], session_id)
+#     access_token = create_access_token(tenant["id"], session_id)
     
 #     # Format cookie value correctly for rotation
 #     cookie_val = f"{session_id}:{refresh_token}"
@@ -249,7 +249,7 @@ async def auth_logout_all(
 # @router.post(Routes.TENANTAPIAUTHREFRESH)
 # async def auth_refresh(request: Request, response: Response):
 #     """Tenant Refresh Token Rotation Flow"""
-#     refresh_token = request.cookies.get("tenant_refresh_token")
+#     refresh_token = request.cookies.get("refresh_token")
 #     if not refresh_token:
 #         raise HTTPException(status_code=401, detail="No refresh token")
         
@@ -270,7 +270,7 @@ async def auth_logout_all(
     
 #     # Generate new session & tokens
 #     new_session_id, new_refresh_token = create_tenant_session(session["tenantId"], request, remember_me=True)
-#     new_access_token = create_tenant_access_token(session["tenantId"], new_session_id)
+#     new_access_token = create_access_token(session["tenantId"], new_session_id)
     
 #     # Format cookie value correctly
 #     new_cookie_val = f"{new_session_id}:{new_refresh_token}"
@@ -280,11 +280,11 @@ async def auth_logout_all(
 
 # @router.post(Routes.TENANTAPIAUTHLOGOUT)
 # async def auth_logout(request: Request, response: Response):
-#     token = request.cookies.get("tenant_access_token")
+#     token = request.cookies.get("access_token")
 #     if token:
 #         try:
-#             from app.authentication.tenant.jwt import decode_tenant_access_token
-#             payload = decode_tenant_access_token(token)
+#             from app.authentication.tenant.jwt import decode_access_token
+#             payload = decode_access_token(token)
 #             revoke_tenant_session_db(payload.get("sid"))
 #             log_audit(int(payload.get("tenantId") or payload.get("sub")), "Logout Success", request.client.host)
 #         except Exception:

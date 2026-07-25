@@ -62,7 +62,7 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="flex items-center gap-2 px-4 h-14 border-b">
           <ReceiptIcon className="h-5 w-5 text-primary" />
-          <span className="font-bold text-lg"><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></span>
+          <span className="font-bold text-xl"><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></span>
           <button
             onClick={() => setMobileOpen(false)}
             className="lg:hidden ml-auto p-1 rounded hover:bg-accent"

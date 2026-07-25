@@ -44,12 +44,12 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     unlocked = False
-    token = request.cookies.get("tenant_access_token")
+    token = request.cookies.get("access_token")
     if token:
-        from app.authentication.tenant.jwt import decode_tenant_access_token
+        from app.authentication.tenant.jwt import decode_access_token
         from app.authentication.tenant.sessions import get_tenant_session_db
         try:
-            payload = decode_tenant_access_token(token)
+            payload = decode_access_token(token)
             if payload.get("role") == "tenant" and int(payload.get("tenantId") or payload.get("sub")) == tenant.id:
                 session_id = payload.get("sid")
                 if get_tenant_session_db(session_id):
@@ -119,11 +119,11 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
             raise HTTPException(status_code=401, detail="Invalid PIN")
 
     from app.authentication.tenant.sessions import create_tenant_session
-    from app.authentication.tenant.jwt import create_tenant_access_token
+    from app.authentication.tenant.jwt import create_access_token
     from app.authentication.tenant.cookies import set_tenant_auth_cookies
 
     session_id, refresh_token = create_tenant_session(tenant.id, request, remember_me=True)
-    access_token = create_tenant_access_token(tenant.id, session_id)
+    access_token = create_access_token(tenant.id, session_id)
     
     set_tenant_auth_cookies(response, access_token, refresh_token, True, request)
     

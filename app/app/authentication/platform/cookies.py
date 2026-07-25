@@ -21,7 +21,7 @@ def set_platform_auth_cookies(
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
 
     response.set_cookie(
-        key="platform_access_token",
+        key="access_token",
         value=access_token,
         httponly=True,
         secure=True,
@@ -30,7 +30,7 @@ def set_platform_auth_cookies(
         max_age=30 * 60,
     )
     response.set_cookie(
-        key="platform_refresh_token",
+        key="refresh_token",
         value=refresh_token,
         httponly=True,
         secure=True,
@@ -47,14 +47,14 @@ def clear_platform_auth_cookies(
     cookie_path = get_platform_cookie_path(request)
     
     response.delete_cookie(
-        key="platform_access_token",
+        key="access_token",
         path=cookie_path,
         httponly=True,
         secure=True,
         samesite="lax",
     )
     response.delete_cookie(
-        key="platform_refresh_token",
+        key="refresh_token",
         path=cookie_path,
         httponly=True,
         secure=True,
@@ -63,7 +63,7 @@ def clear_platform_auth_cookies(
 
 
 def get_platform_token(request: Request) -> str:
-    token = request.cookies.get("platform_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return token

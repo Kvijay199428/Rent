@@ -32,7 +32,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         zIndex: 100,
       }}>
         <div style={{ padding: "0 20px 24px", borderBottom: "1px solid #2c2f3f" }}>
-          <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></p>
+          <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></p>
           <p style={{ fontSize: 14, fontWeight: 600, color: "#e9ecf2", margin: 0 }}>Control Panel</p>
         </div>
         <nav style={{ flex: 1, padding: "16px 12px" }}>

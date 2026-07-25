@@ -24,7 +24,7 @@ def set_admin_auth_cookies(response: Response, access_token: str, refresh_token:
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
 
     response.set_cookie(
-        key="admin_access_token",
+        key="access_token",
         value=access_token,
         httponly=True,
         secure=True,
@@ -33,7 +33,7 @@ def set_admin_auth_cookies(response: Response, access_token: str, refresh_token:
         max_age=15 * 60,
     )
     response.set_cookie(
-        key="admin_refresh_token",
+        key="refresh_token",
         value=refresh_token,
         httponly=True,
         secure=True,
@@ -44,5 +44,5 @@ def set_admin_auth_cookies(response: Response, access_token: str, refresh_token:
 
 def clear_admin_auth_cookies(response: Response, request: Request = None):
     cookie_path = get_admin_cookie_path(request)
-    response.delete_cookie(key="admin_access_token", path=cookie_path, httponly=True, secure=True, samesite="lax")
-    response.delete_cookie(key="admin_refresh_token", path=cookie_path, httponly=True, secure=True, samesite="strict")
+    response.delete_cookie(key="access_token", path=cookie_path, httponly=True, secure=True, samesite="lax")
+    response.delete_cookie(key="refresh_token", path=cookie_path, httponly=True, secure=True, samesite="strict")

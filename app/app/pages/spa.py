@@ -43,13 +43,13 @@ async def serve_landlord_app(request: Request, path: str = ""):
     # Resolver: when hitting /landlord with no path, check session and redirect
     if not path:
         try:
-            token = request.cookies.get("landlord_access_token")
+            token = request.cookies.get("access_token")
             if token:
-                from app.authentication.landlord.jwt import decode_landlord_access_token
+                from app.authentication.landlord.jwt import decode_access_token
                 from app.authentication.landlord.sessions import get_landlord_session_db
                 from app.database.landlord_repository import get_landlord_by_id
 
-                payload = decode_landlord_access_token(token)
+                payload = decode_access_token(token)
                 if payload.get("role") == "landlord":
                     session_id = payload.get("sid")
                     session = get_landlord_session_db(session_id)

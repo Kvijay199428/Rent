@@ -6,7 +6,7 @@ export default function Footer() {
       <div className="footer-inner">
         <div className="footer-brand">
           <div className="footer-logo">
-            <span className="logo-icon">P</span>
+            <span className="logo-icon" style={{width: 36, height: 36, fontSize: 18}}>P</span>
             <span className="logo-text"><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></span>
           </div>
           <p className="footer-tagline">

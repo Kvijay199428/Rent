@@ -93,7 +93,7 @@ function TenantPortal() {
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">Welcome, {tenant.name}</h1>
-            <p className="text-sm text-muted-foreground"><span style={{color:"#708498", fontWeight: 600}}>PROP</span><span style={{color:"#95A58F", fontWeight: 600}}>AURA</span> — Tenant</p>
+            <p className="text-base text-muted-foreground"><span style={{color:"#708498", fontWeight: 600}}>PROP</span><span style={{color:"#95A58F", fontWeight: 600}}>AURA</span> — Tenant</p>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />

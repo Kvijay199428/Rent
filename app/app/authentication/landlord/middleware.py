@@ -12,7 +12,7 @@ get_current_landlord_api_strict — like get_current_landlord_api but also block
 from fastapi import HTTPException, Request
 
 from app.authentication.common.principal import AuthPrincipal
-from app.authentication.landlord.jwt import decode_landlord_access_token
+from app.authentication.landlord.jwt import decode_access_token
 from app.authentication.landlord.sessions import get_landlord_session_db
 from app.database.landlord_repository import get_landlord_by_id
 
@@ -67,7 +67,7 @@ async def get_current_landlord_page(request: Request) -> AuthPrincipal:
     Dependency for landlord-protected *page* routes.
     Redirects to landlord login page on any auth failure.
     """
-    token = request.cookies.get("landlord_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(
             status_code=303,
@@ -75,7 +75,7 @@ async def get_current_landlord_page(request: Request) -> AuthPrincipal:
         )
 
     try:
-        payload = decode_landlord_access_token(token)
+        payload = decode_access_token(token)
         if payload.get("role") != "landlord":
             raise HTTPException(
                 status_code=303,
@@ -107,12 +107,12 @@ async def get_current_landlord_api(request: Request) -> AuthPrincipal:
     Enforces UUID path matching: if the route contains {landlordUuid},
     the authenticated landlord's UUID must match the path UUID.
     """
-    token = request.cookies.get("landlord_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
-        payload = decode_landlord_access_token(token)
+        payload = decode_access_token(token)
         if payload.get("role") != "landlord":
             raise HTTPException(status_code=403, detail="Forbidden: Landlord access required")
 

@@ -5,7 +5,7 @@ Set and clear landlord-specific auth cookies.
 Cookie names and path are deliberately separate from admin and tenant cookies
 to prevent any cross-role contamination.
 
-Cookie names : landlord_access_token / landlord_refresh_token
+Cookie names : access_token / refresh_token
 Cookie path  : {root_path}/landlord   (e.g. /rent/landlord)
 """
 from fastapi import Request, Response
@@ -35,7 +35,7 @@ def set_landlord_auth_cookies(
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
 
     response.set_cookie(
-        key="landlord_access_token",
+        key="access_token",
         value=access_token,
         httponly=True,
         secure=True,
@@ -44,7 +44,7 @@ def set_landlord_auth_cookies(
         max_age=15 * 60,
     )
     response.set_cookie(
-        key="landlord_refresh_token",
+        key="refresh_token",
         value=refresh_cookie,
         httponly=True,
         secure=True,
@@ -61,14 +61,14 @@ def clear_landlord_auth_cookies(
     """Remove landlord auth cookies from the browser."""
     cookie_path = _get_landlord_cookie_path(request)
     response.delete_cookie(
-        key="landlord_access_token",
+        key="access_token",
         path=cookie_path,
         httponly=True,
         secure=True,
         samesite="lax",
     )
     response.delete_cookie(
-        key="landlord_refresh_token",
+        key="refresh_token",
         path=cookie_path,
         httponly=True,
         secure=True,

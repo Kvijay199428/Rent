@@ -354,10 +354,11 @@ async def health_check():
         "version": APP_INFO["version"],
         "schema": APP_INFO["schema"],
         "config_loaded": bool(ConfigService().get("system")),
-        "storage_ready": True,  # Monitored at startup
+        "storage_ready": True,
         "database": "SQLite (rent.db)",
-        "database_ready": True, 
-        "uptime": "N/A" # Trackable if needed
+        "database_ready": True,
+        "uptime": "N/A",
+        "broadcast": ConfigService().get("broadcast", {"enabled": False, "message": "", "type": "info", "dismissible": True})
     }
 ```
 
@@ -492,12 +493,12 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
         
     unlocked = False
-    token = request.cookies.get("tenant_access_token")
+    token = request.cookies.get("access_token")
     if token:
-        from app.authentication.tenant.jwt import decode_tenant_access_token
+        from app.authentication.tenant.jwt import decode_access_token
         from app.authentication.tenant.sessions import get_tenant_session_db
         try:
-            payload = decode_tenant_access_token(token)
+            payload = decode_access_token(token)
             if payload.get("role") == "tenant" and int(payload.get("tenantId") or payload.get("sub")) == tenant.id:
                 session_id = payload.get("sid")
                 if get_tenant_session_db(session_id):
@@ -567,11 +568,11 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
             raise HTTPException(status_code=401, detail="Invalid PIN")
 
     from app.authentication.tenant.sessions import create_tenant_session
-    from app.authentication.tenant.jwt import create_tenant_access_token
+    from app.authentication.tenant.jwt import create_access_token
     from app.authentication.tenant.cookies import set_tenant_auth_cookies
 
     session_id, refresh_token = create_tenant_session(tenant.id, request, remember_me=True)
-    access_token = create_tenant_access_token(tenant.id, session_id)
+    access_token = create_access_token(tenant.id, session_id)
     
     set_tenant_auth_cookies(response, access_token, refresh_token, True, request)
     
@@ -827,7 +828,8 @@ async def api_get_config(landlordUuid: str, principal=Depends(get_current_landlo
         "ui": config.get("ui", {}),
         "backup": config.get("backup", {}),
         "whatsapp": config.get("whatsapp", {}),
-        "system": config.get("system", {})
+        "system": config.get("system", {}),
+        "broadcast": config.get("broadcast", {"enabled": False, "message": "", "type": "info", "dismissible": True})
     }
 
 @router.post(Routes.LANDLORDAPISETTINGSUPLOADSIGNATURE, name=Names.APIUPLOADSIGNATURE)
@@ -2803,11 +2805,18 @@ if __name__ == "__main__":
 """
 app/api/sync_ws.py
 
-WebSocket endpoint for real-time sync across all frontend apps.
-Clients subscribe to a channel and receive events when data changes.
+WebSocket endpoints for real-time sync across all frontend apps.
+- /ws/sync  — general data sync (tenants, billing, settings)
+- /ws/auth  — auth state sync (TOTP, password change, session)
+- /ws/health — live system health stream
 """
 
+import asyncio
+import json
 import logging
+import time
+from datetime import datetime
+
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 from app.core.websocket_manager import sync_manager
 
@@ -2815,6 +2824,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_START_TIME = time.time()
+
+
+# ─── /ws/sync — general data sync ───────────────────────────────────────────
 
 @router.websocket("/ws/sync")
 async def sync_websocket(
@@ -2822,14 +2835,15 @@ async def sync_websocket(
     channel: str = Query(...),
 ):
     """
-    WebSocket endpoint for real-time sync.
-    
+    WebSocket endpoint for real-time data sync.
+
     Query params:
       channel: The channel to subscribe to (e.g., "landlord:123", "platform_admin", "global")
-    
+
     Events received:
       { type: "TOTP_STATE_CHANGED", enabled: bool }
       { type: "PASSWORD_RESET", landlordId: int }
+      { type: "AUTH_STATE_CHANGED", role: str, id: int }
       { type: "TENANT_CREATED", tenantId: int }
       { type: "TENANT_UPDATED", tenantId: int }
       { type: "TENANT_DELETED", tenantId: int }
@@ -2838,7 +2852,6 @@ async def sync_websocket(
       { type: "KYC_UPLOADED", occupantUuid: str }
       { type: "SETTINGS_UPDATED", domain: str }
     """
-    # Validate channel format
     allowed_prefixes = ("landlord:", "tenant:", "platform_admin", "global")
     if not any(channel.startswith(p) for p in allowed_prefixes):
         await websocket.close(code=4003, reason="Invalid channel")
@@ -2847,15 +2860,89 @@ async def sync_websocket(
     await sync_manager.connect(websocket, channel)
     try:
         while True:
-            # Keep connection alive; client may send pings
             data = await websocket.receive_text()
             if data == "ping":
                 await websocket.send_text('{"type":"pong"}')
     except WebSocketDisconnect:
         sync_manager.disconnect(websocket, channel)
     except Exception as e:
-        logger.error(f"WS error on channel={channel}: {e}")
+        logger.error(f"WS sync error on channel={channel}: {e}")
         sync_manager.disconnect(websocket, channel)
+
+
+# ─── /ws/auth — auth state sync ─────────────────────────────────────────────
+
+_AUTH_CHANNELS = ("landlord:", "platform_admin")
+
+@router.websocket("/ws/auth")
+async def auth_websocket(
+    websocket: WebSocket,
+    channel: str = Query(...),
+):
+    """
+    WebSocket endpoint for real-time auth state sync.
+
+    Query params:
+      channel: Auth channel (e.g., "landlord:{uuid}", "platform_admin")
+
+    Events received:
+      { type: "AUTH_STATE_CHANGED", role: str, id: int }
+      { type: "TOTP_STATE_CHANGED", enabled: bool, landlordId?: int }
+      { type: "PASSWORD_RESET", landlordId: int }
+    """
+    if not any(channel.startswith(p) for p in _AUTH_CHANNELS):
+        await websocket.close(code=4003, reason="Invalid auth channel")
+        return
+
+    await sync_manager.connect(websocket, channel)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping":
+                await websocket.send_text('{"type":"pong"}')
+    except WebSocketDisconnect:
+        sync_manager.disconnect(websocket, channel)
+    except Exception as e:
+        logger.error(f"WS auth error on channel={channel}: {e}")
+        sync_manager.disconnect(websocket, channel)
+
+
+# ─── /ws/health — live system health ────────────────────────────────────────
+
+def _build_health_snapshot() -> dict:
+    uptime_secs = int(time.time() - _START_TIME)
+    hours, remainder = divmod(uptime_secs, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    uptime_str = f"{hours}h {minutes}m {seconds}s" if hours else f"{minutes}m {seconds}s"
+
+    return {
+        "type": "HEALTH_UPDATE",
+        "status": "ok",
+        "database": "ok",
+        "active_connections": sync_manager.get_total_count(),
+        "uptime": uptime_str,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
+
+
+@router.websocket("/ws/health")
+async def health_websocket(websocket: WebSocket):
+    """
+    WebSocket endpoint for live system health stream.
+    Pushes a health snapshot every 15 seconds.
+    No authentication required — health is public.
+    """
+    await sync_manager.connect(websocket, "health")
+    try:
+        while True:
+            snapshot = _build_health_snapshot()
+            await websocket.send_text(json.dumps(snapshot))
+            await asyncio.sleep(15)
+    except WebSocketDisconnect:
+        sync_manager.disconnect(websocket, "health")
+    except Exception as e:
+        logger.error(f"WS health error: {e}")
+        sync_manager.disconnect(websocket, "health")
 ```
 
 ```python
@@ -3561,7 +3648,7 @@ def set_admin_auth_cookies(response: Response, access_token: str, refresh_token:
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
 
     response.set_cookie(
-        key="admin_access_token",
+        key="access_token",
         value=access_token,
         httponly=True,
         secure=True,
@@ -3570,7 +3657,7 @@ def set_admin_auth_cookies(response: Response, access_token: str, refresh_token:
         max_age=15 * 60,
     )
     response.set_cookie(
-        key="admin_refresh_token",
+        key="refresh_token",
         value=refresh_token,
         httponly=True,
         secure=True,
@@ -3581,8 +3668,8 @@ def set_admin_auth_cookies(response: Response, access_token: str, refresh_token:
 
 def clear_admin_auth_cookies(response: Response, request: Request = None):
     cookie_path = get_admin_cookie_path(request)
-    response.delete_cookie(key="admin_access_token", path=cookie_path, httponly=True, secure=True, samesite="lax")
-    response.delete_cookie(key="admin_refresh_token", path=cookie_path, httponly=True, secure=True, samesite="strict")
+    response.delete_cookie(key="access_token", path=cookie_path, httponly=True, secure=True, samesite="lax")
+    response.delete_cookie(key="refresh_token", path=cookie_path, httponly=True, secure=True, samesite="strict")
 ```
 
 ```python
@@ -3616,7 +3703,7 @@ def decode_admin_access_token(token: str):
 ```python
 // File: app\app\authentication\admin\middleware.py
 from fastapi import Request, HTTPException
-from app.authentication.admin.jwt import decode_admin_access_token
+from app.authentication.admin.jwt import decode_access_token
 from app.authentication.admin.sessions import get_admin_session_db
 from app.authentication.common.principal import AuthPrincipal
 
@@ -3651,13 +3738,13 @@ def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized")
 
 
 async def get_current_admin_page(request: Request) -> AuthPrincipal:
-    token = request.cookies.get("admin_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         logout_url = str(request.url_for("ADMINLOGOUT"))
         raise HTTPException(status_code=303, headers={"Location": logout_url})
 
     try:
-        payload = decode_admin_access_token(token)
+        payload = decode_access_token(token)
         if payload.get("role") != "admin":
             logout_url = str(request.url_for("ADMINLOGOUT"))
             raise HTTPException(status_code=303, headers={"Location": logout_url})
@@ -3684,12 +3771,12 @@ async def get_current_admin_page(request: Request) -> AuthPrincipal:
 
 
 async def get_current_admin_api(request: Request) -> AuthPrincipal:
-    token = request.cookies.get("admin_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         _raise_admin_session_expired(request, "Unauthorized")
 
     try:
-        payload = decode_admin_access_token(token)
+        payload = decode_access_token(token)
         if payload.get("role") != "admin":
             raise HTTPException(status_code=403, detail="Forbidden: Admin access required")
 
@@ -3871,7 +3958,7 @@ Set and clear landlord-specific auth cookies.
 Cookie names and path are deliberately separate from admin and tenant cookies
 to prevent any cross-role contamination.
 
-Cookie names : landlord_access_token / landlord_refresh_token
+Cookie names : access_token / refresh_token
 Cookie path  : {root_path}/landlord   (e.g. /rent/landlord)
 """
 from fastapi import Request, Response
@@ -3901,7 +3988,7 @@ def set_landlord_auth_cookies(
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
 
     response.set_cookie(
-        key="landlord_access_token",
+        key="access_token",
         value=access_token,
         httponly=True,
         secure=True,
@@ -3910,7 +3997,7 @@ def set_landlord_auth_cookies(
         max_age=15 * 60,
     )
     response.set_cookie(
-        key="landlord_refresh_token",
+        key="refresh_token",
         value=refresh_cookie,
         httponly=True,
         secure=True,
@@ -3927,14 +4014,14 @@ def clear_landlord_auth_cookies(
     """Remove landlord auth cookies from the browser."""
     cookie_path = _get_landlord_cookie_path(request)
     response.delete_cookie(
-        key="landlord_access_token",
+        key="access_token",
         path=cookie_path,
         httponly=True,
         secure=True,
         samesite="lax",
     )
     response.delete_cookie(
-        key="landlord_refresh_token",
+        key="refresh_token",
         path=cookie_path,
         httponly=True,
         secure=True,
@@ -4000,7 +4087,7 @@ get_current_landlord_api_strict — like get_current_landlord_api but also block
 from fastapi import HTTPException, Request
 
 from app.authentication.common.principal import AuthPrincipal
-from app.authentication.landlord.jwt import decode_landlord_access_token
+from app.authentication.landlord.jwt import decode_access_token
 from app.authentication.landlord.sessions import get_landlord_session_db
 from app.database.landlord_repository import get_landlord_by_id
 
@@ -4055,7 +4142,7 @@ async def get_current_landlord_page(request: Request) -> AuthPrincipal:
     Dependency for landlord-protected *page* routes.
     Redirects to landlord login page on any auth failure.
     """
-    token = request.cookies.get("landlord_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(
             status_code=303,
@@ -4063,7 +4150,7 @@ async def get_current_landlord_page(request: Request) -> AuthPrincipal:
         )
 
     try:
-        payload = decode_landlord_access_token(token)
+        payload = decode_access_token(token)
         if payload.get("role") != "landlord":
             raise HTTPException(
                 status_code=303,
@@ -4095,12 +4182,12 @@ async def get_current_landlord_api(request: Request) -> AuthPrincipal:
     Enforces UUID path matching: if the route contains {landlordUuid},
     the authenticated landlord's UUID must match the path UUID.
     """
-    token = request.cookies.get("landlord_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
-        payload = decode_landlord_access_token(token)
+        payload = decode_access_token(token)
         if payload.get("role") != "landlord":
             raise HTTPException(status_code=403, detail="Forbidden: Landlord access required")
 
@@ -4277,7 +4364,7 @@ def set_platform_auth_cookies(
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
 
     response.set_cookie(
-        key="platform_access_token",
+        key="access_token",
         value=access_token,
         httponly=True,
         secure=True,
@@ -4286,7 +4373,7 @@ def set_platform_auth_cookies(
         max_age=30 * 60,
     )
     response.set_cookie(
-        key="platform_refresh_token",
+        key="refresh_token",
         value=refresh_token,
         httponly=True,
         secure=True,
@@ -4303,14 +4390,14 @@ def clear_platform_auth_cookies(
     cookie_path = get_platform_cookie_path(request)
     
     response.delete_cookie(
-        key="platform_access_token",
+        key="access_token",
         path=cookie_path,
         httponly=True,
         secure=True,
         samesite="lax",
     )
     response.delete_cookie(
-        key="platform_refresh_token",
+        key="refresh_token",
         path=cookie_path,
         httponly=True,
         secure=True,
@@ -4319,7 +4406,7 @@ def clear_platform_auth_cookies(
 
 
 def get_platform_token(request: Request) -> str:
-    token = request.cookies.get("platform_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return token
@@ -4405,7 +4492,7 @@ def set_tenant_auth_cookies(response: Response, access_token: str, refresh_token
     access_path, refresh_path = _tenant_cookie_paths(request)
 
     response.set_cookie(
-        key="tenant_access_token",
+        key="access_token",
         value=access_token,
         httponly=True,
         secure=True,
@@ -4414,7 +4501,7 @@ def set_tenant_auth_cookies(response: Response, access_token: str, refresh_token
         max_age=15 * 60,
     )
     response.set_cookie(
-        key="tenant_refresh_token",
+        key="refresh_token",
         value=refresh_token,
         httponly=True,
         secure=True,
@@ -4427,14 +4514,14 @@ def clear_tenant_auth_cookies(response: Response, request: Request = None):
     access_path, refresh_path = _tenant_cookie_paths(request)
 
     response.delete_cookie(
-        key="tenant_access_token",
+        key="access_token",
         path=access_path,
         httponly=True,
         secure=True,
         samesite="lax",
     )
     response.delete_cookie(
-        key="tenant_refresh_token",
+        key="refresh_token",
         path=refresh_path,
         httponly=True,
         secure=True,
@@ -4473,7 +4560,7 @@ def decode_tenant_access_token(token: str):
 ```python
 // File: app\app\authentication\tenant\middleware.py
 from fastapi import Request, HTTPException
-from app.authentication.tenant.jwt import decode_tenant_access_token
+from app.authentication.tenant.jwt import decode_access_token
 from app.authentication.tenant.sessions import get_tenant_session_db
 from app.authentication.common.principal import AuthPrincipal
 
@@ -4520,12 +4607,12 @@ def _raise_tenant_session_expired(request: Request, detail: str):
 
 
 async def get_current_tenant(request: Request) -> AuthPrincipal:
-    token = request.cookies.get("tenant_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         _raise_tenant_session_expired(request, "Access token missing. Requires refresh.")
 
     try:
-        payload = decode_tenant_access_token(token)
+        payload = decode_access_token(token)
         if payload.get("role") != "tenant":
             raise HTTPException(status_code=403, detail="Forbidden: Tenant access required")
 
@@ -4717,8 +4804,8 @@ DEFAULT_CONFIGS = {
             "debug": True
         },
         "app": {
-            "title": "Rent Receipt Web Application",
-            "short_name": "RRG Suite",
+            "title": "PROPAURA",
+            "short_name": "PROPAURA",
             "currency_symbol": "₹",
             "locale": "en-IN"
         },
@@ -4740,6 +4827,12 @@ DEFAULT_CONFIGS = {
     "archive": {},
     "pdf": {},
     "features": {},
+    "broadcast": {
+        "enabled": False,
+        "message": "",
+        "type": "info",
+        "dismissible": True
+    },
     "theme": {},
     "validation": {}
 }
@@ -6101,7 +6194,7 @@ class StartupManager:
         @app.on_event("startup")
         async def startup_event():
             print("=" * 50)
-            print("  Rent Receipt System Initialization Complete")
+            print("  PROPAURA Initialization Complete")
             print("=" * 50)
             print("Registered Routes:")
             print(f"{'METHOD':<10} | {'PATH':<40} | {'NAME':<35} | {'TAGS'}")
@@ -6312,14 +6405,14 @@ def update_admin_password(admin_id: int, new_password_hash: str):
         )
         conn.commit()
 
-def get_totp_uri(username: str, totp_secret: str, issuer: str = "Rent Receipt System") -> str:
+def get_totp_uri(username: str, totp_secret: str, issuer: str = "PROPAURA") -> str:
     """Generate TOTP provisioning URI for QR code."""
     return pyotp.totp.TOTP(totp_secret).provisioning_uri(
         name=username,
         issuer_name=issuer
     )
 
-def generate_totp_qr_base64(username: str, totp_secret: str, issuer: str = "Rent Receipt System") -> str:
+def generate_totp_qr_base64(username: str, totp_secret: str, issuer: str = "PROPAURA") -> str:
     """Generate base64 encoded QR code for TOTP setup."""
     uri = get_totp_uri(username, totp_secret, issuer)
     qr = qrcode.make(uri)
@@ -6352,7 +6445,7 @@ def regenerate_totp_secret(admin_id: int) -> str:
 // File: app\app\database\final_schema.py
 """
 FINAL PRODUCTION DATABASE SCHEMA
-Rent Receipt System v3.0.0
+PROPAURA v3.0.0
 Generated: 2026-07-11
 
 This is the single source of truth for the complete database schema.
@@ -7012,7 +7105,7 @@ def update_landlord_totp_secret(landlord_id: int, secret: str):
         conn.commit()
 
 
-def get_totp_uri(username: str, totp_secret: str, issuer: str = "Rent Receipt System") -> str:
+def get_totp_uri(username: str, totp_secret: str, issuer: str = "PROPAURA") -> str:
     """Generate TOTP provisioning URI for QR code."""
     return pyotp.totp.TOTP(totp_secret).provisioning_uri(
         name=username,
@@ -7020,7 +7113,7 @@ def get_totp_uri(username: str, totp_secret: str, issuer: str = "Rent Receipt Sy
     )
 
 
-def generate_totp_qr_base64(username: str, totp_secret: str, issuer: str = "Rent Receipt System") -> str:
+def generate_totp_qr_base64(username: str, totp_secret: str, issuer: str = "PROPAURA") -> str:
     """Generate base64-encoded QR code for TOTP setup."""
     uri = get_totp_uri(username, totp_secret, issuer)
     qr = qrcode.make(uri)
@@ -7873,13 +7966,13 @@ async def serve_landlord_app(request: Request, path: str = ""):
     # Resolver: when hitting /landlord with no path, check session and redirect
     if not path:
         try:
-            token = request.cookies.get("landlord_access_token")
+            token = request.cookies.get("access_token")
             if token:
-                from app.authentication.landlord.jwt import decode_landlord_access_token
+                from app.authentication.landlord.jwt import decode_access_token
                 from app.authentication.landlord.sessions import get_landlord_session_db
                 from app.database.landlord_repository import get_landlord_by_id
 
-                payload = decode_landlord_access_token(token)
+                payload = decode_access_token(token)
                 if payload.get("role") == "landlord":
                     session_id = payload.get("sid")
                     session = get_landlord_session_db(session_id)
@@ -8188,7 +8281,7 @@ async def admin_public_key():
 from fastapi import APIRouter, Depends, Request, Response, HTTPException, Path
 from app.models.auth import LoginRequest, ChangePinRequest
 from app.authentication.common.utils import verify_pin, hash_pin
-from app.authentication.tenant.jwt import create_tenant_access_token
+from app.authentication.tenant.jwt import create_access_token
 from app.authentication.tenant.sessions import create_tenant_session, get_tenant_session_db, revoke_tenant_session_db, revoke_all_tenant_sessions
 from app.authentication.tenant.cookies import set_tenant_auth_cookies, clear_tenant_auth_cookies
 from app.authentication.tenant.middleware import get_current_tenant
@@ -8206,13 +8299,13 @@ def _verify_tenant_viewToken(request: Request, viewToken: str) -> None:
     Validates that the viewToken in the URL path matches the tenant 
     identity from the JWT cookie. Prevents cross-tenant session attacks.
     """
-    token = request.cookies.get("tenant_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Access token missing")
     
-    from app.authentication.tenant.jwt import decode_tenant_access_token
+    from app.authentication.tenant.jwt import decode_access_token
     try:
-        payload = decode_tenant_access_token(token)
+        payload = decode_access_token(token)
         tenantId = int(payload.get("tenantId") or payload.get("sub"))
         
         # Look up tenant's viewToken from database
@@ -8279,7 +8372,7 @@ async def auth_login(tenantId: int, viewToken: str, request: Request, response: 
         
     # Generate Session & Tokens
     session_id, refresh_token = create_tenant_session(tenant["id"], request, payload.remember_me)
-    access_token = create_tenant_access_token(tenant["id"], session_id)
+    access_token = create_access_token(tenant["id"], session_id)
     
     # Format cookie value correctly for rotation
     cookie_val = f"{session_id}:{refresh_token}"
@@ -8301,7 +8394,7 @@ async def auth_refresh(
     # Security: Validate URL viewToken matches cookie JWT identity
     _verify_tenant_viewToken(request, viewToken)
     
-    refresh_token = request.cookies.get("tenant_refresh_token")
+    refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="No refresh token")
         
@@ -8322,7 +8415,7 @@ async def auth_refresh(
     
     # Generate new session & tokens
     new_session_id, new_refresh_token = create_tenant_session(session["tenantId"], request, remember_me=True)
-    new_access_token = create_tenant_access_token(session["tenantId"], new_session_id)
+    new_access_token = create_access_token(session["tenantId"], new_session_id)
     
     # Format cookie value correctly
     new_cookie_val = f"{new_session_id}:{new_refresh_token}"
@@ -8343,11 +8436,11 @@ async def auth_logout(
     # Security: Validate URL viewToken matches cookie JWT identity
     _verify_tenant_viewToken(request, viewToken)
     
-    token = request.cookies.get("tenant_access_token")
+    token = request.cookies.get("access_token")
     if token:
         try:
-            from app.authentication.tenant.jwt import decode_tenant_access_token
-            payload = decode_tenant_access_token(token)
+            from app.authentication.tenant.jwt import decode_access_token
+            payload = decode_access_token(token)
             revoke_tenant_session_db(payload.get("sid"))
             log_audit(int(payload.get("tenantId") or payload.get("sub")), "Logout Success", request.client.host)
         except Exception:
@@ -8375,7 +8468,7 @@ async def auth_logout_all(
 # from fastapi import APIRouter, Depends, Request, Response, HTTPException
 # from app.models.auth import LoginRequest, ChangePinRequest
 # from app.authentication.common.utils import verify_pin, hash_pin
-# from app.authentication.tenant.jwt import create_tenant_access_token
+# from app.authentication.tenant.jwt import create_access_token
 # from app.authentication.tenant.sessions import create_tenant_session, get_tenant_session_db, revoke_tenant_session_db, revoke_all_tenant_sessions
 # from app.authentication.tenant.cookies import set_tenant_auth_cookies, clear_tenant_auth_cookies
 # from app.authentication.tenant.middleware import get_current_tenant
@@ -8424,7 +8517,7 @@ async def auth_logout_all(
         
 #     # Generate Session & Tokens
 #     session_id, refresh_token = create_tenant_session(tenant["id"], request, payload.remember_me)
-#     access_token = create_tenant_access_token(tenant["id"], session_id)
+#     access_token = create_access_token(tenant["id"], session_id)
     
 #     # Format cookie value correctly for rotation
 #     cookie_val = f"{session_id}:{refresh_token}"
@@ -8436,7 +8529,7 @@ async def auth_logout_all(
 # @router.post(Routes.TENANTAPIAUTHREFRESH)
 # async def auth_refresh(request: Request, response: Response):
 #     """Tenant Refresh Token Rotation Flow"""
-#     refresh_token = request.cookies.get("tenant_refresh_token")
+#     refresh_token = request.cookies.get("refresh_token")
 #     if not refresh_token:
 #         raise HTTPException(status_code=401, detail="No refresh token")
         
@@ -8457,7 +8550,7 @@ async def auth_logout_all(
     
 #     # Generate new session & tokens
 #     new_session_id, new_refresh_token = create_tenant_session(session["tenantId"], request, remember_me=True)
-#     new_access_token = create_tenant_access_token(session["tenantId"], new_session_id)
+#     new_access_token = create_access_token(session["tenantId"], new_session_id)
     
 #     # Format cookie value correctly
 #     new_cookie_val = f"{new_session_id}:{new_refresh_token}"
@@ -8467,11 +8560,11 @@ async def auth_logout_all(
 
 # @router.post(Routes.TENANTAPIAUTHLOGOUT)
 # async def auth_logout(request: Request, response: Response):
-#     token = request.cookies.get("tenant_access_token")
+#     token = request.cookies.get("access_token")
 #     if token:
 #         try:
-#             from app.authentication.tenant.jwt import decode_tenant_access_token
-#             payload = decode_tenant_access_token(token)
+#             from app.authentication.tenant.jwt import decode_access_token
+#             payload = decode_access_token(token)
 #             revoke_tenant_session_db(payload.get("sid"))
 #             log_audit(int(payload.get("tenantId") or payload.get("sub")), "Logout Success", request.client.host)
 #         except Exception:
@@ -8742,7 +8835,7 @@ from app.authentication.landlord.cookies import (
     clear_landlord_auth_cookies,
     set_landlord_auth_cookies,
 )
-from app.authentication.landlord.jwt import create_landlord_access_token
+from app.authentication.landlord.jwt import create_access_token
 from app.authentication.landlord.middleware import get_current_landlord_api
 from app.authentication.landlord.sessions import (
     create_landlord_session,
@@ -8980,7 +9073,7 @@ async def landlord_login(
 
     # Check if password change is required (admin reset)
     if landlord["requires_password_change"]:
-        if landlord.get("temp_password_consumed"):
+        if dict(landlord).get("temp_password_consumed"):
             create_landlord_audit_log(
                 landlord["id"],
                 "temp_password_reuse_blocked",
@@ -9005,7 +9098,7 @@ async def landlord_login(
         session_id, refresh_token = create_landlord_session(
             landlord["id"], request, payload.rememberMe
         )
-        access_token = create_landlord_access_token(landlord["id"], session_id)
+        access_token = create_access_token(landlord["id"], session_id)
         cookie_value = f"{session_id}:{refresh_token}"
         set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
 
@@ -9027,7 +9120,7 @@ async def landlord_login(
     session_id, refresh_token = create_landlord_session(
         landlord["id"], request, payload.rememberMe
     )
-    access_token = create_landlord_access_token(landlord["id"], session_id)
+    access_token = create_access_token(landlord["id"], session_id)
     cookie_value = f"{session_id}:{refresh_token}"
 
     set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
@@ -9056,7 +9149,7 @@ async def landlord_logout(request: Request, response: Response):
     Clear landlord cookies and revoke the active session.
     """
     clear_landlord_auth_cookies(response, request)
-    token = request.cookies.get("landlord_refresh_token")
+    token = request.cookies.get("refresh_token")
     if token and ":" in token:
         session_id = token.split(":", 1)[0]
         revoke_landlord_session_db(session_id)
@@ -9067,7 +9160,7 @@ async def landlord_logout(request: Request, response: Response):
 async def landlord_me(principal=Depends(get_current_landlord_api)):
     """
     Return the identity of the currently authenticated landlord.
-    Requires a valid landlord_access_token cookie.
+    Requires a valid access_token cookie.
     Returns TOTP state and password change flag so frontend can sync state.
     """
     with get_conn() as conn:
@@ -9142,7 +9235,7 @@ async def landlord_login_with_totp(
 
     # Check if password change is required (admin reset)
     if landlord["requires_password_change"]:
-        if landlord.get("temp_password_consumed"):
+        if dict(landlord).get("temp_password_consumed"):
             create_landlord_audit_log(
                 landlord["id"],
                 "temp_password_reuse_blocked",
@@ -9165,7 +9258,7 @@ async def landlord_login_with_totp(
         session_id, refresh_token = create_landlord_session(
             landlord["id"], request, payload.rememberMe
         )
-        access_token = create_landlord_access_token(landlord["id"], session_id)
+        access_token = create_access_token(landlord["id"], session_id)
         cookie_value = f"{session_id}:{refresh_token}"
         set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
 
@@ -9186,7 +9279,7 @@ async def landlord_login_with_totp(
     session_id, refresh_token = create_landlord_session(
         landlord["id"], request, payload.rememberMe
     )
-    access_token = create_landlord_access_token(landlord["id"], session_id)
+    access_token = create_access_token(landlord["id"], session_id)
     cookie_value = f"{session_id}:{refresh_token}"
 
     set_landlord_auth_cookies(response, access_token, cookie_value, payload.rememberMe, request)
@@ -9248,12 +9341,12 @@ async def landlord_change_password(
         raise HTTPException(status_code=400, detail="New password must be different from current password.")
 
     # Extract landlord from token
-    token = request.cookies.get("landlord_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    from app.authentication.landlord.jwt import decode_landlord_access_token
-    payload_token = decode_landlord_access_token(token)
+    from app.authentication.landlord.jwt import decode_access_token
+    payload_token = decode_access_token(token)
     landlord_id = int(payload_token.get("landlord_id") or payload_token.get("sub"))
 
     with get_conn() as conn:
@@ -9299,6 +9392,15 @@ async def landlord_change_password(
         "password_changed",
         ip_address=request.client.host if request.client else None,
     )
+
+    # Broadcast auth state change
+    try:
+        from app.core.websocket_manager import sync_manager
+        ll_uuid = landlord["landlord_uuid"]
+        await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
+        await sync_manager.broadcast("platform_admin", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
+    except Exception:
+        pass
 
     # Return TOTP data if configured, so frontend can show QR dialog
     if row and row["totp_secret"]:
@@ -9401,6 +9503,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 from app.core.db import get_conn
+from app.core.config_service import ConfigService
 from app.authentication.platform.jwt import (
     create_platform_access_token,
     decode_platform_access_token,
@@ -9596,7 +9699,7 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
 
 @router.post("/api/auth/refresh")
 async def platform_refresh(request: Request, response: Response):
-    refresh_token = request.cookies.get("platform_refresh_token")
+    refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="No refresh token")
 
@@ -10225,6 +10328,8 @@ async def reset_landlord_password(landlord_id: int, request: Request):
         ll_uuid = landlord["landlord_uuid"]
         await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "PASSWORD_RESET", "landlordId": landlord_id})
         await sync_manager.broadcast("platform_admin", {"type": "PASSWORD_RESET", "landlordId": landlord_id})
+        await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
+        await sync_manager.broadcast("platform_admin", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
     except Exception:
         pass
 
@@ -10409,6 +10514,34 @@ async def system_health(request: Request):
     return stats
 
 
+# ─── Broadcast / Maintenance Message ────────────────────────────────────────
+
+@router.get("/api/broadcast")
+async def get_broadcast():
+    config = ConfigService()
+    return config.get("broadcast", {"enabled": False, "message": "", "type": "info", "dismissible": True})
+
+
+class BroadcastUpdateModel(BaseModel):
+    enabled: bool = False
+    message: str = ""
+    type: str = "info"
+    dismissible: bool = True
+
+
+@router.post("/api/broadcast")
+async def update_broadcast(data: BroadcastUpdateModel):
+    config = ConfigService()
+    broadcast = {
+        "enabled": data.enabled,
+        "message": data.message,
+        "type": data.type,
+        "dismissible": data.dismissible
+    }
+    config.save("broadcast", broadcast)
+    return {"status": "success", "broadcast": broadcast}
+
+
 # ─── SPA serving (AFTER all API routes) ────────────────────────────────────
 
 @router.get("", include_in_schema=False)
@@ -10516,7 +10649,7 @@ def hash_directory(dirpath):
 def create_manifest(backupId, backup_type, timestamp_str):
     schema_conf = config.get("schema", {})
     return {
-        "application": "Rent Receipt System",
+        "application": "PROPAURA",
         "version": "3.0.0",
         "schema": schema_conf.get("receipt_schema", 4),
         "created": timestamp_str,
@@ -14286,8 +14419,8 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "20081", "--proxy
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rent — Rent Management, Simplified</title>
-    <meta name="description" content="A complete digital platform for landlords, tenants, and administrators. Track payments, manage properties, send receipts, and stay compliant." />
+    <title>PROPAURA</title>
+    <meta name="description" content="PROPAURA — A complete digital platform for landlords, tenants, and administrators. Track payments, manage properties, send receipts, and stay compliant." />
     <meta name="theme-color" content="#0d0f17" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   </head>
@@ -16070,6 +16203,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "20081", "--proxy
 // File: frontend\landing-app\src\App.tsx
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
+import BroadcastBanner from "./components/BroadcastBanner";
 import TrustBadges from "./components/TrustBadges";
 import Features from "./components/Features";
 import WhyChoose from "./components/WhyChoose";
@@ -16088,6 +16222,7 @@ export default function App() {
       <div className="orb orb-2" />
       <div className="orb orb-3" />
 
+      <BroadcastBanner />
       <Navbar />
       <main>
         <Hero />
@@ -16103,6 +16238,151 @@ export default function App() {
       </main>
       <Footer />
     </>
+  );
+}
+```
+
+```css
+// File: frontend\landing-app\src\components\BroadcastBanner.css
+.broadcast-banner {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  animation: broadcast-slide-in 0.3s ease-out;
+}
+
+@keyframes broadcast-slide-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.broadcast-info {
+  background: #1e40af;
+  color: #fff;
+}
+
+.broadcast-warning {
+  background: #92400e;
+  color: #fff;
+}
+
+.broadcast-maintenance {
+  background: #991b1b;
+  color: #fff;
+}
+
+.broadcast-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.broadcast-banner-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.broadcast-banner-message {
+  flex: 1;
+}
+
+.broadcast-banner-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.broadcast-banner-close:hover {
+  opacity: 1;
+}
+```
+
+```tsx
+// File: frontend\landing-app\src\components\BroadcastBanner.tsx
+import { useState, useEffect, useCallback } from "react";
+import "./BroadcastBanner.css";
+
+interface BroadcastConfig {
+  enabled: boolean;
+  message: string;
+  type: "info" | "warning" | "maintenance";
+  dismissible: boolean;
+}
+
+interface BroadcastBannerProps {
+  healthUrl?: string;
+}
+
+export default function BroadcastBanner({ healthUrl = "/health" }: BroadcastBannerProps) {
+  const [broadcast, setBroadcast] = useState<BroadcastConfig | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  const fetchBroadcast = useCallback(async () => {
+    try {
+      const res = await fetch(healthUrl, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.broadcast?.enabled && data.broadcast.message) {
+          setBroadcast(data.broadcast);
+        } else {
+          setBroadcast(null);
+        }
+      }
+    } catch {
+      // Silently ignore — broadcast is non-critical
+    }
+  }, [healthUrl]);
+
+  useEffect(() => {
+    fetchBroadcast();
+    const interval = setInterval(fetchBroadcast, 30000);
+    return () => clearInterval(interval);
+  }, [fetchBroadcast]);
+
+  if (!broadcast || dismissed) return null;
+
+  const typeClass = broadcast.type || "info";
+
+  return (
+    <div className={`broadcast-banner broadcast-${typeClass}`}>
+      <div className="broadcast-banner-content">
+        <span className="broadcast-banner-icon">
+          {typeClass === "maintenance" ? "🔧" : typeClass === "warning" ? "⚠️" : "ℹ️"}
+        </span>
+        <span className="broadcast-banner-message">{broadcast.message}</span>
+      </div>
+      {broadcast.dismissible && (
+        <button
+          className="broadcast-banner-close"
+          onClick={() => setDismissed(true)}
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      )}
+    </div>
   );
 }
 ```
@@ -16267,11 +16547,11 @@ export default function Footer() {
       <div className="footer-inner">
         <div className="footer-brand">
           <div className="footer-logo">
-            <span className="logo-icon">R</span>
-            <span className="logo-text">Rent</span>
+            <span className="logo-icon">P</span>
+            <span className="logo-text"><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></span>
           </div>
           <p className="footer-tagline">
-            Rent management for the digital age.
+            &nbsp;
           </p>
         </div>
 
@@ -16297,14 +16577,14 @@ export default function Footer() {
         <div className="footer-col">
           <h4 className="footer-heading">Contact</h4>
           <ul>
-            <li><a href="mailto:support@rent.vijaykrsha.online">support@rent.vijaykrsha.online</a></li>
+            <li><a href="mailto:vijaykrsha@hotmail.com">vijaykrsha@hotmail.com</a></li>
             <li><a href="tel:+919449825584">+91 94498 25584</a></li>
           </ul>
         </div>
       </div>
 
       <div className="footer-bottom">
-        <p>&copy; {new Date().getFullYear()} Rent Management Platform. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} PROPAURA. All rights reserved.</p>
         <div className="footer-bottom-links">
           <a href="#">Privacy Policy</a>
           <a href="#">Terms of Service</a>
@@ -16324,19 +16604,19 @@ export default function Hero() {
     <section className="hero-section" id="hero">
       <div className="hero-animated-logo" aria-hidden="true">
         <div className="animated-logo-placeholder">
-          <span>R</span>
+          <span>P</span>
         </div>
       </div>
 
       <div className="hero-badge">
         <span className="pulse-dot" />
-        Coming Soon — Smarter Rent Management
+        Coming Soon — PROPAURA
       </div>
 
       <h1 className="hero-title">
-        Rent Management,
+        <span style={{color:"#708498"}}>PROP</span>
         <br />
-        <span className="gradient-text">Simplified.</span>
+        <span className="gradient-text"><span style={{color:"#95A58F"}}>AURA</span></span>
       </h1>
 
       <p className="hero-subtitle">
@@ -16378,8 +16658,8 @@ export default function Navbar() {
     <nav className="navbar">
       <div className="navbar-inner">
         <a href="#" className="navbar-logo" aria-label="Home">
-          <span className="logo-icon">R</span>
-          <span className="logo-text">Rent</span>
+          <span className="logo-icon">P</span>
+          <span className="logo-text"><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></span>
         </a>
 
         <ul className={`navbar-links ${mobileOpen ? "open" : ""}`}>
@@ -18119,7 +18399,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
 ```
 // File: frontend\landing-app\tsconfig.tsbuildinfo
-{"root":["./src/app.tsx","./src/data.ts","./src/main.tsx","./src/components/cta.tsx","./src/components/faq.tsx","./src/components/features.tsx","./src/components/featuresgrid.tsx","./src/components/footer.tsx","./src/components/hero.tsx","./src/components/navbar.tsx","./src/components/nextstep.tsx","./src/components/roadmap.tsx","./src/components/security.tsx","./src/components/trustbadges.tsx","./src/components/whychoose.tsx"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/data.ts","./src/main.tsx","./src/components/broadcastbanner.tsx","./src/components/cta.tsx","./src/components/faq.tsx","./src/components/features.tsx","./src/components/featuresgrid.tsx","./src/components/footer.tsx","./src/components/hero.tsx","./src/components/navbar.tsx","./src/components/nextstep.tsx","./src/components/roadmap.tsx","./src/components/security.tsx","./src/components/trustbadges.tsx","./src/components/whychoose.tsx"],"version":"5.9.3"}
 ```
 
 ```typescript
@@ -18249,7 +18529,7 @@ export default defineConfig([
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Rent Receipt System</title>
+    <title>PROPAURA</title>
     <link rel="icon" type="image/svg+xml" href="/rent/admin/favicon.svg" />
   </head>
   <body>
@@ -27006,6 +27286,151 @@ export function ArchiveTenantCard({
 export default ArchiveTenantCard;
 ```
 
+```css
+// File: frontend\landlord-app\src\components\BroadcastBanner.css
+.broadcast-banner {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  animation: broadcast-slide-in 0.3s ease-out;
+}
+
+@keyframes broadcast-slide-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.broadcast-info {
+  background: #1e40af;
+  color: #fff;
+}
+
+.broadcast-warning {
+  background: #92400e;
+  color: #fff;
+}
+
+.broadcast-maintenance {
+  background: #991b1b;
+  color: #fff;
+}
+
+.broadcast-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.broadcast-banner-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.broadcast-banner-message {
+  flex: 1;
+}
+
+.broadcast-banner-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.broadcast-banner-close:hover {
+  opacity: 1;
+}
+```
+
+```tsx
+// File: frontend\landlord-app\src\components\BroadcastBanner.tsx
+import { useState, useEffect, useCallback } from "react";
+import "./BroadcastBanner.css";
+
+interface BroadcastConfig {
+  enabled: boolean;
+  message: string;
+  type: "info" | "warning" | "maintenance";
+  dismissible: boolean;
+}
+
+interface BroadcastBannerProps {
+  healthUrl?: string;
+}
+
+export default function BroadcastBanner({ healthUrl = "/health" }: BroadcastBannerProps) {
+  const [broadcast, setBroadcast] = useState<BroadcastConfig | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  const fetchBroadcast = useCallback(async () => {
+    try {
+      const res = await fetch(healthUrl, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.broadcast?.enabled && data.broadcast.message) {
+          setBroadcast(data.broadcast);
+        } else {
+          setBroadcast(null);
+        }
+      }
+    } catch {
+      // Silently ignore — broadcast is non-critical
+    }
+  }, [healthUrl]);
+
+  useEffect(() => {
+    fetchBroadcast();
+    const interval = setInterval(fetchBroadcast, 30000);
+    return () => clearInterval(interval);
+  }, [fetchBroadcast]);
+
+  if (!broadcast || dismissed) return null;
+
+  const typeClass = broadcast.type || "info";
+
+  return (
+    <div className={`broadcast-banner broadcast-${typeClass}`}>
+      <div className="broadcast-banner-content">
+        <span className="broadcast-banner-icon">
+          {typeClass === "maintenance" ? "🔧" : typeClass === "warning" ? "⚠️" : "ℹ️"}
+        </span>
+        <span className="broadcast-banner-message">{broadcast.message}</span>
+      </div>
+      {broadcast.dismissible && (
+        <button
+          className="broadcast-banner-close"
+          onClick={() => setDismissed(true)}
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
 ```tsx
 // File: frontend\landlord-app\src\components\dashboard\DuePaymentsModal.tsx
 import { useEffect, useMemo, useState } from 'react';
@@ -27856,6 +28281,9 @@ import { Toaster } from '@/components/ui/sonner';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { useAuth } from '@/contexts/AuthContext';
+import BroadcastBanner from '@/components/BroadcastBanner';
+import LoadingScreen from '@/components/LoadingScreen';
+import { ROUTES } from '@/lib/routes';
 
 export default function MainLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -27864,11 +28292,16 @@ export default function MainLayout() {
     return <Navigate to="/login" replace />;
   }
 
+  if (isLoading) {
+    return <LoadingScreen isLoading={true} />;
+  }
+
   return (
     <div className="min-h-screen bg-background flex">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
+        <BroadcastBanner healthUrl={ROUTES.HEALTHCHECK} />
         <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
           <Outlet />
         </main>
@@ -27945,7 +28378,7 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="flex items-center gap-2 px-4 h-14 border-b">
           <ReceiptIcon className="h-5 w-5 text-primary" />
-          <span className="font-bold text-lg">RRG Suite</span>
+          <span className="font-bold text-lg"><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></span>
           <button
             onClick={() => setMobileOpen(false)}
             className="lg:hidden ml-auto p-1 rounded hover:bg-accent"
@@ -27999,6 +28432,111 @@ export default function Sidebar() {
         </div>
       </aside>
     </>
+  );
+}
+```
+
+```css
+// File: frontend\landlord-app\src\components\LoadingScreen.css
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  background: #0b1120;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.loading-screen.loading-fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 48px;
+  font-weight: 800;
+  font-family: system-ui, -apple-system, sans-serif;
+  letter-spacing: 4px;
+}
+
+.loading-prop {
+  color: #708498;
+  animation: text-reveal 0.8s ease-out 0.1s both;
+}
+
+.loading-aura {
+  color: #95A58F;
+  animation: text-reveal 0.8s ease-out 0.4s both;
+}
+
+@keyframes text-reveal {
+  0% {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(149, 165, 143, 0.2);
+  border-top-color: #95A58F;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+```
+
+```tsx
+// File: frontend\landlord-app\src\components\LoadingScreen.tsx
+import { useState, useEffect } from "react";
+import "./LoadingScreen.css";
+
+interface LoadingScreenProps {
+  isLoading: boolean;
+}
+
+export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
+  const [visible, setVisible] = useState(true);
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && visible) {
+      setFading(true);
+      const timer = setTimeout(() => setVisible(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
+      <div className="loading-brand">
+        <span className="loading-prop">PROP</span>
+        <span className="loading-aura">AURA</span>
+      </div>
+      <div className="loading-spinner" />
+    </div>
   );
 }
 ```
@@ -38333,6 +38871,7 @@ import {
 import { ROUTES } from "@/lib/routes";
 import { extractLandlordUuid } from "@/lib/runtime";
 import { apiPost } from "@/hooks/useApi";
+import { useAuthSync } from "@/hooks/useAuthSync";
 
 type LoginResult =
   | { status: "success"; landlordUuid: string }
@@ -38543,6 +39082,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.location.assign(ROUTES.LANDLORDPAGELOGIN);
     }
   }, []);
+
+  // Real-time auth state sync via WebSocket
+  const authChannel = landlordUuid ? `landlord:${landlordUuid}` : "";
+  useAuthSync(
+    authChannel,
+    useCallback(
+      (event) => {
+        if (
+          event.type === "AUTH_STATE_CHANGED" ||
+          event.type === "TOTP_STATE_CHANGED" ||
+          event.type === "PASSWORD_RESET"
+        ) {
+          refreshMe();
+        }
+      },
+      [refreshMe]
+    ),
+    isAuthenticated && !!landlordUuid
+  );
 
   return (
     <AuthContext.Provider
@@ -38816,6 +39374,91 @@ export async function apiPost(endpoint: string, body: any) {
   }
 
   return readJsonSafe(res);
+}
+```
+
+```typescript
+// File: frontend\landlord-app\src\hooks\useAuthSync.ts
+import { useEffect, useRef } from "react";
+import { API_BASE } from "@/lib/runtime";
+
+export interface AuthSyncEvent {
+  type: string;
+  [key: string]: any;
+}
+
+type AuthEventHandler = (event: AuthSyncEvent) => void;
+
+/**
+ * Subscribe to real-time auth state changes via WebSocket.
+ * Connects to /ws/auth and listens for AUTH_STATE_CHANGED, TOTP_STATE_CHANGED, PASSWORD_RESET.
+ * Automatically reconnects on disconnect.
+ *
+ * @param channel - Auth channel (e.g., "landlord:{uuid}")
+ * @param onEvent - Callback invoked when an auth event is received
+ * @param enabled - Whether to enable the connection (default: true)
+ */
+export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled = true) {
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
+
+  useEffect(() => {
+    if (!enabled || !channel) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let unmounted = false;
+
+    function connect() {
+      if (unmounted) return;
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}${API_BASE}/ws/auth?channel=${encodeURIComponent(channel)}`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        pingTimer = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send("ping");
+          }
+        }, 30000);
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          if (event.type !== "pong") {
+            onEventRef.current(event);
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      };
+
+      ws.onclose = () => {
+        if (pingTimer) clearInterval(pingTimer);
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (pingTimer) clearInterval(pingTimer);
+      ws?.close();
+    };
+  }, [channel, enabled]);
 }
 ```
 
@@ -39642,7 +40285,7 @@ export default function AdminSetupPage() {
           </div>
           <CardTitle className="text-2xl text-center">Initial Setup</CardTitle>
           <CardDescription className="text-center">
-            Create your admin account to get started with Rent Receipt System
+            Create your admin account to get started with PROPAURA
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -42703,7 +43346,7 @@ export default function Login() {
         </div>
 
         <div className="text-center mt-4">
-          <span className="text-xs text-muted-foreground">Rent Receipt System v3.0.0</span>
+          <span className="text-xs text-muted-foreground">PROPAURA v3.0.0</span>
         </div>
       </div>
     </div>
@@ -46358,7 +47001,7 @@ export default defineConfig({
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Platform Admin</title>
+    <title>PROPAURA — Admin</title>
   </head>
   <body>
     <div id="root"></div>
@@ -48189,6 +48832,8 @@ export const fetchApi = (path: string) => fetch(`${API_BASE}${path}`);
 // File: frontend\platform-admin-app\src\App.tsx
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth, AuthProvider } from "./contexts/AuthContext";
+import BroadcastBanner from "./components/BroadcastBanner";
+import LoadingScreen from "./components/LoadingScreen";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import LandlordsPage from "./pages/LandlordsPage";
@@ -48199,14 +48844,7 @@ import SettingsPage from "./pages/SettingsPage";
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { admin, loading } = useAuth();
   if (loading) {
-    return (
-      <div style={{
-        minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-        fontFamily: "system-ui, sans-serif", color: "#9ca3af", fontSize: 16,
-      }}>
-        Loading…
-      </div>
-    );
+    return <LoadingScreen isLoading={true} />;
   }
   if (!admin) return <Navigate to="/login" replace />;
   return <>{children}</>;
@@ -48230,8 +48868,154 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
+      <BroadcastBanner />
       <AppRoutes />
     </AuthProvider>
+  );
+}
+```
+
+```css
+// File: frontend\platform-admin-app\src\components\BroadcastBanner.css
+.broadcast-banner {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  animation: broadcast-slide-in 0.3s ease-out;
+}
+
+@keyframes broadcast-slide-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.broadcast-info {
+  background: #1e40af;
+  color: #fff;
+}
+
+.broadcast-warning {
+  background: #92400e;
+  color: #fff;
+}
+
+.broadcast-maintenance {
+  background: #991b1b;
+  color: #fff;
+}
+
+.broadcast-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.broadcast-banner-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.broadcast-banner-message {
+  flex: 1;
+}
+
+.broadcast-banner-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.broadcast-banner-close:hover {
+  opacity: 1;
+}
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\components\BroadcastBanner.tsx
+import { useState, useEffect, useCallback } from "react";
+import "./BroadcastBanner.css";
+
+interface BroadcastConfig {
+  enabled: boolean;
+  message: string;
+  type: "info" | "warning" | "maintenance";
+  dismissible: boolean;
+}
+
+interface BroadcastBannerProps {
+  healthUrl?: string;
+}
+
+export default function BroadcastBanner({ healthUrl = "/health" }: BroadcastBannerProps) {
+  const [broadcast, setBroadcast] = useState<BroadcastConfig | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  const fetchBroadcast = useCallback(async () => {
+    try {
+      const res = await fetch(healthUrl, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.broadcast?.enabled && data.broadcast.message) {
+          setBroadcast(data.broadcast);
+        } else {
+          setBroadcast(null);
+        }
+      }
+    } catch {
+      // Silently ignore — broadcast is non-critical
+    }
+  }, [healthUrl]);
+
+  useEffect(() => {
+    fetchBroadcast();
+    const interval = setInterval(fetchBroadcast, 30000);
+    return () => clearInterval(interval);
+  }, [fetchBroadcast]);
+
+  if (!broadcast || dismissed) return null;
+
+  const typeClass = broadcast.type || "info";
+
+  return (
+    <div className={`broadcast-banner broadcast-${typeClass}`}>
+      <div className="broadcast-banner-content">
+        <span className="broadcast-banner-icon">
+          {typeClass === "maintenance" ? "🔧" : typeClass === "warning" ? "⚠️" : "ℹ️"}
+        </span>
+        <span className="broadcast-banner-message">{broadcast.message}</span>
+      </div>
+      {broadcast.dismissible && (
+        <button
+          className="broadcast-banner-close"
+          onClick={() => setDismissed(true)}
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      )}
+    </div>
   );
 }
 ```
@@ -48272,7 +49056,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         zIndex: 100,
       }}>
         <div style={{ padding: "0 20px 24px", borderBottom: "1px solid #2c2f3f" }}>
-          <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}>Platform Admin</p>
+          <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></p>
           <p style={{ fontSize: 14, fontWeight: 600, color: "#e9ecf2", margin: 0 }}>Control Panel</p>
         </div>
         <nav style={{ flex: 1, padding: "16px 12px" }}>
@@ -48323,10 +49107,116 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 }
 ```
 
+```css
+// File: frontend\platform-admin-app\src\components\LoadingScreen.css
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  background: #0b1120;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.loading-screen.loading-fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 48px;
+  font-weight: 800;
+  font-family: system-ui, -apple-system, sans-serif;
+  letter-spacing: 4px;
+}
+
+.loading-prop {
+  color: #708498;
+  animation: text-reveal 0.8s ease-out 0.1s both;
+}
+
+.loading-aura {
+  color: #95A58F;
+  animation: text-reveal 0.8s ease-out 0.4s both;
+}
+
+@keyframes text-reveal {
+  0% {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(149, 165, 143, 0.2);
+  border-top-color: #95A58F;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+```
+
+```tsx
+// File: frontend\platform-admin-app\src\components\LoadingScreen.tsx
+import { useState, useEffect } from "react";
+import "./LoadingScreen.css";
+
+interface LoadingScreenProps {
+  isLoading: boolean;
+}
+
+export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
+  const [visible, setVisible] = useState(true);
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && visible) {
+      setFading(true);
+      const timer = setTimeout(() => setVisible(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
+      <div className="loading-brand">
+        <span className="loading-prop">PROP</span>
+        <span className="loading-aura">AURA</span>
+      </div>
+      <div className="loading-spinner" />
+    </div>
+  );
+}
+```
+
 ```tsx
 // File: frontend\platform-admin-app\src\contexts\AuthContext.tsx
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { API_BASE } from "../lib/runtime";
+import { useAuthSync } from "../hooks/useAuthSync";
 
 interface Admin {
   id: number;
@@ -48413,6 +49303,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     pendingCreds.current = null;
   }, []);
 
+  const refreshMe = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setAdmin(data);
+      }
+    } catch {
+      // Ignore — non-critical
+    }
+  }, []);
+
+  // Real-time auth state sync via WebSocket
+  useAuthSync(
+    "platform_admin",
+    useCallback(
+      (event) => {
+        if (
+          event.type === "AUTH_STATE_CHANGED" ||
+          event.type === "TOTP_STATE_CHANGED" ||
+          event.type === "PASSWORD_RESET"
+        ) {
+          refreshMe();
+        }
+      },
+      [refreshMe]
+    ),
+    !!admin
+  );
+
   return (
     <AuthContext.Provider value={{ admin, loading, login, loginTOTP, logout }}>
       {children}
@@ -48424,6 +49344,168 @@ export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
+}
+```
+
+```typescript
+// File: frontend\platform-admin-app\src\hooks\useAuthSync.ts
+import { useEffect, useRef } from "react";
+import { API_BASE } from "../lib/runtime";
+
+export interface AuthSyncEvent {
+  type: string;
+  [key: string]: any;
+}
+
+type AuthEventHandler = (event: AuthSyncEvent) => void;
+
+/**
+ * Subscribe to real-time auth state changes via WebSocket.
+ * Connects to /ws/auth and listens for AUTH_STATE_CHANGED, TOTP_STATE_CHANGED, PASSWORD_RESET.
+ * Automatically reconnects on disconnect.
+ *
+ * @param channel - Auth channel (e.g., "landlord:{uuid}")
+ * @param onEvent - Callback invoked when an auth event is received
+ * @param enabled - Whether to enable the connection (default: true)
+ */
+export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled = true) {
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
+
+  useEffect(() => {
+    if (!enabled || !channel) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let unmounted = false;
+
+    function connect() {
+      if (unmounted) return;
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}${API_BASE}/ws/auth?channel=${encodeURIComponent(channel)}`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        pingTimer = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send("ping");
+          }
+        }, 30000);
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          if (event.type !== "pong") {
+            onEventRef.current(event);
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      };
+
+      ws.onclose = () => {
+        if (pingTimer) clearInterval(pingTimer);
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (pingTimer) clearInterval(pingTimer);
+      ws?.close();
+    };
+  }, [channel, enabled]);
+}
+```
+
+```typescript
+// File: frontend\platform-admin-app\src\hooks\useHealthStream.ts
+import { useEffect, useRef, useState } from "react";
+import { API_BASE } from "../lib/runtime";
+
+export interface HealthSnapshot {
+  type: string;
+  status: string;
+  database: string;
+  active_connections: number;
+  uptime: string;
+  timestamp: string;
+}
+
+/**
+ * Subscribe to real-time system health via WebSocket.
+ * Connects to /ws/health and receives periodic health snapshots (every 15s).
+ * Automatically reconnects on disconnect.
+ *
+ * @param enabled - Whether to enable the stream (default: true)
+ */
+export function useHealthStream(enabled = true) {
+  const [health, setHealth] = useState<HealthSnapshot | null>(null);
+  const healthRef = useRef(health);
+  healthRef.current = health;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let unmounted = false;
+
+    function connect() {
+      if (unmounted) return;
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const host = window.location.host;
+      const wsUrl = `${protocol}//${host}${API_BASE}/ws/health`;
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (e) => {
+        try {
+          const snapshot = JSON.parse(e.data);
+          if (snapshot.type === "HEALTH_UPDATE") {
+            setHealth(snapshot);
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      };
+
+      ws.onclose = () => {
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 5000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, [enabled]);
+
+  return health;
 }
 ```
 
@@ -49759,6 +50841,7 @@ const inputStyle: React.CSSProperties = {
 import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { API_BASE } from "../lib/runtime";
+import { useHealthStream } from "../hooks/useHealthStream";
 
 interface Profile {
   id: number;
@@ -49771,6 +50854,7 @@ interface Profile {
 }
 
 export default function SettingsPage() {
+  const health = useHealthStream();
   const [profile, setProfile] = useState<Profile | null>(null);
 
   const [username, setUsername] = useState("");
@@ -49972,7 +51056,7 @@ export default function SettingsPage() {
             {[
               ["API Base", "/rent/platform-admin/api"],
               ["Frontend Base", "/rent/platform-admin"],
-              ["Auth Scope", "Cookie: platform_access_token"],
+              ["Auth Scope", "Cookie: access_token"],
             ].map(([label, value]) => (
               <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
                 <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>
@@ -49981,6 +51065,38 @@ export default function SettingsPage() {
             ))}
           </tbody>
         </table>
+
+        {health && (
+          <>
+            <h2 style={{ margin: "20px 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Live Health</h2>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <tbody>
+                {[
+                  ["Status", health.status],
+                  ["Database", health.database],
+                  ["Active Connections", String(health.active_connections)],
+                  ["Uptime", health.uptime],
+                  ["Last Update", new Date(health.timestamp).toLocaleTimeString()],
+                ].map(([label, value]) => (
+                  <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>
+                    <td style={{ padding: "12px 0" }}>
+                      <code style={{
+                        background: label === "Status" || label === "Database"
+                          ? value === "ok" ? "#dcfce7" : "#fef2f2"
+                          : "#f1f5f9",
+                        color: label === "Status" || label === "Database"
+                          ? value === "ok" ? "#16a34a" : "#dc2626"
+                          : "inherit",
+                        padding: "2px 8px", borderRadius: 6,
+                      }}>{value}</code>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
       </div>
     </Layout>
   );
@@ -50031,7 +51147,7 @@ const errorStyle: React.CSSProperties = {
 
 ```
 // File: frontend\platform-admin-app\tsconfig.tsbuildinfo
-{"root":["./src/app.tsx","./src/main.tsx","./src/api/client.ts","./src/components/layout.tsx","./src/contexts/authcontext.tsx","./src/lib/runtime.ts","./src/pages/dashboardpage.tsx","./src/pages/dataexplorerpage.tsx","./src/pages/landlorddetailpage.tsx","./src/pages/landlordspage.tsx","./src/pages/loginpage.tsx","./src/pages/settingspage.tsx"],"version":"5.9.3"}
+{"root":["./src/app.tsx","./src/main.tsx","./src/api/client.ts","./src/components/broadcastbanner.tsx","./src/components/layout.tsx","./src/components/loadingscreen.tsx","./src/contexts/authcontext.tsx","./src/hooks/useauthsync.ts","./src/hooks/usehealthstream.ts","./src/lib/runtime.ts","./src/pages/dashboardpage.tsx","./src/pages/dataexplorerpage.tsx","./src/pages/landlorddetailpage.tsx","./src/pages/landlordspage.tsx","./src/pages/loginpage.tsx","./src/pages/settingspage.tsx"],"version":"5.9.3"}
 ```
 
 ```typescript
@@ -50092,7 +51208,7 @@ dist-ssr
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>My Rent Profile</title>
+  <title>PROPAURA</title>
   <link rel="icon" type="image/svg+xml" href="/rent/admin/favicon.svg" />
 </head>
 <body>
@@ -53453,6 +54569,8 @@ import { useState, useMemo } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useTenant } from "@/context/TenantContext";
 import LoginModal from "@/components/LoginModal";
+import BroadcastBanner from "@/components/BroadcastBanner";
+import LoadingScreen from "@/components/LoadingScreen";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { toast } from "sonner";
 import { ReceiptRoller } from "@/components/receipts";
@@ -53497,7 +54615,7 @@ function TenantPortal() {
   }, [receipts]);
 
   if (isLoading) {
-    return <DashboardSkeleton />;
+    return <LoadingScreen isLoading={true} />;
   }
 
   if (!tenant) {
@@ -53537,11 +54655,12 @@ function TenantPortal() {
 
   return (
     <div className="min-h-screen bg-muted/30">
+      <BroadcastBanner />
       <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">Welcome, {tenant.name}</h1>
-            <p className="text-sm text-muted-foreground">Tenant portal</p>
+            <p className="text-sm text-muted-foreground"><span style={{color:"#708498", fontWeight: 600}}>PROP</span><span style={{color:"#95A58F", fontWeight: 600}}>AURA</span> — Tenant</p>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -53850,6 +54969,151 @@ export default function ArchiveReceiptCard({
 }
 ```
 
+```css
+// File: frontend\tenant-app\src\components\BroadcastBanner.css
+.broadcast-banner {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  animation: broadcast-slide-in 0.3s ease-out;
+}
+
+@keyframes broadcast-slide-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.broadcast-info {
+  background: #1e40af;
+  color: #fff;
+}
+
+.broadcast-warning {
+  background: #92400e;
+  color: #fff;
+}
+
+.broadcast-maintenance {
+  background: #991b1b;
+  color: #fff;
+}
+
+.broadcast-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.broadcast-banner-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.broadcast-banner-message {
+  flex: 1;
+}
+
+.broadcast-banner-close {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.broadcast-banner-close:hover {
+  opacity: 1;
+}
+```
+
+```tsx
+// File: frontend\tenant-app\src\components\BroadcastBanner.tsx
+import { useState, useEffect, useCallback } from "react";
+import "./BroadcastBanner.css";
+
+interface BroadcastConfig {
+  enabled: boolean;
+  message: string;
+  type: "info" | "warning" | "maintenance";
+  dismissible: boolean;
+}
+
+interface BroadcastBannerProps {
+  healthUrl?: string;
+}
+
+export default function BroadcastBanner({ healthUrl = "/health" }: BroadcastBannerProps) {
+  const [broadcast, setBroadcast] = useState<BroadcastConfig | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  const fetchBroadcast = useCallback(async () => {
+    try {
+      const res = await fetch(healthUrl, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.broadcast?.enabled && data.broadcast.message) {
+          setBroadcast(data.broadcast);
+        } else {
+          setBroadcast(null);
+        }
+      }
+    } catch {
+      // Silently ignore — broadcast is non-critical
+    }
+  }, [healthUrl]);
+
+  useEffect(() => {
+    fetchBroadcast();
+    const interval = setInterval(fetchBroadcast, 30000);
+    return () => clearInterval(interval);
+  }, [fetchBroadcast]);
+
+  if (!broadcast || dismissed) return null;
+
+  const typeClass = broadcast.type || "info";
+
+  return (
+    <div className={`broadcast-banner broadcast-${typeClass}`}>
+      <div className="broadcast-banner-content">
+        <span className="broadcast-banner-icon">
+          {typeClass === "maintenance" ? "🔧" : typeClass === "warning" ? "⚠️" : "ℹ️"}
+        </span>
+        <span className="broadcast-banner-message">{broadcast.message}</span>
+      </div>
+      {broadcast.dismissible && (
+        <button
+          className="broadcast-banner-close"
+          onClick={() => setDismissed(true)}
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
 ```tsx
 // File: frontend\tenant-app\src\components\ErrorBoundary.tsx
 import { Component, type ReactNode } from "react";
@@ -53887,6 +55151,111 @@ export default class ErrorBoundary extends Component<Props, State> {
     }
     return this.props.children;
   }
+}
+```
+
+```css
+// File: frontend\tenant-app\src\components\LoadingScreen.css
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  background: #0b1120;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.loading-screen.loading-fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-brand {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 48px;
+  font-weight: 800;
+  font-family: system-ui, -apple-system, sans-serif;
+  letter-spacing: 4px;
+}
+
+.loading-prop {
+  color: #708498;
+  animation: text-reveal 0.8s ease-out 0.1s both;
+}
+
+.loading-aura {
+  color: #95A58F;
+  animation: text-reveal 0.8s ease-out 0.4s both;
+}
+
+@keyframes text-reveal {
+  0% {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(149, 165, 143, 0.2);
+  border-top-color: #95A58F;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+```
+
+```tsx
+// File: frontend\tenant-app\src\components\LoadingScreen.tsx
+import { useState, useEffect } from "react";
+import "./LoadingScreen.css";
+
+interface LoadingScreenProps {
+  isLoading: boolean;
+}
+
+export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
+  const [visible, setVisible] = useState(true);
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && visible) {
+      setFading(true);
+      const timer = setTimeout(() => setVisible(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
+      <div className="loading-brand">
+        <span className="loading-prop">PROP</span>
+        <span className="loading-aura">AURA</span>
+      </div>
+      <div className="loading-spinner" />
+    </div>
+  );
 }
 ```
 

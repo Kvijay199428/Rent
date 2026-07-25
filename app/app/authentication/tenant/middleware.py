@@ -1,5 +1,5 @@
 from fastapi import Request, HTTPException
-from app.authentication.tenant.jwt import decode_tenant_access_token
+from app.authentication.tenant.jwt import decode_access_token
 from app.authentication.tenant.sessions import get_tenant_session_db
 from app.authentication.common.principal import AuthPrincipal
 
@@ -46,12 +46,12 @@ def _raise_tenant_session_expired(request: Request, detail: str):
 
 
 async def get_current_tenant(request: Request) -> AuthPrincipal:
-    token = request.cookies.get("tenant_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         _raise_tenant_session_expired(request, "Access token missing. Requires refresh.")
 
     try:
-        payload = decode_tenant_access_token(token)
+        payload = decode_access_token(token)
         if payload.get("role") != "tenant":
             raise HTTPException(status_code=403, detail="Forbidden: Tenant access required")
 

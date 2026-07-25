@@ -26,7 +26,7 @@ def set_tenant_auth_cookies(response: Response, access_token: str, refresh_token
     access_path, refresh_path = _tenant_cookie_paths(request)
 
     response.set_cookie(
-        key="tenant_access_token",
+        key="access_token",
         value=access_token,
         httponly=True,
         secure=True,
@@ -35,7 +35,7 @@ def set_tenant_auth_cookies(response: Response, access_token: str, refresh_token
         max_age=15 * 60,
     )
     response.set_cookie(
-        key="tenant_refresh_token",
+        key="refresh_token",
         value=refresh_token,
         httponly=True,
         secure=True,
@@ -48,14 +48,14 @@ def clear_tenant_auth_cookies(response: Response, request: Request = None):
     access_path, refresh_path = _tenant_cookie_paths(request)
 
     response.delete_cookie(
-        key="tenant_access_token",
+        key="access_token",
         path=access_path,
         httponly=True,
         secure=True,
         samesite="lax",
     )
     response.delete_cookie(
-        key="tenant_refresh_token",
+        key="refresh_token",
         path=refresh_path,
         httponly=True,
         secure=True,

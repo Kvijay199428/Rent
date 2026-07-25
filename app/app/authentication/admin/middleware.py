@@ -1,5 +1,5 @@
 from fastapi import Request, HTTPException
-from app.authentication.admin.jwt import decode_admin_access_token
+from app.authentication.admin.jwt import decode_access_token
 from app.authentication.admin.sessions import get_admin_session_db
 from app.authentication.common.principal import AuthPrincipal
 
@@ -34,13 +34,13 @@ def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized")
 
 
 async def get_current_admin_page(request: Request) -> AuthPrincipal:
-    token = request.cookies.get("admin_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         logout_url = str(request.url_for("ADMINLOGOUT"))
         raise HTTPException(status_code=303, headers={"Location": logout_url})
 
     try:
-        payload = decode_admin_access_token(token)
+        payload = decode_access_token(token)
         if payload.get("role") != "admin":
             logout_url = str(request.url_for("ADMINLOGOUT"))
             raise HTTPException(status_code=303, headers={"Location": logout_url})
@@ -67,12 +67,12 @@ async def get_current_admin_page(request: Request) -> AuthPrincipal:
 
 
 async def get_current_admin_api(request: Request) -> AuthPrincipal:
-    token = request.cookies.get("admin_access_token")
+    token = request.cookies.get("access_token")
     if not token:
         _raise_admin_session_expired(request, "Unauthorized")
 
     try:
-        payload = decode_admin_access_token(token)
+        payload = decode_access_token(token)
         if payload.get("role") != "admin":
             raise HTTPException(status_code=403, detail="Forbidden: Admin access required")
 

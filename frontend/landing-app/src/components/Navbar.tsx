@@ -8,7 +8,7 @@ export default function Navbar() {
     <nav className="navbar">
       <div className="navbar-inner">
         <a href="#" className="navbar-logo" aria-label="Home">
-          <span className="logo-icon">P</span>
+          <span className="logo-icon" style={{width: 36, height: 36, fontSize: 18}}>P</span>
           <span className="logo-text"><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></span>
         </a>
 
