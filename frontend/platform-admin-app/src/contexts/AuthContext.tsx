@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { API_BASE } from "../lib/runtime";
+import { useAuthSync } from "../hooks/useAuthSync";
 
 interface Admin {
   id: number;
@@ -85,6 +86,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAdmin(null);
     pendingCreds.current = null;
   }, []);
+
+  const refreshMe = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setAdmin(data);
+      }
+    } catch {
+      // Ignore — non-critical
+    }
+  }, []);
+
+  // Real-time auth state sync via WebSocket
+  useAuthSync(
+    "platform_admin",
+    useCallback(
+      (event) => {
+        if (
+          event.type === "AUTH_STATE_CHANGED" ||
+          event.type === "TOTP_STATE_CHANGED" ||
+          event.type === "PASSWORD_RESET"
+        ) {
+          refreshMe();
+        }
+      },
+      [refreshMe]
+    ),
+    !!admin
+  );
 
   return (
     <AuthContext.Provider value={{ admin, loading, login, loginTOTP, logout }}>

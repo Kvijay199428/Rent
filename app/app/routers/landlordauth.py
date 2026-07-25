@@ -583,6 +583,15 @@ async def landlord_change_password(
         ip_address=request.client.host if request.client else None,
     )
 
+    # Broadcast auth state change
+    try:
+        from app.core.websocket_manager import sync_manager
+        ll_uuid = landlord["landlord_uuid"]
+        await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
+        await sync_manager.broadcast("platform_admin", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
+    except Exception:
+        pass
+
     # Return TOTP data if configured, so frontend can show QR dialog
     if row and row["totp_secret"]:
         qr_base64 = generate_totp_qr_base64(landlord["username"] if landlord else "", row["totp_secret"])

@@ -846,6 +846,8 @@ async def reset_landlord_password(landlord_id: int, request: Request):
         ll_uuid = landlord["landlord_uuid"]
         await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "PASSWORD_RESET", "landlordId": landlord_id})
         await sync_manager.broadcast("platform_admin", {"type": "PASSWORD_RESET", "landlordId": landlord_id})
+        await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
+        await sync_manager.broadcast("platform_admin", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
     except Exception:
         pass
 

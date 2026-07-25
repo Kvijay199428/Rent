@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
 import { API_BASE } from "../lib/runtime";
+import { useHealthStream } from "../hooks/useHealthStream";
 
 interface Profile {
   id: number;
@@ -13,6 +14,7 @@ interface Profile {
 }
 
 export default function SettingsPage() {
+  const health = useHealthStream();
   const [profile, setProfile] = useState<Profile | null>(null);
 
   const [username, setUsername] = useState("");
@@ -223,6 +225,38 @@ export default function SettingsPage() {
             ))}
           </tbody>
         </table>
+
+        {health && (
+          <>
+            <h2 style={{ margin: "20px 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Live Health</h2>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <tbody>
+                {[
+                  ["Status", health.status],
+                  ["Database", health.database],
+                  ["Active Connections", String(health.active_connections)],
+                  ["Uptime", health.uptime],
+                  ["Last Update", new Date(health.timestamp).toLocaleTimeString()],
+                ].map(([label, value]) => (
+                  <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>
+                    <td style={{ padding: "12px 0" }}>
+                      <code style={{
+                        background: label === "Status" || label === "Database"
+                          ? value === "ok" ? "#dcfce7" : "#fef2f2"
+                          : "#f1f5f9",
+                        color: label === "Status" || label === "Database"
+                          ? value === "ok" ? "#16a34a" : "#dc2626"
+                          : "inherit",
+                        padding: "2px 8px", borderRadius: 6,
+                      }}>{value}</code>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
       </div>
     </Layout>
   );

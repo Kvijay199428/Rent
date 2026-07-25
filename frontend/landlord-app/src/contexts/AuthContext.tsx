@@ -9,6 +9,7 @@ import {
 import { ROUTES } from "@/lib/routes";
 import { extractLandlordUuid } from "@/lib/runtime";
 import { apiPost } from "@/hooks/useApi";
+import { useAuthSync } from "@/hooks/useAuthSync";
 
 type LoginResult =
   | { status: "success"; landlordUuid: string }
@@ -219,6 +220,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.location.assign(ROUTES.LANDLORDPAGELOGIN);
     }
   }, []);
+
+  // Real-time auth state sync via WebSocket
+  const authChannel = landlordUuid ? `landlord:${landlordUuid}` : "";
+  useAuthSync(
+    authChannel,
+    useCallback(
+      (event) => {
+        if (
+          event.type === "AUTH_STATE_CHANGED" ||
+          event.type === "TOTP_STATE_CHANGED" ||
+          event.type === "PASSWORD_RESET"
+        ) {
+          refreshMe();
+        }
+      },
+      [refreshMe]
+    ),
+    isAuthenticated && !!landlordUuid
+  );
 
   return (
     <AuthContext.Provider
