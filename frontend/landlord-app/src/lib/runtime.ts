@@ -2,6 +2,7 @@
  * src/lib/runtime.ts
  * Determines base paths dynamically at runtime based on the actual URL.
  */
+import { getApiBaseUrl } from "@shared/api-config";
 
 function getAppBase(): string {
   const path = window.location.pathname;
@@ -9,11 +10,11 @@ function getAppBase(): string {
   // Match /landlord/{uuid} when accessed directly (e.g. /landlord/abc-123/dashboard)
   // Falls back to /{prefix}/landlord or /landlord for login/signup (no UUID in URL)
   const match = path.match(/^(\/[^/]+)?\/landlord(\/[a-f0-9-]+)?/);
-  return match ? match[0] : '/landlord';
+  return match ? match[0] : '/rent/landlord';
 }
 
 export const APP_BASE = getAppBase();
-export const API_BASE = APP_BASE;
+export const API_BASE = getApiBaseUrl() + "/rent";
 
 export function extractLandlordUuid(): string | null {
   const path = window.location.pathname;
@@ -22,9 +23,6 @@ export function extractLandlordUuid(): string | null {
 }
 
 export function getFullApiUrl(path: string): string {
-  // path from ROUTES already includes /landlord if it's a page, but API routes
-  // from shared/routes.json might have /landlord/api/...
-  // Usually, just return the path directly as long as it starts with /
   if (path.startsWith('http')) return path;
   return path;
 }

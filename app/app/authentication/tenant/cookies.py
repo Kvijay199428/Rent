@@ -30,7 +30,7 @@ def set_tenant_auth_cookies(response: Response, access_token: str, refresh_token
         value=access_token,
         httponly=True,
         secure=True,
-        samesite="lax",
+        samesite="none",
         path=access_path,
         max_age=15 * 60,
     )
@@ -52,7 +52,7 @@ def clear_tenant_auth_cookies(response: Response, request: Request = None):
         path=access_path,
         httponly=True,
         secure=True,
-        samesite="lax",
+        samesite="none",
     )
     response.delete_cookie(
         key="refresh_token",

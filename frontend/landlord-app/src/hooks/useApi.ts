@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { encryptPayload } from "../lib/encryption";
 import { ROUTES } from "../lib/routes";
-import { API_BASE } from "../lib/runtime";
+import { getApiUrl } from "@shared/api-config";
 
 export interface ApiResponse<T = any> {
   data?: T;
@@ -11,8 +11,8 @@ export interface ApiResponse<T = any> {
 
 function buildUrl(endpoint: string): string {
   if (/^https?:\/\//i.test(endpoint)) return endpoint;
-  if (endpoint.startsWith("/")) return endpoint;
-  return `${API_BASE}/${endpoint.replace(/^\/+/, "")}`;
+  if (endpoint.startsWith("/")) return getApiUrl(endpoint);
+  return getApiUrl(`/${endpoint.replace(/^\/+/, "")}`);
 }
 
 async function readJsonSafe(res: Response) {

@@ -241,7 +241,7 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
 
     response.set_cookie(
         key="access_token", value=access_token,
-        httponly=True, secure=True, samesite="lax",
+        httponly=True, secure=True, samesite="none",
         path=cookie_path, max_age=15 * 60,
     )
     response.set_cookie(

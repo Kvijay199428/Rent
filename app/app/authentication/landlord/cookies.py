@@ -39,7 +39,7 @@ def set_landlord_auth_cookies(
         value=access_token,
         httponly=True,
         secure=True,
-        samesite="lax",
+        samesite="none",
         path=cookie_path,
         max_age=15 * 60,
     )
@@ -65,7 +65,7 @@ def clear_landlord_auth_cookies(
         path=cookie_path,
         httponly=True,
         secure=True,
-        samesite="lax",
+        samesite="none",
     )
     response.delete_cookie(
         key="refresh_token",

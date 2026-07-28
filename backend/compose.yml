@@ -1,0 +1,38 @@
+services:
+  rent-backend:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: rent-backend
+    restart: unless-stopped
+    expose:
+      - "28001"
+    env_file:
+      - .env
+    volumes:
+      - ./storage:/code/storage
+    networks:
+      - vega-gateway
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 120s
+
+networks:
+  vega-gateway:
+    external: true

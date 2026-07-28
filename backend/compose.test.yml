@@ -1,0 +1,4 @@
+services:
+  rent-backend:
+    ports:
+      - "28001:28001"

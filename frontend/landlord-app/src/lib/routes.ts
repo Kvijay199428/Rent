@@ -5,7 +5,8 @@
  */
 
 import routesJson from "@shared/routes.json";
-import { APP_BASE, API_BASE } from "./runtime";
+import { getApiUrl } from "@shared/api-config";
+import { APP_BASE } from "./runtime";
 
 interface RouteManifest {
     basePath: string;
@@ -95,9 +96,10 @@ function api(domain: "admin" | "tenant" | "landlord", section: string, key: stri
     const template = sectionNode?.[key];
     if (typeof template !== "string") throw new Error(`Route ${domain}.api.${section}.${key} not found`);
     
-    let path = resolvePath(template, params);
-    // we just return the full path since it's already absolute (e.g. /landlord/api/...)
-    return fullPath(template, params);
+    const path = fullPath(template, params);
+    // In production, prefix with API origin (https://api.vijaykrsha.online)
+    // In Docker testing, return relative path (same-origin)
+    return getApiUrl(path);
 }
 
 function page(domain: "admin" | "tenant" | "landlord", key: string, params?: Record<string, string | number>): string {

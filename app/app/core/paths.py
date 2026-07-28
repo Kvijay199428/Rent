@@ -2,7 +2,7 @@
 
 # Set the base storage directory. 
 # Defaults to a local "storage" folder, but can be overridden by an environment variable.
-STORAGE_DIR = os.environ.get("RENT_STORAGE_DIR", r"d:\VEGA\RENT\storage")
+STORAGE_DIR = os.environ.get("RENT_STORAGE_DIR", "/code/storage")
 
 # Define organized subdirectories
 CONFIG_DIR = os.path.join(STORAGE_DIR, "config")

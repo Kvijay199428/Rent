@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import routesJson from "@shared/routes.json";
+import { getApiBaseUrl } from "@shared/api-config";
 
 export interface AuthSyncEvent {
   type: string;
@@ -32,10 +32,16 @@ export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled 
     function connect() {
       if (unmounted) return;
 
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = window.location.host;
-      const wsBase = (routesJson as any).basePath || "";
-      const wsUrl = `${protocol}//${host}${wsBase}/ws/auth?channel=${encodeURIComponent(channel)}`;
+      const apiBase = getApiBaseUrl();
+      let wsUrl: string;
+
+      if (apiBase) {
+        const wsBase = apiBase.replace(/^https?/, "ws");
+        wsUrl = `${wsBase}/ws/auth?channel=${encodeURIComponent(channel)}`;
+      } else {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        wsUrl = `${protocol}//${window.location.host}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
+      }
 
       ws = new WebSocket(wsUrl);
 

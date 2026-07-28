@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { API_BASE } from "@/lib/runtime";
+import { getApiBaseUrl } from "@shared/api-config";
 
 export interface SyncEvent {
   type: string;
@@ -31,9 +31,19 @@ export function useSync(channel: string, onEvent: EventHandler, enabled = true) 
     function connect() {
       if (unmounted) return;
 
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const host = window.location.host;
-      const wsUrl = `${protocol}//${host}${API_BASE}/ws/sync?channel=${encodeURIComponent(channel)}`;
+      const apiBase = getApiBaseUrl();
+      let wsUrl: string;
+
+      if (apiBase) {
+        // Production: API on different origin (e.g. https://api.vijaykrsha.online/rent)
+        const wsBase = apiBase.replace(/^https?/, "ws");
+        wsUrl = `${wsBase}/ws/sync?channel=${encodeURIComponent(channel)}`;
+      } else {
+        // Docker testing: same origin
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const host = window.location.host;
+        wsUrl = `${protocol}//${host}/rent/ws/sync?channel=${encodeURIComponent(channel)}`;
+      }
 
       ws = new WebSocket(wsUrl);
 

@@ -1,0 +1,29 @@
+services:
+  nginx-gateway:
+    image: nginx:alpine
+    container_name: vega-nginx-gateway
+    restart: unless-stopped
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/routes:/etc/nginx/routes:ro
+    expose:
+      - "8080"
+    networks:
+      - vega-gateway
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: vega-cloudflared
+    restart: unless-stopped
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token
+      - ${CLOUDFLARE_TUNNEL_TOKEN}
+    networks:
+      - vega-gateway
+
+networks:
+  vega-gateway:
+    external: true

@@ -1,3 +1,5 @@
-export const APP_BASE = "/rent/platform-admin";
-export const API_BASE = "/rent/platform-admin/api";
+import { getApiBaseUrl } from "@shared/api-config";
+
+export const APP_BASE = "/rent/admin";
+export const API_BASE = getApiBaseUrl() + "/rent";
 

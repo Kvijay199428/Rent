@@ -1,9 +1,49 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.log
-venv/
-env/
-receipts/
+*.egg-info/
+
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+backend/.env
+gateway/.env
+*.pem
+*.key
+
+# Node
+node_modules/
+dist/
+dist-ssr/
+
+# Build artifacts
+build-output/
+update.zip
+tsconfig.tsbuildinfo
+.sisyphus/
+
+# Docker compose overrides
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+
+# OS
 .DS_Store
+Thumbs.db
+
+# Logs
+*.log
+rent.log
+
+# Data (never commit user data)
+storage/
+
+# Temporary
+scratch/
+output/
+*.zip

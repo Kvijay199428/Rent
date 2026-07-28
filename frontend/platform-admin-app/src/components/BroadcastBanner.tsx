@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getApiUrl } from "@shared/api-config";
 import "./BroadcastBanner.css";
 
 interface BroadcastConfig {
@@ -12,13 +13,14 @@ interface BroadcastBannerProps {
   healthUrl?: string;
 }
 
-export default function BroadcastBanner({ healthUrl = "/health" }: BroadcastBannerProps) {
+export default function BroadcastBanner({ healthUrl }: BroadcastBannerProps) {
   const [broadcast, setBroadcast] = useState<BroadcastConfig | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const url = healthUrl || getApiUrl("/health");
 
   const fetchBroadcast = useCallback(async () => {
     try {
-      const res = await fetch(healthUrl, { credentials: "include" });
+      const res = await fetch(url, { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         if (data.broadcast?.enabled && data.broadcast.message) {
@@ -30,7 +32,7 @@ export default function BroadcastBanner({ healthUrl = "/health" }: BroadcastBann
     } catch {
       // Silently ignore — broadcast is non-critical
     }
-  }, [healthUrl]);
+  }, [url]);
 
   useEffect(() => {
     fetchBroadcast();
