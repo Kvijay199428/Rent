@@ -28,7 +28,7 @@ interface TOTPResponse {
 }
 
 export default function SecuritySettingsPage() {
-  const { landlordUuid, hasTotp, changePassword } = useAuth();
+  const { landlordUuid, hasTotp, totpEnabled, changePassword } = useAuth();
   const [totpData, setTotpData] = useState<TOTPData | null>(null);
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [password, setPassword] = useState('');
@@ -38,6 +38,7 @@ export default function SecuritySettingsPage() {
   const [success, setSuccess] = useState('');
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
+  const [totpLoadError, setTotpLoadError] = useState('');
 
   // Password change form
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
@@ -50,17 +51,28 @@ export default function SecuritySettingsPage() {
   const [showTotpModal, setShowTotpModal] = useState(false);
 
   useEffect(() => {
-    if (landlordUuid) loadTOTPData();
-  }, [landlordUuid]);
+    if (landlordUuid && totpEnabled) {
+      loadTOTPData();
+    } else {
+      setTotpData(null);
+    }
+  }, [landlordUuid, totpEnabled]);
 
   const loadTOTPData = async () => {
+    setTotpLoadError('');
     try {
       const result: TOTPResponse = await apiGet(ROUTES.LANDLORDAPITOTPQR(landlordUuid!));
       if (result.status === 'success') {
         setTotpData(result.totp);
+        if (!result.totp) {
+          setTotpLoadError('TOTP secret not found. Please contact your administrator.');
+        }
+      } else {
+        setTotpLoadError('Failed to load TOTP configuration.');
       }
     } catch (err: any) {
       setError('Failed to load TOTP data: ' + err.message);
+      setTotpLoadError('Failed to load TOTP configuration. Please try again.');
     }
   };
 
@@ -182,12 +194,25 @@ export default function SecuritySettingsPage() {
                 Two-Factor Authentication (TOTP)
               </CardTitle>
               <CardDescription>
-                Your TOTP secret is used for login verification and password recovery.
-                Keep it secure and never share it with anyone.
+                {totpEnabled
+                  ? "Your TOTP secret is used for login verification and password recovery. Keep it secure and never share it with anyone."
+                  : "Two-factor authentication adds an extra layer of security to your account."}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {totpData ? (
+              {!totpEnabled ? (
+                <div className="text-center py-8">
+                  <QrCode className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <p className="text-muted-foreground font-medium">
+                    {hasTotp ? "Two-Factor Authentication is disabled" : "Two-Factor Authentication is not configured"}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {hasTotp
+                      ? "Enable TOTP from Settings to require a verification code after your password for login."
+                      : "Contact your administrator to enable TOTP for your account."}
+                  </p>
+                </div>
+              ) : totpData ? (
                 <>
                   <div className="flex flex-col items-center space-y-4">
                     <div className="p-4 bg-white rounded-xl border-2 border-dashed border-muted">
@@ -254,6 +279,15 @@ export default function SecuritySettingsPage() {
                     Regenerate TOTP Secret
                   </Button>
                 </>
+              ) : totpLoadError ? (
+                <div className="text-center py-8 space-y-3">
+                  <AlertTriangle className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
+                  <p className="text-muted-foreground font-medium">{totpLoadError}</p>
+                  <Button variant="outline" size="sm" onClick={loadTOTPData}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Retry
+                  </Button>
+                </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <QrCode className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -422,7 +456,7 @@ export default function SecuritySettingsPage() {
           setTimeout(() => setPwSuccess(''), 5000);
         }}
         totp={totpModalData}
-        hasExistingTotp={hasTotp}
+        hasExistingTotp={totpEnabled}
       />
     </div>
   );

@@ -34,6 +34,7 @@ router = APIRouter()
 
 
 from app.authentication.tenant.middleware import get_current_tenant
+from app.routers.auth import _verify_tenant_viewToken
 
 # Legacy route (no landlordUuid prefix)
 @router.get(TenantRoutes.TENANTAPIPROFILEGET, name=TenantNames.TENANTPROFILEGET)
@@ -63,6 +64,12 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
         "viewToken": viewToken,
         "unlocked": unlocked,
         "readOnly": tenant.status != "Active",
+        "phone": getattr(tenant, "phone", ""),
+        "email": getattr(tenant, "email", ""),
+        "address": getattr(tenant, "address", ""),
+        "roomNumber": getattr(tenant, "roomNumber", ""),
+        "occupation": getattr(tenant, "occupation", ""),
+        "company": getattr(tenant, "company", ""),
     }
     
     if unlocked:
@@ -141,6 +148,115 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
             "readOnly": tenant.status != "Active",
         }
     }
+
+@router.get("/tenant/api/auth/public-key", include_in_schema=False)
+async def global_tenant_public_key():
+    from app.encryption import get_public_key_pem
+    return {"publicKey": get_public_key_pem()}
+
+
+@router.post("/tenant/api/auth/login-by-username", include_in_schema=False)
+async def global_tenant_login_by_username(request: Request, response: Response, login_req: EncryptedLoginRequest):
+    from app.encryption import decrypt_payload
+    from app.authentication.common.utils import verify_pin
+    from app.authentication.tenant.sessions import create_tenant_session
+    from app.authentication.tenant.jwt import create_access_token
+    from app.core.db import get_conn
+    from app.database.auth_repository import log_audit
+
+    try:
+        decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
+        username = decrypted.get("username", "").strip().lower()
+        pin = decrypted.get("pin", "")
+        remember_me = decrypted.get("rememberme", False)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid encrypted payload")
+
+    if not username or not pin:
+        raise HTTPException(status_code=400, detail="Username and PIN are required")
+
+    ip = request.client.host if request.client else "Unknown IP"
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, landlord_id, viewToken, tenantpin, failed_attempts, locked_until "
+            "FROM tenants WHERE LOWER(phone) = ? OR LOWER(email) = ?",
+            (username, username),
+        ).fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="No account found with that phone or email")
+
+    from datetime import datetime, timedelta
+    if row["locked_until"]:
+        try:
+            locked_until = datetime.fromisoformat(row["locked_until"])
+            if datetime.utcnow() < locked_until:
+                raise HTTPException(status_code=429, detail="Account locked. Try again later.")
+        except ValueError:
+            pass
+
+    if not row["tenantpin"] or not verify_pin(pin, row["tenantpin"]):
+        log_audit(row["id"], "Username Login Failed - Wrong PIN", ip)
+        failed_attempts = (row["failed_attempts"] or 0) + 1
+        locked_until_str = None
+        if failed_attempts >= 5:
+            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE tenants SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                (failed_attempts, locked_until_str, row["id"]),
+            )
+            conn.commit()
+        raise HTTPException(status_code=401, detail="Incorrect PIN")
+
+    if (row["failed_attempts"] or 0) > 0:
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE tenants SET failed_attempts = 0, locked_until = NULL WHERE id = ?",
+                (row["id"],),
+            )
+            conn.commit()
+
+    with get_conn() as conn:
+        landlord = conn.execute(
+            "SELECT landlord_uuid FROM landlord_accounts WHERE id = ?",
+            (row["landlord_id"],),
+        ).fetchone()
+
+    if not landlord:
+        raise HTTPException(status_code=500, detail="Landlord account not found")
+
+    landlord_uuid = landlord["landlord_uuid"]
+    view_token = row["viewToken"]
+    tenant_id = row["id"]
+
+    session_id, refresh_token = create_tenant_session(tenant_id, request, remember_me)
+    access_token = create_access_token(tenant_id, session_id)
+
+    cookie_val = f"{session_id}:{refresh_token}"
+    max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
+    rootpath = (request.scope.get("root_path") or "").rstrip("/")
+    cookie_path = f"{rootpath}/{landlord_uuid}/t/{tenant_id}/{view_token}"
+
+    response.set_cookie(
+        key="access_token", value=access_token,
+        httponly=True, secure=True, samesite="lax",
+        path=cookie_path, max_age=15 * 60,
+    )
+    response.set_cookie(
+        key="refresh_token", value=cookie_val,
+        httponly=True, secure=True, samesite="strict",
+        path=f"{cookie_path}/api/auth", max_age=max_age_refresh,
+    )
+
+    log_audit(tenant_id, "Username Login Success", ip)
+
+    return {
+        "status": "success",
+        "redirect_url": f"{rootpath}/{landlord_uuid}/t/{tenant_id}/{view_token}",
+    }
+
 
 @router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)
 async def tenant_view_pdf(tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
@@ -350,3 +466,88 @@ async def tenant_public_get_kyc_file(tenantId: int, viewToken: str, filename: st
         "Content-Disposition": f'inline; filename="{safe_filename}"'
     }
     return FileResponse(file_path, media_type=mime_type, headers=headers)
+
+
+# ─── Tenant Audit Logs ───────────────────────────────────────────────────────
+
+@router.get(TenantRoutes.TENANTAPIAUDITLOGS, name=TenantNames.TENANTAUDITLOGS)
+async def tenant_audit_logs(
+    tenantId: int,
+    viewToken: str,
+    request: Request,
+    principal=Depends(get_current_tenant),
+    action_type: str | None = None,
+    search: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Return audit logs for this tenant."""
+    _verify_tenant_viewToken(request, viewToken)
+
+    from app.core.db import get_conn as _get_conn
+    import json as _json
+
+    query = """
+        SELECT
+            tl.id,
+            'tenant' AS app_source,
+            tl.tenantId AS actor_id,
+            t.name AS actor_name,
+            tl.action,
+            NULL AS target_type,
+            NULL AS target_id,
+            tl.ip_address,
+            tl.meta_json,
+            tl.created_at
+        FROM tenant_audit_logs tl
+        LEFT JOIN tenants t ON tl.tenantId = t.id
+        WHERE tl.tenantId = ?
+    """
+    params: list = [principal.id]
+
+    if action_type:
+        query += " AND tl.action LIKE ?"
+        params.append(f"%{action_type}%")
+    if search:
+        query += " AND (tl.action LIKE ? OR tl.ip_address LIKE ?)"
+        params.extend([f"%{search}%"] * 2)
+    if date_from:
+        query += " AND tl.created_at >= ?"
+        params.append(date_from)
+    if date_to:
+        query += " AND tl.created_at <= ?"
+        params.append(date_to + "T23:59:59")
+
+    count_query = "SELECT COUNT(*) FROM (" + query + ")"
+    with _get_conn() as conn:
+        total = conn.execute(count_query, tuple(params)).fetchone()[0]
+
+    query += " ORDER BY tl.created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    with _get_conn() as conn:
+        rows = conn.execute(query, tuple(params)).fetchall()
+
+    items = []
+    for r in rows:
+        meta = {}
+        if r["meta_json"]:
+            try:
+                meta = _json.loads(r["meta_json"])
+            except Exception:
+                pass
+        items.append({
+            "id": r["id"],
+            "app_source": r["app_source"],
+            "actor_id": r["actor_id"],
+            "actor_name": r["actor_name"],
+            "action": r["action"],
+            "target_type": r["target_type"],
+            "target_id": r["target_id"],
+            "ip_address": r["ip_address"],
+            "meta": meta,
+            "created_at": r["created_at"],
+        })
+
+    return {"items": items, "total": total}

@@ -2,7 +2,7 @@ import { trustBadges } from "../data";
 
 const iconMap: Record<string, string> = {
   bell: "🔔",
-  scale: "⚖️",
+  key: "🔐",
   badge: "🎯",
   building: "🏢",
   shield: "🔒",

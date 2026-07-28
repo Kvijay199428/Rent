@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import AuthLayout from "../components/AuthLayout";
 
 export default function LoginPage() {
   const { login, loginTOTP } = useAuth();
@@ -46,11 +47,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{
-      minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center",
-      background: "linear-gradient(135deg, #1a1d2e 0%, #2d3561 100%)",
-      fontFamily: "system-ui, sans-serif",
-    }}>
+    <AuthLayout>
       <form
         onSubmit={totpRequired ? handleTOTPSubmit : handleSubmit}
         style={{
@@ -165,7 +162,7 @@ export default function LoginPage() {
           </button>
         )}
       </form>
-    </div>
+    </AuthLayout>
   );
 }
 

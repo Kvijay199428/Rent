@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { API_BASE } from "../lib/runtime";
+import routesJson from "@shared/routes.json";
 
 export interface HealthSnapshot {
   type: string;
@@ -34,7 +34,8 @@ export function useHealthStream(enabled = true) {
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const host = window.location.host;
-      const wsUrl = `${protocol}//${host}${API_BASE}/ws/health`;
+      const basePath = (routesJson as any).basePath || "";
+      const wsUrl = `${protocol}//${host}${basePath}/ws/health`;
 
       ws = new WebSocket(wsUrl);
 

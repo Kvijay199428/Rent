@@ -4,6 +4,12 @@ export interface TenantProfile {
   viewToken: string;
   unlocked: boolean;
   readOnly?: boolean;
+  phone?: string;
+  email?: string;
+  address?: string;
+  roomNumber?: string;
+  occupation?: string;
+  company?: string;
 }
 
 export interface Receipt {

@@ -6,22 +6,13 @@ export default function CTA() {
           Ready to simplify rent management?
         </h2>
         <p className="cta-subtitle">
-          Join the early access list and be the first to know when the platform
-          launches.
+          The platform is live in early access. Choose your portal to get started.
         </p>
-        <div className="cta-form">
-          <input
-            type="email"
-            placeholder="Enter your email address"
-            className="cta-input"
-            aria-label="Email address"
-          />
-          <button className="btn btn-primary cta-button">Notify Me</button>
+        <div className="hero-actions" style={{ justifyContent: "center" }}>
+          <a href="./landlord/login" className="btn btn-primary">Landlord Login</a>
+          <a href="./tenant/login" className="btn btn-outline">Tenant Login</a>
+          <a href="./platform-admin" className="btn btn-green">Admin Login</a>
         </div>
-        <p className="cta-note">
-          No spam. We'll only email you when the platform is ready or when we
-          have a major update.
-        </p>
       </div>
     </section>
   );

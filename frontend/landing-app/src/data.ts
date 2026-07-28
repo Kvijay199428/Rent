@@ -10,12 +10,12 @@ export const trustBadges = [
   {
     icon: "bell",
     title: "Smart Alerts",
-    description: "Rent reminders, overdue notices, and renewal alerts sent automatically.",
+    description: "WhatsApp notifications for rent receipts and payment reminders.",
   },
   {
-    icon: "scale",
-    title: "Legal-Ready",
-    description: "Compliant notices, TDS tracking, and legally valid rent receipts.",
+    icon: "key",
+    title: "Encrypted Login",
+    description: "RSA+AES-256-GCM encrypted PIN authentication for tenant portal access.",
   },
   {
     icon: "badge",
@@ -25,129 +25,129 @@ export const trustBadges = [
   {
     icon: "building",
     title: "Multi-Property",
-    description: "Manage unlimited properties, tenants, and units from one dashboard.",
+    description: "Manage multiple landlords, tenants, and billing from one dashboard.",
   },
   {
     icon: "shield",
     title: "Private & Secure",
-    description: "Your data stays yours. Encrypted at rest, never shared with third parties.",
+    description: "Role-based access, encrypted cookies, and audit logging built in.",
   },
   {
     icon: "zap",
     title: "Fast Setup",
-    description: "Add your first property in under 2 minutes. No training required.",
+    description: "Add your first tenant in under 2 minutes. No training required.",
   },
 ];
 
 export const heroInlineBadges = [
-  "Live Tracking",
-  "Legal-Ready",
+  "Encrypted Login",
+  "PDF Receipts",
   "WhatsApp Alerts",
 ];
 
 export const features = [
   {
     icon: "receipt",
-    title: "Automated Rent Collection",
+    title: "Digital Receipts",
     description:
-      "Set rent amounts, due dates, and let the system handle reminders and tracking automatically.",
+      "Generate professional PDF receipts for every payment. Track paid, partial, pending, and advance statuses.",
   },
   {
     icon: "users",
-    title: "Tenant & Lease Management",
+    title: "Tenant Management",
     description:
-      "Maintain complete tenant profiles, lease agreements, move-in/move-out dates, and deposit records.",
+      "Complete tenant profiles with encrypted PIN access, room assignments, and KYC document uploads.",
   },
   {
-    icon: "layout-dashboard",
-    title: "Multi-Property Dashboard",
+    icon: "home",
+    title: "Tenant Self-Service Portal",
     description:
-      "View occupancy, payments, and alerts across all your properties in a single dashboard.",
+      "Tenants access their own portal via username + encrypted PIN to view receipts, upload KYC, and check payment status.",
   },
   {
     icon: "bell-ring",
-    title: "Smart Alerts & Notifications",
+    title: "WhatsApp Notifications",
     description:
-      "Automated WhatsApp, email, and in-app notifications for rent due, overdue, and renewals.",
+      "Send rent receipts and payment reminders directly via WhatsApp with a single click.",
   },
   {
-    icon: "file-check",
-    title: "Receipt & Payment Tracking",
+    icon: "database",
+    title: "Backup & Restore",
     description:
-      "Generate digital receipts for every payment. Track partial payments, advances, and arrears.",
+      "Manual backups with integrity verification, one-click restore, and downloadable backup files.",
   },
   {
-    icon: "scale",
-    title: "Legal & Compliance Support",
+    icon: "file-spreadsheet",
+    title: "Data Import & Export",
     description:
-      "Compliant rent receipts, TDS certificates, and legal notice templates ready to use.",
+      "Import tenant and billing data via CSV or Excel. Export receipts, tenant data, and full archives with real-time progress.",
   },
 ];
 
 export const whyChooseFeatures = [
-  "Track every payment in real-time across all properties",
-  "Automated WhatsApp and email reminders — no follow-ups needed",
-  "Legally valid receipts and notices, instantly downloadable",
+  "Track every payment in real-time — paid, partial, pending, or advance",
+  "Send WhatsApp receipts and reminders with one click",
+  "Professional PDF receipts, instantly downloadable",
   "Works on any device — phone, tablet, or desktop",
-  "Multi-language support (English, Hindi, Kannada, Tamil, Telugu)",
-  "Free for landlords to manage up to 5 tenants",
+  "Encrypted tenant login with RSA + AES-256-GCM security",
+  "Free for landlords — full billing and tenant management",
 ];
 
 export const screenshotTabs = ["Dashboard", "Tenants", "Payments"];
 
 export const featureCategories = [
   {
-    title: "Property Management",
+    title: "Billing & Receipts",
     items: [
-      "Add unlimited properties and units",
-      "Track occupancy in real-time",
-      "Property-wise income & expense reports",
-      "Unit-level rent configuration",
+      "Generate monthly bills with one click",
+      "Track payment status: paid, partial, pending, advance",
+      "Download professional PDF receipts",
+      "Archive old bills with occupant context",
     ],
   },
   {
     title: "Tenant Management",
     items: [
-      "Complete tenant profiles with documents",
-      "Lease tracking with auto-renewal alerts",
-      "Move-in / Move-out workflow",
-      "Deposit management and refund tracking",
+      "Complete tenant profiles with room assignments",
+      "Encrypted PIN-based and username+PIN login",
+      "KYC document uploads (Aadhaar, employment)",
+      "Account lockout after failed login attempts",
     ],
   },
   {
-    title: "Financial Management",
+    title: "Payment Tracking",
     items: [
-      "Automated rent invoicing",
-      "Payment tracking with partial payments",
-      "Digital receipts for every transaction",
-      "Expense tracking per property",
+      "Real-time payment status across all tenants",
+      "Arrears and advance payment tracking",
+      "Security deposit records",
+      "Complete receipt history with search",
     ],
   },
   {
-    title: "Alerts & Notifications",
+    title: "Security & Privacy",
     items: [
-      "Rent due reminders (7 days, 3 days, 1 day before)",
-      "Overdue rent escalation alerts",
-      "Lease renewal reminders",
-      "WhatsApp, Email, and In-app notifications",
+      "RSA-OAEP + AES-256-GCM encrypted login",
+      "Role-based access (Admin, Landlord, Tenant)",
+      "Secure httponly cookies with path scoping",
+      "Audit logging for all actions",
     ],
   },
   {
-    title: "Document Management",
+    title: "Data Management",
     items: [
-      "Upload and store lease agreements",
-      "ID proof document storage",
-      "Rent receipts (downloadable PDF)",
-      "Legal notice templates",
+      "Manual backups with integrity verification",
+      "CSV and Excel import/export",
+      "Real-time sync progress via WebSocket",
+      "One-click data restore from backup",
     ],
   },
   {
-    title: "Admin & Support",
+    title: "Platform Administration",
     items: [
-      "Platform-wide tenant support system",
-      "Global settings and configuration",
-      "Audit logs for all actions",
-      "Data backup and export",
+      "Multi-landlord oversight dashboard",
+      "Global platform settings",
+      "System health monitoring",
+      "Broadcast messaging to all users",
     ],
   },
 ];
@@ -155,49 +155,57 @@ export const featureCategories = [
 export const securityPillars = [
   {
     icon: "lock",
-    title: "Data Protection",
-    description: "AES-256 encryption at rest and TLS 1.3 in transit. Your data never leaves secure infrastructure.",
+    title: "Encrypted Authentication",
+    description:
+      "Tenant PIN login uses RSA-OAEP key exchange and AES-256-GCM encryption. Credentials never travel in plaintext.",
   },
   {
     icon: "shield-check",
     title: "Role-Based Access",
-    description: "Landlords see their data, tenants see theirs, admins have controlled access. Zero privilege escalation.",
+    description:
+      "Three distinct roles (Platform Admin, Landlord, Tenant) with strict data isolation. Each role sees only what they're authorized to access.",
   },
   {
     icon: "key",
-    title: "Encrypted Secrets",
-    description: "API keys, tokens, and credentials are encrypted at the application level. Never stored in plaintext.",
+    title: "Brute-Force Protection",
+    description:
+      "Tenant accounts lock after 5 failed PIN attempts for 15 minutes. Failed attempts are logged with IP tracking.",
   },
   {
     icon: "file-search",
-    title: "Transparent Logs",
-    description: "Every action is logged. Full audit trail for compliance, disputes, and transparency.",
+    title: "Audit Logging",
+    description:
+      "Every login, failed attempt, and administrative action is logged with timestamps and IP addresses for full accountability.",
   },
 ];
 
 export const roadmapMilestones = [
   {
     version: "v1.0",
-    title: "MVP Live",
-    description: "Core rent management, tenant tracking, payment receipts, and basic alerts.",
+    title: "Core Platform",
+    description:
+      "Tenant management, billing, digital receipts, dashboard, and multi-landlord support.",
     status: "completed" as const,
   },
   {
     version: "v1.5",
-    title: "Advanced Billing",
-    description: "Maintenance charges, utility billing, penalty calculation, and partial payment support.",
-    status: "in-progress" as const,
+    title: "Advanced Features",
+    description:
+      "KYC uploads, data backup & restore, CSV/Excel import/export, and tenant self-service portal.",
+    status: "completed" as const,
   },
   {
     version: "v2.0",
-    title: "Full Analytics",
-    description: "Revenue analytics, occupancy trends, tenant history, and exportable reports.",
-    status: "upcoming" as const,
+    title: "Tenant Self-Service",
+    description:
+      "Username + PIN login, tenant profile details, cross-app navigation, and broadcast messaging.",
+    status: "in-progress" as const,
   },
   {
     version: "v3.0",
-    title: "API & Integrations",
-    description: "Public API, accounting software integration, bank statement import, and UPI tracking.",
+    title: "Analytics & API",
+    description:
+      "Revenue analytics, occupancy trends, public API, and accounting integrations.",
     status: "upcoming" as const,
   },
 ];
@@ -206,33 +214,32 @@ export const faqItems = [
   {
     question: "Is the platform free for landlords?",
     answer:
-      "Yes. Core rent management features — adding properties, tracking tenants, generating receipts, and sending reminders — are free for landlords managing up to 5 tenants. Premium features are available for larger portfolios.",
+      "Yes. Core features — adding tenants, generating bills, creating receipts, and sending WhatsApp notifications — are free for all landlords.",
   },
   {
-    question: "How does the WhatsApp integration work?",
+    question: "How do tenants access their portal?",
     answer:
-      "The platform sends automated rent reminders, overdue notices, and receipts directly via WhatsApp. Tenants receive messages from an official business account. No personal WhatsApp account is required.",
+      "Tenants receive a secure link from their landlord. They can log in using their phone/email + 4-digit PIN. The portal shows their receipts, payment status, and allows KYC document uploads.",
   },
   {
-    question: "Can tenants use the platform independently?",
+    question: "How does WhatsApp integration work?",
     answer:
-      "Yes. Tenants get their own portal to view rent due, payment history, download receipts, and communicate with their landlord. They can access it from any device with a web browser.",
+      "Landlords can send rent receipts and payment reminders directly to tenants via WhatsApp. Messages are sent with one click from the billing page.",
   },
   {
-    question: "Is my data secure and private?",
+    question: "Is my data secure?",
     answer:
-      "Absolutely. All data is encrypted at rest (AES-256) and in transit (TLS 1.3). Landlords can only see their own data. We never share or sell any information to third parties.",
+      "Yes. Tenant PIN login uses RSA + AES-256-GCM encryption. Cookies are httponly and secure. Each landlord's data is fully isolated. Accounts lock after 5 failed login attempts.",
   },
   {
-    question: "What languages are supported?",
+    question: "Can I import existing data?",
     answer:
-      "The platform currently supports English, Hindi, Kannada, Tamil, and Telugu. More languages are planned based on user demand.",
+      "Yes. The platform supports importing tenants and billing data via CSV or Excel. A preview step lets you verify data before importing. Full data export is also available.",
   },
 ];
 
 export const supportLinks = [
   "Help Center",
-  "API Documentation",
   "System Status",
   "Report a Bug",
 ];

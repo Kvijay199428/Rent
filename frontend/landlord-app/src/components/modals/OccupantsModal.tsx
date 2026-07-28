@@ -150,7 +150,7 @@ function UploadForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1">
           <Label className="text-xs">Name *</Label>
           <Input name="name" required placeholder="Full name" />
@@ -328,10 +328,10 @@ export default function OccupantsModal({ tenant, open, onOpenChange }: Occupants
         )}
 
         {/* Body */}
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-col lg:flex-row flex-1 min-h-0">
 
           {/* Left pane: occupant list */}
-          <div className="w-[380px] lg:w-[420px] flex-shrink-0 border-r flex flex-col">
+          <div className="w-full lg:w-[380px] xl:w-[420px] flex-shrink-0 border-b lg:border-r flex flex-col max-h-[40vh] lg:max-h-none overflow-auto">
             <div className="px-4 py-2 border-b bg-muted/20">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 {occupants.length} occupant{occupants.length !== 1 ? "s" : ""}

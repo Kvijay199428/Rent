@@ -4,6 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import AuthLayout from "./AuthLayout";
 
 export default function LoginModal({
   tenantName,
@@ -19,7 +20,7 @@ export default function LoginModal({
   const [pin, setPin] = useState("");
 
   return (
-    <div className="min-h-screen bg-muted/30 flex items-center justify-center p-4">
+    <AuthLayout>
       <Card className="w-full max-w-md rounded-3xl border-0 shadow-xl">
         <CardContent className="p-8">
           <div className="text-center mb-6">
@@ -89,9 +90,18 @@ export default function LoginModal({
             <p className="text-xs text-center text-muted-foreground">
               Your bills and occupant KYC are shown only after PIN verification.
             </p>
+
+            <div className="text-center pt-2 border-t">
+              <a
+                href="/rent/tenant/login"
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                Login with phone / email
+              </a>
+            </div>
           </form>
         </CardContent>
       </Card>
-    </div>
+    </AuthLayout>
   );
 }

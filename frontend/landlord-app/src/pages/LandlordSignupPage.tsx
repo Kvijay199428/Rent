@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Shield, AlertTriangle, Check, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import AuthLayout from '@/components/layout/AuthLayout';
 import { ROUTES } from '@/lib/routes';
 
 type FieldStatus = 'idle' | 'checking' | 'available' | 'taken' | 'error';
@@ -189,7 +190,7 @@ export default function LandlordSignupPage() {
   const strengthLabel = (s: number) => s <= 1 ? 'Very weak' : s <= 2 ? 'Weak' : s <= 3 ? 'Fair' : s <= 4 ? 'Good' : 'Strong';
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+    <AuthLayout>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -379,6 +380,6 @@ export default function LandlordSignupPage() {
           </p>
         </CardFooter>
       </Card>
-    </div>
+    </AuthLayout>
   );
 }

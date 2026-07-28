@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [dueOpen, setDueOpen] = useState(false);
   const [meterOpen, setMeterOpen] = useState(false);
   const [allTenants, setAllTenants] = useState<Tenant[]>([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
   const toast = useToast();
   const navigate = useNavigate();
@@ -66,6 +67,7 @@ export default function Dashboard() {
     if (!landlordUuid) return;
     loadStats();
     api.getTenants(landlordUuid).then(setAllTenants).catch(() => {});
+    api.getActivityLogs(landlordUuid, { limit: 5 }).then((d) => setRecentActivity(d.items)).catch(() => {});
   }, [landlordUuid]);
 
   const formatValue = (key: string, value: number) => {
@@ -438,22 +440,45 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              { icon: Check, color: 'text-green-500 bg-green-100 dark:bg-green-900/30', title: 'Receipt Generated', desc: 'System automatically saved receipt for tenant', time: '2 hours ago' },
-              { icon: Users, color: 'text-blue-500 bg-blue-100 dark:bg-blue-900/30', title: 'Tenant Added', desc: 'New tenant profile created', time: 'Yesterday' },
-              { icon: Settings, color: 'text-amber-500 bg-amber-100 dark:bg-amber-900/30', title: 'Settings Updated', desc: 'Billing configuration modified', time: '3 days ago' },
-            ].map((item, i) => (
-              <div key={i} className="flex gap-3">
-                <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${item.color}`}>
-                  <item.icon size={16} />
+            {recentActivity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No recent activity</p>
+            ) : recentActivity.map((item, i) => {
+              const colorMap: Record<string, string> = {
+                landlord: 'text-blue-500 bg-blue-100 dark:bg-blue-900/30',
+                tenant: 'text-green-500 bg-green-100 dark:bg-green-900/30',
+              };
+              const iconMap: Record<string, any> = {
+                landlord: Users,
+                tenant: Users,
+              };
+              const Icon = iconMap[item.app_source] || Check;
+              const color = colorMap[item.app_source] || 'text-gray-500 bg-gray-100 dark:bg-gray-900/30';
+              const timeAgo = (() => {
+                try {
+                  const d = new Date(item.created_at + (item.created_at.includes('Z') ? '' : 'Z'));
+                  const diff = Date.now() - d.getTime();
+                  if (diff < 60000) return 'Just now';
+                  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+                  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+                  return `${Math.floor(diff / 86400000)}d ago`;
+                } catch { return ''; }
+              })();
+              return (
+                <div key={`${item.app_source}-${item.id}-${i}`} className="flex gap-3">
+                  <div className={`flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center ${color}`}>
+                    <Icon size={16} />
+                  </div>
+                  <div className="flex-1 border-b pb-3 last:border-0">
+                    <h6 className="font-semibold text-sm">{item.action.replace(/_/g, ' ')}</h6>
+                    <p className="text-xs text-muted-foreground">
+                      {item.actor_name ? `${item.actor_name} ` : ''}
+                      {item.app_source === 'landlord' ? '(You)' : ''}
+                    </p>
+                    <small className="text-xs text-muted-foreground">{timeAgo}</small>
+                  </div>
                 </div>
-                <div className="flex-1 border-b pb-3 last:border-0">
-                  <h6 className="font-semibold text-sm">{item.title}</h6>
-                  <p className="text-xs text-muted-foreground">{item.desc}</p>
-                  <small className="text-xs text-muted-foreground">{item.time}</small>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       </div>

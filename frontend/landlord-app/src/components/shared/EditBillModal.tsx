@@ -101,7 +101,7 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
           <div className="py-8 text-center text-muted-foreground">Loading...</div>
         ) : receipt ? (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Tenant</Label>
                 <Select
@@ -140,7 +140,7 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Current Reading</Label>
                 <Input
@@ -156,7 +156,7 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label>Tank Water (₹)</Label>
                 <Input

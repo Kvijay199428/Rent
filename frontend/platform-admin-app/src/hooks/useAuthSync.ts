@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { API_BASE } from "../lib/runtime";
+import routesJson from "@shared/routes.json";
 
 export interface AuthSyncEvent {
   type: string;
@@ -34,7 +34,8 @@ export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled 
 
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const host = window.location.host;
-      const wsUrl = `${protocol}//${host}${API_BASE}/ws/auth?channel=${encodeURIComponent(channel)}`;
+      const wsBase = (routesJson as any).basePath || "";
+      const wsUrl = `${protocol}//${host}${wsBase}/ws/auth?channel=${encodeURIComponent(channel)}`;
 
       ws = new WebSocket(wsUrl);
 

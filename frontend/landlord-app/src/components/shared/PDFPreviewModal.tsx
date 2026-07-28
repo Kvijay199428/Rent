@@ -22,7 +22,7 @@ export default function PDFPreviewModal({ billNo, tenantId, onClose }: PDFPrevie
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       {/* Match PreviewDialog sizing pattern exactly */}
-      <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
+      <DialogContent className="max-w-[95vw] xl:max-w-[1400px] h-[92svh] lg:h-[92vh] p-0 flex flex-col gap-0 overflow-hidden max-sm:mx-2 max-sm:rounded-xl">
         {/* Match PreviewDialog header styling */}
         <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b">
           <div className="flex items-center gap-3">

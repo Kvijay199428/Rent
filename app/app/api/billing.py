@@ -116,22 +116,34 @@ async def api_get_single_bill(landlordUuid: str, tenantId: int, billNo: str):
     return receipt
 
 @router.post(Routes.LANDLORDAPIBILLINGCREATE, name=Names.APICREATEBILL)
-async def api_create_bill(landlordUuid: str, tenantId: int, request: BillRequest, background_tasks: BackgroundTasks):
+async def api_create_bill(landlordUuid: str, tenantId: int, bill_req: BillRequest, http_request: Request, background_tasks: BackgroundTasks):
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.database.landlord_repository import create_landlord_audit_log
+
     _require_active_tenant(tenantId)
     try:
         data = create_bill(
             tenantId,
-            request.month,
-            request.currentreading,
-            request.additionalpersons,
-            request.tankWater,
-            request.maintenancecharge,
-            request.maintenancedesc,
-            request.previousarrears,
-            request.amountreceived,
-            request.paymentstatus
+            bill_req.month,
+            bill_req.currentreading,
+            bill_req.additionalpersons,
+            bill_req.tankWater,
+            bill_req.maintenancecharge,
+            bill_req.maintenancedesc,
+            bill_req.previousarrears,
+            bill_req.amountreceived,
+            bill_req.paymentstatus
         )
         background_tasks.add_task(create_full_backup, tag="create_bill")
+
+        landlord_id = extract_landlord_id(http_request)
+        if landlord_id:
+            create_landlord_audit_log(
+                landlord_id, "bill_created",
+                ip_address=http_request.client.host if http_request.client else None,
+                meta_json=json.dumps({"tenant_id": tenantId, "bill_no": data.get("billNo", "")}),
+            )
+
         await _broadcast(f"landlord:{landlordUuid}", {"type": "RECEIPT_CREATED", "billNo": data.get("billNo", ""), "tenantId": tenantId})
         return {"status": "success", "data": data}
     except ValueError as e:
@@ -143,23 +155,35 @@ async def api_create_bill(landlordUuid: str, tenantId: int, request: BillRequest
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.put(Routes.LANDLORDAPIBILLINGUPDATE, name=Names.APIUPDATEBILL)
-async def api_update_bill(landlordUuid: str, tenantId: int, billNo: str, request: BillRequest, background_tasks: BackgroundTasks):
+async def api_update_bill(landlordUuid: str, tenantId: int, billNo: str, bill_req: BillRequest, http_request: Request, background_tasks: BackgroundTasks):
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.database.landlord_repository import create_landlord_audit_log
+
     _require_active_tenant(tenantId)
     try:
         data = update_bill(
             tenantId,
             billNo,
-            request.month,
-            request.currentreading,
-            request.additionalpersons or 0,
-            request.tankWater or 0.0,
-            request.maintenancecharge or 0.0,
-            request.maintenancedesc or "",
-            request.previousarrears or 0.0,
-            request.amountreceived,
-            (request.paymentstatus or "PENDING").upper()
+            bill_req.month,
+            bill_req.currentreading,
+            bill_req.additionalpersons or 0,
+            bill_req.tankWater or 0.0,
+            bill_req.maintenancecharge or 0.0,
+            bill_req.maintenancedesc or "",
+            bill_req.previousarrears or 0.0,
+            bill_req.amountreceived,
+            (bill_req.paymentstatus or "PENDING").upper()
         )
         background_tasks.add_task(create_full_backup, tag="edit_bill")
+
+        landlord_id = extract_landlord_id(http_request)
+        if landlord_id:
+            create_landlord_audit_log(
+                landlord_id, "bill_updated",
+                ip_address=http_request.client.host if http_request.client else None,
+                meta_json=json.dumps({"tenant_id": tenantId, "bill_no": billNo}),
+            )
+
         await _broadcast(f"landlord:{landlordUuid}", {"type": "RECEIPT_UPDATED", "billNo": billNo, "tenantId": tenantId})
         return {"status": "success", "data": data}
     except ValueError as e:
@@ -208,10 +232,22 @@ async def api_restore_bill(landlordUuid: str, tenantId: int, billNo: str, backgr
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete(Routes.LANDLORDAPIBILLINGDELETE, name=Names.APIDELETEBILL)
-async def api_delete_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks):
+async def api_delete_bill(landlordUuid: str, tenantId: int, billNo: str, request: Request, background_tasks: BackgroundTasks):
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.database.landlord_repository import create_landlord_audit_log
+
     try:
         delete_bill(tenantId, billNo)
         background_tasks.add_task(create_full_backup, tag="delete_bill")
+
+        landlord_id = extract_landlord_id(request)
+        if landlord_id:
+            create_landlord_audit_log(
+                landlord_id, "bill_deleted",
+                ip_address=request.client.host if request.client else None,
+                meta_json=json.dumps({"tenant_id": tenantId, "bill_no": billNo}),
+            )
+
         await _broadcast(f"landlord:{landlordUuid}", {"type": "RECEIPT_DELETED", "billNo": billNo, "tenantId": tenantId})
         return {"status": "success"}
     except Exception as e:

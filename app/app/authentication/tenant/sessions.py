@@ -9,7 +9,7 @@ def create_tenant_session(tenantId: int, request, remember_me: bool):
     refresh_hash = hash_pin(refresh_token)
     
     session_id = str(uuid.uuid4())
-    days = 180 if remember_me else 1
+    days = 180 if remember_me else 30
     expires_at = (datetime.utcnow() + timedelta(days=days)).isoformat()
     
     user_agent = request.headers.get("User-Agent", "Unknown")

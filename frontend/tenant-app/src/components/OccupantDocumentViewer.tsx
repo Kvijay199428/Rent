@@ -132,16 +132,16 @@ export function OccupantDocumentViewer({
             )}
           </aside>
 
-          <section className="min-h-[55vh] overflow-hidden rounded-xl border bg-muted/30 relative">
+          <section className="min-h-[30vh] lg:min-h-[55vh] overflow-hidden rounded-xl border bg-muted/30 relative">
             {selectedDocument && documentUrl ? (
               isPdf(selectedDocument) ? (
                 <iframe
-                  className="h-full min-h-[55vh] w-full border-0"
+                  className="h-full min-h-[30vh] lg:min-h-[55vh] w-full border-0"
                   src={documentUrl}
                   title="Occupant KYC document"
                 />
               ) : (
-                <div className="flex h-full min-h-[55vh] items-center justify-center p-4">
+                <div className="flex h-full min-h-[30vh] lg:min-h-[55vh] items-center justify-center p-4">
                   <img
                     className="max-h-[55vh] max-w-full object-contain"
                     src={documentUrl}
@@ -150,7 +150,7 @@ export function OccupantDocumentViewer({
                 </div>
               )
             ) : (
-              <div className="flex h-full min-h-[55vh] items-center justify-center text-sm text-muted-foreground">
+              <div className="flex h-full min-h-[30vh] lg:min-h-[55vh] items-center justify-center text-sm text-muted-foreground">
                 Select a document to preview
               </div>
             )}

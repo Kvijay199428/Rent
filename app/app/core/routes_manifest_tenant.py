@@ -23,6 +23,9 @@ class TenantRoutes:
     TENANTAPIPDFVIEW = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view"
     TENANTAPIPDFDOWNLOAD = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
 
+    # Tenant API: Audit Logs
+    TENANTAPIAUDITLOGS = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/audit-logs"
+
 
 
 class TenantNames:
@@ -42,6 +45,8 @@ class TenantNames:
 
     TENANTPDFVIEW = "tenant_pdf_view"
     TENANTPDFDOWNLOAD = "tenant_pdf_download"
+
+    TENANTAUDITLOGS = "tenant_audit_logs"
 
 
 class TenantTemplates:

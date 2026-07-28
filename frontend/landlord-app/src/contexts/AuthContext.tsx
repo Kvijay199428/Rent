@@ -22,6 +22,7 @@ interface AuthContextType {
   isLoading: boolean;
   landlordUuid: string | null;
   hasTotp: boolean;
+  totpEnabled: boolean;
   requiresPasswordChange: boolean;
   login: (
     username: string,
@@ -50,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [landlordUuid, setLandlordUuid] = useState<string | null>(null);
   const [hasTotp, setHasTotp] = useState(false);
+  const [totpEnabled, setTotpEnabled] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
 
   const refreshMe = useCallback(async () => {
@@ -61,12 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAuthenticated(true);
       setLandlordUuid(uuid);
       setHasTotp(data?.landlord?.hasTotp ?? false);
+      setTotpEnabled(data?.landlord?.totpEnabled ?? false);
       setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
       if (uuid) localStorage.setItem("landlordUuid", uuid);
     } catch {
       setIsAuthenticated(false);
       setLandlordUuid(null);
       setHasTotp(false);
+      setTotpEnabled(false);
       setRequiresPasswordChange(false);
       localStorage.removeItem("landlordUuid");
     }
@@ -240,9 +244,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated && !!landlordUuid
   );
 
+  // Fallback: periodic refresh in case WebSocket connection drops
+  useEffect(() => {
+    if (!isAuthenticated || !landlordUuid) return;
+    const interval = setInterval(refreshMe, 60000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, landlordUuid, refreshMe]);
+
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, landlordUuid, hasTotp, requiresPasswordChange, login, verifyTotp, logout, changePassword, refreshMe }}
+      value={{ isAuthenticated, isLoading, landlordUuid, hasTotp, totpEnabled, requiresPasswordChange, login, verifyTotp, logout, changePassword, refreshMe }}
     >
       {children}
     </AuthContext.Provider>

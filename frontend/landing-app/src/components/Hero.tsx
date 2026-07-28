@@ -11,7 +11,7 @@ export default function Hero() {
 
       <div className="hero-badge">
         <span className="pulse-dot" />
-        Coming Soon — PROPAURA
+        Now in Early Access — PROPAURA
       </div>
 
       <h1 className="hero-title">
@@ -35,8 +35,8 @@ export default function Hero() {
       </div>
 
       <div className="hero-actions">
-        <a href="#cta" className="btn btn-primary">
-          Notify Me
+        <a href="#contact" className="btn btn-primary">
+          Get Started
         </a>
         <a href="#features" className="btn btn-ghost">
           Learn More

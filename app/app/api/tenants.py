@@ -68,6 +68,8 @@ async def api_get_tenant_receipts(landlordUuid: str, tenantId: int):
 async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, background_tasks: BackgroundTasks):
     from app.authentication.common.utils import hash_pin, validate_tenantPin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.database.landlord_repository import create_landlord_audit_log
     from app.core.db import get_conn
     from datetime import datetime
     
@@ -95,12 +97,23 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     response_tenant = t.dict()
     response_tenant.pop("tenantPin", None)
 
+    landlord_id = extract_landlord_id(request)
+    if landlord_id:
+        create_landlord_audit_log(
+            landlord_id, "tenant_created",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"tenant_id": tenantId, "tenant_name": t.name}),
+        )
+
     await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_CREATED", "tenantId": tenantId})
 
     return {"status": "success", "tenant": response_tenant}
 
 @router.put(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIUPDATETENANT)
-async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, background_tasks: BackgroundTasks):
+async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, request: Request, background_tasks: BackgroundTasks):
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.database.landlord_repository import create_landlord_audit_log
+
     t.id = tenantId
     background_tasks.add_task(create_full_backup, tag="update_tenant")
     
@@ -117,6 +130,14 @@ async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, backgro
     
     response_tenant = t.dict()
     response_tenant.pop("tenantPin", None)
+
+    landlord_id = extract_landlord_id(request)
+    if landlord_id:
+        create_landlord_audit_log(
+            landlord_id, "tenant_updated",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"tenant_id": tenantId, "tenant_name": t.name}),
+        )
 
     await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_UPDATED", "tenantId": tenantId})
 
@@ -203,9 +224,13 @@ async def admin_reveal_tenantPin(
 async def api_delete_tenant(
     landlordUuid: str,
     tenantId: int,
+    request: Request,
     background_tasks: BackgroundTasks,
     action: str = "archive",
 ):
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.database.landlord_repository import create_landlord_audit_log
+
     action = (action or "archive").strip().lower()
 
     # ── New: permanent-with-recovery action ──────────────────────────────────
@@ -264,6 +289,15 @@ async def api_delete_tenant(
     try:
         background_tasks.add_task(create_full_backup, tag=f"{action}_tenant")
         result = delete_tenant(tenantId, action)
+
+        landlord_id = extract_landlord_id(request)
+        if landlord_id:
+            create_landlord_audit_log(
+                landlord_id, f"tenant_{action}",
+                ip_address=request.client.host if request.client else None,
+                meta_json=json.dumps({"tenant_id": tenantId}),
+            )
+
         await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_DELETED", "tenantId": tenantId})
         return {"status": "success", "action": action, "data": result}
     except ValueError as e:

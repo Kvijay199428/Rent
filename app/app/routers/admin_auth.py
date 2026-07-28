@@ -1,23 +1,14 @@
-from fastapi import datastructures
-from fastapi import APIRouter, Depends, Request, Response, Form, HTTPException
+from fastapi import APIRouter, HTTPException
 
 from app.core.routes_manifest_platform_admin import PlatformAdminRoutes as Routes, PlatformAdminNames as Names
 
 from pydantic import BaseModel
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from app.core.dependencies import templates
-from app.core.db import get_conn
 from app.authentication.common.utils import verify_pin, hash_pin
-from app.authentication.admin.jwt import create_admin_access_token
-from app.authentication.admin.sessions import create_admin_session, get_admin_session_db, revoke_admin_session_db
-from app.authentication.admin.cookies import set_admin_auth_cookies, clear_admin_auth_cookies
 from app.database.auth_repository import (
-    admin_exists, create_admin, get_admin_by_username, get_admin_by_id,
+    admin_exists, create_admin, get_admin_by_username,
     verify_totp, generate_totp_qr_base64, get_totp_uri, update_admin_password,
-    regenerate_totp_secret
 )
 from app.encryption import decrypt_payload
-from app.core.config_service import config
 
 # router = APIRouter(tags=["Admin Authentication"])
 router = APIRouter()
@@ -152,58 +143,6 @@ async def reset_password(req: EncryptedPayload):
     return {
         "status": "success",
         "message": "Password reset successfully. Please login with your new password."
-    }
-
-# ─── Current User & TOTP Management ──────────────────────────────────
-
-from app.authentication.admin.middleware import get_current_admin_api
-
-
-@router.get(Routes.PLATFORMADMINAPITOTPQR, name=Names.PLATFORMADMINTOTPQR)
-async def get_totp_qr(admin: dict = Depends(get_current_admin_api)):
-    """Get TOTP QR code and secret for current admin."""
-    admin_data = get_admin_by_id(admin.id)
-    if not admin_data or not admin_data["totp_secret"]:
-        raise HTTPException(status_code=404, detail="TOTP not configured")
-    
-    qr_base64 = generate_totp_qr_base64(admin_data["username"], admin_data["totp_secret"])
-    
-    return {
-        "status": "success",
-        "totp": {
-            "secret": admin_data["totp_secret"],
-            "qr_code_base64": qr_base64,
-            "provisioning_uri": get_totp_uri(admin_data["username"], admin_data["totp_secret"])
-        }
-    }
-
-@router.post(Routes.PLATFORMADMINAPITOTPREGENERATE, name=Names.PLATFORMADMINTOTPREGENERATE)
-async def regenerate_totp(req: EncryptedPayload, admin: dict = Depends(get_current_admin_api)):
-    """Regenerate TOTP secret (requires password confirmation)."""
-    admin_data = get_admin_by_id(admin.id)
-    if not admin_data:
-        raise HTTPException(status_code=404, detail="Admin not found")
-    
-    try:
-        decrypted = decrypt_payload(req.key, req.data, req.nonce)
-        password = decrypted.get("password", "")
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid encrypted payload")
-
-    if not verify_pin(password, admin_data["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid password.")
-    
-    new_secret = regenerate_totp_secret(admin.id)
-    qr_base64 = generate_totp_qr_base64(admin_data["username"], new_secret)
-    
-    return {
-        "status": "success",
-        "message": "TOTP secret regenerated successfully. Update your authenticator app!",
-        "totp": {
-            "secret": new_secret,
-            "qr_code_base64": qr_base64,
-            "provisioning_uri": get_totp_uri(admin_data["username"], new_secret)
-        }
     }
 
 # ─── Public Key for Encryption ─────────────────────────────────────

@@ -39,6 +39,12 @@ class LandlordRoutes:
     # Landlord API: Totp
     LANDLORDAPITOTPQR = "/landlord/{landlordUuid}/api/totp/qr"
     LANDLORDAPITOTPREGENERATE = "/landlord/{landlordUuid}/api/totp/regenerate"
+    LANDLORDAPITOTPENABLE = "/landlord/{landlordUuid}/api/totp/enable"
+    LANDLORDAPITOTPDISABLE = "/landlord/{landlordUuid}/api/totp/disable"
+
+    # Landlord API: Audit Logs
+    LANDLORDAPIAUDITLOGS = "/landlord/{landlordUuid}/api/audit-logs"
+    LANDLORDAPIAUDITLOGSACTIONS = "/landlord/{landlordUuid}/api/audit-logs/actions"
 
     # Landlord API: Password
     LANDLORDAPIPASSWORDFORGOTVERIFY = "/landlord/api/forgot-password/verify"
@@ -219,6 +225,10 @@ class LandlordNames:
     LANDLORDSETUPCREATE = "landlord_setup_create"
     LANDLORDTOTPQR = "landlord_totp_qr"
     LANDLORDTOTPREGENERATE = "landlord_totp_regenerate"
+    LANDLORDTOTPENABLE = "landlord_totp_enable"
+    LANDLORDTOTPDISABLE = "landlord_totp_disable"
+    LANDLORDAUDITLOGS = "landlord_audit_logs"
+    LANDLORDAUDITLOGSACTIONS = "landlord_audit_logs_actions"
     LANDLORDFORGOTVERIFY = "landlord_forgot_password_verify"
     LANDLORDFORGOTRESET = "landlord_forgot_password_reset"
     LANDLORDPUBLICKEY = "landlord_public_key"

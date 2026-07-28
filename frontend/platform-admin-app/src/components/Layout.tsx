@@ -5,6 +5,7 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
   { to: "/landlords", label: "Landlords", icon: "🏠" },
   { to: "/explorer", label: "Data Explorer", icon: "🔍" },
+  { to: "/audit-logs", label: "Audit Logs", icon: "📋" },
   { to: "/settings",  label: "Settings",  icon: "⚙️"  },
 ];
 
@@ -59,19 +60,59 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <div style={{ padding: "16px 20px", borderTop: "1px solid #2c2f3f" }}>
-          <p style={{ margin: "0 0 8px", fontSize: 13, color: "#9ca3af" }}>
-            Logged in as <strong style={{ color: "#e9ecf2" }}>{admin?.username ?? "…"}</strong>
+        <div style={{ padding: "16px 12px", borderTop: "1px solid #2c2f3f" }}>
+          {/* Cross-app quick access */}
+          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, padding: "0 12px" }}>
+            Quick Access
           </p>
-          <button
-            onClick={handleLogout}
-            style={{
-              width: "100%", padding: "8px 0", borderRadius: 6, border: "none",
-              background: "#ef4444", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 600,
-            }}
-          >
-            Log out
-          </button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12, padding: "0 4px" }}>
+            <a href="/rent/" style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 12px", borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
+              color: "#9ca3af", fontSize: 13, fontWeight: 500, textDecoration: "none",
+            }}>
+              <span style={{ fontSize: 14 }}>🌍</span>
+              Home
+            </a>
+            <a href="/rent/landlord/login" style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 12px", borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
+              color: "#9ca3af", fontSize: 13, fontWeight: 500, textDecoration: "none",
+            }}>
+              <span style={{ fontSize: 14 }}>🏠</span>
+              Landlord Portal
+            </a>
+            <a href="/rent/tenant" style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 12px", borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
+              color: "#9ca3af", fontSize: 13, fontWeight: 500, textDecoration: "none",
+            }}>
+              <span style={{ fontSize: 14 }}>👤</span>
+              Tenant Portal
+            </a>
+          </div>
+
+          {/* User info + logout */}
+          <div style={{ borderTop: "1px solid #2c2f3f", paddingTop: 12 }}>
+            <p style={{ margin: "0 0 8px", fontSize: 13, color: "#9ca3af", padding: "0 12px" }}>
+              Logged in as <strong style={{ color: "#e9ecf2" }}>{admin?.username ?? "…"}</strong>
+            </p>
+            <button
+              onClick={handleLogout}
+              style={{
+                width: "100%", padding: "8px 0", borderRadius: 6, border: "none",
+                background: "#ef4444", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 600,
+              }}
+            >
+              Log out
+            </button>
+          </div>
+          <p style={{ margin: "10px 0 0", fontSize: 10, color: "#4b5563", textAlign: "center" }}>
+            &copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.
+          </p>
         </div>
       </aside>
 

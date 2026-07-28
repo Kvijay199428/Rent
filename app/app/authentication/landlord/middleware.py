@@ -139,6 +139,20 @@ async def get_current_landlord_api(request: Request) -> AuthPrincipal:
         raise HTTPException(status_code=401, detail="Unauthorized: Token expired or invalid")
 
 
+def extract_landlord_id(request: Request) -> int | None:
+    """Best-effort landlord_id extraction from JWT cookie. Returns None on failure."""
+    try:
+        token = request.cookies.get("access_token")
+        if not token:
+            return None
+        payload = decode_access_token(token)
+        if payload.get("role") != "landlord":
+            return None
+        return int(payload.get("landlord_id") or payload.get("sub"))
+    except Exception:
+        return None
+
+
 async def get_current_landlord_api_strict(request: Request) -> AuthPrincipal:
     """
     Stricter variant of get_current_landlord_api.

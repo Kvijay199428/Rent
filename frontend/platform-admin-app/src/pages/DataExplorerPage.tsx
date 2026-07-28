@@ -416,7 +416,7 @@ export default function DataExplorerPage() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: "#fff", borderRadius: 16, padding: "28px 32px", width: 400,
+              background: "#fff", borderRadius: 16, padding: "28px 32px", width: "100%", maxWidth: 400, margin: "0 16px", maxHeight: "80vh", overflowY: "auto",
               boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
             }}
           >

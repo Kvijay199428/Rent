@@ -32,11 +32,11 @@ def revoke_all_tenant_sessions(tenantId):
         conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE tenantId = ?", (tenantId,))
         conn.commit()
 
-def log_audit(tenantId: int, action: str, ip: str):
+def log_audit(tenantId: int, action: str, ip: str, meta_json: str | None = None):
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO tenant_audit_logs (tenantId, action, ip_address, created_at) VALUES (?, ?, ?, ?)",
-            (tenantId, action, ip, datetime.utcnow().isoformat())
+            "INSERT INTO tenant_audit_logs (tenantId, action, ip_address, created_at, meta_json) VALUES (?, ?, ?, ?, ?)",
+            (tenantId, action, ip, datetime.utcnow().isoformat(), meta_json)
         )
         conn.commit()
 

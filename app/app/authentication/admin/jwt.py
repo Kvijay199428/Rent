@@ -23,3 +23,8 @@ def create_admin_access_token(admin_id: int, session_id: str) -> str:
 def decode_admin_access_token(token: str):
     return jwt.decode(token, ADMIN_JWT_SECRET, algorithms=[ALGORITHM])
 
+
+# Short aliases for backward-compatible imports
+create_access_token = create_admin_access_token
+decode_access_token = decode_admin_access_token
+

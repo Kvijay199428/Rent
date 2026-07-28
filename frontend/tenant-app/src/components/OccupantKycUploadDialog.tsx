@@ -80,7 +80,7 @@ export function OccupantKycUploadDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Name *</Label>
               <Input name="name" required placeholder="Full name" />

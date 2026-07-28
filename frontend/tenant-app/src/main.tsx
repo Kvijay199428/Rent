@@ -8,7 +8,6 @@ import App from "./App";
 import "./index.css";
 import { getTenantRuntime } from "./lib/tenant-runtime";
 import { queryClient } from "./lib/queryClient";
-import { TenantProvider } from "./context/TenantContext";
 
 const { appBase } = getTenantRuntime();
 
@@ -18,9 +17,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <QueryClientProvider client={queryClient}>
         <BrowserRouter basename={appBase}>
           <ThemeProvider defaultTheme="system" storageKey="tenant-ui-theme">
-            <TenantProvider>
-              <App />
-            </TenantProvider>
+            <App />
           </ThemeProvider>
         </BrowserRouter>
       </QueryClientProvider>

@@ -25,8 +25,8 @@ export default function Navbar() {
           ))}
         </ul>
 
-        <a href="#cta" className="navbar-cta">
-          Get Early Access
+        <a href="#contact" className="navbar-cta">
+          Get Started
         </a>
 
         <button

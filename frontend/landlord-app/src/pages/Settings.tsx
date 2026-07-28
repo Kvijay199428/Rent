@@ -39,7 +39,7 @@ import {
 } from 'lucide-react';
 
 export default function Settings() {
-  const { landlordUuid } = useAuth();
+  const { landlordUuid, hasTotp, totpEnabled, refreshMe } = useAuth();
   const whatsappTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [whatsappEditMode, setWhatsappEditMode] = useState(false);
   const [config, setConfig] = useState<AppConfig | null>(null);
@@ -72,6 +72,16 @@ export default function Settings() {
   useEffect(() => {
     if (landlordUuid) loadConfig();
   }, [landlordUuid]);
+
+  useEffect(() => {
+    if (landlordUuid && totpEnabled) {
+      api.getTotpQr(landlordUuid).then((data) => {
+        setQrData(data.totp);
+      }).catch(() => {});
+    } else {
+      setQrData(null);
+    }
+  }, [landlordUuid, totpEnabled]);
 
   useEffect(() => {
     const readonlyByDefault = !!config?.whatsapp?.single_template?.readonly_by_default;
@@ -172,11 +182,19 @@ export default function Settings() {
   };
 
   const handleShowTotpQr = async () => {
+    if (!totpEnabled) {
+      toast.error('Enable TOTP first to view the QR code.');
+      return;
+    }
     setQrLoading(true);
     try {
       const data = await api.getTotpQr(landlordUuid!);
       setQrData(data.totp);
-      setQrModalOpen(true);
+      if (data.totp) {
+        setQrModalOpen(true);
+      } else {
+        toast.error('TOTP secret not found. Please contact your administrator.');
+      }
     } catch {
       toast.error('Failed to load TOTP QR code');
     } finally {
@@ -716,35 +734,51 @@ export default function Settings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label htmlFor="admin-totp-required">Enable TOTP for Login</Label>
                   <p className="text-sm text-muted-foreground">
-                    Require TOTP after username and password for login.
+                    {totpEnabled
+                      ? "TOTP is active. You must enter a verification code after your password to login."
+                      : hasTotp
+                        ? "Enable TOTP to require a verification code after your password for login."
+                        : "Contact your platform administrator to configure TOTP for your account."}
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
-                  <Button variant="outline" size="sm" onClick={handleShowTotpQr} disabled={qrLoading}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleShowTotpQr}
+                    disabled={qrLoading || !totpEnabled || !hasTotp}
+                    title={!totpEnabled ? "Enable TOTP first to view QR code." : ""}
+                  >
                     <QrCode className="h-4 w-4 mr-2" />
                     {qrLoading ? "Loading..." : "Show TOTP QR"}
                   </Button>
                   <Switch
                     id="admin-totp-required"
-                  checked={config.system?.security?.adminTotpRequired ?? true}
-                  onCheckedChange={(v) => {
-                    if (!config) return;
-                    setConfig({
-                      ...config,
-                      system: {
-                        ...config.system,
-                        security: {
-                          ...(config.system?.security || {}),
-                          adminTotpRequired: v
+                    checked={totpEnabled}
+                    disabled={!hasTotp}
+                    onCheckedChange={async (v) => {
+                      if (!landlordUuid) return;
+                      try {
+                        if (v) {
+                          const result = await api.enableTotp(landlordUuid);
+                          if (result.totp) {
+                            setQrData(result.totp);
+                            setQrModalOpen(true);
+                          }
+                        } else {
+                          await api.disableTotp(landlordUuid);
+                          setQrData(null);
                         }
+                        await refreshMe();
+                      } catch {
+                        toast.error(v ? 'Failed to enable TOTP' : 'Failed to disable TOTP');
                       }
-                    });
-                  }}
-                />
+                    }}
+                  />
                 </div>
               </div>
 
@@ -881,7 +915,7 @@ export default function Settings() {
               Scan this QR code with your authenticator app (like Google Authenticator or Authy).
             </DialogDescription>
           </DialogHeader>
-          {qrData && (
+          {qrData ? (
             <div className="flex flex-col items-center space-y-4 py-4">
               <div className="bg-white p-4 rounded-xl shadow-sm border">
                 <img src={`data:image/png;base64,${qrData.qr_code_base64}`} alt="TOTP QR Code" className="w-48 h-48" />
@@ -895,6 +929,14 @@ export default function Settings() {
                   If you cannot scan the QR code, manually enter this secret key into your app.
                 </p>
               </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 space-y-3">
+              <QrCode className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
+              <p className="text-muted-foreground font-medium">TOTP is not configured</p>
+              <p className="text-sm text-muted-foreground">
+                Contact your platform administrator to enable two-factor authentication for your account.
+              </p>
             </div>
           )}
           <DialogFooter>

@@ -282,9 +282,9 @@ export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Prop
             </div>
           </DialogHeader>
 
-          <div className="flex flex-1 min-h-0">
+          <div className="flex flex-col lg:flex-row flex-1 min-h-0">
             {/* Left sidebar — tenant list */}
-            <aside className="w-[340px] border-r bg-muted/20 flex flex-col shrink-0">
+            <aside className="w-full lg:w-[340px] border-b lg:border-r bg-muted/20 flex flex-col shrink-0 max-h-[40vh] lg:max-h-none overflow-auto">
               <div className="p-4 border-b space-y-3">
                 <div className="text-sm font-medium">Tenants with Dues</div>
                 <div className="relative">

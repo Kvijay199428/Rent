@@ -282,6 +282,8 @@ def init_db():
             conn.execute("ALTER TABLE tenants ADD COLUMN status_changed_at TEXT")
         if not _column_exists(conn, "landlord_accounts", "totp_secret"):
             conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_secret TEXT")
+        if not _column_exists(conn, "landlord_accounts", "totp_enabled"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 1")
         if not _column_exists(conn, "landlord_accounts", "failed_attempts"):
             conn.execute("ALTER TABLE landlord_accounts ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0")
         if not _column_exists(conn, "landlord_accounts", "locked_until"):
@@ -441,6 +443,23 @@ def init_db():
             conn.execute(
                 "ALTER TABLE landlord_accounts ADD COLUMN temp_password_consumed INTEGER NOT NULL DEFAULT 0"
             )
+            conn.commit()
+
+        # ─── Platform admin brute-force columns ────────────────────────
+        if not _column_exists(conn, "admins", "failed_attempts"):
+            conn.execute(
+                "ALTER TABLE admins ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
+        if not _column_exists(conn, "admins", "locked_until"):
+            conn.execute(
+                "ALTER TABLE admins ADD COLUMN locked_until TEXT"
+            )
+            conn.commit()
+
+        # ─── Tenant audit logs: add meta_json column ──
+        if not _column_exists(conn, "tenant_audit_logs", "meta_json"):
+            conn.execute("ALTER TABLE tenant_audit_logs ADD COLUMN meta_json TEXT")
             conn.commit()
 
         # ─── Landlord password admin store (for platform admin reveal) ──

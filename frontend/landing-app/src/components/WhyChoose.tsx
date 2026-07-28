@@ -45,7 +45,7 @@ export default function WhyChoose() {
               </div>
               <div className="mockup-body">
                 <div className="mockup-label">
-                  {screenshotTabs[activeTab]} — Coming Soon
+                  {screenshotTabs[activeTab]} — Live
                 </div>
                 <div className="mockup-bars">
                   <div className="mockup-bar" style={{ width: "80%" }} />

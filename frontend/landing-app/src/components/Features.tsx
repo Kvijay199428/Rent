@@ -3,10 +3,10 @@ import { features } from "../data";
 const iconMap: Record<string, string> = {
   receipt: "🧾",
   users: "👥",
-  "layout-dashboard": "📊",
+  home: "🏠",
   "bell-ring": "📣",
-  "file-check": "✅",
-  scale: "⚖️",
+  database: "💾",
+  "file-spreadsheet": "📊",
 };
 
 export default function Features() {
@@ -18,7 +18,7 @@ export default function Features() {
           Everything you need to manage rent digitally
         </h2>
         <p className="section-subtitle">
-          From automated rent collection to legal-ready receipts — the platform
+          From digital receipts to encrypted tenant login — the platform
           handles the complexity so you don't have to.
         </p>
         <div className="features-grid">

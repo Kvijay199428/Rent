@@ -91,7 +91,7 @@ export default function PdfPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="max-w-[95vw] xl:max-w-[1400px] h-[92vh] p-0 flex flex-col gap-0 overflow-hidden">
+      <DialogContent showCloseButton={false} className="max-w-[95vw] xl:max-w-[1400px] h-[92svh] lg:h-[92vh] p-0 flex flex-col gap-0 overflow-hidden max-sm:mx-2 max-sm:rounded-xl">
         <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b flex flex-row items-center justify-between space-y-0">
           <div className="flex items-center gap-3">
             <FileText className="h-6 w-6 text-red-500 shrink-0" />

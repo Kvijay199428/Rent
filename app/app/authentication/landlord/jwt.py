@@ -36,3 +36,8 @@ def create_landlord_access_token(landlord_id: int, session_id: str) -> str:
 def decode_landlord_access_token(token: str) -> dict:
     """Decode and verify a landlord JWT, raising jose.JWTError on failure."""
     return jwt.decode(token, LANDLORD_JWT_SECRET, algorithms=[ALGORITHM])
+
+
+# Short aliases for backward-compatible imports
+create_access_token = create_landlord_access_token
+decode_access_token = decode_landlord_access_token

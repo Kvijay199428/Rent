@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { TenantProvider } from "@/context/TenantContext";
 import { useTenant } from "@/context/TenantContext";
 import LoginModal from "@/components/LoginModal";
 import BroadcastBanner from "@/components/BroadcastBanner";
@@ -13,11 +14,14 @@ import { DashboardSkeleton } from "@/components/Skeletons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PaymentStatusCard from "@/components/PaymentStatusCard";
 import ArchiveReceiptCard from "@/components/ArchiveReceiptCard";
-import { Receipt as ReceiptIcon, Users, Archive } from "lucide-react";
+import TenantProfileDetails from "@/components/TenantProfileDetails";
+import ActivityLog from "@/components/ActivityLog";
+import { Receipt as ReceiptIcon, Users, Archive, User, Shield } from "lucide-react";
 import { isOlderThan12Months } from "@/lib/utils";
+import TenantLoginPage from "@/pages/TenantLoginPage";
 import type { Receipt } from "@/types";
 
-function TenantPortal() {
+function TenantPortalInner() {
   const { profile, receipts, occupants, login, logout, isUnlocked, isLoading } = useTenant();
   const [loginError, setLoginError] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -95,7 +99,28 @@ function TenantPortal() {
             <h1 className="text-xl font-bold">Welcome, {tenant.name}</h1>
             <p className="text-base text-muted-foreground"><span style={{color:"#708498", fontWeight: 600}}>PROP</span><span style={{color:"#95A58F", fontWeight: 600}}>AURA</span> — Tenant</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            <a
+              href="/rent/"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline"
+            >
+              <span>🌍</span>
+              Home
+            </a>
+            <a
+              href="/rent/platform-admin/login"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline"
+            >
+              <span>⚙️</span>
+              Platform Admin
+            </a>
+            <a
+              href="/rent/landlord/login"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline"
+            >
+              <span>🏠</span>
+              Landlord Portal
+            </a>
             <ThemeToggle />
             <button
               onClick={logout}
@@ -146,6 +171,20 @@ function TenantPortal() {
                 </span>
               )}
             </TabsTrigger>
+            <TabsTrigger
+              value="profile"
+              className="gap-1.5 data-[state=active]:bg-muted"
+            >
+              <User className="h-3.5 w-3.5" />
+              My Details
+            </TabsTrigger>
+            <TabsTrigger
+              value="activity"
+              className="gap-1.5 data-[state=active]:bg-muted"
+            >
+              <Shield className="h-3.5 w-3.5" />
+              Activity
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="receipts" className="space-y-6 mt-2">
@@ -192,6 +231,14 @@ function TenantPortal() {
               </div>
             )}
           </TabsContent>
+
+          <TabsContent value="profile" className="mt-2">
+            <TenantProfileDetails />
+          </TabsContent>
+
+          <TabsContent value="activity" className="mt-2">
+            <ActivityLog />
+          </TabsContent>
         </Tabs>
       </main>
 
@@ -202,6 +249,12 @@ function TenantPortal() {
           if (!open) setPreviewBill(null);
         }}
       />
+
+      <footer className="py-4 text-center border-t bg-background/50">
+        <p className="text-[10px] text-muted-foreground m-0">
+          &copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 }
@@ -209,7 +262,17 @@ function TenantPortal() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/:landlordUuid/t/:tenantId/:viewToken" element={<TenantPortal />} />
+      <Route path="/tenant" element={<Navigate to="/tenant/login" replace />} />
+      <Route path="/tenant/login" element={<TenantLoginPage />} />
+      <Route path="/login" element={<TenantLoginPage />} />
+      <Route
+        path="/:landlordUuid/t/:tenantId/:viewToken"
+        element={
+          <TenantProvider>
+            <TenantPortalInner />
+          </TenantProvider>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

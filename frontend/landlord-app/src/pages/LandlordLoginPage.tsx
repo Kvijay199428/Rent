@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Shield, AlertTriangle, ArrowLeft, KeyRound } from 'lucide-react';
+import AuthLayout from '@/components/layout/AuthLayout';
 
 export default function LandlordLoginPage() {
   const navigate = useNavigate();
@@ -79,7 +80,7 @@ export default function LandlordLoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+    <AuthLayout>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -204,6 +205,6 @@ export default function LandlordLoginPage() {
           </p>
         </CardFooter>
       </Card>
-    </div>
+    </AuthLayout>
   );
 }

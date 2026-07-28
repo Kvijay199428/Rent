@@ -13,7 +13,7 @@ const portals = [
     icon: "👤",
     title: "Tenant Portal",
     description:
-      "View your rent due, payment history, download receipts, and communicate with your landlord.",
+      "Access your receipts, payment status, upload KYC documents, and manage your profile — all from a secure, encrypted portal.",
     buttons: [
       { label: "🔑 Tenant Login", href: "./tenant/login", variant: "primary" },
     ],

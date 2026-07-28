@@ -25,7 +25,7 @@ _START_TIME = time.time()
 
 # ─── /ws/sync — general data sync ───────────────────────────────────────────
 
-@router.websocket("/ws/sync")
+@router.websocket("/rent/ws/sync")
 async def sync_websocket(
     websocket: WebSocket,
     channel: str = Query(...),
@@ -70,7 +70,7 @@ async def sync_websocket(
 
 _AUTH_CHANNELS = ("landlord:", "platform_admin")
 
-@router.websocket("/ws/auth")
+@router.websocket("/rent/ws/auth")
 async def auth_websocket(
     websocket: WebSocket,
     channel: str = Query(...),
@@ -121,7 +121,7 @@ def _build_health_snapshot() -> dict:
     }
 
 
-@router.websocket("/ws/health")
+@router.websocket("/rent/ws/health")
 async def health_websocket(websocket: WebSocket):
     """
     WebSocket endpoint for live system health stream.

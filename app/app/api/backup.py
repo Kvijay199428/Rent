@@ -34,9 +34,21 @@ async def api_get_backups(landlordUuid: str):
     return get_all_backups()
 
 @router.post(Routes.LANDLORDAPIBACKUPSCREATEMANUAL, name=Names.APICREATEMANUALBACKUP)
-async def api_create_manual_backup(landlordUuid: str, background_tasks: BackgroundTasks):
+async def api_create_manual_backup(landlordUuid: str, request: Request, background_tasks: BackgroundTasks):
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.database.landlord_repository import create_landlord_audit_log
+
     try:
         metadata = create_backup(type_="Manual", subtype="manual")
+
+        landlord_id = extract_landlord_id(request)
+        if landlord_id:
+            create_landlord_audit_log(
+                landlord_id, "backup_created",
+                ip_address=request.client.host if request.client else None,
+                meta_json=json.dumps({"backup_id": metadata.get("id", "")}),
+            )
+
         return {"status": "success", "data": metadata}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -56,9 +68,21 @@ async def api_verify_backup(landlordUuid: str, backupId: str):
         return {"status": "error", "message": str(e)}
 
 @router.post(Routes.LANDLORDAPIBACKUPSRESTORE, name=Names.APIRESTOREBACKUP)
-async def api_restore_backup(landlordUuid: str, backupId: str):
+async def api_restore_backup(landlordUuid: str, backupId: str, request: Request):
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.database.landlord_repository import create_landlord_audit_log
+
     try:
         restore_backup(backupId)
+
+        landlord_id = extract_landlord_id(request)
+        if landlord_id:
+            create_landlord_audit_log(
+                landlord_id, "backup_restored",
+                ip_address=request.client.host if request.client else None,
+                meta_json=json.dumps({"backup_id": backupId}),
+            )
+
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

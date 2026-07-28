@@ -6,6 +6,11 @@ class LoginRequest(BaseModel):
     pin: str
     remember_me: bool = False
 
+class UsernameLoginRequest(BaseModel):
+    username: str
+    pin: str
+    remember_me: bool = False
+
 class ChangePinRequest(BaseModel):
     current_pin: str
     new_pin: str

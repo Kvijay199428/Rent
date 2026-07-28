@@ -23,3 +23,8 @@ def create_tenant_access_token(tenantId: int, session_id: str) -> str:
 def decode_tenant_access_token(token: str):
     return jwt.decode(token, TENANT_JWT_SECRET, algorithms=[ALGORITHM])
 
+
+# Short aliases for backward-compatible imports
+create_access_token = create_tenant_access_token
+decode_access_token = decode_tenant_access_token
+

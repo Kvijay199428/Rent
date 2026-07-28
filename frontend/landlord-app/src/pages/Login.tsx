@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
-import { APP_BASE, ROUTES } from '@/lib/constants';
+import { APP_BASE } from '@/lib/runtime';
+import { ROUTES } from '@/lib/routes';
+import AuthLayout from '@/components/layout/AuthLayout';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -32,7 +34,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <AuthLayout>
       <div className="w-full max-w-sm">
         <div className="bg-card border rounded-xl shadow-lg p-6">
           {/* Logo */}
@@ -114,6 +116,6 @@ export default function Login() {
           <span className="text-xs text-muted-foreground">PROPAURA v3.0.0</span>
         </div>
       </div>
-    </div>
+    </AuthLayout>
   );
 }

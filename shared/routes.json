@@ -140,6 +140,9 @@
         "delete": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
         "getFile": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/file/{filename}"
       },
+      "audit": {
+        "logs": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/audit-logs"
+      },
       "pdf": {
         "view": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
         "download": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
@@ -241,7 +244,13 @@
       },
       "totp": {
         "qr": "/landlord/{landlordUuid}/api/totp/qr",
-        "regenerate": "/landlord/{landlordUuid}/api/totp/regenerate"
+        "regenerate": "/landlord/{landlordUuid}/api/totp/regenerate",
+        "enable": "/landlord/{landlordUuid}/api/totp/enable",
+        "disable": "/landlord/{landlordUuid}/api/totp/disable"
+      },
+      "audit": {
+        "logs": "/landlord/{landlordUuid}/api/audit-logs",
+        "actions": "/landlord/{landlordUuid}/api/audit-logs/actions"
       }
     }
   }

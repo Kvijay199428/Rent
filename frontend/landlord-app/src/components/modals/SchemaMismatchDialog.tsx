@@ -75,7 +75,7 @@ export default function SchemaMismatchDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[600px] max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden">
+            <DialogContent className="max-w-[calc(100%-2rem)] sm:max-w-[600px] max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden">
                 {/* Header */}
                 <DialogHeader className="px-6 pt-5 pb-3 shrink-0 border-b bg-red-50/50">
                     <div className="flex items-center gap-3">

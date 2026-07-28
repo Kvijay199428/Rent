@@ -140,6 +140,9 @@ async def auth_refresh(
     # Format cookie value correctly
     new_cookie_val = f"{new_session_id}:{new_refresh_token}"
     set_tenant_auth_cookies(response, new_access_token, new_cookie_val, remember_me=True, request=request)
+
+    ip = request.client.host if request.client else "Unknown"
+    log_audit(session["tenantId"], "Token Refreshed", ip)
     
     return {"status": "success", "message": "Tokens refreshed silently"}
 
@@ -183,6 +186,10 @@ async def auth_logout_all(
     _verify_tenant_viewToken(request, viewToken)
     
     revoke_all_tenant_sessions(principal.id)
+
+    ip = request.client.host if request.client else "Unknown"
+    log_audit(principal.id, "Logout All Devices", ip)
+
     return {"status": "success", "message": "All devices logged out"}
     
 # from fastapi import APIRouter, Depends, Request, Response, HTTPException

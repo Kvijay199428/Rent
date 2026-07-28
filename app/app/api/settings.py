@@ -1,10 +1,11 @@
 # // File: app\app\api\settings.py
-from fastapi import APIRouter, UploadFile, File, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, Request, UploadFile, File, HTTPException, BackgroundTasks, Depends
 
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from pydantic import BaseModel
 import os
+import json
 import datetime
 
 from app.core.config_service import config
@@ -59,7 +60,9 @@ class ConfigUpdateModel(BaseModel):
     system: dict | None = None
 
 @router.post(Routes.LANDLORDAPICONFIGUPDATE, name=Names.UPDATECONFIG)
-async def update_config(landlordUuid: str, data: ConfigUpdateModel, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api)):
+async def update_config(landlordUuid: str, data: ConfigUpdateModel, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api)):
+    from app.database.landlord_repository import create_landlord_audit_log
+
     background_tasks.add_task(create_full_backup, tag="settings_change")
 
     config.save("landlord", data.landlord)
@@ -73,6 +76,13 @@ async def update_config(landlordUuid: str, data: ConfigUpdateModel, background_t
 
     if data.system:
         config.save("system", data.system)
+
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "settings_updated",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"sections": ["landlord", "billing"] + (["whatsapp"] if data.whatsapp else []) + (["backup"] if data.backup else []) + (["system"] if data.system else [])}),
+    )
 
     return {"status": "success"}
 

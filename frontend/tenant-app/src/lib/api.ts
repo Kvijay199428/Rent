@@ -73,4 +73,17 @@ export const tenantApi = {
       return `${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/download`;
     },
   },
+
+  audit: {
+    getLogs(params: { action_type?: string; search?: string; date_from?: string; date_to?: string; limit?: number; offset?: number } = {}) {
+      const qs = new URLSearchParams();
+      if (params.action_type) qs.set("action_type", params.action_type);
+      if (params.search) qs.set("search", params.search);
+      if (params.date_from) qs.set("date_from", params.date_from);
+      if (params.date_to) qs.set("date_to", params.date_to);
+      if (params.limit) qs.set("limit", String(params.limit));
+      if (params.offset) qs.set("offset", String(params.offset));
+      return http.get(`api/audit-logs?${qs}`);
+    },
+  },
 };

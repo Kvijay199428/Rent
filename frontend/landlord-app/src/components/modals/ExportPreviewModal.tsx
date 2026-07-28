@@ -293,9 +293,9 @@ export default function ExportPreviewModal({
                 </DialogHeader>
 
                 {/* Split Pane Content */}
-                <div className="flex-1 min-h-0 flex">
+                <div className="flex-1 min-h-0 flex flex-col lg:flex-row">
                     {/* LEFT PANE: Tenant List */}
-                    <div className="w-[380px] lg:w-[420px] border-r bg-muted/30 flex flex-col shrink-0">
+                    <div className="w-full lg:w-[380px] xl:w-[420px] border-b lg:border-r bg-muted/30 flex flex-col shrink-0 max-h-[40vh] lg:max-h-none overflow-auto">
                         <div className="px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider shrink-0 border-b bg-muted/50 flex items-center justify-between">
                             <span>Tenants ({filteredTenants.length})</span>
                             <Button

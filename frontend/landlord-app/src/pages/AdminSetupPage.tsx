@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield, Eye, EyeOff, Copy, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { ROUTES } from '@/lib/routes';
+import AuthLayout from '@/components/layout/AuthLayout';
 
 interface SetupResponse {
   status: string;
@@ -108,7 +109,7 @@ export default function AdminSetupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+    <AuthLayout>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -258,6 +259,6 @@ export default function AdminSetupPage() {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </AuthLayout>
   );
 }

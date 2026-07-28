@@ -1,5 +1,3 @@
-import { supportLinks } from "../data";
-
 export default function Footer() {
   return (
     <footer className="site-footer">
@@ -17,19 +15,10 @@ export default function Footer() {
         <div className="footer-col">
           <h4 className="footer-heading">Features</h4>
           <ul>
-            <li><a href="#features">Rent Collection</a></li>
+            <li><a href="#features">Digital Receipts</a></li>
             <li><a href="#features">Tenant Management</a></li>
-            <li><a href="#features">Smart Alerts</a></li>
-            <li><a href="#features">Receipts</a></li>
-          </ul>
-        </div>
-
-        <div className="footer-col">
-          <h4 className="footer-heading">Support</h4>
-          <ul>
-            {supportLinks.map((link) => (
-              <li key={link}><a href="#">{link}</a></li>
-            ))}
+            <li><a href="#features">WhatsApp Alerts</a></li>
+            <li><a href="#features">Backup & Restore</a></li>
           </ul>
         </div>
 
@@ -43,7 +32,7 @@ export default function Footer() {
       </div>
 
       <div className="footer-bottom">
-        <p>&copy; {new Date().getFullYear()} PROPAURA. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.</p>
         <div className="footer-bottom-links">
           <a href="#">Privacy Policy</a>
           <a href="#">Terms of Service</a>

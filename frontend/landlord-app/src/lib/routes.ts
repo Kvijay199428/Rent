@@ -329,6 +329,12 @@ export const ROUTES = {
     // Landlord API: TOTP
     LANDLORDAPITOTPQR(landlordUuid: string) { return api("landlord", "totp", "qr", { landlordUuid }); },
     LANDLORDAPITOTPREGENERATE(landlordUuid: string) { return api("landlord", "totp", "regenerate", { landlordUuid }); },
+    LANDLORDAPITOTPENABLE(landlordUuid: string) { return api("landlord", "totp", "enable", { landlordUuid }); },
+    LANDLORDAPITOTPDISABLE(landlordUuid: string) { return api("landlord", "totp", "disable", { landlordUuid }); },
+
+    // Landlord API: Audit Logs
+    LANDLORDAPIAUDITLOGS(landlordUuid: string) { return api("landlord", "audit", "logs", { landlordUuid }); },
+    LANDLORDAPIAUDITLOGSACTIONS(landlordUuid: string) { return api("landlord", "audit", "actions", { landlordUuid }); },
 } as const;
 
 export type RoutesType = typeof ROUTES;

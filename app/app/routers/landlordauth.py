@@ -29,6 +29,7 @@ from app.authentication.landlord.jwt import create_access_token
 from app.authentication.landlord.middleware import get_current_landlord_api
 from app.authentication.landlord.sessions import (
     create_landlord_session,
+    get_landlord_session_db,
     revoke_landlord_session_db,
 )
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
@@ -253,8 +254,7 @@ async def landlord_login(
         raise HTTPException(status_code=401, detail="Invalid username or password.")
 
     # Check if TOTP is required for login
-    require_totp = config.get("system", {}).get("security", {}).get("adminTotpRequired", True)
-    if require_totp and landlord["totp_secret"]:
+    if landlord["totp_enabled"] and landlord["totp_secret"]:
         return {
             "status": "totp_required",
             "message": "TOTP verification required.",
@@ -333,16 +333,72 @@ async def landlord_login(
     }
 
 
+@router.post(Routes.LANDLORDAPIAUTHREFRESH, name=Names.LANDLORDREFRESH)
+async def landlord_refresh(request: Request, response: Response):
+    """
+    Silent token refresh for landlords.
+    Rotates the refresh token on every use for security.
+    """
+    refresh_cookie = request.cookies.get("refresh_token")
+    if not refresh_cookie or ":" not in refresh_cookie:
+        clear_landlord_auth_cookies(response, request)
+        raise HTTPException(status_code=401, detail="No refresh token")
+
+    session_id, raw_token = refresh_cookie.split(":", 1)
+
+    session = get_landlord_session_db(session_id)
+    if not session or not verify_pin(raw_token, session["refresh_token_hash"]):
+        if session:
+            revoke_landlord_session_db(session_id)
+        clear_landlord_auth_cookies(response, request)
+        raise HTTPException(status_code=401, detail="Session expired or revoked")
+
+    revoke_landlord_session_db(session_id)
+
+    landlord_id = session["landlord_id"]
+    remember_me = bool(session.get("remember_me", 0))
+
+    new_session_id, new_refresh_token = create_landlord_session(
+        landlord_id, request, remember_me=remember_me
+    )
+    new_access_token = create_access_token(landlord_id, new_session_id)
+    new_cookie_val = f"{new_session_id}:{new_refresh_token}"
+
+    set_landlord_auth_cookies(
+        response, new_access_token, new_cookie_val, remember_me, request
+    )
+    return {"status": "success", "message": "Session refreshed"}
+
+
 @router.post(Routes.LANDLORDAPIAUTHLOGOUT, name=Names.LANDLORDLOGOUT)
 async def landlord_logout(request: Request, response: Response):
     """
     Clear landlord cookies and revoke the active session.
     """
+    # Extract landlord_id from token before clearing cookies
+    landlord_id = None
+    token = request.cookies.get("access_token")
+    if token:
+        try:
+            from app.authentication.landlord.jwt import decode_access_token
+            payload = decode_access_token(token)
+            landlord_id = int(payload.get("landlord_id") or payload.get("sub"))
+        except Exception:
+            pass
+
     clear_landlord_auth_cookies(response, request)
-    token = request.cookies.get("refresh_token")
-    if token and ":" in token:
-        session_id = token.split(":", 1)[0]
+    refresh_token = request.cookies.get("refresh_token")
+    if refresh_token and ":" in refresh_token:
+        session_id = refresh_token.split(":", 1)[0]
         revoke_landlord_session_db(session_id)
+
+    if landlord_id:
+        ip = request.client.host if request.client else None
+        create_landlord_audit_log(
+            landlord_id, "logout",
+            ip_address=ip,
+            meta_json=json.dumps({"user_agent": request.headers.get("User-Agent", "")}),
+        )
     return {"status": "success"}
 
 
@@ -355,7 +411,7 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
     """
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT totp_secret, requires_password_change FROM landlord_accounts WHERE id = ?",
+            "SELECT totp_secret, totp_enabled, requires_password_change FROM landlord_accounts WHERE id = ?",
             (principal.landlord_id,),
         ).fetchone()
 
@@ -368,6 +424,7 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "fullName": principal.fullname,
             "email": principal.email,
             "hasTotp": bool(row and row["totp_secret"]),
+            "totpEnabled": bool(row and row["totp_enabled"]),
             "requiresPasswordChange": bool(row and row["requires_password_change"]),
         },
     }
@@ -541,7 +598,7 @@ async def landlord_change_password(
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, landlord_uuid, password_hash FROM landlord_accounts WHERE id = ?",
+            "SELECT id, landlord_uuid, username, password_hash FROM landlord_accounts WHERE id = ?",
             (landlord_id,),
         ).fetchone()
         if not landlord:
@@ -594,7 +651,8 @@ async def landlord_change_password(
 
     # Return TOTP data if configured, so frontend can show QR dialog
     if row and row["totp_secret"]:
-        qr_base64 = generate_totp_qr_base64(landlord["username"] if landlord else "", row["totp_secret"])
+        username = (landlord["username"] if landlord else "") or ""
+        qr_base64 = generate_totp_qr_base64(username, row["totp_secret"])
         return {
             "status": "success",
             "message": "Password updated successfully.",
@@ -602,7 +660,7 @@ async def landlord_change_password(
             "totp": {
                 "secret": row["totp_secret"],
                 "qr_code_base64": qr_base64,
-                "provisioning_uri": get_totp_uri(landlord["username"] if landlord else "", row["totp_secret"]),
+                "provisioning_uri": get_totp_uri(username, row["totp_secret"]),
             },
         }
 
@@ -622,13 +680,10 @@ async def landlord_totp_qr(
     if not landlord:
         raise HTTPException(status_code=404, detail="Landlord not found.")
 
-    # Auto-generate TOTP secret on first access
     if not landlord["totp_secret"]:
-        new_secret = regenerate_landlord_totp_secret(landlord["id"])
-        landlord = get_landlord_by_uuid(landlordUuid)
-    else:
-        new_secret = landlord["totp_secret"]
+        return {"status": "success", "totp": None, "message": "TOTP is not configured"}
 
+    new_secret = landlord["totp_secret"]
     qr_base64 = generate_totp_qr_base64(landlord["username"], new_secret)
 
     return {
@@ -657,6 +712,12 @@ async def landlord_totp_regenerate(
     new_secret = regenerate_landlord_totp_secret(landlord["id"])
     qr_base64 = generate_totp_qr_base64(landlord["username"], new_secret)
 
+    create_landlord_audit_log(
+        landlord["id"],
+        "totp_regenerated",
+        ip_address=request.client.host if request.client else None,
+    )
+
     return {
         "status": "success",
         "message": "TOTP secret regenerated successfully. Update your authenticator app!",
@@ -666,3 +727,223 @@ async def landlord_totp_regenerate(
             "provisioning_uri": get_totp_uri(landlord["username"], new_secret),
         },
     }
+
+
+@router.post(Routes.LANDLORDAPITOTPENABLE, name=Names.LANDLORDTOTPENABLE)
+async def landlord_totp_enable(
+    landlordUuid: str,
+    principal=Depends(get_current_landlord_api),
+):
+    """
+    Enable TOTP for the authenticated landlord.
+    Generates a TOTP secret if one doesn't exist.
+    Returns QR code and secret for the landlord to scan.
+    """
+    landlord = get_landlord_by_uuid(landlordUuid)
+    if not landlord:
+        raise HTTPException(status_code=404, detail="Landlord not found.")
+
+    now = datetime.utcnow().isoformat()
+
+    if not landlord["totp_secret"]:
+        new_secret = regenerate_landlord_totp_secret(landlord["id"])
+    else:
+        new_secret = landlord["totp_secret"]
+
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE landlord_accounts SET totp_enabled = 1, updated_at = ? WHERE id = ?",
+            (now, landlord["id"]),
+        )
+        conn.commit()
+
+    landlord = get_landlord_by_uuid(landlordUuid)
+    qr_base64 = generate_totp_qr_base64(landlord["username"], new_secret)
+
+    # Broadcast TOTP state change
+    try:
+        from app.core.websocket_manager import sync_manager
+        await sync_manager.broadcast(f"landlord:{landlordUuid}", {"type": "TOTP_STATE_CHANGED", "enabled": True})
+        await sync_manager.broadcast("platform_admin", {"type": "TOTP_STATE_CHANGED", "landlordId": landlord["id"], "enabled": True})
+    except Exception:
+        pass
+
+    create_landlord_audit_log(
+        landlord["id"],
+        "totp_enabled",
+        ip_address=None,
+    )
+
+    return {
+        "status": "success",
+        "message": "TOTP enabled successfully.",
+        "totp": {
+            "secret": new_secret,
+            "qr_code_base64": qr_base64,
+            "provisioning_uri": get_totp_uri(landlord["username"], new_secret),
+        },
+    }
+
+
+@router.post(Routes.LANDLORDAPITOTPDISABLE, name=Names.LANDLORDTOTPDISABLE)
+async def landlord_totp_disable(
+    landlordUuid: str,
+    principal=Depends(get_current_landlord_api),
+):
+    """
+    Disable TOTP for the authenticated landlord.
+    Keeps the totp_secret so it can be shown when re-enabled.
+    Landlord can login with just username+password after disabling.
+    """
+    landlord = get_landlord_by_uuid(landlordUuid)
+    if not landlord:
+        raise HTTPException(status_code=404, detail="Landlord not found.")
+
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE landlord_accounts SET totp_enabled = 0, updated_at = ? WHERE id = ?",
+            (now, landlord["id"]),
+        )
+        conn.commit()
+
+    # Broadcast TOTP state change
+    try:
+        from app.core.websocket_manager import sync_manager
+        await sync_manager.broadcast(f"landlord:{landlordUuid}", {"type": "TOTP_STATE_CHANGED", "enabled": False})
+        await sync_manager.broadcast("platform_admin", {"type": "TOTP_STATE_CHANGED", "landlordId": landlord["id"], "enabled": False})
+    except Exception:
+        pass
+
+    create_landlord_audit_log(
+        landlord["id"],
+        "totp_disabled",
+        ip_address=None,
+    )
+
+    return {
+        "status": "success",
+        "message": "TOTP disabled. You can now login with just username and password.",
+    }
+
+
+# ─── Audit Logs ──────────────────────────────────────────────────────────────
+
+@router.get(Routes.LANDLORDAPIAUDITLOGS, name=Names.LANDLORDAUDITLOGS)
+async def landlord_audit_logs(
+    landlordUuid: str,
+    request: Request,
+    principal=Depends(get_current_landlord_api),
+    action_type: str | None = None,
+    search: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    """Return audit logs for this landlord (own actions + all their tenants' actions)."""
+    landlord_id = principal.id
+
+    query = """
+        SELECT * FROM (
+            SELECT
+                ll.id,
+                'landlord' AS app_source,
+                ll.landlord_id AS actor_id,
+                la.username AS actor_name,
+                ll.action,
+                NULL AS target_type,
+                NULL AS target_id,
+                ll.ip_address,
+                ll.meta_json,
+                ll.created_at
+            FROM landlord_audit_logs ll
+            LEFT JOIN landlord_accounts la ON ll.landlord_id = la.id
+            WHERE ll.landlord_id = ?
+
+            UNION ALL
+
+            SELECT
+                tl.id,
+                'tenant' AS app_source,
+                tl.tenantId AS actor_id,
+                t.name AS actor_name,
+                tl.action,
+                NULL AS target_type,
+                NULL AS target_id,
+                tl.ip_address,
+                tl.meta_json,
+                tl.created_at
+            FROM tenant_audit_logs tl
+            LEFT JOIN tenants t ON tl.tenantId = t.id
+            WHERE tl.tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)
+        ) unified
+        WHERE 1=1
+    """
+    params: list = [landlord_id, landlord_id]
+
+    if action_type:
+        query += " AND action LIKE ?"
+        params.append(f"%{action_type}%")
+    if search:
+        query += " AND (action LIKE ? OR ip_address LIKE ? OR actor_name LIKE ?)"
+        params.extend([f"%{search}%"] * 3)
+    if date_from:
+        query += " AND created_at >= ?"
+        params.append(date_from)
+    if date_to:
+        query += " AND created_at <= ?"
+        params.append(date_to + "T23:59:59")
+
+    count_query = "SELECT COUNT(*) FROM (" + query + ")"
+    with get_conn() as conn:
+        total = conn.execute(count_query, tuple(params)).fetchone()[0]
+
+    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    with get_conn() as conn:
+        rows = conn.execute(query, tuple(params)).fetchall()
+
+    items = []
+    for r in rows:
+        meta = {}
+        if r["meta_json"]:
+            try:
+                meta = json.loads(r["meta_json"])
+            except Exception:
+                pass
+        items.append({
+            "id": r["id"],
+            "app_source": r["app_source"],
+            "actor_id": r["actor_id"],
+            "actor_name": r["actor_name"],
+            "action": r["action"],
+            "target_type": r["target_type"],
+            "target_id": r["target_id"],
+            "ip_address": r["ip_address"],
+            "meta": meta,
+            "created_at": r["created_at"],
+        })
+
+    return {"items": items, "total": total}
+
+
+@router.get(Routes.LANDLORDAPIAUDITLOGSACTIONS, name=Names.LANDLORDAUDITLOGSACTIONS)
+async def landlord_audit_action_types(
+    landlordUuid: str,
+    request: Request,
+    principal=Depends(get_current_landlord_api),
+):
+    """Return distinct action types for this landlord's logs."""
+    landlord_id = principal.id
+    query = """
+        SELECT DISTINCT action FROM (
+            SELECT action FROM landlord_audit_logs WHERE landlord_id = ?
+            UNION ALL
+            SELECT action FROM tenant_audit_logs
+            WHERE tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)
+        ) ORDER BY action
+    """
+    with get_conn() as conn:
+        rows = conn.execute(query, (landlord_id, landlord_id)).fetchall()
+    return [r["action"] for r in rows]

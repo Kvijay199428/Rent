@@ -150,9 +150,9 @@ export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId,
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : tenant ? (
-          <div className="flex flex-1 min-h-0">
+          <div className="flex flex-col lg:flex-row flex-1 min-h-0">
             {/* Left pane — tenant profile */}
-            <aside className="w-[300px] border-r bg-muted/20 p-4 overflow-auto shrink-0">
+            <aside className="w-full lg:w-[300px] border-b lg:border-r bg-muted/20 p-4 overflow-auto shrink-0 max-h-[40vh] lg:max-h-none">
               <Card>
                 <CardContent className="p-4 space-y-4">
                   <div className="flex items-center gap-2 font-semibold">

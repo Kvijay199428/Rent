@@ -14,8 +14,11 @@ import Backups from './pages/Backups';
 import Archive from './pages/Archive';
 import SecuritySettingsPage from './pages/SecuritySettingsPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
+import ActivityPage from './pages/ActivityPage';
 import LandlordLoginPage from './pages/LandlordLoginPage';
 import LandlordSignupPage from './pages/LandlordSignupPage';
+import Login from './pages/Login';
+import AdminSetupPage from './pages/AdminSetupPage';
 import { APP_BASE } from './lib/runtime';
 
 function App() {
@@ -30,6 +33,8 @@ function App() {
             <Route path="/login" element={<LandlordLoginPage />} />
             <Route path="/signup" element={<LandlordSignupPage />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
+            <Route path="/admin/login" element={<Login />} />
+            <Route path="/admin/setup" element={<AdminSetupPage />} />
             
             {/* Protected Routes inside MainLayout — no UUID prefix */}
             <Route element={<MainLayout />}>
@@ -42,6 +47,7 @@ function App() {
               <Route path="/backups" element={<Backups />} />
               <Route path="/archive" element={<Archive />} />
               <Route path="/security" element={<SecuritySettingsPage />} />
+              <Route path="/activity" element={<ActivityPage />} />
             </Route>
 
             {/* Protected Routes with UUID prefix — for when basename doesn't include UUID */}
@@ -55,6 +61,7 @@ function App() {
               <Route path="backups" element={<Backups />} />
               <Route path="archive" element={<Archive />} />
               <Route path="security" element={<SecuritySettingsPage />} />
+              <Route path="activity" element={<ActivityPage />} />
             </Route>
 
             {/* Fallback */}

@@ -281,6 +281,18 @@ export const api = {
     return res.json();
   },
 
+  enableTotp: async (landlordUuid: string): Promise<{ status: string, totp?: { secret: string, qr_code_base64: string, provisioning_uri: string } }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITOTPENABLE(landlordUuid), { method: "POST" });
+    if (!res.ok) throw new Error('Failed to enable TOTP');
+    return res.json();
+  },
+
+  disableTotp: async (landlordUuid: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITOTPDISABLE(landlordUuid), { method: "POST" });
+    if (!res.ok) throw new Error('Failed to disable TOTP');
+    return res.json();
+  },
+
   saveConfig: async (landlordUuid: string, config: Partial<AppConfig>): Promise<{ status: string }> => {
     const res = await fetchWithAuth(ROUTES.LANDLORDAPICONFIGUPDATE(landlordUuid), {
       method: 'POST',
@@ -434,4 +446,27 @@ export const api = {
 
   getOccupantFileUrl: (landlordUuid: string, tenantId: string | number, filename: string): string =>
     ROUTES.LANDLORDAPIOCCUPANTSGETFILE(landlordUuid, Number(tenantId), filename),
+
+  // Audit Logs
+  getActivityLogs: async (
+    landlordUuid: string,
+    params: { action_type?: string; search?: string; date_from?: string; date_to?: string; limit?: number; offset?: number } = {}
+  ): Promise<{ items: any[]; total: number }> => {
+    const qs = new URLSearchParams();
+    if (params.action_type) qs.set("action_type", params.action_type);
+    if (params.search) qs.set("search", params.search);
+    if (params.date_from) qs.set("date_from", params.date_from);
+    if (params.date_to) qs.set("date_to", params.date_to);
+    if (params.limit) qs.set("limit", String(params.limit));
+    if (params.offset) qs.set("offset", String(params.offset));
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIAUDITLOGS(landlordUuid) + `?${qs}`);
+    if (!res.ok) throw new Error("Failed to fetch activity logs");
+    return res.json();
+  },
+
+  getActivityActionTypes: async (landlordUuid: string): Promise<string[]> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIAUDITLOGSACTIONS(landlordUuid));
+    if (!res.ok) throw new Error("Failed to fetch action types");
+    return res.json();
+  },
 };

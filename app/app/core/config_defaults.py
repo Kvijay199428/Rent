@@ -100,6 +100,7 @@ DEFAULT_CONFIGS = {
             "tenantPinlength": 4,
             "adminTotpRequired": True,
             "kyc_daily_upload_limit": 5,
+            "audit_log_retention_days": 30,
         },
         "server": {
             "host": "0.0.0.0",
