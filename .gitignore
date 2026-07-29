@@ -23,6 +23,7 @@ dist-ssr/
 build-output/
 update.zip
 tsconfig.tsbuildinfo
+tsconfig.*.tsbuildinfo
 .sisyphus/
 
 # Docker compose overrides
