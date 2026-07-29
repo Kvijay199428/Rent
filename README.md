@@ -52,51 +52,78 @@ All routes are prefixed with `/rent/`. The production gateway strips this prefix
 
 ```
 Rent/
-├── app/                    # FastAPI backend application
-│   ├── app/
-│   │   ├── api/            # API endpoint modules (billing, tenants, health, sync, PDF, WhatsApp, …)
-│   │   ├── authentication/ # JWT + cookie auth (admin, landlord, tenant, platform)
-│   │   ├── core/           # DB init, router registry, config, startup, paths
-│   │   ├── database/       # Repositories, raw SQL schema
-│   │   ├── models/         # Pydantic models
-│   │   ├── pages/          # Server-rendered Jinja2 pages (tenant SPA, errors, etc.)
-│   │   ├── routers/        # Auth routers, platform admin router
-│   │   ├── services/       # Business logic (billing, PDF, backup, tenant recovery)
-│   │   └── main.py         # FastAPI app entry point
-│   ├── config/             # Domain, receipt, system, UI JSON configs
-│   └── requirements.txt    # Python dependencies
-├── backend/                # Dockerfile + compose files for backend
+├── backend/
+│   ├── app/                # FastAPI backend application
+│   │   ├── app/
+│   │   │   ├── api/            # API endpoint modules
+│   │   │   ├── authentication/ # JWT + cookie auth modules
+│   │   │   ├── core/           # DB init, router registry, config, startup
+│   │   │   ├── database/       # Repositories, raw SQL schema
+│   │   │   ├── models/         # Pydantic models
+│   │   │   ├── pages/          # Server-rendered Jinja2 pages
+│   │   │   ├── routers/        # Auth routers, platform admin router
+│   │   │   ├── services/       # Business logic
+│   │   │   └── main.py         # FastAPI app entry point
+│   │   ├── config/             # Domain, receipt, system, UI JSON configs
+│   │   ├── static/
+│   │   └── templates/
+│   ├── deploy/                 # Deployment orchestrator + per-service scripts
+│   │   ├── deploy_all.py       # Deploy everything
+│   │   ├── deploy_backend.py   # SSH deploy backend
+│   │   ├── deploy_frontend.py  # Build SPAs → Cloudflare Pages
+│   │   ├── deploy_gateway.py   # Upload nginx routes + reload
+│   │   ├── rollback.py         # Rollback deployment
+│   │   └── common.py           # Shared SSH, rsync, logging
+│   ├── scripts/                # Utility scripts (route validation, migrations)
+│   ├── shared/                 # Shared routes.json (source of truth)
+│   ├── requirements.txt        # Python dependencies
 │   ├── Dockerfile
-│   ├── compose.yml         # Production backend
-│   └── compose.test.yml    # Local test override (port exposure)
-├── frontend/               # All frontend applications
-│   ├── shared/             # Shared code (api-config.ts, routes.json)
-│   ├── landing-app/        # Public landing page (base: /rent/)
-│   ├── landlord-app/       # Landlord dashboard (base: /rent/landlord/)
-│   ├── platform-admin-app/ # Admin panel (base: /rent/admin/)
-│   └── tenant-app/         # Tenant portal (base: /rent/t/)
-├── frontend-test/          # Docker test environment (nginx + backend)
+│   ├── compose.yml             # Production backend
+│   ├── compose.test.yml        # Local test override (port exposure)
+│   └── .env.example
+│
+├── frontend/                   # All frontend applications
+│   ├── shared/                 # Shared code (api-config.ts, etc.)
+│   ├── landing-app/            # Public landing page (base: /rent/)
+│   ├── landlord-app/           # Landlord dashboard (base: /rent/landlord/)
+│   ├── platform-admin-app/     # Admin panel (base: /rent/admin/)
+│   ├── tenant-app/             # Tenant portal (base: /rent/t/)
+│   ├── package.json
+│   ├── package-lock.json
+│   └── build.sh                # Build all SPAs → build-output/
+│
+├── gateway/                    # Production reverse proxy + tunnel
+│   ├── nginx/
+│   │   ├── nginx.conf
+│   │   └── routes/
+│   └── compose.yml
+│
+├── frontend-test/              # Integration environment (builds backend + gateway + frontend)
 │   ├── compose.yml
 │   └── nginx.conf
-├── gateway/                # Production reverse proxy + tunnel
-│   ├── compose.yml
-│   └── nginx/
-│       ├── nginx.conf      # Gateway Nginx config
-│       └── routes/         # Per-service route definitions
-├── deploy/                 # Python deployment scripts
-│   ├── build_frontend.py   # Build all SPAs → Cloudflare Pages output
-│   ├── deploy_backend.py   # SSH deploy backend to server
-│   └── deploy_gateway.py   # Upload nginx routes + reload
-├── scripts/                # Utility scripts (route validation, migrations)
-├── shared/                 # Shared routes.json (source of truth)
-├── storage/                # Runtime data (ignored by git)
-│   ├── config/             # 16 JSON config files
-│   ├── database/           # SQLite database
-│   ├── backups/            # Backup archives
-│   └── uploads/            # User uploads (KYC, signatures)
-├── .env.example            # Environment variable template
-├── requirements.txt        # Root Python deps (synced with app/)
-└── README.md               # This file
+│
+├── infrastructure/             # Cloudflare, GitHub, SSL, scripts
+│   ├── cloudflare/
+│   ├── github/
+│   ├── ssl/
+│   └── scripts/
+│
+├── docs/                       # Architecture, deployment, API docs
+│
+├── tools/
+│   └── copy.py                 # Source code snapshot generator
+│
+├── storage/                    # Runtime data (ignored by git)
+│   ├── config/
+│   ├── database/
+│   ├── backups/
+│   └── uploads/
+├── backups/                    # Manual backup archives (ignored by git)
+│
+├── .env.example                # Environment variable template
+├── .gitignore
+├── README.md
+└── LICENSE
 ```
 
 ---
@@ -123,8 +150,8 @@ Rent/
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cd app
+pip install -r backend/requirements.txt
+cd backend/app
 uvicorn app.main:app --reload --host 127.0.0.1 --port 20081
 ```
 
@@ -204,8 +231,7 @@ Cookies use `SameSite=None` + `Secure` for cross-origin support (Cloudflare Page
 ### Cloudflare Pages (Frontend)
 
 ```bash
-pip install -r deploy/requirements.txt   # if exists, else dependencies inline
-python deploy/build_frontend.py          # builds 4 apps → build-output/
+python backend/deploy/deploy_frontend.py  # builds 4 apps → build-output/
 ```
 
 Output structure:
@@ -217,20 +243,20 @@ build-output/rent/
 └── tenant/index.html, tenant/assets/  (tenant-app)
 ```
 
-Deploy the `build-output/` directory to Cloudflare Pages.
+Deploy the `build-output/` directory to Cloudflare Pages (root directory: `frontend/`).
 
 ### Backend (SSH)
 
 ```bash
-python deploy/deploy_backend.py --host <ip> --port <ssh_port>
+python backend/deploy/deploy_backend.py --host <ip> --port <ssh_port>
 ```
 
-Uploads `app/`, `backend/`, and `requirements.txt`, then builds and starts the Docker container.
+Uploads `app/`, Docker infrastructure, and `requirements.txt`, then builds and starts the Docker container.
 
 ### Gateway (SSH)
 
 ```bash
-python deploy/deploy_gateway.py --host <ip>
+python backend/deploy/deploy_gateway.py --host <ip>
 ```
 
 Uploads nginx route configs and reloads nginx without downtime.

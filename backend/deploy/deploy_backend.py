@@ -3,11 +3,11 @@
 Deploy Rent Backend to Ubuntu server via SSH.
 
 Usage:
-    python deploy/deploy_backend.py                          # default LAN target
-    python deploy/deploy_backend.py --host 192.168.1.50
-    python deploy/deploy_backend.py --host 100.107.83.28 --port 22009
-    python deploy/deploy_backend.py --clean                  # full rebuild
-    python deploy/deploy_backend.py --dry-run                # show commands only
+    python backend/deploy/deploy_backend.py                          # default LAN target
+    python backend/deploy/deploy_backend.py --host 192.168.1.50
+    python backend/deploy/deploy_backend.py --host 100.107.83.28 --port 22009
+    python backend/deploy/deploy_backend.py --clean                  # full rebuild
+    python backend/deploy/deploy_backend.py --dry-run                # show commands only
 """
 
 import os
@@ -24,8 +24,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REMOTE_DIR = "/home/vega/rent/backend"
 
 # Directories and files to upload (relative to repo root)
-UPLOAD_DIRS = ["app", "backend"]
-UPLOAD_FILES = ["requirements.txt"]
+UPLOAD_DIRS = ["app"]
+UPLOAD_FILES = ["requirements.txt", "Dockerfile", "compose.yml", "compose.test.yml", ".env.example"]
 
 
 def parse_args():

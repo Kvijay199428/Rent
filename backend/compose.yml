@@ -1,8 +1,7 @@
 services:
   rent-backend:
     build:
-      context: ..
-      dockerfile: backend/Dockerfile
+      context: .
     container_name: rent-backend
     restart: unless-stopped
     expose:

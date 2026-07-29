@@ -4,8 +4,8 @@ import sys
 
 # Define directories to scan
 DIRECTORIES = [
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app", "app")),
-    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend")),
 ]
 
 # Exclude these files (the manifest generators and manifests themselves)

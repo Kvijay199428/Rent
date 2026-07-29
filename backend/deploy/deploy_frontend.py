@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Build all Rent frontend apps and assemble for Cloudflare Pages.
+Build and assemble all Rent frontend apps for Cloudflare Pages.
 
 Builds each app independently, then assembles into a single output directory
 that can be deployed to Cloudflare Pages as one project.
@@ -22,9 +22,9 @@ Output structure:
             └── assets/
 
 Usage:
-    python deploy/build_frontend.py              # build all apps
-    python deploy/build_frontend.py --skip-landing  # skip landing build
-    python deploy/build_frontend.py --no-build       # only assemble (skip npm)
+    python backend/deploy/deploy_frontend.py              # build all apps
+    python backend/deploy/deploy_frontend.py --skip-landing  # skip landing build
+    python backend/deploy/deploy_frontend.py --no-build       # only assemble (skip npm)
 """
 
 import os
@@ -34,30 +34,30 @@ import argparse
 import subprocess
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUTPUT_DIR = os.path.join(BASE_DIR, "build-output")
+OUTPUT_DIR = os.path.join(BASE_DIR, "..", "build-output")
 
 APPS = [
     {
         "name": "landing",
-        "dir": "frontend/landing-app",
+        "dir": "../frontend/landing-app",
         "output": "rent",
         "skip_flag": "--skip-landing",
     },
     {
         "name": "platform-admin",
-        "dir": "frontend/platform-admin-app",
+        "dir": "../frontend/platform-admin-app",
         "output": "rent/admin",
         "skip_flag": "--skip-admin",
     },
     {
         "name": "tenant",
-        "dir": "frontend/tenant-app",
+        "dir": "../frontend/tenant-app",
         "output": "rent/tenant",
         "skip_flag": "--skip-tenant",
     },
     {
         "name": "landlord",
-        "dir": "frontend/landlord-app",
+        "dir": "../frontend/landlord-app",
         "output": "rent/landlord",
         "skip_flag": "--skip-landlord",
     },

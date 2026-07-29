@@ -3,8 +3,8 @@
 Generated: 2025-07-29
 Script:   /root/Rent/copy.py
 Source:   /root/Rent
-Files:    295
-Size:     1534 KB
+Files:    296
+Size:     1539 KB
 Skipped:  0
 
 ---
@@ -14,100 +14,103 @@ Skipped:  0
 - .env.example
 - .gitignore
 - README.md
-- app/app/api/__init__.py
-- app/app/api/backup.py
-- app/app/api/billing.py
-- app/app/api/dashboard.py
-- app/app/api/health.py
-- app/app/api/pdf.py
-- app/app/api/public.py
-- app/app/api/settings.py
-- app/app/api/sync.py
-- app/app/api/sync_ws.py
-- app/app/api/tenant_pdf.py
-- app/app/api/tenants.py
-- app/app/api/whatsapp.py
-- app/app/authentication/admin/__init__.py
-- app/app/authentication/admin/cookies.py
-- app/app/authentication/admin/jwt.py
-- app/app/authentication/admin/middleware.py
-- app/app/authentication/admin/sessions.py
-- app/app/authentication/common/__init__.py
-- app/app/authentication/common/middleware.py
-- app/app/authentication/common/pin_vault.py
-- app/app/authentication/common/principal.py
-- app/app/authentication/common/utils.py
-- app/app/authentication/landlord/__init__.py
-- app/app/authentication/landlord/cookies.py
-- app/app/authentication/landlord/jwt.py
-- app/app/authentication/landlord/middleware.py
-- app/app/authentication/landlord/sessions.py
-- app/app/authentication/platform/__init__.py
-- app/app/authentication/platform/cookies.py
-- app/app/authentication/platform/jwt.py
-- app/app/authentication/tenant/__init__.py
-- app/app/authentication/tenant/cookies.py
-- app/app/authentication/tenant/jwt.py
-- app/app/authentication/tenant/middleware.py
-- app/app/authentication/tenant/sessions.py
-- app/app/core/app_info.py
-- app/app/core/audit.py
-- app/app/core/config_defaults.py
-- app/app/core/config_service.py
-- app/app/core/db.py
-- app/app/core/dependencies.py
-- app/app/core/paths.py
-- app/app/core/route_builder.py
-- app/app/core/router_registry.py
-- app/app/core/routes_manifest.py
-- app/app/core/routes_manifest_landlord.py
-- app/app/core/routes_manifest_platform_admin.py
-- app/app/core/routes_manifest_tenant.py
-- app/app/core/startup.py
-- app/app/core/websocket_manager.py
-- app/app/database/auth_repository.py
-- app/app/database/final_schema.py
-- app/app/database/landlord_repository.py
-- app/app/encryption.py
-- app/app/main.py
-- app/app/models/auth.py
-- app/app/models/landlord.py
-- app/app/models/receipt.py
-- app/app/models/tenant.py
-- app/app/pages/__init__.py
-- app/app/pages/archive.py
-- app/app/pages/backups.py
-- app/app/pages/billing.py
-- app/app/pages/dashboard.py
-- app/app/pages/errors.py
-- app/app/pages/history.py
-- app/app/pages/landing.py
-- app/app/pages/redirects.py
-- app/app/pages/settings.py
-- app/app/pages/spa.py
-- app/app/pages/tenants.py
-- app/app/routers/admin_auth.py
-- app/app/routers/auth.py
-- app/app/routers/landlord_routes.py
-- app/app/routers/landlordauth.py
-- app/app/routers/platform_admin.py
-- app/app/services/backup_service.py
-- app/app/services/billing_service.py
-- app/app/services/pdf_service.py
-- app/app/services/signature_service.py
-- app/app/services/tenant_recovery_service.py
-- app/app/services/tenant_service.py
-- app/config/domain.json
-- app/config/receipt.json
-- app/config/system.json
-- app/config/ui.json
-- app/requirements.txt
 - backend/.env.example
 - backend/Dockerfile
+- backend/app/app/api/__init__.py
+- backend/app/app/api/backup.py
+- backend/app/app/api/billing.py
+- backend/app/app/api/dashboard.py
+- backend/app/app/api/health.py
+- backend/app/app/api/pdf.py
+- backend/app/app/api/public.py
+- backend/app/app/api/settings.py
+- backend/app/app/api/sync.py
+- backend/app/app/api/sync_ws.py
+- backend/app/app/api/tenant_pdf.py
+- backend/app/app/api/tenants.py
+- backend/app/app/api/whatsapp.py
+- backend/app/app/authentication/admin/__init__.py
+- backend/app/app/authentication/admin/cookies.py
+- backend/app/app/authentication/admin/jwt.py
+- backend/app/app/authentication/admin/middleware.py
+- backend/app/app/authentication/admin/sessions.py
+- backend/app/app/authentication/common/__init__.py
+- backend/app/app/authentication/common/middleware.py
+- backend/app/app/authentication/common/pin_vault.py
+- backend/app/app/authentication/common/principal.py
+- backend/app/app/authentication/common/utils.py
+- backend/app/app/authentication/landlord/__init__.py
+- backend/app/app/authentication/landlord/cookies.py
+- backend/app/app/authentication/landlord/jwt.py
+- backend/app/app/authentication/landlord/middleware.py
+- backend/app/app/authentication/landlord/sessions.py
+- backend/app/app/authentication/platform/__init__.py
+- backend/app/app/authentication/platform/cookies.py
+- backend/app/app/authentication/platform/jwt.py
+- backend/app/app/authentication/tenant/__init__.py
+- backend/app/app/authentication/tenant/cookies.py
+- backend/app/app/authentication/tenant/jwt.py
+- backend/app/app/authentication/tenant/middleware.py
+- backend/app/app/authentication/tenant/sessions.py
+- backend/app/app/core/app_info.py
+- backend/app/app/core/audit.py
+- backend/app/app/core/config_defaults.py
+- backend/app/app/core/config_service.py
+- backend/app/app/core/db.py
+- backend/app/app/core/dependencies.py
+- backend/app/app/core/paths.py
+- backend/app/app/core/route_builder.py
+- backend/app/app/core/router_registry.py
+- backend/app/app/core/routes_manifest.py
+- backend/app/app/core/routes_manifest_landlord.py
+- backend/app/app/core/routes_manifest_platform_admin.py
+- backend/app/app/core/routes_manifest_tenant.py
+- backend/app/app/core/startup.py
+- backend/app/app/core/websocket_manager.py
+- backend/app/app/database/auth_repository.py
+- backend/app/app/database/final_schema.py
+- backend/app/app/database/landlord_repository.py
+- backend/app/app/encryption.py
+- backend/app/app/main.py
+- backend/app/app/models/auth.py
+- backend/app/app/models/landlord.py
+- backend/app/app/models/receipt.py
+- backend/app/app/models/tenant.py
+- backend/app/app/pages/__init__.py
+- backend/app/app/pages/archive.py
+- backend/app/app/pages/backups.py
+- backend/app/app/pages/billing.py
+- backend/app/app/pages/dashboard.py
+- backend/app/app/pages/errors.py
+- backend/app/app/pages/history.py
+- backend/app/app/pages/landing.py
+- backend/app/app/pages/redirects.py
+- backend/app/app/pages/settings.py
+- backend/app/app/pages/spa.py
+- backend/app/app/pages/tenants.py
+- backend/app/app/routers/admin_auth.py
+- backend/app/app/routers/auth.py
+- backend/app/app/routers/landlord_routes.py
+- backend/app/app/routers/landlordauth.py
+- backend/app/app/routers/platform_admin.py
+- backend/app/app/services/backup_service.py
+- backend/app/app/services/billing_service.py
+- backend/app/app/services/pdf_service.py
+- backend/app/app/services/signature_service.py
+- backend/app/app/services/tenant_recovery_service.py
+- backend/app/app/services/tenant_service.py
+- backend/app/config/domain.json
+- backend/app/config/receipt.json
+- backend/app/config/system.json
+- backend/app/config/ui.json
+- backend/compose.test.yml
 - backend/compose.yml
-- build.sh
+- backend/requirements.txt
+- backend/shared/routes.json
+- copy.py
 - frontend-test/compose.yml
 - frontend-test/nginx.conf
+- frontend/build.sh
 - frontend/landing-app/package.json
 - frontend/landing-app/src/components/BroadcastBanner.tsx
 - frontend/landing-app/src/components/CTA.tsx
@@ -234,6 +237,7 @@ Skipped:  0
 - frontend/landlord-app/tsconfig.json
 - frontend/landlord-app/tsconfig.node.json
 - frontend/landlord-app/vite.config.ts
+- frontend/package.json
 - frontend/platform-admin-app/package.json
 - frontend/platform-admin-app/src/api/client.ts
 - frontend/platform-admin-app/src/components/AuthLayout.tsx
@@ -303,9 +307,6 @@ Skipped:  0
 - gateway/compose.yml
 - gateway/nginx/nginx.conf
 - gateway/nginx/routes/rent.conf
-- package.json
-- requirements.txt
-- shared/routes.json
 
 ---
 
@@ -359,6 +360,10 @@ update.zip
 tsconfig.tsbuildinfo
 tsconfig.*.tsbuildinfo
 .sisyphus/
+vite.config.js
+vite.config.d.ts
+vite.config.*.js
+vite.config.*.d.ts
 
 # Docker compose overrides
 docker-compose.override.yml
@@ -441,51 +446,78 @@ All routes are prefixed with `/rent/`. The production gateway strips this prefix
 
 ```
 Rent/
-├── app/                    # FastAPI backend application
-│   ├── app/
-│   │   ├── api/            # API endpoint modules (billing, tenants, health, sync, PDF, WhatsApp, …)
-│   │   ├── authentication/ # JWT + cookie auth (admin, landlord, tenant, platform)
-│   │   ├── core/           # DB init, router registry, config, startup, paths
-│   │   ├── database/       # Repositories, raw SQL schema
-│   │   ├── models/         # Pydantic models
-│   │   ├── pages/          # Server-rendered Jinja2 pages (tenant SPA, errors, etc.)
-│   │   ├── routers/        # Auth routers, platform admin router
-│   │   ├── services/       # Business logic (billing, PDF, backup, tenant recovery)
-│   │   └── main.py         # FastAPI app entry point
-│   ├── config/             # Domain, receipt, system, UI JSON configs
-│   └── requirements.txt    # Python dependencies
-├── backend/                # Dockerfile + compose files for backend
+├── backend/
+│   ├── app/                # FastAPI backend application
+│   │   ├── app/
+│   │   │   ├── api/            # API endpoint modules
+│   │   │   ├── authentication/ # JWT + cookie auth modules
+│   │   │   ├── core/           # DB init, router registry, config, startup
+│   │   │   ├── database/       # Repositories, raw SQL schema
+│   │   │   ├── models/         # Pydantic models
+│   │   │   ├── pages/          # Server-rendered Jinja2 pages
+│   │   │   ├── routers/        # Auth routers, platform admin router
+│   │   │   ├── services/       # Business logic
+│   │   │   └── main.py         # FastAPI app entry point
+│   │   ├── config/             # Domain, receipt, system, UI JSON configs
+│   │   ├── static/
+│   │   └── templates/
+│   ├── deploy/                 # Deployment orchestrator + per-service scripts
+│   │   ├── deploy_all.py       # Deploy everything
+│   │   ├── deploy_backend.py   # SSH deploy backend
+│   │   ├── deploy_frontend.py  # Build SPAs → Cloudflare Pages
+│   │   ├── deploy_gateway.py   # Upload nginx routes + reload
+│   │   ├── rollback.py         # Rollback deployment
+│   │   └── common.py           # Shared SSH, rsync, logging
+│   ├── scripts/                # Utility scripts (route validation, migrations)
+│   ├── shared/                 # Shared routes.json (source of truth)
+│   ├── requirements.txt        # Python dependencies
 │   ├── Dockerfile
-│   ├── compose.yml         # Production backend
-│   └── compose.test.yml    # Local test override (port exposure)
-├── frontend/               # All frontend applications
-│   ├── shared/             # Shared code (api-config.ts, routes.json)
-│   ├── landing-app/        # Public landing page (base: /rent/)
-│   ├── landlord-app/       # Landlord dashboard (base: /rent/landlord/)
-│   ├── platform-admin-app/ # Admin panel (base: /rent/admin/)
-│   └── tenant-app/         # Tenant portal (base: /rent/t/)
-├── frontend-test/          # Docker test environment (nginx + backend)
+│   ├── compose.yml             # Production backend
+│   ├── compose.test.yml        # Local test override (port exposure)
+│   └── .env.example
+│
+├── frontend/                   # All frontend applications
+│   ├── shared/                 # Shared code (api-config.ts, etc.)
+│   ├── landing-app/            # Public landing page (base: /rent/)
+│   ├── landlord-app/           # Landlord dashboard (base: /rent/landlord/)
+│   ├── platform-admin-app/     # Admin panel (base: /rent/admin/)
+│   ├── tenant-app/             # Tenant portal (base: /rent/t/)
+│   ├── package.json
+│   ├── package-lock.json
+│   └── build.sh                # Build all SPAs → build-output/
+│
+├── gateway/                    # Production reverse proxy + tunnel
+│   ├── nginx/
+│   │   ├── nginx.conf
+│   │   └── routes/
+│   └── compose.yml
+│
+├── frontend-test/              # Integration environment (builds backend + gateway + frontend)
 │   ├── compose.yml
 │   └── nginx.conf
-├── gateway/                # Production reverse proxy + tunnel
-│   ├── compose.yml
-│   └── nginx/
-│       ├── nginx.conf      # Gateway Nginx config
-│       └── routes/         # Per-service route definitions
-├── deploy/                 # Python deployment scripts
-│   ├── build_frontend.py   # Build all SPAs → Cloudflare Pages output
-│   ├── deploy_backend.py   # SSH deploy backend to server
-│   └── deploy_gateway.py   # Upload nginx routes + reload
-├── scripts/                # Utility scripts (route validation, migrations)
-├── shared/                 # Shared routes.json (source of truth)
-├── storage/                # Runtime data (ignored by git)
-│   ├── config/             # 16 JSON config files
-│   ├── database/           # SQLite database
-│   ├── backups/            # Backup archives
-│   └── uploads/            # User uploads (KYC, signatures)
-├── .env.example            # Environment variable template
-├── requirements.txt        # Root Python deps (synced with app/)
-└── README.md               # This file
+│
+├── infrastructure/             # Cloudflare, GitHub, SSL, scripts
+│   ├── cloudflare/
+│   ├── github/
+│   ├── ssl/
+│   └── scripts/
+│
+├── docs/                       # Architecture, deployment, API docs
+│
+├── tools/
+│   └── copy.py                 # Source code snapshot generator
+│
+├── storage/                    # Runtime data (ignored by git)
+│   ├── config/
+│   ├── database/
+│   ├── backups/
+│   └── uploads/
+├── backups/                    # Manual backup archives (ignored by git)
+│
+├── .env.example                # Environment variable template
+├── .gitignore
+├── README.md
+└── LICENSE
 ```
 
 ---
@@ -512,8 +544,8 @@ Rent/
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cd app
+pip install -r backend/requirements.txt
+cd backend/app
 uvicorn app.main:app --reload --host 127.0.0.1 --port 20081
 ```
 
@@ -593,8 +625,7 @@ Cookies use `SameSite=None` + `Secure` for cross-origin support (Cloudflare Page
 ### Cloudflare Pages (Frontend)
 
 ```bash
-pip install -r deploy/requirements.txt   # if exists, else dependencies inline
-python deploy/build_frontend.py          # builds 4 apps → build-output/
+python backend/deploy/deploy_frontend.py  # builds 4 apps → build-output/
 ```
 
 Output structure:
@@ -606,20 +637,20 @@ build-output/rent/
 └── tenant/index.html, tenant/assets/  (tenant-app)
 ```
 
-Deploy the `build-output/` directory to Cloudflare Pages.
+Deploy the `build-output/` directory to Cloudflare Pages (root directory: `frontend/`).
 
 ### Backend (SSH)
 
 ```bash
-python deploy/deploy_backend.py --host <ip> --port <ssh_port>
+python backend/deploy/deploy_backend.py --host <ip> --port <ssh_port>
 ```
 
-Uploads `app/`, `backend/`, and `requirements.txt`, then builds and starts the Docker container.
+Uploads `app/`, Docker infrastructure, and `requirements.txt`, then builds and starts the Docker container.
 
 ### Gateway (SSH)
 
 ```bash
-python deploy/deploy_gateway.py --host <ip>
+python backend/deploy/deploy_gateway.py --host <ip>
 ```
 
 Uploads nginx route configs and reloads nginx without downtime.
@@ -666,14 +697,40 @@ Uploads nginx route configs and reloads nginx without downtime.
 Private project.
 ```
 
-### `app/app/api/__init__.py`
+### `backend/.env.example`
+
+```text
+RENT_STORAGE_DIR=/code/storage
+JWT_SECRET=changeme
+```
+
+### `backend/Dockerfile`
+
+```
+FROM python:3.13-slim
+
+WORKDIR /code
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY ./app /code/app
+
+RUN mkdir -p /code/storage
+
+EXPOSE 28001
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "28001", "--proxy-headers", "--forwarded-allow-ips", "*"]
+```
+
+### `backend/app/app/api/__init__.py`
 
 ```python
 
 
 ```
 
-### `app/app/api/backup.py`
+### `backend/app/app/api/backup.py`
 
 ```python
 # // File: app\app\api\backup.py
@@ -788,7 +845,7 @@ async def api_download_metadata(landlordUuid: str, backupId: str):
     return backup_meta
 ```
 
-### `app/app/api/billing.py`
+### `backend/app/app/api/billing.py`
 
 ```python
 # // File: app\app\api\billing.py
@@ -1047,7 +1104,7 @@ async def api_delete_bill(landlordUuid: str, tenantId: int, billNo: str, request
         raise HTTPException(status_code=400, detail=str(e))
 ```
 
-### `app/app/api/dashboard.py`
+### `backend/app/app/api/dashboard.py`
 
 ```python
 # File: app\app\api\dashboard.py
@@ -1065,7 +1122,7 @@ async def dashboard_api(landlordUuid: str):
     return {"stats": stats}
 ```
 
-### `app/app/api/health.py`
+### `backend/app/app/api/health.py`
 
 ```python
 from fastapi import APIRouter
@@ -1097,7 +1154,7 @@ async def health_check():
 
 ```
 
-### `app/app/api/pdf.py`
+### `backend/app/app/api/pdf.py`
 
 ```python
 # File: app\app\api\pdf.py
@@ -1181,7 +1238,7 @@ async def view_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord = Dep
     return response
 ```
 
-### `app/app/api/public.py`
+### `backend/app/app/api/public.py`
 
 ```python
 # // File: app\app\api\public.py
@@ -1739,7 +1796,7 @@ async def tenant_audit_logs(
     return {"items": items, "total": total}
 ```
 
-### `app/app/api/settings.py`
+### `backend/app/app/api/settings.py`
 
 ```python
 # // File: app\app\api\settings.py
@@ -1871,7 +1928,7 @@ async def update_theme(landlordUuid: str, data: dict, principal=Depends(get_curr
     return {"status": "success", "theme": theme, "effective_theme": theme}
 ```
 
-### `app/app/api/sync.py`
+### `backend/app/app/api/sync.py`
 
 ```python
 # File: app/app/api/sync.py
@@ -3750,7 +3807,7 @@ if __name__ == "__main__":
 #     )
 ```
 
-### `app/app/api/sync_ws.py`
+### `backend/app/app/api/sync_ws.py`
 
 ```python
 """
@@ -3896,7 +3953,7 @@ async def health_websocket(websocket: WebSocket):
         sync_manager.disconnect(websocket, "health")
 ```
 
-### `app/app/api/tenant_pdf.py`
+### `backend/app/app/api/tenant_pdf.py`
 
 ```python
 # File: app/app/api/tenant_pdf.py
@@ -4004,7 +4061,7 @@ async def tenant_download_pdf(
     return response
 ```
 
-### `app/app/api/tenants.py`
+### `backend/app/app/api/tenants.py`
 
 ```python
 # app\app\api\tenants.py
@@ -4516,7 +4573,7 @@ async def admin_get_kyc_file(landlordUuid: str, tenantId: int, filename: str):
 
 ```
 
-### `app/app/api/whatsapp.py`
+### `backend/app/app/api/whatsapp.py`
 
 ```python
 # // File: app\app\api\whatsapp.py
@@ -4604,14 +4661,14 @@ async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: in
     return {"status": "success", "url": url}
 ```
 
-### `app/app/authentication/admin/__init__.py`
+### `backend/app/app/authentication/admin/__init__.py`
 
 ```python
 ﻿
 
 ```
 
-### `app/app/authentication/admin/cookies.py`
+### `backend/app/app/authentication/admin/cookies.py`
 
 ```python
 from fastapi import Response, Request
@@ -4664,7 +4721,7 @@ def clear_admin_auth_cookies(response: Response, request: Request = None):
     response.delete_cookie(key="refresh_token", path=cookie_path, httponly=True, secure=True, samesite="strict")
 ```
 
-### `app/app/authentication/admin/jwt.py`
+### `backend/app/app/authentication/admin/jwt.py`
 
 ```python
 ﻿import os
@@ -4699,7 +4756,7 @@ decode_access_token = decode_admin_access_token
 
 ```
 
-### `app/app/authentication/admin/middleware.py`
+### `backend/app/app/authentication/admin/middleware.py`
 
 ```python
 from fastapi import Request, HTTPException
@@ -4800,7 +4857,7 @@ async def get_current_admin_api(request: Request) -> AuthPrincipal:
 
 ```
 
-### `app/app/authentication/admin/sessions.py`
+### `backend/app/app/authentication/admin/sessions.py`
 
 ```python
 ﻿import uuid
@@ -4844,14 +4901,14 @@ def revoke_admin_session_db(session_id: str):
 
 ```
 
-### `app/app/authentication/common/__init__.py`
+### `backend/app/app/authentication/common/__init__.py`
 
 ```python
 ﻿
 
 ```
 
-### `app/app/authentication/common/middleware.py`
+### `backend/app/app/authentication/common/middleware.py`
 
 ```python
 ﻿from fastapi import Request, HTTPException
@@ -4879,7 +4936,7 @@ async def get_admin_or_tenant(request: Request) -> AuthPrincipal:
 
 ```
 
-### `app/app/authentication/common/pin_vault.py`
+### `backend/app/app/authentication/common/pin_vault.py`
 
 ```python
 ﻿import os
@@ -4900,7 +4957,7 @@ def decrypt_admin_view_pin(ciphertext: str) -> str:
 
 ```
 
-### `app/app/authentication/common/principal.py`
+### `backend/app/app/authentication/common/principal.py`
 
 ```python
 from dataclasses import dataclass
@@ -4925,7 +4982,7 @@ class AuthPrincipal:
 
 ```
 
-### `app/app/authentication/common/utils.py`
+### `backend/app/app/authentication/common/utils.py`
 
 ```python
 ﻿import re
@@ -4957,13 +5014,13 @@ def validate_tenantPin(pin: str) -> str:
 
 ```
 
-### `app/app/authentication/landlord/__init__.py`
+### `backend/app/app/authentication/landlord/__init__.py`
 
 ```python
 # authentication/landlord/__init__.py
 ```
 
-### `app/app/authentication/landlord/cookies.py`
+### `backend/app/app/authentication/landlord/cookies.py`
 
 ```python
 """
@@ -5044,7 +5101,7 @@ def clear_landlord_auth_cookies(
     )
 ```
 
-### `app/app/authentication/landlord/jwt.py`
+### `backend/app/app/authentication/landlord/jwt.py`
 
 ```python
 """
@@ -5092,7 +5149,7 @@ create_access_token = create_landlord_access_token
 decode_access_token = decode_landlord_access_token
 ```
 
-### `app/app/authentication/landlord/middleware.py`
+### `backend/app/app/authentication/landlord/middleware.py`
 
 ```python
 """
@@ -5281,7 +5338,7 @@ async def get_current_landlord_api_strict(request: Request) -> AuthPrincipal:
     return principal
 ```
 
-### `app/app/authentication/landlord/sessions.py`
+### `backend/app/app/authentication/landlord/sessions.py`
 
 ```python
 """
@@ -5369,7 +5426,7 @@ def revoke_all_landlord_sessions(landlord_id: int) -> None:
         conn.commit()
 ```
 
-### `app/app/authentication/platform/__init__.py`
+### `backend/app/app/authentication/platform/__init__.py`
 
 ```python
 """
@@ -5377,7 +5434,7 @@ app/authentication/platform/__init__.py
 """
 ```
 
-### `app/app/authentication/platform/cookies.py`
+### `backend/app/app/authentication/platform/cookies.py`
 
 ```python
 """
@@ -5451,7 +5508,7 @@ def get_platform_token(request: Request) -> str:
     return token
 ```
 
-### `app/app/authentication/platform/jwt.py`
+### `backend/app/app/authentication/platform/jwt.py`
 
 ```python
 """
@@ -5497,14 +5554,14 @@ def decode_platform_access_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid platform token") from exc
 ```
 
-### `app/app/authentication/tenant/__init__.py`
+### `backend/app/app/authentication/tenant/__init__.py`
 
 ```python
 ﻿
 
 ```
 
-### `app/app/authentication/tenant/cookies.py`
+### `backend/app/app/authentication/tenant/cookies.py`
 
 ```python
 from fastapi import Response, Request
@@ -5572,7 +5629,7 @@ def clear_tenant_auth_cookies(response: Response, request: Request = None):
     )
 ```
 
-### `app/app/authentication/tenant/jwt.py`
+### `backend/app/app/authentication/tenant/jwt.py`
 
 ```python
 ﻿import os
@@ -5607,7 +5664,7 @@ decode_access_token = decode_tenant_access_token
 
 ```
 
-### `app/app/authentication/tenant/middleware.py`
+### `backend/app/app/authentication/tenant/middleware.py`
 
 ```python
 from fastapi import Request, HTTPException
@@ -5687,7 +5744,7 @@ async def get_current_tenant(request: Request) -> AuthPrincipal:
 
 ```
 
-### `app/app/authentication/tenant/sessions.py`
+### `backend/app/app/authentication/tenant/sessions.py`
 
 ```python
 ﻿import uuid
@@ -5737,7 +5794,7 @@ def revoke_all_tenant_sessions(tenantId: int):
 
 ```
 
-### `app/app/core/app_info.py`
+### `backend/app/app/core/app_info.py`
 
 ```python
 ﻿APP_INFO = {
@@ -5749,7 +5806,7 @@ def revoke_all_tenant_sessions(tenantId: int):
 
 ```
 
-### `app/app/core/audit.py`
+### `backend/app/app/core/audit.py`
 
 ```python
 """
@@ -5875,7 +5932,7 @@ def get_audit_log_path() -> str:
     return AUDIT_JSONL
 ```
 
-### `app/app/core/config_defaults.py`
+### `backend/app/app/core/config_defaults.py`
 
 ```python
 DEFAULT_CONFIGS = {
@@ -6023,7 +6080,7 @@ DEFAULT_CONFIGS = {
 
 ```
 
-### `app/app/core/config_service.py`
+### `backend/app/app/core/config_service.py`
 
 ```python
 ﻿import json
@@ -6193,7 +6250,7 @@ config = ConfigService()
 
 ```
 
-### `app/app/core/db.py`
+### `backend/app/app/core/db.py`
 
 ```python
 import os
@@ -6666,7 +6723,7 @@ def init_db():
             )
             conn.commit()```
 
-### `app/app/core/dependencies.py`
+### `backend/app/app/core/dependencies.py`
 
 ```python
 from fastapi import Request
@@ -6721,7 +6778,7 @@ async def get_theme(request: Request):
 
 ```
 
-### `app/app/core/paths.py`
+### `backend/app/app/core/paths.py`
 
 ```python
 ﻿import os
@@ -6750,7 +6807,7 @@ def ensure_storage_dirs():
 
 ```
 
-### `app/app/core/route_builder.py`
+### `backend/app/app/core/route_builder.py`
 
 ```python
 from app.core.routes_manifest import Names
@@ -6787,7 +6844,7 @@ class RouteBuilder:
         return request.url_for("static", path=path)
 ```
 
-### `app/app/core/router_registry.py`
+### `backend/app/app/core/router_registry.py`
 
 ```python
 from fastapi import FastAPI
@@ -6878,7 +6935,7 @@ def register_all_routers(app: FastAPI):
     register_exception_handlers(app)
 ```
 
-### `app/app/core/routes_manifest.py`
+### `backend/app/app/core/routes_manifest.py`
 
 ```python
 # app\app\core\routes_manifest.py
@@ -6932,7 +6989,7 @@ class Prefixes:
     STATIC = "/static"
     UPLOADS = "/static/uploads"```
 
-### `app/app/core/routes_manifest_landlord.py`
+### `backend/app/app/core/routes_manifest_landlord.py`
 
 ```python
 # app/core/routes_manifest_landlord.py
@@ -7187,7 +7244,7 @@ class LandlordTemplates:
     TENANTPROFILE = "tenant_profile.html"
 ```
 
-### `app/app/core/routes_manifest_platform_admin.py`
+### `backend/app/app/core/routes_manifest_platform_admin.py`
 
 ```python
 # app/core/routes_manifest_platform_admin.py
@@ -7260,7 +7317,7 @@ class PlatformAdminNames:
     PLATFORMADMINADMINS = "platform_admin_admins"
 ```
 
-### `app/app/core/routes_manifest_tenant.py`
+### `backend/app/app/core/routes_manifest_tenant.py`
 
 ```python
 # app/app/core/routes_manifest_tenant.py
@@ -7318,7 +7375,7 @@ class TenantTemplates:
     TENANTPUBLICPROFILE = "tenant_public_profile.html"
 ```
 
-### `app/app/core/startup.py`
+### `backend/app/app/core/startup.py`
 
 ```python
 import os
@@ -7393,7 +7450,7 @@ class StartupManager:
                 print(f"[TenantRecovery] Startup purge failed (non-critical): {e}")
 ```
 
-### `app/app/core/websocket_manager.py`
+### `backend/app/app/core/websocket_manager.py`
 
 ```python
 """
@@ -7470,7 +7527,7 @@ class ConnectionManager:
 sync_manager = ConnectionManager()
 ```
 
-### `app/app/database/auth_repository.py`
+### `backend/app/app/database/auth_repository.py`
 
 ```python
 from app.core.db import get_conn
@@ -7620,7 +7677,7 @@ def regenerate_totp_secret(admin_id: int) -> str:
 
 ```
 
-### `app/app/database/final_schema.py`
+### `backend/app/app/database/final_schema.py`
 
 ```python
 """
@@ -7890,7 +7947,7 @@ if __name__ == "__main__":
     init_production_db()
 ```
 
-### `app/app/database/landlord_repository.py`
+### `backend/app/app/database/landlord_repository.py`
 
 ```python
 """
@@ -8123,7 +8180,7 @@ def reset_landlord_failed_attempts(landlord_id: int):
         conn.commit()
 ```
 
-### `app/app/encryption.py`
+### `backend/app/app/encryption.py`
 
 ```python
 ﻿"""
@@ -8210,7 +8267,7 @@ def decrypt_payload(encrypted_aes_key_b64: str, encrypted_data_b64: str, nonce_b
 
 ```
 
-### `app/app/main.py`
+### `backend/app/app/main.py`
 
 ```python
 import time
@@ -8265,7 +8322,7 @@ if __name__ == "__main__":
 
 ```
 
-### `app/app/models/auth.py`
+### `backend/app/app/models/auth.py`
 
 ```python
 ﻿from pydantic import BaseModel
@@ -8294,7 +8351,7 @@ class DeviceSession(BaseModel):
 
 ```
 
-### `app/app/models/landlord.py`
+### `backend/app/app/models/landlord.py`
 
 ```python
 """
@@ -8336,7 +8393,7 @@ class UsernameCheckResponse(BaseModel):
 
 ```
 
-### `app/app/models/receipt.py`
+### `backend/app/app/models/receipt.py`
 
 ```python
 ﻿from pydantic import BaseModel, Field, field_validator, ConfigDict
@@ -8423,7 +8480,7 @@ class PaymentStatusUpdate(BaseModel):
 
 ```
 
-### `app/app/models/tenant.py`
+### `backend/app/app/models/tenant.py`
 
 ```python
 from pydantic import BaseModel, field_validator
@@ -8480,14 +8537,14 @@ class Tenant(BaseModel):
 
 ```
 
-### `app/app/pages/__init__.py`
+### `backend/app/app/pages/__init__.py`
 
 ```python
 
 
 ```
 
-### `app/app/pages/archive.py`
+### `backend/app/app/pages/archive.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -8533,7 +8590,7 @@ async def archive_page(request: Request):
 
 ```
 
-### `app/app/pages/backups.py`
+### `backend/app/app/pages/backups.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -8556,7 +8613,7 @@ async def backups_page(request: Request):
 
 ```
 
-### `app/app/pages/billing.py`
+### `backend/app/app/pages/billing.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -8590,7 +8647,7 @@ async def billing_page(request: Request):
 
 ```
 
-### `app/app/pages/dashboard.py`
+### `backend/app/app/pages/dashboard.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -8619,7 +8676,7 @@ async def dashboard(request: Request):
 
 ```
 
-### `app/app/pages/errors.py`
+### `backend/app/app/pages/errors.py`
 
 ```python
 from fastapi import FastAPI, Request
@@ -8680,7 +8737,7 @@ def register_exception_handlers(app: FastAPI):
 
 ```
 
-### `app/app/pages/history.py`
+### `backend/app/app/pages/history.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -8709,7 +8766,7 @@ async def history_page(request: Request):
 
 ```
 
-### `app/app/pages/landing.py`
+### `backend/app/app/pages/landing.py`
 
 ```python
 """
@@ -8736,7 +8793,7 @@ async def public_landing(request: Request):
     return FileResponse("frontend/landing-app/dist/index.html")
 ```
 
-### `app/app/pages/redirects.py`
+### `backend/app/app/pages/redirects.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -8770,7 +8827,7 @@ for path in legacy_paths:
 # GET / is now handled by app/pages/landing.py which serves the public landing page.
 ```
 
-### `app/app/pages/settings.py`
+### `backend/app/app/pages/settings.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -8803,7 +8860,7 @@ async def settings_page(request: Request):
 
 ```
 
-### `app/app/pages/spa.py`
+### `backend/app/app/pages/spa.py`
 
 ```python
 import os
@@ -8834,7 +8891,7 @@ async def serve_tenant_app(landlordUuid: str, tenantId: int, viewToken: str, pat
     return FileResponse("frontend/tenant-app/dist/index.html")
 ```
 
-### `app/app/pages/tenants.py`
+### `backend/app/app/pages/tenants.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -8881,7 +8938,7 @@ async def tenants_page(request: Request):
 
 ```
 
-### `app/app/routers/admin_auth.py`
+### `backend/app/app/routers/admin_auth.py`
 
 ```python
 from fastapi import APIRouter, HTTPException
@@ -9039,7 +9096,7 @@ async def admin_public_key():
     return {"publicKey": get_public_key_pem()}
 ```
 
-### `app/app/routers/auth.py`
+### `backend/app/app/routers/auth.py`
 
 ```python
 from fastapi import APIRouter, Depends, Request, Response, HTTPException, Path
@@ -9352,7 +9409,7 @@ async def auth_logout_all(
 
 ```
 
-### `app/app/routers/landlord_routes.py`
+### `backend/app/app/routers/landlord_routes.py`
 
 ```python
 from __future__ import annotations
@@ -9580,7 +9637,7 @@ async def landlord_admin_alias(
     )
 ```
 
-### `app/app/routers/landlordauth.py`
+### `backend/app/app/routers/landlordauth.py`
 
 ```python
 """
@@ -10534,7 +10591,7 @@ async def landlord_audit_action_types(
     return [r["action"] for r in rows]
 ```
 
-### `app/app/routers/platform_admin.py`
+### `backend/app/app/routers/platform_admin.py`
 
 ```python
 """
@@ -12054,7 +12111,7 @@ async def serve_platform_admin_app(request: Request, path: str = ""):
     return await _serve_platform_admin_spa()
 ```
 
-### `app/app/services/backup_service.py`
+### `backend/app/app/services/backup_service.py`
 
 ```python
 import os
@@ -12403,7 +12460,7 @@ def delete_backup(backupId):
 
 ```
 
-### `app/app/services/billing_service.py`
+### `backend/app/app/services/billing_service.py`
 
 ```python
 # //File: app\app\services\billing_service.py
@@ -13224,7 +13281,7 @@ def save_all_receipts(receipts_list):
 
 ```
 
-### `app/app/services/pdf_service.py`
+### `backend/app/app/services/pdf_service.py`
 
 ```python
 import io
@@ -13811,7 +13868,7 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
 generateprofessionalpdf = generate_professional_pdf
 ```
 
-### `app/app/services/signature_service.py`
+### `backend/app/app/services/signature_service.py`
 
 ```python
 ﻿import os
@@ -13892,7 +13949,7 @@ def delete_signature():
 
 ```
 
-### `app/app/services/tenant_recovery_service.py`
+### `backend/app/app/services/tenant_recovery_service.py`
 
 ```python
 # app/app/services/tenant_recovery_service.py
@@ -14807,7 +14864,7 @@ def purge_expired_tenant_recovery_snapshots() -> int:
     return purged_count
 ```
 
-### `app/app/services/tenant_service.py`
+### `backend/app/app/services/tenant_service.py`
 
 ```python
 # //File: app\app\services\tenant_service.py
@@ -15252,7 +15309,7 @@ def delete_occupant(occupantUuid: str):
 
 ```
 
-### `app/config/domain.json`
+### `backend/app/config/domain.json`
 
 ```json
 {
@@ -15281,7 +15338,7 @@ def delete_occupant(occupantUuid: str):
     }
 }```
 
-### `app/config/receipt.json`
+### `backend/app/config/receipt.json`
 
 ```json
 {
@@ -15309,7 +15366,7 @@ def delete_occupant(occupantUuid: str):
 }
 ```
 
-### `app/config/system.json`
+### `backend/app/config/system.json`
 
 ```json
 {
@@ -15340,7 +15397,7 @@ def delete_occupant(occupantUuid: str):
     }
 }```
 
-### `app/config/ui.json`
+### `backend/app/config/ui.json`
 
 ```json
 {
@@ -15371,49 +15428,13 @@ def delete_occupant(occupantUuid: str):
 }
 ```
 
-### `app/requirements.txt`
+### `backend/compose.test.yml`
 
-```text
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
-jinja2>=3.1.4
-python-multipart>=0.0.17
-python-jose[cryptography]>=3.3.0
-passlib[argon2]>=1.7.4
-cryptography>=43.0.3
-reportlab>=4.2.5
-num2words>=0.5.14
-openpyxl>=3.1.5
-pyotp>=2.9.0
-qrcode[pil]>=7.4.2
-httpx>=0.27.2
-pydantic>=2.0.0
-```
-
-### `backend/.env.example`
-
-```text
-RENT_STORAGE_DIR=/code/storage
-JWT_SECRET=changeme
-```
-
-### `backend/Dockerfile`
-
-```
-FROM python:3.13-slim
-
-WORKDIR /code
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-COPY ./app /code/app
-
-RUN mkdir -p /code/storage
-
-EXPOSE 28001
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "28001", "--proxy-headers", "--forwarded-allow-ips", "*"]
+```yaml
+services:
+  rent-backend:
+    ports:
+      - "28001:28001"
 ```
 
 ### `backend/compose.yml`
@@ -15422,8 +15443,7 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "28001", "--proxy
 services:
   rent-backend:
     build:
-      context: ..
-      dockerfile: backend/Dockerfile
+      context: .
     container_name: rent-backend
     restart: unless-stopped
     expose:
@@ -15459,40 +15479,475 @@ networks:
     external: true
 ```
 
-### `build.sh`
+### `backend/requirements.txt`
 
-```bash
-#!/bin/bash
-set -e
+```text
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+jinja2>=3.1.4
+python-multipart>=0.0.17
+python-jose[cryptography]>=3.3.0
+passlib[argon2]>=1.7.4
+cryptography>=43.0.3
+reportlab>=4.2.5
+num2words>=0.5.14
+openpyxl>=3.1.5
+pyotp>=2.9.0
+qrcode[pil]>=7.4.2
+httpx>=0.27.2
+pydantic>=2.0.0
+```
 
-echo "=== Building Rent Frontend Apps ==="
+### `backend/shared/routes.json`
 
-APPS="frontend/landing-app frontend/platform-admin-app frontend/landlord-app frontend/tenant-app"
+```json
+{
+  "basePath": "/rent",
+  "health": {
+    "check": "/health"
+  },
+  "static": {
+    "uploads": "/static/uploads",
+    "static": "/static",
+    "adminAssets": "/admin/assets",
+    "tenantAssets": "/tenant/assets",
+    "favicon": "/admin/favicon.svg"
+  },
+  "admin": {
+    "pages": {
+      "root": "/admin/",
+      "home": "/admin/home",
+      "login": "/admin/login",
+      "logout": "/admin/logout",
+      "dashboard": "/admin/dashboard",
+      "billing": "/admin/billing",
+      "history": "/admin/history",
+      "tenants": "/admin/tenants",
+      "settings": "/admin/settings",
+      "archive": "/admin/archive",
+      "backups": "/admin/backups",
+      "catchAll": "/admin/*",
+      "TENANTPROFILE": "/admin/tenant/{tenantId}"
+    },
+    "api": {
+      "setup": {
+        "required": "/admin/api/setup/required",
+        "create": "/admin/api/setup/create"
+      },
+      "auth": {
+        "publicKey": "/admin/api/auth/public-key",
+        "login": "/admin/api/login",
+        "loginTotp": "/admin/api/login/totp",
+        "refresh": "/admin/api/refresh",
+        "logout": "/admin/api/logout/json",
+        "me": "/admin/api/me"
+      },
+      "totp": {
+        "qr": "/admin/api/totp/qr",
+        "regenerate": "/admin/api/totp/regenerate"
+      },
+      "password": {
+        "forgotVerify": "/admin/api/forgot-password/verify",
+        "forgotReset": "/admin/api/forgot-password/reset"
+      },
+      "dashboard": {
+        "stats": "/admin/api/dashboard"
+      },
+      "config": {
+        "get": "/admin/api/config",
+        "update": "/admin/api/config/update",
+        "theme": "/admin/api/ui/theme"
+      },
+      "billing": {
+        "filter": "/admin/api/receipts/filter",
+        "months": "/admin/api/receipts/months",
+        "preview": "/admin/api/receipts/preview",
+        "create": "/admin/api/tenants/{tenantId}/receipts",
+        "get": "/admin/api/tenants/{tenantId}/receipts/{billNo}",
+        "update": "/admin/api/tenants/{tenantId}/receipts/{billNo}",
+        "updatePayment": "/admin/api/tenants/{tenantId}/receipts/{billNo}/payment-status",
+        "archive": "/admin/api/tenants/{tenantId}/receipts/{billNo}/archive",
+        "restore": "/admin/api/tenants/{tenantId}/receipts/{billNo}/restore",
+        "delete": "/admin/api/tenants/{tenantId}/receipts/{billNo}",
+        "archiveData": "/admin/api/archive-data"
+      },
+      "tenants": {
+        "list": "/admin/api/tenants",
+        "create": "/admin/api/tenants",
+        "get": "/admin/api/tenants/{tenantId}",
+        "update": "/admin/api/tenants/{tenantId}",
+        "delete": "/admin/api/tenants/{tenantId}",
+        "changePin": "/admin/api/tenants/{tenantId}/change-pin",
+        "revealPin": "/admin/api/tenants/{tenantId}/reveal-pin",
+        "receipts": "/admin/api/tenants/{tenantId}/receipts",
+        "recoverySnapshots": "/admin/api/tenant-recovery-snapshots",
+        "recoverySnapshotPreview": "/admin/api/tenant-recovery-snapshots/{snapshotId}/preview",
+        "recoverySnapshotRestore": "/admin/api/tenant-recovery-snapshots/{snapshotId}/restore"
+      },
+      "occupants": {
+        "list": "/admin/api/occupants/{tenantId}",
+        "create": "/admin/api/occupants/{tenantId}",
+        "markInactive": "/admin/api/occupants/{tenantId}/{occupantUuid}/inactive",
+        "delete": "/admin/api/occupants/{tenantId}/{occupantUuid}",
+        "getFile": "/admin/api/occupants/{tenantId}/file/{filename}"
+      },
+      "pdf": {
+        "download": "/admin/api/tenants/{tenantId}/receipts/{billNo}/pdf/download",
+        "view": "/admin/api/tenants/{tenantId}/receipts/{billNo}/pdf/view"
+      },
+      "whatsapp": {
+        "sendSingle": "/admin/api/tenants/{tenantId}/receipts/{billNo}/whatsapp"
+      },
+      "sync": {
+        "exportCsv": "/admin/api/export-csv",
+        "exportZip": "/admin/api/export-zip",
+        "template": "/admin/api/import-template",
+        "exportExcel": "/admin/api/export-excel?format={format}",
+        "importPreview": "/admin/api/import-preview",
+        "importExecute": "/admin/api/import-execute"
+      },
+      "backups": {
+        "list": "/admin/api/backups",
+        "createManual": "/admin/api/backups/manual",
+        "delete": "/admin/api/backups/{backupId}",
+        "verify": "/admin/api/backups/{backupId}/verify",
+        "restore": "/admin/api/backups/{backupId}/restore",
+        "download": "/admin/api/backups/{backupId}/download",
+        "metadata": "/admin/api/backups/{backupId}/metadata"
+      },
+      "settings": {
+        "uploadSignature": "/admin/api/settings/upload-signature",
+        "deleteSignature": "/admin/api/settings/delete-signature"
+      }
+    }
+  },
+  "tenant": {
+    "pages": {
+      "root": "/{landlordUuid}/t/{tenantId}/{viewToken}",
+      "catchAll": "/*"
+    },
+    "api": {
+      "auth": {
+        "publicKey": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/public-key",
+        "login": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/login",
+        "refresh": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/refresh",
+        "logout": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout",
+        "logoutAll": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout-all"
+      },
+      "profile": {
+        "get": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/profile"
+      },
+      "kyc": {
+        "upload": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc",
+        "markInactive": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive",
+        "delete": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
+        "getFile": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/file/{filename}"
+      },
+      "audit": {
+        "logs": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/audit-logs"
+      },
+      "pdf": {
+        "view": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
+        "download": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
+      }
+    }
+  },
+  "landlord": {
+    "pages": {
+      "root": "/landlord",
+      "login": "/landlord/login",
+      "signup": "/landlord/signup",
+      "dashboard": "/landlord/dashboard",
+      "logout": "/landlord/logout",
+      "catchAll": "/landlord/*"
+    },
+    "api": {
+      "auth": {
+        "publicKey": "/landlord/api/auth/public-key",
+        "checkUsername": "/landlord/api/auth/check-username",
+        "checkEmail": "/landlord/api/auth/check-email",
+        "signup": "/landlord/api/auth/signup",
+        "login": "/landlord/api/auth/login",
+        "loginTotp": "/landlord/api/login/totp",
+        "refresh": "/landlord/api/auth/refresh",
+        "logout": "/landlord/api/auth/logout",
+        "me": "/landlord/api/auth/me",
+        "changePassword": "/landlord/api/auth/change-password"
+      },
+      "dashboard": {
+        "stats": "/landlord/{landlordUuid}/api/dashboard"
+      },
+      "config": {
+        "get": "/landlord/{landlordUuid}/api/config",
+        "update": "/landlord/{landlordUuid}/api/config/update",
+        "themeGet": "/landlord/{landlordUuid}/api/ui/theme",
+        "theme": "/landlord/{landlordUuid}/api/ui/theme"
+      },
+      "billing": {
+        "filter": "/landlord/{landlordUuid}/api/receipts/filter",
+        "months": "/landlord/{landlordUuid}/api/receipts/months",
+        "preview": "/landlord/{landlordUuid}/api/receipts/preview",
+        "create": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
+        "get": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
+        "update": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
+        "updatePayment": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/payment-status",
+        "archive": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/archive",
+        "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/restore",
+        "delete": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
+        "archiveData": "/landlord/{landlordUuid}/api/archive-data"
+      },
+      "tenants": {
+        "list": "/landlord/{landlordUuid}/api/tenants",
+        "create": "/landlord/{landlordUuid}/api/tenants",
+        "get": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
+        "update": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
+        "delete": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
+        "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/restore",
+        "changePin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/change-pin",
+        "revealPin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/reveal-pin",
+        "receipts": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
+        "recoverySnapshots": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots",
+        "recoverySnapshotPreview": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/preview",
+        "recoverySnapshotRestore": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/restore"
+      },
+      "occupants": {
+        "list": "/landlord/{landlordUuid}/api/occupants/{tenantId}",
+        "create": "/landlord/{landlordUuid}/api/occupants/{tenantId}",
+        "markInactive": "/landlord/{landlordUuid}/api/occupants/{tenantId}/{occupantUuid}/inactive",
+        "delete": "/landlord/{landlordUuid}/api/occupants/{tenantId}/{occupantUuid}",
+        "getFile": "/landlord/{landlordUuid}/api/occupants/{tenantId}/file/{filename}"
+      },
+      "pdf": {
+        "download": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/pdf/download",
+        "view": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/pdf/view"
+      },
+      "whatsapp": {
+        "sendSingle": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/whatsapp"
+      },
+      "sync": {
+        "exportCsv": "/landlord/{landlordUuid}/api/export-csv",
+        "exportZip": "/landlord/{landlordUuid}/api/export-zip",
+        "template": "/landlord/{landlordUuid}/api/import-template",
+        "exportExcel": "/landlord/{landlordUuid}/api/export-excel",
+        "importPreview": "/landlord/{landlordUuid}/api/import-preview",
+        "importExecute": "/landlord/{landlordUuid}/api/import-execute"
+      },
+      "backups": {
+        "list": "/landlord/{landlordUuid}/api/backups",
+        "createManual": "/landlord/{landlordUuid}/api/backups/manual",
+        "delete": "/landlord/{landlordUuid}/api/backups/{backupId}",
+        "verify": "/landlord/{landlordUuid}/api/backups/{backupId}/verify",
+        "restore": "/landlord/{landlordUuid}/api/backups/{backupId}/restore",
+        "download": "/landlord/{landlordUuid}/api/backups/{backupId}/download",
+        "metadata": "/landlord/{landlordUuid}/api/backups/{backupId}/metadata"
+      },
+      "settings": {
+        "uploadSignature": "/landlord/{landlordUuid}/api/settings/upload-signature",
+        "deleteSignature": "/landlord/{landlordUuid}/api/settings/delete-signature"
+      },
+      "totp": {
+        "qr": "/landlord/{landlordUuid}/api/totp/qr",
+        "regenerate": "/landlord/{landlordUuid}/api/totp/regenerate",
+        "enable": "/landlord/{landlordUuid}/api/totp/enable",
+        "disable": "/landlord/{landlordUuid}/api/totp/disable"
+      },
+      "audit": {
+        "logs": "/landlord/{landlordUuid}/api/audit-logs",
+        "actions": "/landlord/{landlordUuid}/api/audit-logs/actions"
+      }
+    }
+  }
+}```
 
-for app in $APPS; do
-  echo ""
-  echo "=== $app ==="
-  npm --prefix "$app" ci
-  npm --prefix "$app" run build
-done
+### `copy.py`
 
-echo ""
-echo "=== Assembling output ==="
-rm -rf build-output
-mkdir -p build-output/rent
+```python
+#!/usr/bin/env python3
+"""Generate rent.md with complete source code from the project."""
 
-cp -r frontend/landing-app/dist/* build-output/rent/
-mkdir -p build-output/rent/admin
-cp -r frontend/platform-admin-app/dist/* build-output/rent/admin/
-mkdir -p build-output/rent/landlord
-cp -r frontend/landlord-app/dist/* build-output/rent/landlord/
-mkdir -p build-output/rent/tenant
-cp -r frontend/tenant-app/dist/* build-output/rent/tenant/
+import os
+import re
+import fnmatch
 
-echo ""
-echo "=== Build complete ==="
-echo "Output: build-output/"
-ls -la build-output/rent/
+# ---------------------------------------------------------------------------
+# User-configurable settings
+# ---------------------------------------------------------------------------
+
+SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+SOURCE_FILES = [
+    "backend/app/**/*.py",
+    "backend/app/**/*.json",
+    "backend/app/config/**",
+    "backend/Dockerfile",
+    "backend/compose.yml",
+    "backend/compose.test.yml",
+    "backend/.env.example",
+    "backend/requirements.txt",
+    "backend/shared/routes.json",
+    "backend/deploy/**/*.py",
+    "backend/scripts/**/*.py",
+    "frontend/shared/**/*",
+    "frontend/*/src/**/*.ts",
+    "frontend/*/src/**/*.tsx",
+    "frontend/*.ts",
+    "frontend/*/package.json",
+    "frontend/*/tsconfig*.json",
+    "frontend/*/vite.config.ts",
+    "frontend/package.json",
+    "frontend/build.sh",
+    "frontend-test/nginx.conf",
+    "frontend-test/compose.yml",
+    "gateway/nginx/nginx.conf",
+    "gateway/nginx/routes/rent.conf",
+    "gateway/compose.yml",
+    "copy.py",
+    ".env.example",
+    ".gitignore",
+    "README.md",
+]
+
+# ---------------------------------------------------------------------------
+# Internal constants (do not change unless you know what you are doing)
+# ---------------------------------------------------------------------------
+
+SCRIPT = os.path.abspath(__file__)
+BASE = SOURCE_DIR
+OUTPUT = os.path.join(BASE, "rent.md")
+MAX_FILE_SIZE = 500 * 1024
+INCLUDE = SOURCE_FILES
+
+IGNORE_DIRS = {
+    "node_modules", "dist", "__pycache__", ".git", ".sisyphus",
+    "storage", "build-output", "scratch", "output", ".fonts",
+    ".rent_test_assets", ".sample", "venv", ".venv",
+}
+BINARY_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".xlsx",
+              ".xls", ".db", ".pyc", ".pyd", ".so", ".woff", ".woff2",
+              ".ttf", ".eot", ".mp3", ".mp4", ".pdf"}
+
+LANG_MAP = {
+    ".py": "python",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "javascript",
+    ".json": "json",
+    ".css": "css",
+    ".html": "html",
+    ".yml": "yaml",
+    ".yaml": "yaml",
+    ".conf": "nginx",
+    ".sh": "bash",
+    ".md": "markdown",
+    ".txt": "text",
+    ".example": "text",
+}
+
+
+def should_ignore(path):
+    parts = path.split(os.sep)
+    return any(d in IGNORE_DIRS for d in parts)
+
+
+def is_binary(name):
+    return any(name.lower().endswith(ext) for ext in BINARY_EXT)
+
+
+def guess_lang(name):
+    _, ext = os.path.splitext(name)
+    return LANG_MAP.get(ext, "")
+
+
+def walk_files():
+    matched = []
+    for root, dirs, files in os.walk(BASE):
+        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+
+        for f in files:
+            full = os.path.join(root, f)
+            rel = os.path.relpath(full, BASE)
+            if should_ignore(rel):
+                continue
+            if is_binary(f):
+                continue
+            for pat in INCLUDE:
+                if fnmatch.fnmatch(rel, pat):
+                    matched.append(rel)
+                    break
+    return sorted(set(matched))
+
+
+def main():
+    files = walk_files()
+
+    sections = []
+    size_total = 0
+    skipped = []
+
+    for i, rel in enumerate(files, 1):
+        full = os.path.join(BASE, rel)
+        try:
+            size = os.path.getsize(full)
+        except OSError:
+            skipped.append(f"{rel} (unreadable)")
+            continue
+        if size > MAX_FILE_SIZE:
+            skipped.append(f"{rel} ({size / 1024:.0f} KB, skipped)")
+            continue
+
+        try:
+            with open(full, "r", encoding="utf-8", errors="replace") as fh:
+                content = fh.read()
+        except Exception:
+            skipped.append(f"{rel} (read error)")
+            continue
+
+        size_kb = size / 1024
+        print(f"  [{i:3d}/{len(files)}]  {rel:70s}  {size_kb:>7.1f} KB")
+        lang = guess_lang(rel)
+        sections.append(f"### `{rel}`\n\n```{lang}\n{content}```")
+        size_total += size
+
+    print()
+
+    md = f"""# Rent — Complete Source Code
+
+Generated: 2025-07-29
+Script:   {SCRIPT}
+Source:   {BASE}
+Files:    {len(sections)}
+Size:     {size_total / 1024:.0f} KB
+Skipped:  {len(skipped)}
+
+---
+
+## File Index
+
+"""
+    for s in sections:
+        line = s.split("\n", 1)[0].replace("### `", "").replace("`", "")
+        md += f"- {line}\n"
+
+    md += "\n---\n\n"
+    md += "\n\n".join(sections)
+
+    if skipped:
+        md += "\n\n---\n\n## Skipped\n\n"
+        for s in skipped:
+            md += f"- {s}\n"
+
+    with open(OUTPUT, "w", encoding="utf-8") as fh:
+        fh.write(md)
+
+    print(f"Written: {OUTPUT}")
+    print(f"Files:   {len(sections)}")
+    print(f"Size:    {size_total / 1024:.0f} KB")
+    if skipped:
+        print(f"Skip:   {len(skipped)}")
+
+
+if __name__ == "__main__":
+    main()
 ```
 
 ### `frontend-test/compose.yml`
@@ -15628,6 +16083,42 @@ http {
 }
 ```
 
+### `frontend/build.sh`
+
+```bash
+#!/bin/bash
+set -e
+
+echo "=== Building Rent Frontend Apps ==="
+
+APPS="landing-app platform-admin-app landlord-app tenant-app"
+
+for app in $APPS; do
+  echo ""
+  echo "=== $app ==="
+  npm --prefix "$app" ci
+  npm --prefix "$app" run build
+done
+
+echo ""
+echo "=== Assembling output ==="
+rm -rf build-output
+mkdir -p build-output/rent
+
+cp -r landing-app/dist/* build-output/rent/
+mkdir -p build-output/rent/admin
+cp -r platform-admin-app/dist/* build-output/rent/admin/
+mkdir -p build-output/rent/landlord
+cp -r landlord-app/dist/* build-output/rent/landlord/
+mkdir -p build-output/rent/tenant
+cp -r tenant-app/dist/* build-output/rent/tenant/
+
+echo ""
+echo "=== Build complete ==="
+echo "Output: build-output/"
+ls -la build-output/rent/
+```
+
 ### `frontend/landing-app/package.json`
 
 ```json
@@ -15643,16 +16134,16 @@ http {
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "typescript": "^5.5.3",
-    "vite": "^5.4.1"
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.5"
   }
 }
 ```
@@ -16673,7 +17164,7 @@ export default defineConfig({
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.1",
+    "@vitejs/plugin-react": "^6.0.3",
     "autoprefixer": "^10.4.23",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
@@ -16686,7 +17177,7 @@ export default defineConfig({
     "tw-animate-css": "^1.4.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4"
+    "vite": "^8.1.5"
   }
 }
 ```
@@ -22969,7 +23460,7 @@ function Calendar({
     <DayPicker
       showOutsideDays={showOutsideDays}
       className={cn(
-        "bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
+        "bg-background group/calendar p-3 [--cell-size:calc(var(--spacing)*8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
         String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
         className
@@ -27482,7 +27973,7 @@ function Sidebar({
           "group-data-[collapsible=offcanvas]:w-0",
           "group-data-[side=right]:rotate-180",
           variant === "floating" || variant === "inset"
-            ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4)))]"
+            ? "group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+calc(var(--spacing)*4))]"
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon)"
         )}
       />
@@ -27495,7 +27986,7 @@ function Sidebar({
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
           // Adjust the padding for floating and inset variants.
           variant === "floating" || variant === "inset"
-            ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
+            ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+calc(var(--spacing)*4)+2px)]"
             : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
           className
         )}
@@ -28424,7 +28915,7 @@ function ToggleGroup({
       data-spacing={spacing}
       style={{ "--gap": spacing } as React.CSSProperties}
       className={cn(
-        "group/toggle-group flex w-fit items-center gap-[--spacing(var(--gap))] rounded-md data-[spacing=default]:data-[variant=outline]:shadow-xs",
+        "group/toggle-group flex w-fit items-center gap-[calc(var(--spacing)*var(--gap))] rounded-md data-[spacing=default]:data-[variant=outline]:shadow-xs",
         className
       )}
       {...props}
@@ -37019,6 +37510,17 @@ export default defineConfig({
 });
 ```
 
+### `frontend/package.json`
+
+```json
+{
+  "private": true,
+  "scripts": {
+    "build": "bash build.sh"
+  }
+}
+```
+
 ### `frontend/platform-admin-app/package.json`
 
 ```json
@@ -37034,17 +37536,17 @@ export default defineConfig({
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.2"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router-dom": "^7.18.1"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "typescript": "^5.5.3",
-    "vite": "^5.4.1"
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.5"
   }
 }
 ```
@@ -43650,6 +44152,8 @@ export type PaymentState = "PENDING" | "PARTIAL" | "PAID" | "ADVANCE";
     /* Linting */
     "noUnusedLocals": false,
     "noUnusedParameters": false,
+    "strict": false,
+    "noImplicitAny": false,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
@@ -43811,293 +44315,3 @@ location /rent/ {
     proxy_redirect off;
 }
 ```
-
-### `package.json`
-
-```json
-{
-  "private": true,
-  "scripts": {
-    "build": "bash build.sh"
-  }
-}
-```
-
-### `requirements.txt`
-
-```text
-fastapi>=0.115.0
-uvicorn[standard]>=0.32.0
-jinja2>=3.1.4
-python-multipart>=0.0.17
-python-jose[cryptography]>=3.3.0
-passlib[argon2]>=1.7.4
-cryptography>=43.0.3
-reportlab>=4.2.5
-num2words>=0.5.14
-openpyxl>=3.1.5
-pyotp>=2.9.0
-qrcode[pil]>=7.4.2
-httpx>=0.27.2
-```
-
-### `shared/routes.json`
-
-```json
-{
-  "basePath": "/rent",
-  "health": {
-    "check": "/health"
-  },
-  "static": {
-    "uploads": "/static/uploads",
-    "static": "/static",
-    "adminAssets": "/admin/assets",
-    "tenantAssets": "/tenant/assets",
-    "favicon": "/admin/favicon.svg"
-  },
-  "admin": {
-    "pages": {
-      "root": "/admin/",
-      "home": "/admin/home",
-      "login": "/admin/login",
-      "logout": "/admin/logout",
-      "dashboard": "/admin/dashboard",
-      "billing": "/admin/billing",
-      "history": "/admin/history",
-      "tenants": "/admin/tenants",
-      "settings": "/admin/settings",
-      "archive": "/admin/archive",
-      "backups": "/admin/backups",
-      "catchAll": "/admin/*",
-      "TENANTPROFILE": "/admin/tenant/{tenantId}"
-    },
-    "api": {
-      "setup": {
-        "required": "/admin/api/setup/required",
-        "create": "/admin/api/setup/create"
-      },
-      "auth": {
-        "publicKey": "/admin/api/auth/public-key",
-        "login": "/admin/api/login",
-        "loginTotp": "/admin/api/login/totp",
-        "refresh": "/admin/api/refresh",
-        "logout": "/admin/api/logout/json",
-        "me": "/admin/api/me"
-      },
-      "totp": {
-        "qr": "/admin/api/totp/qr",
-        "regenerate": "/admin/api/totp/regenerate"
-      },
-      "password": {
-        "forgotVerify": "/admin/api/forgot-password/verify",
-        "forgotReset": "/admin/api/forgot-password/reset"
-      },
-      "dashboard": {
-        "stats": "/admin/api/dashboard"
-      },
-      "config": {
-        "get": "/admin/api/config",
-        "update": "/admin/api/config/update",
-        "theme": "/admin/api/ui/theme"
-      },
-      "billing": {
-        "filter": "/admin/api/receipts/filter",
-        "months": "/admin/api/receipts/months",
-        "preview": "/admin/api/receipts/preview",
-        "create": "/admin/api/tenants/{tenantId}/receipts",
-        "get": "/admin/api/tenants/{tenantId}/receipts/{billNo}",
-        "update": "/admin/api/tenants/{tenantId}/receipts/{billNo}",
-        "updatePayment": "/admin/api/tenants/{tenantId}/receipts/{billNo}/payment-status",
-        "archive": "/admin/api/tenants/{tenantId}/receipts/{billNo}/archive",
-        "restore": "/admin/api/tenants/{tenantId}/receipts/{billNo}/restore",
-        "delete": "/admin/api/tenants/{tenantId}/receipts/{billNo}",
-        "archiveData": "/admin/api/archive-data"
-      },
-      "tenants": {
-        "list": "/admin/api/tenants",
-        "create": "/admin/api/tenants",
-        "get": "/admin/api/tenants/{tenantId}",
-        "update": "/admin/api/tenants/{tenantId}",
-        "delete": "/admin/api/tenants/{tenantId}",
-        "changePin": "/admin/api/tenants/{tenantId}/change-pin",
-        "revealPin": "/admin/api/tenants/{tenantId}/reveal-pin",
-        "receipts": "/admin/api/tenants/{tenantId}/receipts",
-        "recoverySnapshots": "/admin/api/tenant-recovery-snapshots",
-        "recoverySnapshotPreview": "/admin/api/tenant-recovery-snapshots/{snapshotId}/preview",
-        "recoverySnapshotRestore": "/admin/api/tenant-recovery-snapshots/{snapshotId}/restore"
-      },
-      "occupants": {
-        "list": "/admin/api/occupants/{tenantId}",
-        "create": "/admin/api/occupants/{tenantId}",
-        "markInactive": "/admin/api/occupants/{tenantId}/{occupantUuid}/inactive",
-        "delete": "/admin/api/occupants/{tenantId}/{occupantUuid}",
-        "getFile": "/admin/api/occupants/{tenantId}/file/{filename}"
-      },
-      "pdf": {
-        "download": "/admin/api/tenants/{tenantId}/receipts/{billNo}/pdf/download",
-        "view": "/admin/api/tenants/{tenantId}/receipts/{billNo}/pdf/view"
-      },
-      "whatsapp": {
-        "sendSingle": "/admin/api/tenants/{tenantId}/receipts/{billNo}/whatsapp"
-      },
-      "sync": {
-        "exportCsv": "/admin/api/export-csv",
-        "exportZip": "/admin/api/export-zip",
-        "template": "/admin/api/import-template",
-        "exportExcel": "/admin/api/export-excel?format={format}",
-        "importPreview": "/admin/api/import-preview",
-        "importExecute": "/admin/api/import-execute"
-      },
-      "backups": {
-        "list": "/admin/api/backups",
-        "createManual": "/admin/api/backups/manual",
-        "delete": "/admin/api/backups/{backupId}",
-        "verify": "/admin/api/backups/{backupId}/verify",
-        "restore": "/admin/api/backups/{backupId}/restore",
-        "download": "/admin/api/backups/{backupId}/download",
-        "metadata": "/admin/api/backups/{backupId}/metadata"
-      },
-      "settings": {
-        "uploadSignature": "/admin/api/settings/upload-signature",
-        "deleteSignature": "/admin/api/settings/delete-signature"
-      }
-    }
-  },
-  "tenant": {
-    "pages": {
-      "root": "/{landlordUuid}/t/{tenantId}/{viewToken}",
-      "catchAll": "/*"
-    },
-    "api": {
-      "auth": {
-        "publicKey": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/public-key",
-        "login": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/login",
-        "refresh": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/refresh",
-        "logout": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout",
-        "logoutAll": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout-all"
-      },
-      "profile": {
-        "get": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/profile"
-      },
-      "kyc": {
-        "upload": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc",
-        "markInactive": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive",
-        "delete": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
-        "getFile": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/file/{filename}"
-      },
-      "audit": {
-        "logs": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/audit-logs"
-      },
-      "pdf": {
-        "view": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
-        "download": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
-      }
-    }
-  },
-  "landlord": {
-    "pages": {
-      "root": "/landlord",
-      "login": "/landlord/login",
-      "signup": "/landlord/signup",
-      "dashboard": "/landlord/dashboard",
-      "logout": "/landlord/logout",
-      "catchAll": "/landlord/*"
-    },
-    "api": {
-      "auth": {
-        "publicKey": "/landlord/api/auth/public-key",
-        "checkUsername": "/landlord/api/auth/check-username",
-        "checkEmail": "/landlord/api/auth/check-email",
-        "signup": "/landlord/api/auth/signup",
-        "login": "/landlord/api/auth/login",
-        "loginTotp": "/landlord/api/login/totp",
-        "refresh": "/landlord/api/auth/refresh",
-        "logout": "/landlord/api/auth/logout",
-        "me": "/landlord/api/auth/me",
-        "changePassword": "/landlord/api/auth/change-password"
-      },
-      "dashboard": {
-        "stats": "/landlord/{landlordUuid}/api/dashboard"
-      },
-      "config": {
-        "get": "/landlord/{landlordUuid}/api/config",
-        "update": "/landlord/{landlordUuid}/api/config/update",
-        "themeGet": "/landlord/{landlordUuid}/api/ui/theme",
-        "theme": "/landlord/{landlordUuid}/api/ui/theme"
-      },
-      "billing": {
-        "filter": "/landlord/{landlordUuid}/api/receipts/filter",
-        "months": "/landlord/{landlordUuid}/api/receipts/months",
-        "preview": "/landlord/{landlordUuid}/api/receipts/preview",
-        "create": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
-        "get": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
-        "update": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
-        "updatePayment": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/payment-status",
-        "archive": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/archive",
-        "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/restore",
-        "delete": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
-        "archiveData": "/landlord/{landlordUuid}/api/archive-data"
-      },
-      "tenants": {
-        "list": "/landlord/{landlordUuid}/api/tenants",
-        "create": "/landlord/{landlordUuid}/api/tenants",
-        "get": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
-        "update": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
-        "delete": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
-        "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/restore",
-        "changePin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/change-pin",
-        "revealPin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/reveal-pin",
-        "receipts": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
-        "recoverySnapshots": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots",
-        "recoverySnapshotPreview": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/preview",
-        "recoverySnapshotRestore": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/restore"
-      },
-      "occupants": {
-        "list": "/landlord/{landlordUuid}/api/occupants/{tenantId}",
-        "create": "/landlord/{landlordUuid}/api/occupants/{tenantId}",
-        "markInactive": "/landlord/{landlordUuid}/api/occupants/{tenantId}/{occupantUuid}/inactive",
-        "delete": "/landlord/{landlordUuid}/api/occupants/{tenantId}/{occupantUuid}",
-        "getFile": "/landlord/{landlordUuid}/api/occupants/{tenantId}/file/{filename}"
-      },
-      "pdf": {
-        "download": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/pdf/download",
-        "view": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/pdf/view"
-      },
-      "whatsapp": {
-        "sendSingle": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/whatsapp"
-      },
-      "sync": {
-        "exportCsv": "/landlord/{landlordUuid}/api/export-csv",
-        "exportZip": "/landlord/{landlordUuid}/api/export-zip",
-        "template": "/landlord/{landlordUuid}/api/import-template",
-        "exportExcel": "/landlord/{landlordUuid}/api/export-excel",
-        "importPreview": "/landlord/{landlordUuid}/api/import-preview",
-        "importExecute": "/landlord/{landlordUuid}/api/import-execute"
-      },
-      "backups": {
-        "list": "/landlord/{landlordUuid}/api/backups",
-        "createManual": "/landlord/{landlordUuid}/api/backups/manual",
-        "delete": "/landlord/{landlordUuid}/api/backups/{backupId}",
-        "verify": "/landlord/{landlordUuid}/api/backups/{backupId}/verify",
-        "restore": "/landlord/{landlordUuid}/api/backups/{backupId}/restore",
-        "download": "/landlord/{landlordUuid}/api/backups/{backupId}/download",
-        "metadata": "/landlord/{landlordUuid}/api/backups/{backupId}/metadata"
-      },
-      "settings": {
-        "uploadSignature": "/landlord/{landlordUuid}/api/settings/upload-signature",
-        "deleteSignature": "/landlord/{landlordUuid}/api/settings/delete-signature"
-      },
-      "totp": {
-        "qr": "/landlord/{landlordUuid}/api/totp/qr",
-        "regenerate": "/landlord/{landlordUuid}/api/totp/regenerate",
-        "enable": "/landlord/{landlordUuid}/api/totp/enable",
-        "disable": "/landlord/{landlordUuid}/api/totp/disable"
-      },
-      "audit": {
-        "logs": "/landlord/{landlordUuid}/api/audit-logs",
-        "actions": "/landlord/{landlordUuid}/api/audit-logs/actions"
-      }
-    }
-  }
-}```

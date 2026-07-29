@@ -4,7 +4,7 @@ import os
 # the rent.db is in app/app/database/rent.db actually wait, no, final_schema.py says DB_PATH = os.environ.get("RENT_DB_PATH", "/code/storage/database/rent.db")
 # But in development, where is it? 
 # Let me check where the current rent.db is. In the file list, there's `app\app\database\rent.db`.
-DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'storage', 'database', 'rent.db'))
+DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'storage', 'database', 'rent.db'))
 
 def migrate():
     print(f"Connecting to database: {DB_PATH}")

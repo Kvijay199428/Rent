@@ -5,9 +5,9 @@ Deploy/update nginx gateway configuration.
 Uploads changed route files and reloads Nginx without downtime.
 
 Usage:
-    python deploy/deploy_gateway.py
-    python deploy/deploy_gateway.py --host 192.168.1.50
-    python deploy/deploy_gateway.py --dry-run
+    python backend/deploy/deploy_gateway.py
+    python backend/deploy/deploy_gateway.py --host 192.168.1.50
+    python backend/deploy/deploy_gateway.py --dry-run
 """
 
 import os
@@ -20,7 +20,7 @@ except ImportError:
     paramiko = None
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-GATEWAY_DIR = os.path.join(BASE_DIR, "gateway")
+GATEWAY_DIR = os.path.join(BASE_DIR, "..", "gateway")
 REMOTE_DIR = "/home/vega/gateway"
 
 
