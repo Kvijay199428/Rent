@@ -20,7 +20,7 @@
         "./src/*"
       ],
       "@shared/*": [
-        "../../shared/*"
+        "../shared/*"
       ]
     },
     /* Bundler mode */

@@ -271,28 +271,8 @@ def init_db():
         );
         CREATE INDEX IF NOT EXISTS idx_tenant_recovery_expiry
             ON tenant_recovery_snapshots(expires_at, status);
-        """)
 
-        # Migrations for existing databases — safe to run multiple times
-        if not _column_exists(conn, "occupants", "address"):
-            conn.execute("ALTER TABLE occupants ADD COLUMN address TEXT")
-        if not _column_exists(conn, "occupants", "residentSince"):
-            conn.execute("ALTER TABLE occupants ADD COLUMN residentSince TEXT")
-        if not _column_exists(conn, "tenants", "status_changed_at"):
-            conn.execute("ALTER TABLE tenants ADD COLUMN status_changed_at TEXT")
-        if not _column_exists(conn, "landlord_accounts", "totp_secret"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_secret TEXT")
-        if not _column_exists(conn, "landlord_accounts", "totp_enabled"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 1")
-        if not _column_exists(conn, "landlord_accounts", "failed_attempts"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0")
-        if not _column_exists(conn, "landlord_accounts", "locked_until"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN locked_until TEXT")
-
-        # ── Landlord auth schema (Phase-2 migration) ──────────────────────────
-        # Safe to run multiple times — all statements are IF NOT EXISTS.
-        conn.executescript("""
-        -- 14. LANDLORD ACCOUNTS
+        -- 14. LANDLORD ACCOUNTS (created before migrations so ALTER TABLE works)
         CREATE TABLE IF NOT EXISTS landlord_accounts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             landlord_uuid TEXT UNIQUE NOT NULL,

@@ -6,7 +6,7 @@
     "module": "esnext",
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
-    "skipLibCheck": true,  "paths": { "@/*": ["./src/*"], "@shared/*": ["../../shared/*"] },
+    "skipLibCheck": true,  "paths": { "@/*": ["./src/*"], "@shared/*": ["../shared/*"] },
 
     /* Bundler mode */
     "moduleResolution": "bundler",
