@@ -25,6 +25,10 @@ update.zip
 tsconfig.tsbuildinfo
 tsconfig.*.tsbuildinfo
 .sisyphus/
+vite.config.js
+vite.config.d.ts
+vite.config.*.js
+vite.config.*.d.ts
 
 # Docker compose overrides
 docker-compose.override.yml
