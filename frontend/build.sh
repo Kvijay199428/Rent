@@ -25,7 +25,29 @@ cp -r landlord-app/dist/* build-output/rent/landlord/
 mkdir -p build-output/rent/tenant
 cp -r tenant-app/dist/* build-output/rent/tenant/
 
+cat > build-output/_redirects << 'EOF'
+# SPA fallback: all routes under /rent/* serve index.html
+/rent/admin/*   /rent/admin/index.html   200
+/rent/landlord/* /rent/landlord/index.html 200
+/rent/t/*       /rent/t/index.html        200
+/rent/*         /rent/index.html          200
+EOF
+
+cat > build-output/_headers << 'EOF'
+/rent/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/rent/*.js
+  Cache-Control: public, max-age=31536000, immutable
+/rent/*.css
+  Cache-Control: public, max-age=31536000, immutable
+/rent/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+EOF
+
 echo ""
 echo "=== Build complete ==="
 echo "Output: build-output/"
 ls -la build-output/rent/
+echo ""
+echo "--- _redirects ---"
+cat build-output/_redirects
