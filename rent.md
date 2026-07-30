@@ -4,7 +4,7 @@ Generated: 2025-07-29
 Script:   /root/Rent/copy.py
 Source:   /root/Rent
 Files:    296
-Size:     1539 KB
+Size:     1542 KB
 Skipped:  0
 
 ---
@@ -16113,10 +16113,32 @@ cp -r landlord-app/dist/* build-output/rent/landlord/
 mkdir -p build-output/rent/tenant
 cp -r tenant-app/dist/* build-output/rent/tenant/
 
+cat > build-output/_redirects << 'EOF'
+# SPA fallback: all routes under /rent/* serve index.html
+/rent/admin/*   /rent/admin/index.html   200
+/rent/landlord/* /rent/landlord/index.html 200
+/rent/t/*       /rent/t/index.html        200
+/rent/*         /rent/index.html          200
+EOF
+
+cat > build-output/_headers << 'EOF'
+/rent/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/rent/*.js
+  Cache-Control: public, max-age=31536000, immutable
+/rent/*.css
+  Cache-Control: public, max-age=31536000, immutable
+/rent/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+EOF
+
 echo ""
 echo "=== Build complete ==="
 echo "Output: build-output/"
 ls -la build-output/rent/
+echo ""
+echo "--- _redirects ---"
+cat build-output/_redirects
 ```
 
 ### `frontend/landing-app/package.json`
@@ -17089,8 +17111,24 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "../shared"),
     },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/")) {
+            return "react-vendor";
+          }
+        },
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+      },
+    },
+    target: "es2022",
   },
 });
 ```
@@ -17165,16 +17203,12 @@ export default defineConfig({
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
-    "autoprefixer": "^10.4.23",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.19",
-    "tailwindcss-animate": "^1.0.7",
-    "tw-animate-css": "^1.4.0",
+    "@tailwindcss/vite": "^4.3.2",
+    "tailwindcss": "^4.3.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^8.1.5"
@@ -37493,11 +37527,12 @@ export interface PermanentDeleteResult {
 ```typescript
 import path from "path"
 import react from "@vitejs/plugin-react"
+import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "vite"
-// https://vite.dev/config/
+
 export default defineConfig({
   base: '/rent/landlord/',
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     port: 3000,
   },
@@ -37507,7 +37542,48 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "../shared"),
     },
   },
-});
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
+            return 'react-vendor';
+          }
+          if (id.includes('node_modules/react-router')) {
+            return 'router';
+          }
+          if (id.includes('node_modules/recharts')) {
+            return 'charts';
+          }
+          if (id.includes('node_modules/date-fns') || id.includes('node_modules/lucide-react')) {
+            return 'utils';
+          }
+          if (id.includes('node_modules/@radix-ui') ||
+              id.includes('node_modules/class-variance-authority') ||
+              id.includes('node_modules/clsx') ||
+              id.includes('node_modules/tailwind-merge')) {
+            return 'ui-primitives';
+          }
+        },
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]',
+      },
+    },
+    chunkSizeWarningLimit: 600,
+    target: 'es2022',
+    cssCodeSplit: true,
+  },
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-router-dom',
+      'recharts',
+      'lucide-react',
+    ],
+  },
+})
 ```
 
 ### `frontend/package.json`
@@ -40481,11 +40557,29 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "../shared"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/")) {
+            return "react-vendor";
+          }
+          if (id.includes("node_modules/react-router")) {
+            return "router";
+          }
+        },
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+      },
+    },
+    target: "es2022",
+  },
 });
-
 ```
 
 ### `frontend/shared/api-config.ts`
@@ -44211,12 +44305,36 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/rent/t/',  // Assets served through /rent/ nginx proxy → /t/assets/ mount
+  base: '/rent/t/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@shared': path.resolve(__dirname, '../shared'),
     },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
+            return 'react-vendor';
+          }
+          if (id.includes('node_modules/class-variance-authority') ||
+              id.includes('node_modules/clsx') ||
+              id.includes('node_modules/tailwind-merge')) {
+            return 'ui-core';
+          }
+          if (id.includes('node_modules/lucide-react')) {
+            return 'utils';
+          }
+        },
+        entryFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash][extname]',
+      },
+    },
+    target: 'es2022',
+    cssCodeSplit: true,
   },
 })
 ```
