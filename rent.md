@@ -3,8 +3,8 @@
 Generated: 2025-07-29
 Script:   /root/Rent/copy.py
 Source:   /root/Rent
-Files:    296
-Size:     1542 KB
+Files:    297
+Size:     1552 KB
 Skipped:  0
 
 ---
@@ -95,6 +95,7 @@ Skipped:  0
 - backend/app/app/routers/platform_admin.py
 - backend/app/app/services/backup_service.py
 - backend/app/app/services/billing_service.py
+- backend/app/app/services/google_oauth_service.py
 - backend/app/app/services/pdf_service.py
 - backend/app/app/services/signature_service.py
 - backend/app/app/services/tenant_recovery_service.py
@@ -6697,6 +6698,17 @@ def init_db():
             conn.execute("ALTER TABLE tenant_audit_logs ADD COLUMN meta_json TEXT")
             conn.commit()
 
+        # ─── Google OAuth columns for landlord_accounts ────────────────
+        if not _column_exists(conn, "landlord_accounts", "google_sub"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN google_sub TEXT UNIQUE")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "auth_provider"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'email'")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "avatar_url"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN avatar_url TEXT")
+            conn.commit()
+
         # ─── Landlord password admin store (for platform admin reveal) ──
         conn.execute("""
             CREATE TABLE IF NOT EXISTS landlord_password_admin_store (
@@ -7012,6 +7024,7 @@ class LandlordRoutes:
     LANDLORDPAGETENANTPROFILE = "/landlord/tenant/{tenantId}"
 
     # Landlord Auth API (from existing Landlord Auth routes)
+    LANDLORDAPIAUTHGOOGLE = "/landlord/api/auth/google"
     LANDLORDAPIAUTHCHECKUSERNAME = "/landlord/api/auth/check-username"
     LANDLORDAPIAUTHCHECKEMAIL = "/landlord/api/auth/check-email"
     LANDLORDAPIAUTHSIGNUP = "/landlord/api/auth/signup"
@@ -7128,6 +7141,7 @@ class LandlordNames:
     LANDLORDLOGOUTPAGE = "landlordlogoutpage"
 
     # Landlord Auth API
+    LANDLORDGOOGLE = "landlordgoogle"
     LANDLORDCHECKUSERNAME = "landlordcheckusername"
     LANDLORDCHECKEMAIL = "landlordcheckemail"
     LANDLORDSIGNUP = "landlordsignup"
@@ -8383,6 +8397,11 @@ class LandlordLoginWithTotpRequest(BaseModel):
     username: str
     password: str
     totpToken: str
+    rememberMe: bool = False
+
+
+class LandlordGoogleRequest(BaseModel):
+    credential: str
     rememberMe: bool = False
 
 
@@ -9692,7 +9711,7 @@ from app.database.landlord_repository import (
     record_landlord_failed_attempt,
     reset_landlord_failed_attempts,
 )
-from app.models.landlord import LandlordLoginRequest, LandlordLoginWithTotpRequest, LandlordSignupRequest
+from app.models.landlord import LandlordGoogleRequest, LandlordLoginRequest, LandlordLoginWithTotpRequest, LandlordSignupRequest
 from app.core.config_service import config
 from app.core.db import get_conn
 
@@ -9739,6 +9758,25 @@ def suggest_usernames(base: str) -> list[str]:
 async def landlord_public_key():
     from app.encryption import get_public_key_pem
     return {"publicKey": get_public_key_pem()}
+
+
+@router.post(Routes.LANDLORDAPIAUTHGOOGLE, name=Names.LANDLORDGOOGLE)
+async def landlord_google(
+    request: Request, response: Response, payload: LandlordGoogleRequest
+):
+    """
+    Authenticate or sign up a landlord via Google Sign-In (ID token flow).
+    Accepts a Google credential (ID token) and returns the same session
+    format as password login.
+    """
+    from app.services.google_oauth_service import google_login
+    try:
+        result = google_login(payload.credential, payload.rememberMe, request, response)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google authentication failed: {str(e)}")
 
 
 @router.get(Routes.LANDLORDAPIAUTHCHECKUSERNAME, name=Names.LANDLORDCHECKUSERNAME)
@@ -13281,6 +13319,138 @@ def save_all_receipts(receipts_list):
 
 ```
 
+### `backend/app/app/services/google_oauth_service.py`
+
+```python
+import json
+import uuid
+from datetime import datetime
+
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
+from app.authentication.common.utils import hash_pin
+from app.authentication.landlord.cookies import set_landlord_auth_cookies
+from app.authentication.landlord.jwt import create_access_token
+from app.authentication.landlord.sessions import create_landlord_session
+from app.database.landlord_repository import (
+    create_landlord,
+    create_landlord_audit_log,
+    get_landlord_by_email,
+)
+from app.core.db import get_conn
+
+GOOGLE_CLIENT_ID: str | None = None
+
+
+def _get_client_id() -> str:
+    global GOOGLE_CLIENT_ID
+    if GOOGLE_CLIENT_ID is None:
+        import os
+        GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+    return GOOGLE_CLIENT_ID
+
+
+def verify_google_token(credential: str) -> dict | None:
+    client_id = _get_client_id()
+    if not client_id:
+        raise ValueError("GOOGLE_CLIENT_ID is not configured")
+    try:
+        info = id_token.verify_oauth2_token(credential, google_requests.Request(), client_id)
+        if info.get("iss") not in {"accounts.google.com", "https://accounts.google.com"}:
+            return None
+        return info
+    except ValueError:
+        return None
+
+
+def google_login(credential: str, remember_me: bool, request, response):
+    info = verify_google_token(credential)
+    if info is None:
+        raise ValueError("Invalid Google credential")
+
+    google_sub = info["sub"]
+    email = info.get("email", "").strip().lower()
+    name = info.get("name", "").strip()
+    avatar_url = info.get("picture", "")
+
+    with get_conn() as conn:
+        landlord = conn.execute(
+            "SELECT * FROM landlord_accounts WHERE google_sub = ?", (google_sub,)
+        ).fetchone()
+
+    if not landlord and email:
+        landlord = get_landlord_by_email(email)
+        if landlord:
+            with get_conn() as conn:
+                conn.execute(
+                    "UPDATE landlord_accounts SET google_sub = ?, avatar_url = ?, updated_at = ? WHERE id = ?",
+                    (google_sub, avatar_url, datetime.utcnow().isoformat(), landlord["id"]),
+                )
+                conn.commit()
+
+    if not landlord:
+        base_username = (email.split("@")[0] if email else "user").lower()
+        username = _unique_username(base_username)
+        landlord_uuid = str(uuid.uuid4())
+        placeholder_hash = hash_pin(uuid.uuid4().hex)
+
+        landlord = create_landlord(
+            full_name=name or email or "Google User",
+            email=email or None,
+            phone=None,
+            username=username,
+            password_hash=placeholder_hash,
+            landlord_uuid=landlord_uuid,
+        )
+
+        with get_conn() as conn:
+            conn.execute(
+                """UPDATE landlord_accounts
+                   SET google_sub = ?, auth_provider = 'google', avatar_url = ?, updated_at = ?
+                   WHERE id = ?""",
+                (google_sub, avatar_url, datetime.utcnow().isoformat(), landlord["id"]),
+            )
+            conn.commit()
+
+        create_landlord_audit_log(
+            landlord["id"],
+            "signup_via_google",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"google_sub": google_sub, "email": email}),
+        )
+
+    session_id, refresh_token = create_landlord_session(
+        landlord["id"], request, remember_me
+    )
+    access_token = create_access_token(landlord["id"], session_id)
+    cookie_value = f"{session_id}:{refresh_token}"
+    set_landlord_auth_cookies(response, access_token, cookie_value, remember_me, request)
+
+    return {
+        "status": "success",
+        "landlord": {
+            "id": landlord["id"],
+            "landlordUuid": landlord["landlord_uuid"],
+            "username": landlord["username"],
+            "fullName": landlord["full_name"],
+        },
+    }
+
+
+def _unique_username(base: str, max_length: int = 40) -> str:
+    candidate = base[:max_length]
+    from app.database.landlord_repository import username_exists
+    if not username_exists(candidate):
+        return candidate
+    for suffix in range(1, 9999):
+        shortened = base[: max_length - len(str(suffix)) - 1]
+        candidate = f"{shortened}{suffix}"
+        if not username_exists(candidate):
+            return candidate
+    return f"{base[:20]}{uuid.uuid4().hex[:8]}"
+```
+
 ### `backend/app/app/services/pdf_service.py`
 
 ```python
@@ -15451,7 +15621,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./storage:/code/storage
+      - ../storage:/code/storage
     networks:
       - vega-gateway
     healthcheck:
@@ -15496,6 +15666,7 @@ pyotp>=2.9.0
 qrcode[pil]>=7.4.2
 httpx>=0.27.2
 pydantic>=2.0.0
+google-auth>=2.38.0
 ```
 
 ### `backend/shared/routes.json`
@@ -16096,8 +16267,7 @@ APPS="landing-app platform-admin-app landlord-app tenant-app"
 for app in $APPS; do
   echo ""
   echo "=== $app ==="
-  npm --prefix "$app" ci
-  npm --prefix "$app" run build
+  (cd "$app" && npm ci && npm run build)
 done
 
 echo ""
@@ -17175,6 +17345,7 @@ export default defineConfig({
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@react-oauth/google": "^0.13.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -17191,7 +17362,7 @@ export default defineConfig({
     "react-resizable-panels": "^4.2.2",
     "react-router": "^7.6.1",
     "react-router-dom": "^7.18.1",
-    "recharts": "^2.15.4",
+    "recharts": "^3.10.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2",
@@ -17199,6 +17370,7 @@ export default defineConfig({
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@tailwindcss/vite": "^4.3.2",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
@@ -17207,7 +17379,6 @@ export default defineConfig({
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-    "@tailwindcss/vite": "^4.3.2",
     "tailwindcss": "^4.3.2",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
@@ -30229,6 +30400,7 @@ export const ROUTES = {
 
     // Landlord API: Auth
     get LANDLORDAPIAUTHPUBLICKEY() { return api("landlord", "auth", "publicKey"); },
+    get LANDLORDAPIAUTHGOOGLE() { return api("landlord", "auth", "google"); },
     get LANDLORDAPIAUTHCHECKUSERNAME() { return api("landlord", "auth", "checkUsername"); },
     get LANDLORDAPIAUTHCHECKEMAIL() { return api("landlord", "auth", "checkEmail"); },
     get LANDLORDAPIAUTHSIGNUP() { return api("landlord", "auth", "signup"); },
@@ -33146,6 +33318,7 @@ export default function Home() {
 ```typescript
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33154,6 +33327,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Shield, AlertTriangle, ArrowLeft, KeyRound } from 'lucide-react';
 import AuthLayout from '@/components/layout/AuthLayout';
+import { ROUTES } from '@/lib/routes';
 
 export default function LandlordLoginPage() {
   const navigate = useNavigate();
@@ -33170,6 +33344,30 @@ export default function LandlordLoginPage() {
       navigate(`/${landlordUuid}/dashboard`, { replace: true });
     }
   }, [isLoading, isAuthenticated, landlordUuid, navigate]);
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential, rememberMe: loginData.rememberMe }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Google authentication failed");
+        return;
+      }
+      if (data.status === "success") {
+        navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true });
+      }
+    } catch {
+      setError("Network error during Google authentication");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -33329,6 +33527,28 @@ export default function LandlordLoginPage() {
               {loading ? 'Please wait...' : needsTOTP ? 'Verify & Login' : 'Login'}
             </Button>
 
+            {!needsTOTP && (
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                </div>
+              </div>
+            )}
+
+            {!needsTOTP && (
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError("Google Sign-In failed")}
+                  size="large"
+                  width={384}
+                />
+              </div>
+            )}
+
             {needsTOTP && (
               <Button
                 type="button"
@@ -33361,6 +33581,7 @@ export default function LandlordLoginPage() {
 ```typescript
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -33398,6 +33619,7 @@ export default function LandlordSignupPage() {
   const [emailStatus, setEmailStatus] = useState<FieldStatus>('idle');
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const usernameTimer = useRef<ReturnType<typeof setTimeout>>();
   const emailTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -33476,6 +33698,31 @@ export default function LandlordSignupPage() {
     setUsernameStatus('available');
     setUsernameSuggestions([]);
     toast.success(`Username "${s}" is available`);
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      const res = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential, rememberMe: false }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Google Sign-Up failed");
+        return;
+      }
+      if (data.status === "success") {
+        toast.success('Account created via Google!', { description: 'Redirecting...' });
+        setTimeout(() => navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true }), 1200);
+      }
+    } catch {
+      setError("Network error during Google Sign-Up");
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleSignup = async (event: React.FormEvent) => {
@@ -33723,6 +33970,25 @@ export default function LandlordSignupPage() {
               {signupData.confirmPassword && signupData.password !== signupData.confirmPassword && (
                 <p className="text-xs text-red-500">Passwords do not match</p>
               )}
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or sign up with</span>
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError("Google Sign-Up failed")}
+                size="large"
+                width={384}
+                disabled={googleLoading}
+              />
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
