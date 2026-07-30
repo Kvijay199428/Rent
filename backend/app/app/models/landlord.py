@@ -30,6 +30,11 @@ class LandlordLoginWithTotpRequest(BaseModel):
     rememberMe: bool = False
 
 
+class LandlordGoogleRequest(BaseModel):
+    credential: str
+    rememberMe: bool = False
+
+
 class UsernameCheckResponse(BaseModel):
     username: str
     available: bool

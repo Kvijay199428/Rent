@@ -442,6 +442,17 @@ def init_db():
             conn.execute("ALTER TABLE tenant_audit_logs ADD COLUMN meta_json TEXT")
             conn.commit()
 
+        # ─── Google OAuth columns for landlord_accounts ────────────────
+        if not _column_exists(conn, "landlord_accounts", "google_sub"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN google_sub TEXT UNIQUE")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "auth_provider"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'email'")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "avatar_url"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN avatar_url TEXT")
+            conn.commit()
+
         # ─── Landlord password admin store (for platform admin reveal) ──
         conn.execute("""
             CREATE TABLE IF NOT EXISTS landlord_password_admin_store (

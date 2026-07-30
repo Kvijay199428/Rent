@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Shield, AlertTriangle, ArrowLeft, KeyRound } from 'lucide-react';
 import AuthLayout from '@/components/layout/AuthLayout';
+import { ROUTES } from '@/lib/routes';
 
 export default function LandlordLoginPage() {
   const navigate = useNavigate();
@@ -24,6 +26,30 @@ export default function LandlordLoginPage() {
       navigate(`/${landlordUuid}/dashboard`, { replace: true });
     }
   }, [isLoading, isAuthenticated, landlordUuid, navigate]);
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setError("");
+    setLoading(true);
+    try {
+      const res = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential, rememberMe: loginData.rememberMe }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Google authentication failed");
+        return;
+      }
+      if (data.status === "success") {
+        navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true });
+      }
+    } catch {
+      setError("Network error during Google authentication");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogin = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -182,6 +208,28 @@ export default function LandlordLoginPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Please wait...' : needsTOTP ? 'Verify & Login' : 'Login'}
             </Button>
+
+            {!needsTOTP && (
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+                </div>
+              </div>
+            )}
+
+            {!needsTOTP && (
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => setError("Google Sign-In failed")}
+                  size="large"
+                  width={384}
+                />
+              </div>
+            )}
 
             {needsTOTP && (
               <Button

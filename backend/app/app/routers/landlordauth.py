@@ -50,7 +50,7 @@ from app.database.landlord_repository import (
     record_landlord_failed_attempt,
     reset_landlord_failed_attempts,
 )
-from app.models.landlord import LandlordLoginRequest, LandlordLoginWithTotpRequest, LandlordSignupRequest
+from app.models.landlord import LandlordGoogleRequest, LandlordLoginRequest, LandlordLoginWithTotpRequest, LandlordSignupRequest
 from app.core.config_service import config
 from app.core.db import get_conn
 
@@ -97,6 +97,25 @@ def suggest_usernames(base: str) -> list[str]:
 async def landlord_public_key():
     from app.encryption import get_public_key_pem
     return {"publicKey": get_public_key_pem()}
+
+
+@router.post(Routes.LANDLORDAPIAUTHGOOGLE, name=Names.LANDLORDGOOGLE)
+async def landlord_google(
+    request: Request, response: Response, payload: LandlordGoogleRequest
+):
+    """
+    Authenticate or sign up a landlord via Google Sign-In (ID token flow).
+    Accepts a Google credential (ID token) and returns the same session
+    format as password login.
+    """
+    from app.services.google_oauth_service import google_login
+    try:
+        result = google_login(payload.credential, payload.rememberMe, request, response)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google authentication failed: {str(e)}")
 
 
 @router.get(Routes.LANDLORDAPIAUTHCHECKUSERNAME, name=Names.LANDLORDCHECKUSERNAME)

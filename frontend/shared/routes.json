@@ -161,6 +161,7 @@
     "api": {
       "auth": {
         "publicKey": "/landlord/api/auth/public-key",
+        "google": "/landlord/api/auth/google",
         "checkUsername": "/landlord/api/auth/check-username",
         "checkEmail": "/landlord/api/auth/check-email",
         "signup": "/landlord/api/auth/signup",

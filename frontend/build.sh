@@ -8,8 +8,7 @@ APPS="landing-app platform-admin-app landlord-app tenant-app"
 for app in $APPS; do
   echo ""
   echo "=== $app ==="
-  npm --prefix "$app" ci
-  npm --prefix "$app" run build
+  (cd "$app" && npm ci && npm run build)
 done
 
 echo ""

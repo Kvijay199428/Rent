@@ -247,6 +247,7 @@ export const ROUTES = {
 
     // Landlord API: Auth
     get LANDLORDAPIAUTHPUBLICKEY() { return api("landlord", "auth", "publicKey"); },
+    get LANDLORDAPIAUTHGOOGLE() { return api("landlord", "auth", "google"); },
     get LANDLORDAPIAUTHCHECKUSERNAME() { return api("landlord", "auth", "checkUsername"); },
     get LANDLORDAPIAUTHCHECKEMAIL() { return api("landlord", "auth", "checkEmail"); },
     get LANDLORDAPIAUTHSIGNUP() { return api("landlord", "auth", "signup"); },

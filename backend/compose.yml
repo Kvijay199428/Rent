@@ -9,7 +9,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./storage:/code/storage
+      - ../storage:/code/storage
     networks:
       - vega-gateway
     healthcheck:

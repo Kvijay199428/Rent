@@ -18,6 +18,7 @@ class LandlordRoutes:
     LANDLORDPAGETENANTPROFILE = "/landlord/tenant/{tenantId}"
 
     # Landlord Auth API (from existing Landlord Auth routes)
+    LANDLORDAPIAUTHGOOGLE = "/landlord/api/auth/google"
     LANDLORDAPIAUTHCHECKUSERNAME = "/landlord/api/auth/check-username"
     LANDLORDAPIAUTHCHECKEMAIL = "/landlord/api/auth/check-email"
     LANDLORDAPIAUTHSIGNUP = "/landlord/api/auth/signup"
@@ -134,6 +135,7 @@ class LandlordNames:
     LANDLORDLOGOUTPAGE = "landlordlogoutpage"
 
     # Landlord Auth API
+    LANDLORDGOOGLE = "landlordgoogle"
     LANDLORDCHECKUSERNAME = "landlordcheckusername"
     LANDLORDCHECKEMAIL = "landlordcheckemail"
     LANDLORDSIGNUP = "landlordsignup"

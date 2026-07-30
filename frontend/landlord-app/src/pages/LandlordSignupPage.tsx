@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +38,7 @@ export default function LandlordSignupPage() {
   const [emailStatus, setEmailStatus] = useState<FieldStatus>('idle');
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
   const [passwordStrength, setPasswordStrength] = useState(0);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const usernameTimer = useRef<ReturnType<typeof setTimeout>>();
   const emailTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -115,6 +117,31 @@ export default function LandlordSignupPage() {
     setUsernameStatus('available');
     setUsernameSuggestions([]);
     toast.success(`Username "${s}" is available`);
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      const res = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: credentialResponse.credential, rememberMe: false }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Google Sign-Up failed");
+        return;
+      }
+      if (data.status === "success") {
+        toast.success('Account created via Google!', { description: 'Redirecting...' });
+        setTimeout(() => navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true }), 1200);
+      }
+    } catch {
+      setError("Network error during Google Sign-Up");
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleSignup = async (event: React.FormEvent) => {
@@ -362,6 +389,25 @@ export default function LandlordSignupPage() {
               {signupData.confirmPassword && signupData.password !== signupData.confirmPassword && (
                 <p className="text-xs text-red-500">Passwords do not match</p>
               )}
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or sign up with</span>
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError("Google Sign-Up failed")}
+                size="large"
+                width={384}
+                disabled={googleLoading}
+              />
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
