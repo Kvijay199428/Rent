@@ -4681,14 +4681,11 @@ def get_admin_cookie_path(request: Request | None = None) -> str:
     rootpath = (request.scope.get("root_path") or request.scope.get("rootpath") or "").rstrip("/")
     path = request.url.path.rstrip("/")
 
-    if path.startswith("/platform-admin"):
-        return "/platform-admin"
-
     if rootpath and rootpath != "/":
         return rootpath
 
     parts = [p for p in path.split("/") if p]
-    if parts and parts[0] not in {"admin", "platform-admin", "api", "static"}:
+    if parts and parts[0] not in {"admin", "api", "static"}:
         return f"/{parts[0]}"
 
     return "/admin"
@@ -5446,9 +5443,9 @@ from fastapi import Response, Request, HTTPException
 
 def get_platform_cookie_path(request: Request | None = None) -> str:
     if request is None:
-        return "/platform-admin"
+        return "/admin"
     root = (request.scope.get("root_path") or "").rstrip("/")
-    return f"{root}/platform-admin" if root else "/platform-admin"
+    return f"{root}/admin" if root else "/admin"
 
 def set_platform_auth_cookies(
     response: Response,
@@ -7264,37 +7261,37 @@ class LandlordTemplates:
 # app/core/routes_manifest_platform_admin.py
 
 class PlatformAdminRoutes:
-    PLATFORMADMINROOT = "/platform-admin"
+    PLATFORMADMINROOT = "/admin"
     
     # Auth
-    PLATFORMADMINAPIAUTHLOGIN = "/platform-admin/api/auth/login"
-    PLATFORMADMINAPIAUTHLOGINTOTP = "/platform-admin/api/auth/login-totp"
-    PLATFORMADMINAPIAUTHREFRESH = "/platform-admin/api/auth/refresh"
-    PLATFORMADMINAPIAUTHLOGOUT = "/platform-admin/api/auth/logout"
-    PLATFORMADMINAPIAUTHME = "/platform-admin/api/auth/me"
+    PLATFORMADMINAPIAUTHLOGIN = "/admin/api/auth/login"
+    PLATFORMADMINAPIAUTHLOGINTOTP = "/admin/api/auth/login-totp"
+    PLATFORMADMINAPIAUTHREFRESH = "/admin/api/auth/refresh"
+    PLATFORMADMINAPIAUTHLOGOUT = "/admin/api/auth/logout"
+    PLATFORMADMINAPIAUTHME = "/admin/api/auth/me"
     
-    PLATFORMADMINAPISETUPREQUIRED = "/platform-admin/api/auth/setup-required"
-    PLATFORMADMINAPISETUPCREATE = "/platform-admin/api/auth/setup-create"
+    PLATFORMADMINAPISETUPREQUIRED = "/admin/api/auth/setup-required"
+    PLATFORMADMINAPISETUPCREATE = "/admin/api/auth/setup-create"
     
-    PLATFORMADMINAPIPASSWORDFORGOTVERIFY = "/platform-admin/api/auth/password/forgot-verify"
-    PLATFORMADMINAPIPASSWORDFORGOTRESET = "/platform-admin/api/auth/password/forgot-reset"
+    PLATFORMADMINAPIPASSWORDFORGOTVERIFY = "/admin/api/auth/password/forgot-verify"
+    PLATFORMADMINAPIPASSWORDFORGOTRESET = "/admin/api/auth/password/forgot-reset"
     
-    PLATFORMADMINAPITOTPQR = "/platform-admin/api/auth/totp-qr"
-    PLATFORMADMINAPITOTPREGENERATE = "/platform-admin/api/auth/totp-regenerate"
+    PLATFORMADMINAPITOTPQR = "/admin/api/auth/totp-qr"
+    PLATFORMADMINAPITOTPREGENERATE = "/admin/api/auth/totp-regenerate"
     
-    PLATFORMADMINAPIAUTHPUBLICKEY = "/platform-admin/api/auth/public-key"
+    PLATFORMADMINAPIAUTHPUBLICKEY = "/admin/api/auth/public-key"
     
-    PLATFORMADMINPAGELOGOUT = "/platform-admin/logout"
+    PLATFORMADMINPAGELOGOUT = "/admin/logout"
     
     # Stats
-    PLATFORMADMINAPISTATS = "/platform-admin/api/stats"
+    PLATFORMADMINAPISTATS = "/admin/api/stats"
     
     # Landlords
-    PLATFORMADMINAPILANDLORDS = "/platform-admin/api/landlords"
-    PLATFORMADMINAPILANDLORDS_ID = "/platform-admin/api/landlords/{landlord_id}"
+    PLATFORMADMINAPILANDLORDS = "/admin/api/landlords"
+    PLATFORMADMINAPILANDLORDS_ID = "/admin/api/landlords/{landlord_id}"
     
     # Admins
-    PLATFORMADMINAPIADMINS = "/platform-admin/api/admins"
+    PLATFORMADMINAPIADMINS = "/admin/api/admins"
 
 
 class PlatformAdminNames:
@@ -9450,6 +9447,7 @@ LANDLORD_ID_RE = re.compile(r"^[0-9a-z]{16}$")
 RESERVED_LANDLORD_IDS = {
     "landlord",
     "platform-admin",
+    "admin",
     "api",
     "static",
     "landlordassets",
@@ -10685,7 +10683,7 @@ from app.core.audit import (
     get_audit_log_path,
 )
 
-router = APIRouter(prefix="/platform-admin", tags=["Platform Admin"])
+router = APIRouter(prefix="/admin", tags=["Platform Admin"])
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -12146,6 +12144,12 @@ async def platform_admin_root_redirect(request: Request):
 async def serve_platform_admin_app(request: Request, path: str = ""):
     if path.startswith("api"):
         raise HTTPException(status_code=404, detail="Platform admin API route not found")
+    dist_dir = os.path.join("frontend", "platform-admin-app", "dist")
+    file_path = os.path.normpath(os.path.join(dist_dir, path))
+    if not file_path.startswith(os.path.normpath(dist_dir)):
+        raise HTTPException(status_code=404)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
     return await _serve_platform_admin_spa()
 ```
 
@@ -16427,7 +16431,7 @@ export default function CTA() {
         <div className="hero-actions" style={{ justifyContent: "center" }}>
           <a href="./landlord/login" className="btn btn-primary">Landlord Login</a>
           <a href="./tenant/login" className="btn btn-outline">Tenant Login</a>
-          <a href="./platform-admin" className="btn btn-green">Admin Login</a>
+          <a href="./admin" className="btn btn-green">Admin Login</a>
         </div>
       </div>
     </section>
@@ -16732,7 +16736,7 @@ const portals = [
     description:
       "System administration, global settings, and platform-wide oversight. Restricted access only.",
     buttons: [
-      { label: "🔐 Admin Login", href: "./platform-admin", variant: "green" },
+      { label: "🔐 Admin Login", href: "./admin", variant: "green" },
     ],
   },
 ];
@@ -17360,8 +17364,7 @@ export default defineConfig({
     "react-hook-form": "^7.70.0",
     "react-qr-code": "^2.2.0",
     "react-resizable-panels": "^4.2.2",
-    "react-router": "^7.6.1",
-    "react-router-dom": "^7.18.1",
+    "react-router": "^8.3.0",
     "recharts": "^3.10.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
@@ -17375,7 +17378,7 @@ export default defineConfig({
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
-    "eslint": "^9.39.1",
+    "eslint": "^10.8.0",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
@@ -18586,7 +18589,7 @@ import type { ReactNode } from "react";
 
 const NAV_LINKS = [
   { label: "Home", href: "/rent/", icon: "🌍" },
-  { label: "Platform Admin", href: "/rent/platform-admin/login", icon: "⚙️" },
+  { label: "Platform Admin", href: "/rent/admin/login", icon: "⚙️" },
   { label: "Tenant Portal", href: "/rent/tenant", icon: "👤" },
 ];
 
@@ -18647,7 +18650,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 
 export default function Header() {
   const navigate = useNavigate();
@@ -18721,7 +18724,7 @@ export default function Header() {
 ### `frontend/landlord-app/src/components/layout/MainLayout.tsx`
 
 ```typescript
-import { Outlet, Navigate } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router';
 import { Toaster } from '@/components/ui/sonner';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -18760,7 +18763,7 @@ export default function MainLayout() {
 ### `frontend/landlord-app/src/components/layout/Sidebar.tsx`
 
 ```typescript
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router';
 import { useState } from 'react';
 import {
   LayoutDashboard,
@@ -18871,7 +18874,7 @@ export default function Sidebar() {
               <span className="text-base">🌍</span>
               Home
             </a>
-            <a href="/rent/platform-admin/login" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/50 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline">
+            <a href="/rent/admin/login" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/50 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline">
               <span className="text-base">⚙️</span>
               Platform Admin
             </a>
@@ -30816,7 +30819,7 @@ export default function ActivityPage() {
 
 ```typescript
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { apiPost, apiGet } from '@/hooks/useApi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31981,7 +31984,7 @@ export default function Backups() {
 
 ```typescript
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32420,7 +32423,7 @@ export default function Billing() {
 
 ```typescript
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32608,7 +32611,7 @@ export default function ChangePasswordPage() {
 
 ```typescript
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { api } from '@/services/api';
@@ -33127,7 +33130,7 @@ export default function Dashboard() {
 
 ```typescript
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { api } from '@/services/api';
@@ -33317,7 +33320,7 @@ export default function Home() {
 
 ```typescript
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -33580,7 +33583,7 @@ export default function LandlordLoginPage() {
 
 ```typescript
 import { useState, useRef, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router';
 import { GoogleLogin } from '@react-oauth/google';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37880,7 +37883,7 @@ export default defineConfig({
   "dependencies": {
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.1"
+    "react-router": "^8.3.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
@@ -37898,7 +37901,7 @@ export default defineConfig({
 ```typescript
 import { getApiUrl } from "@shared/api-config";
 
-export const fetchApi = (path: string) => fetch(getApiUrl(`/rent/platform-admin/api${path}`));
+export const fetchApi = (path: string) => fetch(getApiUrl(`/rent/admin/api${path}`));
 
 ```
 
@@ -37925,7 +37928,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "16px 32px", flexWrap: "wrap", gap: 12,
       }}>
-        <a href="/rent/platform-admin/login" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+        <a href="/rent/admin/login" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
           <span style={{
             width: 36, height: 36, borderRadius: 10, display: "flex",
             alignItems: "center", justifyContent: "center",
@@ -38049,7 +38052,7 @@ export default function BroadcastBanner({ healthUrl }: BroadcastBannerProps) {
 ### `frontend/platform-admin-app/src/components/Layout.tsx`
 
 ```typescript
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 
 const NAV = [
@@ -38531,7 +38534,7 @@ export function useHealthStream(enabled = true) {
 import { getApiBaseUrl } from "@shared/api-config";
 
 export const APP_BASE = "/rent/admin";
-export const API_BASE = getApiBaseUrl() + "/rent";
+export const API_BASE = getApiBaseUrl() + "/rent/admin/api";
 
 ```
 
@@ -38920,7 +38923,7 @@ const btnSecondary: React.CSSProperties = {
 
 ```typescript
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import Layout from "../components/Layout";
 import { API_BASE } from "../lib/runtime";
 
@@ -39469,7 +39472,7 @@ export default function DataExplorerPage() {
 
 ```typescript
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link } from "react-router";
 import Layout from "../components/Layout";
 import { API_BASE } from "../lib/runtime";
 
@@ -39629,7 +39632,7 @@ export default function LandlordDetailPage() {
 
 ```typescript
 import { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import Layout from "../components/Layout";
 import { API_BASE } from "../lib/runtime";
 
@@ -40047,7 +40050,7 @@ export default function LandlordsPage() {
 
 ```typescript
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import AuthLayout from "../components/AuthLayout";
 
@@ -40647,8 +40650,8 @@ export default function SettingsPage() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <tbody>
             {[
-              ["API Base", "/rent/platform-admin/api"],
-              ["Frontend Base", "/rent/platform-admin"],
+              ["API Base", "/rent/admin/api"],
+              ["Frontend Base", "/rent/admin"],
               ["Auth Scope", "Cookie: access_token"],
             ].map(([label, value]) => (
               <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
@@ -40909,7 +40912,7 @@ export function getApiUrl(path: string): string {
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router-dom": "^7.18.1",
+    "react-router": "^8.3.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
     "tailwindcss": "^4.3.2"
@@ -41212,7 +41215,7 @@ import type { ReactNode } from "react";
 
 const NAV_LINKS = [
   { label: "Home", href: "/rent/", icon: "🌍" },
-  { label: "Platform Admin", href: "/rent/platform-admin/login", icon: "⚙️" },
+  { label: "Platform Admin", href: "/rent/admin/login", icon: "⚙️" },
   { label: "Landlord Portal", href: "/rent/landlord/login", icon: "🏠" },
 ];
 
@@ -41221,7 +41224,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex flex-col bg-muted/30">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 flex-wrap gap-3">
-        <a href="/rent/platform-admin/login" className="flex items-center gap-2.5 no-underline">
+        <a href="/rent/admin/login" className="flex items-center gap-2.5 no-underline">
           <span className="flex items-center justify-center w-9 h-9 rounded-[10px] bg-slate-900/10 dark:bg-white/10 text-slate-900 dark:text-white text-base font-bold">
             P
           </span>

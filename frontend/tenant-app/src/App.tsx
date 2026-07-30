@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router";
 import { TenantProvider } from "@/context/TenantContext";
 import { useTenant } from "@/context/TenantContext";
 import LoginModal from "@/components/LoginModal";
@@ -108,7 +108,7 @@ function TenantPortalInner() {
               Home
             </a>
             <a
-              href="/rent/platform-admin/login"
+              href="/rent/admin/login"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline"
             >
               <span>⚙️</span>

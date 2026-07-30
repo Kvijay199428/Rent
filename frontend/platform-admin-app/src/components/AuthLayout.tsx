@@ -18,7 +18,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "16px 32px", flexWrap: "wrap", gap: 12,
       }}>
-        <a href="/rent/platform-admin/login" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+        <a href="/rent/admin/login" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
           <span style={{
             width: 36, height: 36, borderRadius: 10, display: "flex",
             alignItems: "center", justifyContent: "center",

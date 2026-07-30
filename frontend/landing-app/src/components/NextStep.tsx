@@ -24,7 +24,7 @@ const portals = [
     description:
       "System administration, global settings, and platform-wide oversight. Restricted access only.",
     buttons: [
-      { label: "🔐 Admin Login", href: "./platform-admin", variant: "green" },
+      { label: "🔐 Admin Login", href: "./admin", variant: "green" },
     ],
   },
 ];

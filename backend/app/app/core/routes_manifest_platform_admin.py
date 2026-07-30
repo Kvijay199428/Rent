@@ -1,37 +1,37 @@
 # app/core/routes_manifest_platform_admin.py
 
 class PlatformAdminRoutes:
-    PLATFORMADMINROOT = "/platform-admin"
+    PLATFORMADMINROOT = "/admin"
     
     # Auth
-    PLATFORMADMINAPIAUTHLOGIN = "/platform-admin/api/auth/login"
-    PLATFORMADMINAPIAUTHLOGINTOTP = "/platform-admin/api/auth/login-totp"
-    PLATFORMADMINAPIAUTHREFRESH = "/platform-admin/api/auth/refresh"
-    PLATFORMADMINAPIAUTHLOGOUT = "/platform-admin/api/auth/logout"
-    PLATFORMADMINAPIAUTHME = "/platform-admin/api/auth/me"
+    PLATFORMADMINAPIAUTHLOGIN = "/admin/api/auth/login"
+    PLATFORMADMINAPIAUTHLOGINTOTP = "/admin/api/auth/login-totp"
+    PLATFORMADMINAPIAUTHREFRESH = "/admin/api/auth/refresh"
+    PLATFORMADMINAPIAUTHLOGOUT = "/admin/api/auth/logout"
+    PLATFORMADMINAPIAUTHME = "/admin/api/auth/me"
     
-    PLATFORMADMINAPISETUPREQUIRED = "/platform-admin/api/auth/setup-required"
-    PLATFORMADMINAPISETUPCREATE = "/platform-admin/api/auth/setup-create"
+    PLATFORMADMINAPISETUPREQUIRED = "/admin/api/auth/setup-required"
+    PLATFORMADMINAPISETUPCREATE = "/admin/api/auth/setup-create"
     
-    PLATFORMADMINAPIPASSWORDFORGOTVERIFY = "/platform-admin/api/auth/password/forgot-verify"
-    PLATFORMADMINAPIPASSWORDFORGOTRESET = "/platform-admin/api/auth/password/forgot-reset"
+    PLATFORMADMINAPIPASSWORDFORGOTVERIFY = "/admin/api/auth/password/forgot-verify"
+    PLATFORMADMINAPIPASSWORDFORGOTRESET = "/admin/api/auth/password/forgot-reset"
     
-    PLATFORMADMINAPITOTPQR = "/platform-admin/api/auth/totp-qr"
-    PLATFORMADMINAPITOTPREGENERATE = "/platform-admin/api/auth/totp-regenerate"
+    PLATFORMADMINAPITOTPQR = "/admin/api/auth/totp-qr"
+    PLATFORMADMINAPITOTPREGENERATE = "/admin/api/auth/totp-regenerate"
     
-    PLATFORMADMINAPIAUTHPUBLICKEY = "/platform-admin/api/auth/public-key"
+    PLATFORMADMINAPIAUTHPUBLICKEY = "/admin/api/auth/public-key"
     
-    PLATFORMADMINPAGELOGOUT = "/platform-admin/logout"
+    PLATFORMADMINPAGELOGOUT = "/admin/logout"
     
     # Stats
-    PLATFORMADMINAPISTATS = "/platform-admin/api/stats"
+    PLATFORMADMINAPISTATS = "/admin/api/stats"
     
     # Landlords
-    PLATFORMADMINAPILANDLORDS = "/platform-admin/api/landlords"
-    PLATFORMADMINAPILANDLORDS_ID = "/platform-admin/api/landlords/{landlord_id}"
+    PLATFORMADMINAPILANDLORDS = "/admin/api/landlords"
+    PLATFORMADMINAPILANDLORDS_ID = "/admin/api/landlords/{landlord_id}"
     
     # Admins
-    PLATFORMADMINAPIADMINS = "/platform-admin/api/admins"
+    PLATFORMADMINAPIADMINS = "/admin/api/admins"
 
 
 class PlatformAdminNames:

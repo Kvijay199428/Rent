@@ -17,6 +17,7 @@ LANDLORD_ID_RE = re.compile(r"^[0-9a-z]{16}$")
 RESERVED_LANDLORD_IDS = {
     "landlord",
     "platform-admin",
+    "admin",
     "api",
     "static",
     "landlordassets",

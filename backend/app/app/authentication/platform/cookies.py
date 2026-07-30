@@ -6,9 +6,9 @@ from fastapi import Response, Request, HTTPException
 
 def get_platform_cookie_path(request: Request | None = None) -> str:
     if request is None:
-        return "/platform-admin"
+        return "/admin"
     root = (request.scope.get("root_path") or "").rstrip("/")
-    return f"{root}/platform-admin" if root else "/platform-admin"
+    return f"{root}/admin" if root else "/admin"
 
 def set_platform_auth_cookies(
     response: Response,

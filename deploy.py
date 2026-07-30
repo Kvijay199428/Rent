@@ -72,10 +72,23 @@ target_name = "local" if args.local else ("sshPublic" if args.sshPublic else "ss
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def check_node_version():
+    try:
+        result = subprocess.run(["node", "--version"], capture_output=True, text=True, timeout=10)
+        version = result.stdout.strip().lstrip("v")
+        parts = version.split(".")
+        major = int(parts[0])
+        if major < 22:
+            print(f"WARNING: Node v{version} detected. Node >= 22.22.0 recommended.")
+            print("  Run: nvm use")
+    except Exception:
+        print("WARNING: Could not detect Node version.")
+
 def build_frontends():
     if args.no_build:
         print("Skipping frontend builds (--no-build).")
         return
+    check_node_version()
     print("Building frontend applications...")
     for rel_dir in FRONTEND_DIRS:
         app_dir = os.path.join(LOCAL_DIR, *rel_dir.split("/"))
@@ -130,8 +143,8 @@ def get_deploy_commands():
             f"python3 -c \"import zipfile; zipfile.ZipFile('{REMOTE_ZIP}','r').extractall('{REMOTE_DIR}')\"",
             f"rm -f {REMOTE_ZIP}",
             f"cat > {REMOTE_DIR}/.dockerignore <<'DOCKEOF'\n{DOCKERIGNORE}DOCKEOF",
-            f"cd {REMOTE_DIR} && docker compose build",
-            f"cd {REMOTE_DIR} && docker compose up -d",
+            f"cd {REMOTE_DIR} && docker compose build --no-cache",
+            f"cd {REMOTE_DIR} && docker compose up -d --force-recreate",
         ]
         if os.path.exists(os.path.join(LOCAL_DIR, "nginx", "nginx.conf")):
             cmds.append(f"echo '{TARGETS[target_name]['password']}' | sudo -S cp {REMOTE_DIR}/nginx/nginx.conf /etc/nginx/nginx.conf && echo '{TARGETS[target_name]['password']}' | sudo -S nginx -t && echo '{TARGETS[target_name]['password']}' | sudo -S nginx -s reload || true")

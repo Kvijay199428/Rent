@@ -11,7 +11,7 @@ export default function CTA() {
         <div className="hero-actions" style={{ justifyContent: "center" }}>
           <a href="./landlord/login" className="btn btn-primary">Landlord Login</a>
           <a href="./tenant/login" className="btn btn-outline">Tenant Login</a>
-          <a href="./platform-admin" className="btn btn-green">Admin Login</a>
+          <a href="./admin" className="btn btn-green">Admin Login</a>
         </div>
       </div>
     </section>

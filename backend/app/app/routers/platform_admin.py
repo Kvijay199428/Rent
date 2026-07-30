@@ -51,7 +51,7 @@ from app.core.audit import (
     get_audit_log_path,
 )
 
-router = APIRouter(prefix="/platform-admin", tags=["Platform Admin"])
+router = APIRouter(prefix="/admin", tags=["Platform Admin"])
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1512,4 +1512,10 @@ async def platform_admin_root_redirect(request: Request):
 async def serve_platform_admin_app(request: Request, path: str = ""):
     if path.startswith("api"):
         raise HTTPException(status_code=404, detail="Platform admin API route not found")
+    dist_dir = os.path.join("frontend", "platform-admin-app", "dist")
+    file_path = os.path.normpath(os.path.join(dist_dir, path))
+    if not file_path.startswith(os.path.normpath(dist_dir)):
+        raise HTTPException(status_code=404)
+    if os.path.isfile(file_path):
+        return FileResponse(file_path)
     return await _serve_platform_admin_spa()

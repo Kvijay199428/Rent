@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router";
 import { useAuth, AuthProvider } from "./contexts/AuthContext";
 import BroadcastBanner from "./components/BroadcastBanner";
 import LoadingScreen from "./components/LoadingScreen";

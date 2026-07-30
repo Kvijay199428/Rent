@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 const NAV_LINKS = [
   { label: "Home", href: "/rent/", icon: "🌍" },
-  { label: "Platform Admin", href: "/rent/platform-admin/login", icon: "⚙️" },
+  { label: "Platform Admin", href: "/rent/admin/login", icon: "⚙️" },
   { label: "Tenant Portal", href: "/rent/tenant", icon: "👤" },
 ];
 

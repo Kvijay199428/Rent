@@ -7,14 +7,11 @@ def get_admin_cookie_path(request: Request | None = None) -> str:
     rootpath = (request.scope.get("root_path") or request.scope.get("rootpath") or "").rstrip("/")
     path = request.url.path.rstrip("/")
 
-    if path.startswith("/platform-admin"):
-        return "/platform-admin"
-
     if rootpath and rootpath != "/":
         return rootpath
 
     parts = [p for p in path.split("/") if p]
-    if parts and parts[0] not in {"admin", "platform-admin", "api", "static"}:
+    if parts and parts[0] not in {"admin", "api", "static"}:
         return f"/{parts[0]}"
 
     return "/admin"
