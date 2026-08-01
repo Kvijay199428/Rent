@@ -44723,33 +44723,39 @@ export default defineConfig({
 
 ```yaml
 services:
-  nginx-gateway:
-    image: nginx:alpine
-    container_name: vega-nginx-gateway
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: vega_gateway
     restart: unless-stopped
+    ports:
+      - "80:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/routes:/etc/nginx/routes:ro
-    expose:
-      - "8080"
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./html:/usr/share/nginx/html:ro
     networks:
-      - vega-gateway
+      - vega_gateway_net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: vega-cloudflared
     restart: unless-stopped
+    network_mode: host
     command:
       - tunnel
       - --no-autoupdate
       - run
       - --token
       - ${CLOUDFLARE_TUNNEL_TOKEN}
-    networks:
-      - vega-gateway
 
 networks:
-  vega-gateway:
+  vega_gateway_net:
     external: true
 ```
 
