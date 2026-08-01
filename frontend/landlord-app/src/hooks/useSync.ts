@@ -36,8 +36,8 @@ export function useSync(channel: string, onEvent: EventHandler, enabled = true) 
 
       if (apiBase) {
         // Production: API on different origin (e.g. https://api.vijaykrsha.online/rent)
-        const wsBase = apiBase.replace(/^https?/, "ws");
-        wsUrl = `${wsBase}/ws/sync?channel=${encodeURIComponent(channel)}`;
+        const wsBase = apiBase.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+        wsUrl = `${wsBase}/rent/ws/sync?channel=${encodeURIComponent(channel)}`;
       } else {
         // Docker testing: same origin
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -45,7 +45,14 @@ export function useSync(channel: string, onEvent: EventHandler, enabled = true) 
         wsUrl = `${protocol}//${host}/rent/ws/sync?channel=${encodeURIComponent(channel)}`;
       }
 
-      ws = new WebSocket(wsUrl);
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+        return;
+      }
 
       ws.onopen = () => {
         // Send periodic pings to keep alive

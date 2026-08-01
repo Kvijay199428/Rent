@@ -36,14 +36,21 @@ export function useHealthStream(enabled = true) {
       let wsUrl: string;
 
       if (apiBase) {
-        const wsBase = apiBase.replace(/^https?/, "ws");
-        wsUrl = `${wsBase}/ws/health`;
+        const wsBase = apiBase.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+        wsUrl = `${wsBase}/rent/ws/health`;
       } else {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         wsUrl = `${protocol}//${window.location.host}/rent/ws/health`;
       }
 
-      ws = new WebSocket(wsUrl);
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 5000);
+        }
+        return;
+      }
 
       ws.onmessage = (e) => {
         try {

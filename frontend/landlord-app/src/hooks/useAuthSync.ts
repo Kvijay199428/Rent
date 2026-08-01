@@ -36,14 +36,21 @@ export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled 
       let wsUrl: string;
 
       if (apiBase) {
-        const wsBase = apiBase.replace(/^https?/, "ws");
-        wsUrl = `${wsBase}/ws/auth?channel=${encodeURIComponent(channel)}`;
+        const wsBase = apiBase.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+        wsUrl = `${wsBase}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
       } else {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         wsUrl = `${protocol}//${window.location.host}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
       }
 
-      ws = new WebSocket(wsUrl);
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+        return;
+      }
 
       ws.onopen = () => {
         pingTimer = setInterval(() => {
