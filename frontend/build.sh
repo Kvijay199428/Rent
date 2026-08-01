@@ -30,15 +30,15 @@ mkdir -p build-output/rent/admin
 cp -r admin-app/dist/* build-output/rent/admin/
 mkdir -p build-output/rent/landlord
 cp -r landlord-app/dist/* build-output/rent/landlord/
-mkdir -p build-output/rent/tenant
-cp -r tenant-app/dist/* build-output/rent/tenant/
+mkdir -p build-output/rent/t
+cp -r tenant-app/dist/* build-output/rent/t/
+
+mkdir -p build-output/functions
+cp -r functions/* build-output/functions/
 
 cat > build-output/_redirects << 'EOF'
-# SPA fallback: all routes under /rent/* serve index.html
-/rent/admin/*   /rent/admin/index.html   200
-/rent/landlord/* /rent/landlord/index.html 200
-/rent/t/*       /rent/t/index.html        200
-/rent/*         /rent/index.html          200
+# Root redirect: bare domain -> landing app
+/ /rent/ 301
 EOF
 
 cat > build-output/_headers << 'EOF'
