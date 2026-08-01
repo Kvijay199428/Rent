@@ -1,10 +1,10 @@
 # Rent — Complete Source Code
 
 Generated: 2025-07-29
-Script:   /root/Rent/copy.py
-Source:   /root/Rent
+Script:   /root/rent/copy.py
+Source:   /root/rent
 Files:    297
-Size:     1552 KB
+Size:     1554 KB
 Skipped:  0
 
 ---
@@ -111,6 +111,26 @@ Skipped:  0
 - copy.py
 - frontend-test/compose.yml
 - frontend-test/nginx.conf
+- frontend/admin-app/package.json
+- frontend/admin-app/src/api/client.ts
+- frontend/admin-app/src/components/AuthLayout.tsx
+- frontend/admin-app/src/components/BroadcastBanner.tsx
+- frontend/admin-app/src/components/Layout.tsx
+- frontend/admin-app/src/components/LoadingScreen.tsx
+- frontend/admin-app/src/contexts/AuthContext.tsx
+- frontend/admin-app/src/hooks/useAuthSync.ts
+- frontend/admin-app/src/hooks/useHealthStream.ts
+- frontend/admin-app/src/lib/runtime.ts
+- frontend/admin-app/src/pages/AuditLogsPage.tsx
+- frontend/admin-app/src/pages/DashboardPage.tsx
+- frontend/admin-app/src/pages/DataExplorerPage.tsx
+- frontend/admin-app/src/pages/LandlordDetailPage.tsx
+- frontend/admin-app/src/pages/LandlordsPage.tsx
+- frontend/admin-app/src/pages/LoginPage.tsx
+- frontend/admin-app/src/pages/SettingsPage.tsx
+- frontend/admin-app/tsconfig.json
+- frontend/admin-app/tsconfig.node.json
+- frontend/admin-app/vite.config.ts
 - frontend/build.sh
 - frontend/landing-app/package.json
 - frontend/landing-app/src/components/BroadcastBanner.tsx
@@ -239,26 +259,6 @@ Skipped:  0
 - frontend/landlord-app/tsconfig.node.json
 - frontend/landlord-app/vite.config.ts
 - frontend/package.json
-- frontend/platform-admin-app/package.json
-- frontend/platform-admin-app/src/api/client.ts
-- frontend/platform-admin-app/src/components/AuthLayout.tsx
-- frontend/platform-admin-app/src/components/BroadcastBanner.tsx
-- frontend/platform-admin-app/src/components/Layout.tsx
-- frontend/platform-admin-app/src/components/LoadingScreen.tsx
-- frontend/platform-admin-app/src/contexts/AuthContext.tsx
-- frontend/platform-admin-app/src/hooks/useAuthSync.ts
-- frontend/platform-admin-app/src/hooks/useHealthStream.ts
-- frontend/platform-admin-app/src/lib/runtime.ts
-- frontend/platform-admin-app/src/pages/AuditLogsPage.tsx
-- frontend/platform-admin-app/src/pages/DashboardPage.tsx
-- frontend/platform-admin-app/src/pages/DataExplorerPage.tsx
-- frontend/platform-admin-app/src/pages/LandlordDetailPage.tsx
-- frontend/platform-admin-app/src/pages/LandlordsPage.tsx
-- frontend/platform-admin-app/src/pages/LoginPage.tsx
-- frontend/platform-admin-app/src/pages/SettingsPage.tsx
-- frontend/platform-admin-app/tsconfig.json
-- frontend/platform-admin-app/tsconfig.node.json
-- frontend/platform-admin-app/vite.config.ts
 - frontend/shared/api-config.ts
 - frontend/tenant-app/package.json
 - frontend/tenant-app/src/components/ActivityLog.tsx
@@ -346,6 +346,7 @@ __pycache__/
 .env.local
 .env.*.local
 backend/.env
+frontend/.env
 gateway/.env
 *.pem
 *.key
@@ -402,306 +403,35 @@ Multi-tenant rent receipt management system with a FastAPI backend and four Reac
 ## Architecture
 
 ```
-Browser (rent.vijaykrsha.online)
-  └─ Cloudflare Pages (static: landing, landlord, admin SPAs)
-  └─ Cloudflare Tunnel ── Gateway Nginx (port 8080) ── Backend (port 28001)
-       │                                                   └─ SQLite
-       │                                                   └─ Storage (configs, uploads, backups)
-       └─ WebSocket (sync, auth, health streams)
-```
-
-All routes are prefixed with `/rent/`. The production gateway strips this prefix before forwarding. Frontend apps are built with `VITE_API_BASE_URL` to point API calls at the backend origin.
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Backend | Python 3.13, FastAPI, Uvicorn, SQLite |
-| Auth | JWT (python-jose), Argon2 (passlib), TOTP (pyotp), SameSite=None cookies |
-| PDF | ReportLab, num2words |
-| Excel | openpyxl (import/export) |
-| Frontend (Landlord) | React 19, Vite 7, Tailwind CSS 3, shadcn/ui, Recharts |
-| Frontend (Admin) | React 18, React Router 6 |
-| Frontend (Tenant) | React 19, Vite 8, Tailwind CSS 4, shadcn/ui, TanStack Query |
-| Frontend (Landing) | React 18, Vite 5 |
-| Proxy | Nginx (gateway + frontend-test) |
-| Tunnel | cloudflared (Cloudflare Tunnel) |
-| Deployment | Docker Compose, Python SSH scripts |
-
----
-
-## Features
-
-- **Landlord Portal**: Dashboard, billing/receipts management, tenant management, KYC, PDF receipts, WhatsApp sharing, backup/restore, TOTP 2FA, audit logs
-- **Tenant Portal**: View receipts, profile, KYC upload, PIN-based access via sharing link
-- **Platform Admin**: Multi-landlord oversight, system stats, security alerts, broadcast messaging, session management
-- **Receipt Generation**: PDF with customizable templates, Indian number-to-words conversion
-- **Data Sync**: CSV/Excel/ZIP import/export templates
-- **Recovery**: Tenant recovery snapshots with TTL expiry
-
----
-
-## Project Structure
-
-```
-Rent/
-├── backend/
-│   ├── app/                # FastAPI backend application
-│   │   ├── app/
-│   │   │   ├── api/            # API endpoint modules
-│   │   │   ├── authentication/ # JWT + cookie auth modules
-│   │   │   ├── core/           # DB init, router registry, config, startup
-│   │   │   ├── database/       # Repositories, raw SQL schema
-│   │   │   ├── models/         # Pydantic models
-│   │   │   ├── pages/          # Server-rendered Jinja2 pages
-│   │   │   ├── routers/        # Auth routers, platform admin router
-│   │   │   ├── services/       # Business logic
-│   │   │   └── main.py         # FastAPI app entry point
-│   │   ├── config/             # Domain, receipt, system, UI JSON configs
-│   │   ├── static/
-│   │   └── templates/
-│   ├── deploy/                 # Deployment orchestrator + per-service scripts
-│   │   ├── deploy_all.py       # Deploy everything
-│   │   ├── deploy_backend.py   # SSH deploy backend
-│   │   ├── deploy_frontend.py  # Build SPAs → Cloudflare Pages
-│   │   ├── deploy_gateway.py   # Upload nginx routes + reload
-│   │   ├── rollback.py         # Rollback deployment
-│   │   └── common.py           # Shared SSH, rsync, logging
-│   ├── scripts/                # Utility scripts (route validation, migrations)
-│   ├── shared/                 # Shared routes.json (source of truth)
-│   ├── requirements.txt        # Python dependencies
-│   ├── Dockerfile
-│   ├── compose.yml             # Production backend
-│   ├── compose.test.yml        # Local test override (port exposure)
-│   └── .env.example
-│
-├── frontend/                   # All frontend applications
-│   ├── shared/                 # Shared code (api-config.ts, etc.)
-│   ├── landing-app/            # Public landing page (base: /rent/)
-│   ├── landlord-app/           # Landlord dashboard (base: /rent/landlord/)
-│   ├── platform-admin-app/     # Admin panel (base: /rent/admin/)
-│   ├── tenant-app/             # Tenant portal (base: /rent/t/)
-│   ├── package.json
-│   ├── package-lock.json
-│   └── build.sh                # Build all SPAs → build-output/
-│
-├── gateway/                    # Production reverse proxy + tunnel
-│   ├── nginx/
-│   │   ├── nginx.conf
-│   │   └── routes/
-│   └── compose.yml
-│
-├── frontend-test/              # Integration environment (builds backend + gateway + frontend)
-│   ├── compose.yml
-│   └── nginx.conf
-│
-├── infrastructure/             # Cloudflare, GitHub, SSL, scripts
-│   ├── cloudflare/
-│   ├── github/
-│   ├── ssl/
-│   └── scripts/
-│
-├── docs/                       # Architecture, deployment, API docs
-│
-├── tools/
-│   └── copy.py                 # Source code snapshot generator
-│
-├── storage/                    # Runtime data (ignored by git)
-│   ├── config/
-│   ├── database/
-│   ├── backups/
-│   └── uploads/
-├── backups/                    # Manual backup archives (ignored by git)
-│
-├── .env.example                # Environment variable template
-├── .gitignore
-├── README.md
-└── LICENSE
-```
-
----
-
-## Frontend Apps
-
-| App | URL Path | Vite Base | Purpose |
-|---|---|---|---|
-| landing-app | `/rent/` | `/rent/` | Public landing page with login/signup links |
-| landlord-app | `/rent/landlord/` | `/rent/landlord/` | Landlord dashboard and management |
-| platform-admin-app | `/rent/admin/` | `/rent/admin/` | Platform admin system oversight |
-| tenant-app | `/rent/t/` (assets) | `/rent/t/` | Tenant portal (HTML served by backend) |
-
----
-
-## Getting Started
-
-### Prerequisites
-- Python 3.13+
-- Node.js 20+
-- Docker + Docker Compose (optional, for containerized workflow)
-
-### Local Backend
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r backend/requirements.txt
-cd backend/app
-uvicorn app.main:app --reload --host 127.0.0.1 --port 20081
-```
-
-### Local Frontend (per app)
-
-```bash
-cd frontend/landlord-app
-npm install
-VITE_API_BASE_URL= npm run dev
-```
-
-Set `VITE_API_BASE_URL=https://api.vijaykrsha.online` to test against the production API.
-
----
-
-## Docker Environments
-
-### Backend (standalone)
-
-```bash
-cd backend
-docker compose up -d
-docker compose -f compose.test.yml up -d   # with port 28001 exposed
-```
-
-### Frontend + Backend (test environment)
-
-```bash
-cd frontend-test
-docker compose up -d
-# Frontend at http://localhost:28080
-```
-
-### Production Gateway
-
-```bash
-cd gateway
-docker compose up -d
-```
-
-All services connect to the external Docker network `vega-gateway`.
-
----
-
-## API Overview
-
-All API routes are prefixed with `/rent/` at the proxy layer. The gateway strips this before forwarding.
-
-| Route Group | Backend Path | Auth |
-|---|---|---|
-| Health | `/health` | None |
-| Platform Admin | `/platform-admin/api/*` | JWT + session |
-| Landlord Auth | `/landlord/api/auth/*` | None (public key, login) |
-| Landlord Protected | `/landlord/{uuid}/api/*` | JWT + session |
-| Tenant | `/{uuid}/t/{id}/{token}/api/*` | View-token based |
-| WebSocket Sync | `/rent/ws/*` | Channel-based |
-
-Full route definitions: `frontend/shared/routes.json` and `shared/routes.json`.
-
----
-
-## Authentication
-
-Four independent auth modules, each with JWT + signed cookies:
-
-- **Admin**: Email/password login, session tracking, session expiry headers
-- **Landlord**: Username/email signup, login, TOTP 2FA, password change, brute-force lockout
-- **Tenant**: PIN-based authentication via shared URL, view-token gating
-- **Platform**: Dedicated admin login for platform oversight
-
-Cookies use `SameSite=None` + `Secure` for cross-origin support (Cloudflare Pages → API).
-
----
-
-## Deployment
-
-### Cloudflare Pages (Frontend)
-
-```bash
-python backend/deploy/deploy_frontend.py  # builds 4 apps → build-output/
-```
-
-Output structure:
-```
-build-output/rent/
-├── index.html, assets/                (landing-app)
-├── admin/index.html, admin/assets/    (platform-admin-app)
-├── landlord/index.html, assets/       (landlord-app)
-└── tenant/index.html, tenant/assets/  (tenant-app)
-```
-
-Deploy the `build-output/` directory to Cloudflare Pages (root directory: `frontend/`).
-
-### Backend (SSH)
-
-```bash
-python backend/deploy/deploy_backend.py --host <ip> --port <ssh_port>
-```
-
-Uploads `app/`, Docker infrastructure, and `requirements.txt`, then builds and starts the Docker container.
-
-### Gateway (SSH)
-
-```bash
-python backend/deploy/deploy_gateway.py --host <ip>
-```
-
-Uploads nginx route configs and reloads nginx without downtime.
-
----
-
-## Environment Variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `VITE_API_BASE_URL` | `""` (same-origin) | API origin for frontend requests (e.g. `https://api.vijaykrsha.online`) |
-| `RENT_STORAGE_DIR` | `/code/storage` | Runtime storage path (configs, DB, uploads, backups) |
-| `JWT_SECRET` | `changeme` | Secret key for JWT signing |
-| `CLOUDFLARE_TUNNEL_TOKEN` | — | Cloudflare Tunnel auth token |
-| `DEPLOY_HOST` | `192.168.1.50` | Deploy script target host |
-| `DEPLOY_PORT` | `22` | Deploy script SSH port |
-| `DEPLOY_USER` | `vega` | Deploy script SSH user |
-| `DEPLOY_KEY` | `~/.ssh/id_rsa` | Deploy script SSH key path |
-
----
-
-## Network Topology
-
-```
-┌─────────────────┐     ┌──────────────┐     ┌─────────────────┐
-│  Cloudflare      │     │  Gateway      │     │  Backend         │
-│  Pages (static)  │────▶│  Nginx :8080  │────▶│  FastAPI :28001  │
-│  rent.vijaykrsha │     │  + cloudflared│     │  └─ SQLite       │
-│  .online         │     │              │     │  └─ Storage      │
-└─────────────────┘     └──────────────┘     └─────────────────┘
-                               │
-                          External Docker network: vega-gateway
-```
-
-- Production domain: `rent.vijaykrsha.online` (Cloudflare Pages)
-- API domain: `api.vijaykrsha.online` (Cloudflare Tunnel → Gateway)
-- All routes under `/rent/` prefix
-- WebSocket connections upgrade through the same proxy
-
----
-
-## License
-
-Private project.
-```
 
 ### `backend/.env.example`
 
 ```text
+# Backend runtime environment — loaded by compose via `env_file: .env`
+# Copy to backend/.env and fill in real values. backend/.env is gitignored
+# and is NOT uploaded by deploy.py — edit it in place on the remote at
+# /home/vega/rent/backend/.env, then: docker compose up -d --force-recreate
+
+# --- Storage ---
 RENT_STORAGE_DIR=/code/storage
+RENT_DB_PATH=/code/storage/database/rent.db
+RSA_KEY_PATH=./keys
+
+# --- JWT signing secrets (generate each: openssl rand -hex 32) ---
+ADMIN_JWT_SECRET=REPLACE_WITH_ADMIN_SECURE_RANDOM_KEY
+TENANT_JWT_SECRET=REPLACE_WITH_TENANT_SECURE_RANDOM_KEY
+LANDLORD_JWT_SECRET=REPLACE_WITH_LANDLORD_SECURE_RANDOM_KEY
+PLATFORM_JWT_SECRET=REPLACE_WITH_PLATFORM_SECURE_RANDOM_KEY
+
+# --- PIN vault encryption key (base64 32-byte: openssl rand -base64 32) ---
+tenantPin_VAULT_KEY=REPLACE_WITH_BASE64_32BYTE_KEY
+
+# --- Google OAuth (Google Cloud Console > Credentials > OAuth 2.0 Client ID) ---
+# Backend only verifies the ID token against this client id (no client secret needed).
+# Must match VITE_GOOGLE_CLIENT_ID in the frontend build.
+GOOGLE_CLIENT_ID=REPLACE_WITH_GOOGLE_CLIENT_ID.apps.googleusercontent.com
+
+# --- Legacy, not read by current code, kept for compatibility ---
 JWT_SECRET=changeme
 ```
 
@@ -715,7 +445,9 @@ WORKDIR /code
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./app /code/app
+COPY ./app/app /code/app
+COPY ./app/static /code/static
+COPY ./app/templates /code/templates
 
 RUN mkdir -p /code/storage
 
@@ -2862,6 +2594,13 @@ async def import_execute_data(
                     if not tenantId:
                         continue  # Should not happen based on validation
 
+                    # Resolve the tenant's landlord so imported receipts carry it.
+                    # CREATE_NEW tenants have no landlord yet (admin assigns later).
+                    _lrow = conn.execute(
+                        "SELECT landlord_id FROM tenants WHERE id = ?", (tenantId,)
+                    ).fetchone()
+                    tenant_landlord_id = _lrow["landlord_id"] if _lrow else None
+
                     # ── PIN HANDLING ──
                     if action in ("CREATE_NEW", "UPDATE_EXISTING"):
                         raw_pin = str(p.get("PIN") or "").strip()
@@ -2946,15 +2685,16 @@ async def import_execute_data(
                                         additional, water, tankWater, electricity, total, pdf,
                                         tenantphone, tenantcompany, tenantaddress, rate, status,
                                         additionalpersons, additionalpersonrate, receiptversion, generatedby, paymentstatus,
-                                        maintenancecharge, maintenancedesc, previousarrears, amountreceived
-                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        maintenancecharge, maintenancedesc, previousarrears, amountreceived, landlord_id
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (
                                     billNo, r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
                                     float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
                                     float(r.get("Water", 0) or 0), float(r.get("tankWater", 0) or 0), float(r.get("Electricity", 0) or 0), 
                                     float(r.get("Total", 0) or 0), "", "", "", "", float(r.get("Rate", 0) or 0), r.get("receiptStatus", "ACTIVE"),
                                     0, float(r.get("additionalPersonRate", 0) or 0), 8, "Import", r.get("paymentStatus", "PENDING"),
-                                    float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), float(r.get("amountReceived", 0) or 0)
+                                    float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), float(r.get("amountReceived", 0) or 0),
+                                    tenant_landlord_id
                                 ))
                                 imported_receipts += 1
                                 
@@ -6634,14 +6374,37 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_occupants_landlord_id ON occupants(landlord_id)")
         conn.commit()
 
-        # Backfill: assign existing data to first landlord if unassigned
+        # Backfill: assign landlord_id to unassigned rows.
+        # Receipts/occupants take the landlord of their tenant; tenants and any
+        # still-unassigned receipts/occupants fall back to the first landlord.
         first_landlord = conn.execute("SELECT id FROM landlord_accounts ORDER BY id LIMIT 1").fetchone()
-        if first_landlord:
-            lid = first_landlord["id"]
+        lid = first_landlord["id"] if first_landlord else None
+
+        if lid:
             conn.execute("UPDATE tenants SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
+
+        conn.execute(
+            """
+            UPDATE receipts SET landlord_id = (
+                SELECT landlord_id FROM tenants WHERE tenants.id = receipts.tenantId
+            )
+            WHERE landlord_id IS NULL
+              AND tenantId IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
+            """
+        )
+        conn.execute(
+            """
+            UPDATE occupants SET landlord_id = (
+                SELECT landlord_id FROM tenants WHERE tenants.id = occupants.tenantId
+            )
+            WHERE landlord_id IS NULL
+              AND tenantId IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
+            """
+        )
+        if lid:
             conn.execute("UPDATE receipts SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
             conn.execute("UPDATE occupants SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
-            conn.commit()
+        conn.commit()
 
         # ─── Platform admin audit trail ──────────────────────────────
         conn.execute("""
@@ -6784,7 +6547,6 @@ async def get_config(request: Request):
 
 async def get_theme(request: Request):
     return getattr(request.state, 'theme', 'system')
-
 ```
 
 ### `backend/app/app/core/paths.py`
@@ -6881,6 +6643,9 @@ from app.routers.landlordauth import router as landlordauth_router
 from app.pages.spa import router as spa_router
 from app.pages.errors import register_exception_handlers
 
+# Public landing page at /
+from app.pages.landing import router as landing_router
+
 from fastapi import Depends
 from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
@@ -6934,10 +6699,13 @@ def register_all_routers(app: FastAPI):
     # 5. Platform admin
     app.include_router(platform_admin_router)
 
-    # 6. WebSocket sync (no auth dependency — channel-based access control)
+    # 6. Public landing page at /
+    app.include_router(landing_router)
+
+    # 7. WebSocket sync (no auth dependency — channel-based access control)
     app.include_router(sync_ws_router)
 
-    # 7. Tenant SPA routes (tenant stays in Docker — dynamic URL pattern
+    # 8. Tenant SPA routes (tenant stays in Docker — dynamic URL pattern
     #    /{landlordUuid}/t/{tenantId}/{viewToken} can't be served by Cloudflare Pages)
     app.include_router(spa_router)
 
@@ -7427,6 +7195,15 @@ class StartupManager:
         app.mount("/static/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
         if os.path.isdir(STATIC_DIR):
             app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+        for path, rel in [
+            ("/admin/assets", "frontend/admin-app/dist/assets"),
+            ("/landlord/assets", "frontend/landlord-app/dist/assets"),
+            ("/t/assets", "frontend/tenant-app/dist/assets"),
+            ("/assets", "frontend/landing-app/dist/assets"),
+        ]:
+            if os.path.isdir(rel):
+                app.mount(path, StaticFiles(directory=rel), name=path.strip("/").replace("/", "_"))
 
     @staticmethod
     def register_middlewares(app: FastAPI):
@@ -8807,6 +8584,11 @@ router = APIRouter(tags=["Public"])
 async def public_landing(request: Request):
     """Serve the public landing page for the Rent app."""
     return FileResponse("frontend/landing-app/dist/index.html")
+
+
+@router.get("/favicon.svg", include_in_schema=False)
+async def landing_favicon():
+    return FileResponse("frontend/landing-app/dist/favicon.svg")
 ```
 
 ### `backend/app/app/pages/redirects.py`
@@ -8880,12 +8662,68 @@ async def settings_page(request: Request):
 
 ```python
 import os
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse, RedirectResponse
 
 TENANT_ASSETS_DIR = "frontend/tenant-app/dist/assets"
 
 router = APIRouter()
+
+
+@router.get("/landlord")
+async def landlord_root_redirect(request: Request):
+    url = request.url
+    if not url.path.endswith("/"):
+        return RedirectResponse(url=str(url.replace(path=url.path + "/")), status_code=307)
+    return await serve_landlord_app(request, path="")
+
+
+@router.get("/landlord/{path:path}")
+async def serve_landlord_app(request: Request, path: str = ""):
+    if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    parts = [p for p in path.split("/") if p]
+    if len(parts) >= 2 and len(parts[0]) >= 10 and parts[1] == "api":
+        raise HTTPException(status_code=404, detail="API route not found")
+
+    if not path:
+        try:
+            token = request.cookies.get("access_token")
+            if token:
+                from app.authentication.landlord.jwt import decode_access_token
+                from app.authentication.landlord.sessions import get_landlord_session_db
+                from app.database.landlord_repository import get_landlord_by_id
+
+                payload = decode_access_token(token)
+                if payload.get("role") == "landlord":
+                    session_id = payload.get("sid")
+                    session = get_landlord_session_db(session_id)
+                    if session:
+                        landlord_id = int(payload.get("landlord_id") or payload.get("sub"))
+                        landlord = get_landlord_by_id(landlord_id)
+                        if landlord:
+                            uuid = landlord["landlord_uuid"]
+                            root = (request.scope.get("root_path") or "").rstrip("/")
+                            return RedirectResponse(
+                                url=f"{root}/landlord/{uuid}/dashboard",
+                                status_code=307,
+                            )
+        except Exception:
+            pass
+
+        root = (request.scope.get("root_path") or "").rstrip("/")
+        return RedirectResponse(url=f"{root}/landlord/login", status_code=307)
+
+    return FileResponse("frontend/landlord-app/dist/index.html")
+
+
+@router.get("/tenant")
+@router.get("/tenant/{path:path}", include_in_schema=False)
+async def serve_tenant_app_login(path: str = ""):
+    if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse("frontend/tenant-app/dist/index.html")
 
 
 @router.get("/{landlordUuid}/t/{tenantId}/{viewToken}/assets/{asset_path:path}", include_in_schema=False)
@@ -10688,7 +10526,7 @@ router = APIRouter(prefix="/admin", tags=["Platform Admin"])
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _dist_index() -> str:
-    return os.path.join("frontend", "platform-admin-app", "dist", "index.html")
+    return os.path.join("frontend", "admin-app", "dist", "index.html")
 
 
 async def _serve_platform_admin_spa():
@@ -10696,7 +10534,7 @@ async def _serve_platform_admin_spa():
     if not os.path.exists(index_file):
         raise HTTPException(
             status_code=503,
-            detail="Platform admin frontend build not found. Run: npm run build inside frontend/platform-admin-app",
+            detail="Platform admin frontend build not found. Run: npm run build inside frontend/admin-app",
         )
     return FileResponse(index_file)
 
@@ -12144,7 +11982,7 @@ async def platform_admin_root_redirect(request: Request):
 async def serve_platform_admin_app(request: Request, path: str = ""):
     if path.startswith("api"):
         raise HTTPException(status_code=404, detail="Platform admin API route not found")
-    dist_dir = os.path.join("frontend", "platform-admin-app", "dist")
+    dist_dir = os.path.join("frontend", "admin-app", "dist")
     file_path = os.path.normpath(os.path.join(dist_dir, path))
     if not file_path.startswith(os.path.normpath(dist_dir)):
         raise HTTPException(status_code=404)
@@ -12816,6 +12654,11 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
             "SELECT COUNT(*) FROM receipts WHERE tenantId = ?", 
             (tenant.id,)
         ).fetchone()[0]
+        # Resolve the tenant's landlord so the receipt stays visible to them
+        _lrow = conn.execute(
+            "SELECT landlord_id FROM tenants WHERE id = ?", (tenant.id,)
+        ).fetchone()
+        tenant_landlord_id = _lrow["landlord_id"] if _lrow else None
     
     # Format: T{tenantId}-{sequence:03d}  e.g., T1-001, T1-002, T2-001
     receipt_seq = tenant_receipt_count + 1
@@ -12889,15 +12732,16 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
                 tenantphone, tenantcompany, tenantaddress, rate, status,
                 archiveddate, archivedby, deleteddate, additionalpersons,
                 additionalpersonrate, receiptversion, generatedby, paymentstatus,
-                maintenancecharge, maintenancedesc, previousarrears, amountreceived
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                maintenancecharge, maintenancedesc, previousarrears, amountreceived, landlord_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             billNo, current_date, month, tenant.id, tenantName, prev, current_reading,
             charges["units"], tenant.rent, charges["additional"], tenant.water, tankWater,
             charges["electricity"], charges["total"], pdf_filename, tenant.phone, tenant.company,
             tenant.address, tenant.electricityRate, "ACTIVE", "", "", "",
             additional_persons, tenant.additionalPersonCharge, 8, "Admin",
-            paymentStatus, MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived
+            paymentStatus, MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived,
+            tenant_landlord_id
         ))
         conn.commit()
 
@@ -14862,10 +14706,10 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                     archiveddate, archivedby, deleteddate, additionalpersons,
                     additionalpersonrate, receiptversion, generatedby,
                     paymentstatus, maintenancecharge, maintenancedesc,
-                    previousarrears, amountreceived
+                    previousarrears, amountreceived, landlord_id
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
                 """,
                 (
@@ -14901,6 +14745,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                     r.get("maintenancedesc", ""),
                     float(r.get("previousarrears", 0)),
                     float(r.get("amountreceived", 0)),
+                    t.get("landlord_id"),
                 ),
             )
             restored_receipts += 1
@@ -15540,6 +15385,34 @@ def delete_occupant(occupantUuid: str):
 }
 ```
 
+### `backend/app/config/receipt.json`
+
+```json
+{
+    "layout": {
+        "receipt_version": 9,
+        "receipt_prefix": "T",
+        "date_format": "%d %B %Y",
+        "page_margin": 25,
+        "line_spacing": 18
+    },
+    "typography": {
+        "font_family_regular": "NotoSans",
+        "font_family_bold": "NotoSans-Bold",
+        "font_size_normal": 10,
+        "font_size_header": 12,
+        "font_size_title": 24
+    },
+    "toggles": {
+        "show_bank_details": true,
+        "show_signature": true,
+        "show_payment_summary": true,
+        "show_previous_balance": true,
+        "show_qr": true
+    }
+}
+```
+
 ### `backend/app/config/system.json`
 
 ```json
@@ -15570,6 +15443,37 @@ def delete_occupant(occupantUuid: str):
         "include_public_link": true
     }
 }```
+
+### `backend/app/config/ui.json`
+
+```json
+{
+  "dashboard": {
+    "cards": {
+      "active_tenants": true,
+      "pending_amount": true,
+      "arrears": true,
+      "monthly_collection": true
+    }
+  },
+  "labels": {
+    "rent": "Monthly Rent",
+    "water": "Water Charges",
+    "electricity": "Electricity Charges",
+    "arrears": "Previous Balance",
+    "advance": "Advance Amount",
+    "payment_received": "Payment Received"
+  },
+  "menu": [
+    {"title": "Dashboard", "icon": "bi-house-door", "route": "home_page"},
+    {"title": "New Receipt", "icon": "bi-file-earmark-plus", "route": "billing_page"},
+    {"title": "Tenants", "icon": "bi-people", "route": "tenants_page"},
+    {"title": "Receipt History", "icon": "bi-journal-text", "route": "history_page"},
+    {"title": "Archived Receipts", "icon": "bi-archive", "route": "archive_page"},
+    {"title": "Settings", "icon": "bi-gear", "route": "settings_page"}
+  ]
+}
+```
 
 ### `backend/app/config/ui.json`
 
@@ -16125,6 +16029,197 @@ if __name__ == "__main__":
     main()
 ```
 
+### `copy.py`
+
+```python
+#!/usr/bin/env python3
+"""Generate rent.md with complete source code from the project."""
+
+import os
+import re
+import fnmatch
+
+# ---------------------------------------------------------------------------
+# User-configurable settings
+# ---------------------------------------------------------------------------
+
+SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+SOURCE_FILES = [
+    "backend/app/**/*.py",
+    "backend/app/**/*.json",
+    "backend/app/config/**",
+    "backend/Dockerfile",
+    "backend/compose.yml",
+    "backend/compose.test.yml",
+    "backend/.env.example",
+    "backend/requirements.txt",
+    "backend/shared/routes.json",
+    "backend/deploy/**/*.py",
+    "backend/scripts/**/*.py",
+    "frontend/shared/**/*",
+    "frontend/*/src/**/*.ts",
+    "frontend/*/src/**/*.tsx",
+    "frontend/*.ts",
+    "frontend/*/package.json",
+    "frontend/*/tsconfig*.json",
+    "frontend/*/vite.config.ts",
+    "frontend/package.json",
+    "frontend/build.sh",
+    "frontend-test/nginx.conf",
+    "frontend-test/compose.yml",
+    "gateway/nginx/nginx.conf",
+    "gateway/nginx/routes/rent.conf",
+    "gateway/compose.yml",
+    "copy.py",
+    ".env.example",
+    ".gitignore",
+    "README.md",
+]
+
+# ---------------------------------------------------------------------------
+# Internal constants (do not change unless you know what you are doing)
+# ---------------------------------------------------------------------------
+
+SCRIPT = os.path.abspath(__file__)
+BASE = SOURCE_DIR
+OUTPUT = os.path.join(BASE, "rent.md")
+MAX_FILE_SIZE = 500 * 1024
+INCLUDE = SOURCE_FILES
+
+IGNORE_DIRS = {
+    "node_modules", "dist", "__pycache__", ".git", ".sisyphus",
+    "storage", "build-output", "scratch", "output", ".fonts",
+    ".rent_test_assets", ".sample", "venv", ".venv",
+}
+BINARY_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".xlsx",
+              ".xls", ".db", ".pyc", ".pyd", ".so", ".woff", ".woff2",
+              ".ttf", ".eot", ".mp3", ".mp4", ".pdf"}
+
+LANG_MAP = {
+    ".py": "python",
+    ".ts": "typescript",
+    ".tsx": "typescript",
+    ".js": "javascript",
+    ".json": "json",
+    ".css": "css",
+    ".html": "html",
+    ".yml": "yaml",
+    ".yaml": "yaml",
+    ".conf": "nginx",
+    ".sh": "bash",
+    ".md": "markdown",
+    ".txt": "text",
+    ".example": "text",
+}
+
+
+def should_ignore(path):
+    parts = path.split(os.sep)
+    return any(d in IGNORE_DIRS for d in parts)
+
+
+def is_binary(name):
+    return any(name.lower().endswith(ext) for ext in BINARY_EXT)
+
+
+def guess_lang(name):
+    _, ext = os.path.splitext(name)
+    return LANG_MAP.get(ext, "")
+
+
+def walk_files():
+    matched = []
+    for root, dirs, files in os.walk(BASE):
+        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+
+        for f in files:
+            full = os.path.join(root, f)
+            rel = os.path.relpath(full, BASE)
+            if should_ignore(rel):
+                continue
+            if is_binary(f):
+                continue
+            for pat in INCLUDE:
+                if fnmatch.fnmatch(rel, pat):
+                    matched.append(rel)
+                    break
+    return sorted(set(matched))
+
+
+def main():
+    files = walk_files()
+
+    sections = []
+    size_total = 0
+    skipped = []
+
+    for i, rel in enumerate(files, 1):
+        full = os.path.join(BASE, rel)
+        try:
+            size = os.path.getsize(full)
+        except OSError:
+            skipped.append(f"{rel} (unreadable)")
+            continue
+        if size > MAX_FILE_SIZE:
+            skipped.append(f"{rel} ({size / 1024:.0f} KB, skipped)")
+            continue
+
+        try:
+            with open(full, "r", encoding="utf-8", errors="replace") as fh:
+                content = fh.read()
+        except Exception:
+            skipped.append(f"{rel} (read error)")
+            continue
+
+        size_kb = size / 1024
+        print(f"  [{i:3d}/{len(files)}]  {rel:70s}  {size_kb:>7.1f} KB")
+        lang = guess_lang(rel)
+        sections.append(f"### `{rel}`\n\n```{lang}\n{content}```")
+        size_total += size
+
+    print()
+
+    md = f"""# Rent — Complete Source Code
+
+Generated: 2025-07-29
+Script:   {SCRIPT}
+Source:   {BASE}
+Files:    {len(sections)}
+Size:     {size_total / 1024:.0f} KB
+Skipped:  {len(skipped)}
+
+---
+
+## File Index
+
+"""
+    for s in sections:
+        line = s.split("\n", 1)[0].replace("### `", "").replace("`", "")
+        md += f"- {line}\n"
+
+    md += "\n---\n\n"
+    md += "\n\n".join(sections)
+
+    if skipped:
+        md += "\n\n---\n\n## Skipped\n\n"
+        for s in skipped:
+            md += f"- {s}\n"
+
+    with open(OUTPUT, "w", encoding="utf-8") as fh:
+        fh.write(md)
+
+    print(f"Written: {OUTPUT}")
+    print(f"Files:   {len(sections)}")
+    print(f"Size:    {size_total / 1024:.0f} KB")
+    if skipped:
+        print(f"Skip:   {len(skipped)}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
 ### `frontend-test/compose.yml`
 
 ```yaml
@@ -16258,6 +16353,2991 @@ http {
 }
 ```
 
+### `frontend/admin-app/package.json`
+
+```json
+{
+  "name": "admin-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "react-router": "^8.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "typescript": "^5.9.3",
+    "vite": "^8.1.5"
+  }
+}
+```
+
+### `frontend/admin-app/src/api/client.ts`
+
+```typescript
+import { getApiUrl } from "@shared/api-config";
+
+export const fetchApi = (path: string) => fetch(getApiUrl(`/rent/admin/api${path}`));
+
+```
+
+### `frontend/admin-app/src/components/AuthLayout.tsx`
+
+```typescript
+import type { ReactNode } from "react";
+
+const NAV_LINKS = [
+  { label: "Home", href: "/rent/", icon: "🌍" },
+  { label: "Landlord Portal", href: "/rent/landlord/login", icon: "🏠" },
+  { label: "Tenant Portal", href: "/rent/tenant", icon: "👤" },
+];
+
+export default function AuthLayout({ children }: { children: ReactNode }) {
+  return (
+    <div style={{
+      minHeight: "100vh", display: "flex", flexDirection: "column",
+      background: "linear-gradient(135deg, #1a1d2e 0%, #2d3561 100%)",
+      fontFamily: "system-ui, sans-serif",
+    }}>
+      {/* Header */}
+      <header style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "16px 32px", flexWrap: "wrap", gap: 12,
+      }}>
+        <a href="/rent/admin/login" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+          <span style={{
+            width: 36, height: 36, borderRadius: 10, display: "flex",
+            alignItems: "center", justifyContent: "center",
+            background: "rgba(255,255,255,0.15)", color: "#fff",
+            fontSize: 18, fontWeight: 700,
+          }}>P</span>
+          <span style={{ fontSize: 18, fontWeight: 700 }}>
+            <span style={{ color: "#a0b4c8" }}>PROP</span>
+            <span style={{ color: "#95A58F" }}>AURA</span>
+          </span>
+        </a>
+        <nav style={{ display: "flex", gap: 10 }}>
+          {NAV_LINKS.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "8px 16px", borderRadius: 9999,
+                border: "1px solid rgba(255,255,255,0.18)",
+                background: "rgba(255,255,255,0.08)",
+                color: "rgba(255,255,255,0.75)",
+                fontSize: 13, fontWeight: 600, textDecoration: "none",
+                transition: "background 0.15s, color 0.15s",
+              }}
+            >
+              <span style={{ fontSize: 14 }}>{link.icon}</span>
+              {link.label}
+            </a>
+          ))}
+        </nav>
+      </header>
+
+      {/* Content */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 16px" }}>
+        {children}
+      </div>
+
+      {/* Footer */}
+      <footer style={{ borderTop: "1px solid rgba(255,255,255,0.08)", padding: "16px 32px", textAlign: "center" }}>
+        <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
+          &copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.
+        </p>
+      </footer>
+    </div>
+  );
+}
+```
+
+### `frontend/admin-app/src/components/BroadcastBanner.tsx`
+
+```typescript
+import { useState, useEffect, useCallback } from "react";
+import { getApiUrl } from "@shared/api-config";
+import "./BroadcastBanner.css";
+
+interface BroadcastConfig {
+  enabled: boolean;
+  message: string;
+  type: "info" | "warning" | "maintenance";
+  dismissible: boolean;
+}
+
+interface BroadcastBannerProps {
+  healthUrl?: string;
+}
+
+export default function BroadcastBanner({ healthUrl }: BroadcastBannerProps) {
+  const [broadcast, setBroadcast] = useState<BroadcastConfig | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  const url = healthUrl || getApiUrl("/health");
+
+  const fetchBroadcast = useCallback(async () => {
+    try {
+      const res = await fetch(url, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.broadcast?.enabled && data.broadcast.message) {
+          setBroadcast(data.broadcast);
+        } else {
+          setBroadcast(null);
+        }
+      }
+    } catch {
+      // Silently ignore — broadcast is non-critical
+    }
+  }, [url]);
+
+  useEffect(() => {
+    fetchBroadcast();
+    const interval = setInterval(fetchBroadcast, 30000);
+    return () => clearInterval(interval);
+  }, [fetchBroadcast]);
+
+  if (!broadcast || dismissed) return null;
+
+  const typeClass = broadcast.type || "info";
+
+  return (
+    <div className={`broadcast-banner broadcast-${typeClass}`}>
+      <div className="broadcast-banner-content">
+        <span className="broadcast-banner-icon">
+          {typeClass === "maintenance" ? "🔧" : typeClass === "warning" ? "⚠️" : "ℹ️"}
+        </span>
+        <span className="broadcast-banner-message">{broadcast.message}</span>
+      </div>
+      {broadcast.dismissible && (
+        <button
+          className="broadcast-banner-close"
+          onClick={() => setDismissed(true)}
+          aria-label="Dismiss"
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+```
+
+### `frontend/admin-app/src/components/Layout.tsx`
+
+```typescript
+import { Link, useLocation, useNavigate } from "react-router";
+import { useAuth } from "../contexts/AuthContext";
+
+const NAV = [
+  { to: "/dashboard", label: "Dashboard", icon: "📊" },
+  { to: "/landlords", label: "Landlords", icon: "🏠" },
+  { to: "/explorer", label: "Data Explorer", icon: "🔍" },
+  { to: "/audit-logs", label: "Audit Logs", icon: "📋" },
+  { to: "/settings",  label: "Settings",  icon: "⚙️"  },
+];
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  const { admin, logout } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    await logout();
+    navigate("/login", { replace: true });
+  }
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "system-ui, sans-serif", background: "#f4f6fa" }}>
+      <aside style={{
+        width: 220,
+        background: "#1a1d2e",
+        color: "#c9cdd8",
+        display: "flex",
+        flexDirection: "column",
+        padding: "24px 0",
+        position: "fixed",
+        inset: "0 auto 0 0",
+        zIndex: 100,
+      }}>
+        <div style={{ padding: "0 20px 24px", borderBottom: "1px solid #2c2f3f" }}>
+          <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></p>
+          <p style={{ fontSize: 14, fontWeight: 600, color: "#e9ecf2", margin: 0 }}>Control Panel</p>
+        </div>
+        <nav style={{ flex: 1, padding: "16px 12px" }}>
+          {NAV.map(({ to, label, icon }) => {
+            const active = to === "/landlords"
+              ? location.pathname.startsWith("/landlords")
+              : location.pathname.startsWith(to);
+            return (
+              <Link
+                key={to}
+                to={to}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 8, marginBottom: 4,
+                  color: active ? "#fff" : "#9ca3af",
+                  background: active ? "#3b4a6b" : "transparent",
+                  textDecoration: "none", fontSize: 14, fontWeight: active ? 600 : 400,
+                  transition: "background 0.15s",
+                }}
+              >
+                <span>{icon}</span>
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+        <div style={{ padding: "16px 12px", borderTop: "1px solid #2c2f3f" }}>
+          {/* Cross-app quick access */}
+          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, padding: "0 12px" }}>
+            Quick Access
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12, padding: "0 4px" }}>
+            <a href="/rent/" style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 12px", borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
+              color: "#9ca3af", fontSize: 13, fontWeight: 500, textDecoration: "none",
+            }}>
+              <span style={{ fontSize: 14 }}>🌍</span>
+              Home
+            </a>
+            <a href="/rent/landlord/login" style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 12px", borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
+              color: "#9ca3af", fontSize: 13, fontWeight: 500, textDecoration: "none",
+            }}>
+              <span style={{ fontSize: 14 }}>🏠</span>
+              Landlord Portal
+            </a>
+            <a href="/rent/tenant" style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "8px 12px", borderRadius: 8,
+              border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
+              color: "#9ca3af", fontSize: 13, fontWeight: 500, textDecoration: "none",
+            }}>
+              <span style={{ fontSize: 14 }}>👤</span>
+              Tenant Portal
+            </a>
+          </div>
+
+          {/* User info + logout */}
+          <div style={{ borderTop: "1px solid #2c2f3f", paddingTop: 12 }}>
+            <p style={{ margin: "0 0 8px", fontSize: 13, color: "#9ca3af", padding: "0 12px" }}>
+              Logged in as <strong style={{ color: "#e9ecf2" }}>{admin?.username ?? "…"}</strong>
+            </p>
+            <button
+              onClick={handleLogout}
+              style={{
+                width: "100%", padding: "8px 0", borderRadius: 6, border: "none",
+                background: "#ef4444", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 600,
+              }}
+            >
+              Log out
+            </button>
+          </div>
+          <p style={{ margin: "10px 0 0", fontSize: 10, color: "#4b5563", textAlign: "center" }}>
+            &copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.
+          </p>
+        </div>
+      </aside>
+
+      <main style={{ marginLeft: 220, flex: 1, padding: 32 }}>
+        {children}
+      </main>
+    </div>
+  );
+}
+```
+
+### `frontend/admin-app/src/components/LoadingScreen.tsx`
+
+```typescript
+import { useState, useEffect } from "react";
+import "./LoadingScreen.css";
+
+interface LoadingScreenProps {
+  isLoading: boolean;
+}
+
+export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
+  const [visible, setVisible] = useState(true);
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && visible) {
+      setFading(true);
+      const timer = setTimeout(() => setVisible(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
+      <div className="loading-brand">
+        <span className="loading-prop">PROP</span>
+        <span className="loading-aura">AURA</span>
+      </div>
+      <div className="loading-spinner" />
+    </div>
+  );
+}
+```
+
+### `frontend/admin-app/src/contexts/AuthContext.tsx`
+
+```typescript
+import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { API_BASE } from "../lib/runtime";
+import { useAuthSync } from "../hooks/useAuthSync";
+
+interface Admin {
+  id: number;
+  username: string;
+  email: string | null;
+  is_platform_admin: boolean;
+  has_totp: boolean;
+}
+
+interface TOTPResult {
+  requires_totp: boolean;
+}
+
+interface AuthContextValue {
+  admin: Admin | null;
+  loading: boolean;
+  login: (username: string, password: string, rememberMe?: boolean) => Promise<TOTPResult>;
+  loginTOTP: (totpToken: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [admin, setAdmin] = useState<Admin | null>(null);
+  const [loading, setLoading] = useState(true);
+  const pendingCreds = useRef<{ username: string; password: string; rememberMe: boolean } | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/auth/me`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => { if (data) setAdmin(data); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const login = useCallback(async (username: string, password: string, rememberMe = false): Promise<TOTPResult> => {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, remember_me: rememberMe }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Login failed" }));
+      throw new Error(err.detail ?? "Login failed");
+    }
+    const data = await res.json();
+    if (data.status === "totp_required") {
+      pendingCreds.current = { username, password, rememberMe };
+      return { requires_totp: true };
+    }
+    const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
+    setAdmin(me);
+    return { requires_totp: false };
+  }, []);
+
+  const loginTOTP = useCallback(async (totpToken: string) => {
+    const creds = pendingCreds.current;
+    if (!creds) throw new Error("No pending credentials. Please login again.");
+    const res = await fetch(`${API_BASE}/auth/login-totp`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: creds.username,
+        password: creds.password,
+        totpToken,
+        remember_me: creds.rememberMe,
+      }),
+    });
+    pendingCreds.current = null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "TOTP verification failed" }));
+      throw new Error(err.detail ?? "TOTP verification failed");
+    }
+    const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
+    setAdmin(me);
+  }, []);
+
+  const logout = useCallback(async () => {
+    await fetch(`${API_BASE}/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+    setAdmin(null);
+    pendingCreds.current = null;
+  }, []);
+
+  const refreshMe = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setAdmin(data);
+      }
+    } catch {
+      // Ignore — non-critical
+    }
+  }, []);
+
+  // Real-time auth state sync via WebSocket
+  useAuthSync(
+    "platform_admin",
+    useCallback(
+      (event) => {
+        if (
+          event.type === "AUTH_STATE_CHANGED" ||
+          event.type === "TOTP_STATE_CHANGED" ||
+          event.type === "PASSWORD_RESET"
+        ) {
+          refreshMe();
+        }
+      },
+      [refreshMe]
+    ),
+    !!admin
+  );
+
+  return (
+    <AuthContext.Provider value={{ admin, loading, login, loginTOTP, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth(): AuthContextValue {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+  return ctx;
+}
+```
+
+### `frontend/admin-app/src/hooks/useAuthSync.ts`
+
+```typescript
+import { useEffect, useRef } from "react";
+import { getApiBaseUrl } from "@shared/api-config";
+
+export interface AuthSyncEvent {
+  type: string;
+  [key: string]: any;
+}
+
+type AuthEventHandler = (event: AuthSyncEvent) => void;
+
+/**
+ * Subscribe to real-time auth state changes via WebSocket.
+ * Connects to /ws/auth and listens for AUTH_STATE_CHANGED, TOTP_STATE_CHANGED, PASSWORD_RESET.
+ * Automatically reconnects on disconnect.
+ *
+ * @param channel - Auth channel (e.g., "landlord:{uuid}")
+ * @param onEvent - Callback invoked when an auth event is received
+ * @param enabled - Whether to enable the connection (default: true)
+ */
+export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled = true) {
+  const onEventRef = useRef(onEvent);
+  onEventRef.current = onEvent;
+
+  useEffect(() => {
+    if (!enabled || !channel) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let unmounted = false;
+
+    function connect() {
+      if (unmounted) return;
+
+      const apiBase = getApiBaseUrl();
+      let wsUrl: string;
+
+      if (apiBase) {
+        const wsBase = apiBase.replace(/^https?/, "ws");
+        wsUrl = `${wsBase}/ws/auth?channel=${encodeURIComponent(channel)}`;
+      } else {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        wsUrl = `${protocol}//${window.location.host}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
+      }
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        pingTimer = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) {
+            ws.send("ping");
+          }
+        }, 30000);
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const event = JSON.parse(e.data);
+          if (event.type !== "pong") {
+            onEventRef.current(event);
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      };
+
+      ws.onclose = () => {
+        if (pingTimer) clearInterval(pingTimer);
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (pingTimer) clearInterval(pingTimer);
+      ws?.close();
+    };
+  }, [channel, enabled]);
+}
+```
+
+### `frontend/admin-app/src/hooks/useHealthStream.ts`
+
+```typescript
+import { useEffect, useRef, useState } from "react";
+import { getApiBaseUrl } from "@shared/api-config";
+
+export interface HealthSnapshot {
+  type: string;
+  status: string;
+  database: string;
+  active_connections: number;
+  uptime: string;
+  timestamp: string;
+}
+
+/**
+ * Subscribe to real-time system health via WebSocket.
+ * Connects to /ws/health and receives periodic health snapshots (every 15s).
+ * Automatically reconnects on disconnect.
+ *
+ * @param enabled - Whether to enable the stream (default: true)
+ */
+export function useHealthStream(enabled = true) {
+  const [health, setHealth] = useState<HealthSnapshot | null>(null);
+  const healthRef = useRef(health);
+  healthRef.current = health;
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let unmounted = false;
+
+    function connect() {
+      if (unmounted) return;
+
+      const apiBase = getApiBaseUrl();
+      let wsUrl: string;
+
+      if (apiBase) {
+        const wsBase = apiBase.replace(/^https?/, "ws");
+        wsUrl = `${wsBase}/ws/health`;
+      } else {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        wsUrl = `${protocol}//${window.location.host}/rent/ws/health`;
+      }
+
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (e) => {
+        try {
+          const snapshot = JSON.parse(e.data);
+          if (snapshot.type === "HEALTH_UPDATE") {
+            setHealth(snapshot);
+          }
+        } catch {
+          // Ignore malformed messages
+        }
+      };
+
+      ws.onclose = () => {
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 5000);
+        }
+      };
+
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+
+    connect();
+
+    return () => {
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, [enabled]);
+
+  return health;
+}
+```
+
+### `frontend/admin-app/src/lib/runtime.ts`
+
+```typescript
+import { getApiBaseUrl } from "@shared/api-config";
+
+export const APP_BASE = "/rent/admin";
+export const API_BASE = getApiBaseUrl() + "/rent/admin/api";
+
+```
+
+### `frontend/admin-app/src/pages/AuditLogsPage.tsx`
+
+```typescript
+import { useState, useEffect, useCallback } from "react";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+const ACTION_COLORS: Record<string, { bg: string; fg: string }> = {
+  login_success:       { bg: "#dcfce7", fg: "#16a34a" },
+  login_password_ok:   { bg: "#dbeafe", fg: "#2563eb" },
+  login_failed:        { bg: "#fef2f2", fg: "#dc2626" },
+  login_locked_out:    { bg: "#fff7ed", fg: "#ea580c" },
+  login_totp_failed:   { bg: "#fef2f2", fg: "#dc2626" },
+  logout:              { bg: "#f3f4f6", fg: "#6b7280" },
+  totp_regenerated:    { bg: "#f5f3ff", fg: "#7c3aed" },
+  totp_enabled:        { bg: "#ecfdf5", fg: "#059669" },
+  totp_disabled:       { bg: "#fef2f2", fg: "#dc2626" },
+  password_changed:    { bg: "#eff6ff", fg: "#2563eb" },
+  password_revealed:   { bg: "#fdf2f8", fg: "#db2777" },
+  password_reset:      { bg: "#fef9c3", fg: "#a16207" },
+  profile_updated:     { bg: "#ecfdf5", fg: "#059669" },
+  landlord_totp_toggled: { bg: "#fefce8", fg: "#ca8a04" },
+  tenant_created:      { bg: "#dcfce7", fg: "#16a34a" },
+  tenant_updated:      { bg: "#dbeafe", fg: "#2563eb" },
+  tenant_archive:      { bg: "#fef9c3", fg: "#a16207" },
+  tenant_delete:       { bg: "#fef2f2", fg: "#dc2626" },
+  bill_created:        { bg: "#dcfce7", fg: "#16a34a" },
+  bill_updated:        { bg: "#dbeafe", fg: "#2563eb" },
+  bill_deleted:        { bg: "#fef2f2", fg: "#dc2626" },
+  backup_created:      { bg: "#f5f3ff", fg: "#7c3aed" },
+  backup_restored:     { bg: "#fef9c3", fg: "#a16207" },
+  settings_updated:    { bg: "#ecfdf5", fg: "#059669" },
+  Token_Refreshed:     { bg: "#f3f4f6", fg: "#6b7280" },
+  "Logout All Devices": { bg: "#fef2f2", fg: "#dc2626" },
+};
+
+const APP_SOURCE_COLORS: Record<string, { bg: string; fg: string; label: string }> = {
+  platform_admin: { bg: "#ede9fe", fg: "#7c3aed", label: "Platform" },
+  landlord:       { bg: "#dbeafe", fg: "#2563eb", label: "Landlord" },
+  tenant:         { bg: "#dcfce7", fg: "#16a34a", label: "Tenant" },
+};
+
+function actionBadge(action: string) {
+  const c = ACTION_COLORS[action] || { bg: "#f3f4f6", fg: "#374151" };
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 10px", borderRadius: 9999,
+      fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg,
+      whiteSpace: "nowrap",
+    }}>
+      {action.replace(/_/g, " ")}
+    </span>
+  );
+}
+
+function appBadge(source: string) {
+  const c = APP_SOURCE_COLORS[source] || { bg: "#f3f4f6", fg: "#374151", label: source };
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 10px", borderRadius: 9999,
+      fontSize: 11, fontWeight: 700, background: c.bg, color: c.fg,
+      whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: 0.5,
+    }}>
+      {c.label}
+    </span>
+  );
+}
+
+function formatTs(ts: string) {
+  if (!ts) return "\u2014";
+  try {
+    const d = new Date(ts + (ts.includes("Z") ? "" : "Z"));
+    return d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+  } catch { return ts; }
+}
+
+interface AuditEntry {
+  id: number;
+  app_source: string;
+  actor_id: number;
+  actor_name: string;
+  action: string;
+  target_type: string | null;
+  target_id: number | null;
+  ip_address: string;
+  meta: Record<string, unknown>;
+  created_at: string;
+}
+
+export default function AuditLogsPage() {
+  const [logs, setLogs] = useState<AuditEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [offset, setOffset] = useState(0);
+  const [limit] = useState(30);
+
+  const [actionFilter, setActionFilter] = useState("");
+  const [appFilter, setAppFilter] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [actionTypes, setActionTypes] = useState<string[]>([]);
+
+  const [exporting, setExporting] = useState(false);
+
+  const fetchLogs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (actionFilter) params.set("action_type", actionFilter);
+      if (appFilter) params.set("app_source", appFilter);
+      if (searchFilter) params.set("search", searchFilter);
+      if (dateFrom) params.set("date_from", dateFrom);
+      if (dateTo) params.set("date_to", dateTo);
+      params.set("limit", String(limit));
+      params.set("offset", String(offset));
+
+      const res = await fetch(`${API_BASE}/audit-logs?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load");
+      const data = await res.json();
+      setLogs(data.items);
+      setTotal(data.total);
+    } catch {
+      setLogs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [actionFilter, appFilter, searchFilter, dateFrom, dateTo, offset, limit]);
+
+  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (appFilter) params.set("app_source", appFilter);
+    fetch(`${API_BASE}/audit-logs/actions?${params}`, { credentials: "include" })
+      .then((r) => r.ok ? r.json() : [])
+      .then((d) => setActionTypes(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, [appFilter]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (actionFilter) params.set("action_type", actionFilter);
+      if (appFilter) params.set("app_source", appFilter);
+      if (searchFilter) params.set("search", searchFilter);
+      if (dateFrom) params.set("date_from", dateFrom);
+      if (dateTo) params.set("date_to", dateTo);
+
+      const res = await fetch(`${API_BASE}/audit-logs/export?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.jsonl`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const resetFilters = () => {
+    setActionFilter("");
+    setAppFilter("");
+    setSearchFilter("");
+    setDateFrom("");
+    setDateTo("");
+    setOffset(0);
+  };
+
+  const hasFilters = actionFilter || appFilter || searchFilter || dateFrom || dateTo;
+  const totalPages = Math.ceil(total / limit);
+
+  return (
+    <Layout>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Audit Logs</h1>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
+            Unified activity across Platform, Landlord, and Tenant apps
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={handleExport}
+            disabled={exporting || logs.length === 0}
+            style={{
+              padding: "8px 18px", borderRadius: 8, border: "1.5px solid #d1d5db",
+              background: "#fff", fontSize: 13, fontWeight: 600, cursor: exporting ? "wait" : "pointer",
+              opacity: logs.length === 0 ? 0.5 : 1,
+            }}
+          >
+            {exporting ? "Exporting\u2026" : "Export JSONL"}
+          </button>
+        </div>
+      </div>
+
+      <div style={{
+        display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end",
+        padding: "14px 16px", borderRadius: 10, background: "#fff", border: "1px solid #e5e7eb",
+      }}>
+        <div>
+          <label style={labelSm}>App</label>
+          <select
+            value={appFilter}
+            onChange={(e) => { setAppFilter(e.target.value); setOffset(0); }}
+            style={selectStyle}
+          >
+            <option value="">All Apps</option>
+            <option value="platform_admin">Platform Admin</option>
+            <option value="landlord">Landlord</option>
+            <option value="tenant">Tenant</option>
+          </select>
+        </div>
+        <div>
+          <label style={labelSm}>Action Type</label>
+          <select
+            value={actionFilter}
+            onChange={(e) => { setActionFilter(e.target.value); setOffset(0); }}
+            style={selectStyle}
+          >
+            <option value="">All Actions</option>
+            {actionTypes.map((a) => (
+              <option key={a} value={a}>{a.replace(/_/g, " ")}</option>
+            ))}
+          </select>
+        </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <label style={labelSm}>Search</label>
+          <input
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { setOffset(0); fetchLogs(); } }}
+            placeholder="Action, IP, actor\u2026"
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label style={labelSm}>From</label>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => { setDateFrom(e.target.value); setOffset(0); }}
+            style={inputStyle}
+          />
+        </div>
+        <div>
+          <label style={labelSm}>To</label>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => { setDateTo(e.target.value); setOffset(0); }}
+            style={inputStyle}
+          />
+        </div>
+        {hasFilters && (
+          <button onClick={resetFilters} style={{ ...btnSecondary, marginBottom: 1 }}>
+            Reset
+          </button>
+        )}
+      </div>
+
+      <div style={{ marginBottom: 12, fontSize: 13, color: "#6b7280" }}>
+        {total} total entries{hasFilters ? ` (filtered)` : ""}
+      </div>
+
+      <div style={{ borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden", background: "#fff" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                <th style={thStyle}>Timestamp</th>
+                <th style={thStyle}>App</th>
+                <th style={thStyle}>Actor</th>
+                <th style={thStyle}>Action</th>
+                <th style={thStyle}>Target</th>
+                <th style={thStyle}>IP Address</th>
+                <th style={thStyle}>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                    Loading\u2026
+                  </td>
+                </tr>
+              ) : logs.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                    No audit logs found
+                  </td>
+                </tr>
+              ) : logs.map((log) => (
+                <tr key={`${log.app_source}-${log.id}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={tdStyle} title={log.created_at}>{formatTs(log.created_at)}</td>
+                  <td style={tdStyle}>{appBadge(log.app_source)}</td>
+                  <td style={tdStyle}>
+                    <span style={{ fontWeight: 600, color: "#1a1d2e" }}>{log.actor_name || "\u2014"}</span>
+                  </td>
+                  <td style={tdStyle}>{actionBadge(log.action)}</td>
+                  <td style={tdStyle}>
+                    {log.target_type ? (
+                      <span style={{ color: "#6b7280" }}>
+                        {log.target_type}{log.target_id ? ` #${log.target_id}` : ""}
+                      </span>
+                    ) : "\u2014"}
+                  </td>
+                  <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 12 }}>{log.ip_address || "\u2014"}</td>
+                  <td style={{ ...tdStyle, maxWidth: 220 }}>
+                    {log.meta && Object.keys(log.meta).length > 0 ? (
+                      <span style={{ color: "#6b7280", fontSize: 12 }} title={JSON.stringify(log.meta, null, 2)}>
+                        {Object.entries(log.meta).map(([k, v]) => `${k}=${String(v)}`).join(", ")}
+                      </span>
+                    ) : "\u2014"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 16 }}>
+          <button
+            onClick={() => setOffset(Math.max(0, offset - limit))}
+            disabled={offset === 0}
+            style={{ ...btnSecondary, opacity: offset === 0 ? 0.4 : 1 }}
+          >
+            Previous
+          </button>
+          <span style={{ fontSize: 13, color: "#6b7280" }}>
+            Page {Math.floor(offset / limit) + 1} of {totalPages}
+          </span>
+          <button
+            onClick={() => setOffset(offset + limit)}
+            disabled={offset + limit >= total}
+            style={{ ...btnSecondary, opacity: offset + limit >= total ? 0.4 : 1 }}
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </Layout>
+  );
+}
+
+const thStyle: React.CSSProperties = {
+  padding: "10px 14px", textAlign: "left", fontWeight: 600, color: "#374151",
+  fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, whiteSpace: "nowrap",
+};
+const tdStyle: React.CSSProperties = {
+  padding: "10px 14px", color: "#374151", verticalAlign: "middle",
+};
+const labelSm: React.CSSProperties = {
+  display: "block", marginBottom: 4, fontSize: 11, fontWeight: 600,
+  color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5,
+};
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "7px 10px", borderRadius: 6,
+  border: "1.5px solid #d1d5db", fontSize: 13, outline: "none",
+};
+const selectStyle: React.CSSProperties = {
+  padding: "7px 10px", borderRadius: 6,
+  border: "1.5px solid #d1d5db", fontSize: 13, outline: "none",
+  background: "#fff", minWidth: 150,
+};
+const btnSecondary: React.CSSProperties = {
+  padding: "7px 16px", borderRadius: 6, border: "1.5px solid #d1d5db",
+  background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer",
+};
+```
+
+### `frontend/admin-app/src/pages/DashboardPage.tsx`
+
+```typescript
+import { useEffect, useState } from "react";
+import { Link } from "react-router";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+interface Stats {
+  total_landlords: number;
+  active_landlords: number;
+  total_admins: number;
+  total_tenants: number;
+}
+
+function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number | string; color: string }) {
+  return (
+    <div style={{
+      background: "#fff", borderRadius: 14, padding: "24px 28px",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.07)", flex: "1 1 200px", minWidth: 180,
+      borderTop: `4px solid ${color}`,
+    }}>
+      <div style={{ fontSize: 28, marginBottom: 10 }}>{icon}</div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: "#1a1d2e" }}>{value}</div>
+      <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{label}</div>
+    </div>
+  );
+}
+
+export default function DashboardPage() {
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/stats`, { credentials: "include" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(setStats)
+      .catch((e) => setError(e.message));
+  }, []);
+
+  return (
+    <Layout>
+      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>
+        Dashboard
+      </h1>
+
+      {error && (
+        <div style={{ background: "#fef2f2", color: "#dc2626", padding: "12px 16px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
+          Error loading stats: {error}
+        </div>
+      )}
+
+      {!stats && !error && (
+        <p style={{ color: "#9ca3af" }}>Loading stats…</p>
+      )}
+
+      {stats && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 20, marginBottom: 32 }}>
+          <StatCard icon="🏢" label="Total Landlords"  value={stats.total_landlords}  color="#3b82f6" />
+          <StatCard icon="✅" label="Active Landlords" value={stats.active_landlords} color="#22c55e" />
+          <StatCard icon="👤" label="Admin Accounts"  value={stats.total_admins}     color="#a855f7" />
+          <StatCard icon="🏠" label="Total Tenants"   value={stats.total_tenants}    color="#f59e0b" />
+        </div>
+      )}
+
+      <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600, color: "#374151" }}>Quick Actions</h2>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <Link to="/landlords"
+            style={{ padding: "10px 20px", borderRadius: 8, background: "#3b4a6b", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
+            Manage Landlords
+          </Link>
+        </div>
+      </div>
+    </Layout>
+  );
+}
+```
+
+### `frontend/admin-app/src/pages/DataExplorerPage.tsx`
+
+```typescript
+import { useEffect, useState, useCallback } from "react";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+type Tab = "tenants" | "receipts" | "kyc";
+
+interface Landlord {
+  id: number;
+  full_name: string;
+  username: string;
+}
+
+interface PageResult {
+  items: Record<string, unknown>[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+interface TenantAuth {
+  tenant_id: number;
+  name: string;
+  status: string;
+  failed_attempts: number;
+  locked_until: string | null;
+  has_pin: boolean;
+  pin: string | null;
+  pin_updated_at?: string;
+}
+
+const TABS: { key: Tab; label: string; icon: string }[] = [
+  { key: "tenants", label: "Tenants", icon: "👤" },
+  { key: "receipts", label: "Receipts", icon: "🧾" },
+  { key: "kyc", label: "KYC Files", icon: "📄" },
+];
+
+const thStyle: React.CSSProperties = {
+  padding: "12px 14px", textAlign: "left", fontWeight: 600, color: "#374151",
+  borderBottom: "1px solid #e5e7eb", fontSize: 13,
+};
+const tdStyle: React.CSSProperties = {
+  padding: "12px 14px", fontSize: 14, color: "#1a1d2e",
+};
+const btnSm: React.CSSProperties = {
+  padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer",
+  fontSize: 12, fontWeight: 600,
+};
+
+function TenantsTable({ items, onAuth }: { items: Record<string, unknown>[]; onAuth: (id: number) => void }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr style={{ background: "#f9fafb" }}>
+          <th style={thStyle}>ID</th>
+          <th style={thStyle}>Name</th>
+          <th style={thStyle}>Unit</th>
+          <th style={thStyle}>Status</th>
+          <th style={thStyle}>Rent</th>
+          <th style={thStyle}>Landlord</th>
+          <th style={thStyle}>Auth</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((r) => (
+          <tr key={Number(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
+            <td style={tdStyle}>{String(r.id)}</td>
+            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.name)}</td>
+            <td style={tdStyle}>{String(r.unit ?? "—")}</td>
+            <td style={tdStyle}>
+              <span style={{
+                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+                background: r.status === "Active" ? "#dcfce7" : "#fee2e2",
+                color: r.status === "Active" ? "#16a34a" : "#dc2626",
+              }}>
+                {String(r.status)}
+              </span>
+            </td>
+            <td style={tdStyle}>₱{String(r.rent_amount ?? 0)}</td>
+            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
+            <td style={tdStyle}>
+              <button
+                onClick={() => onAuth(Number(r.id))}
+                style={{ ...btnSm, background: "#e0e7ff", color: "#3730a3" }}
+              >
+                View PIN
+              </button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function ReceiptsTable({ items }: { items: Record<string, unknown>[] }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr style={{ background: "#f9fafb" }}>
+          <th style={thStyle}>Bill #</th>
+          <th style={thStyle}>Tenant</th>
+          <th style={thStyle}>Unit</th>
+          <th style={thStyle}>Total</th>
+          <th style={thStyle}>Status</th>
+          <th style={thStyle}>Date</th>
+          <th style={thStyle}>Month</th>
+          <th style={thStyle}>Landlord</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((r) => (
+          <tr key={String(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
+            <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 13 }}>{String(r.id)}</td>
+            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.tenant_name ?? "—")}</td>
+            <td style={tdStyle}>{String(r.tenant_unit ?? "—")}</td>
+            <td style={tdStyle}>₱{String(r.total ?? 0)}</td>
+            <td style={tdStyle}>
+              <span style={{
+                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+                background: r.paymentstatus === "PAID" ? "#dcfce7" : r.paymentstatus === "PENDING" ? "#fef9c3" : "#fee2e2",
+                color: r.paymentstatus === "PAID" ? "#16a34a" : r.paymentstatus === "PENDING" ? "#92400e" : "#dc2626",
+              }}>
+                {String(r.paymentstatus)}
+              </span>
+            </td>
+            <td style={tdStyle}>{r.issued_at ? new Date(String(r.issued_at)).toLocaleDateString() : "—"}</td>
+            <td style={tdStyle}>{String(r.month ?? "—")}</td>
+            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function KYCTable({ items }: { items: Record<string, unknown>[] }) {
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <thead>
+        <tr style={{ background: "#f9fafb" }}>
+          <th style={thStyle}>UUID</th>
+          <th style={thStyle}>Name</th>
+          <th style={thStyle}>Status</th>
+          <th style={thStyle}>Mobile</th>
+          <th style={thStyle}>Since</th>
+          <th style={thStyle}>Tenant</th>
+          <th style={thStyle}>Unit</th>
+          <th style={thStyle}>Landlord</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((r) => (
+          <tr key={String(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
+            <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>{String(r.id).slice(0, 8)}…</td>
+            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.name)}</td>
+            <td style={tdStyle}>
+              <span style={{
+                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+                background: r.status === "Active" ? "#dcfce7" : "#f3f4f6",
+                color: r.status === "Active" ? "#16a34a" : "#6b7280",
+              }}>
+                {String(r.status ?? "—")}
+              </span>
+            </td>
+            <td style={tdStyle}>{String(r.mobile ?? "—")}</td>
+            <td style={tdStyle}>{String(r.residentSince ?? "—")}</td>
+            <td style={tdStyle}>{String(r.tenant_name ?? "—")}</td>
+            <td style={tdStyle}>{String(r.tenant_unit ?? "—")}</td>
+            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+export default function DataExplorerPage() {
+  const [landlords, setLandlords] = useState<Landlord[]>([]);
+  const [selectedLandlord, setSelectedLandlord] = useState<Landlord | null>(null);
+  const [landlordSearch, setLandlordSearch] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  const [tab, setTab] = useState<Tab>("tenants");
+  const [data, setData] = useState<PageResult>({ items: [], total: 0, limit: 20, offset: 0 });
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const [authModal, setAuthModal] = useState<TenantAuth | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+
+  // Fetch landlords for dropdown
+  useEffect(() => {
+    fetch(`${API_BASE}/landlords?limit=1000`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => setLandlords(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, []);
+
+  const filteredLandlords = landlords.filter((l) => {
+    if (!landlordSearch) return true;
+    const q = landlordSearch.toLowerCase();
+    return l.full_name?.toLowerCase().includes(q) || l.username?.toLowerCase().includes(q);
+  });
+
+  // Fetch preview data
+  const fetchData = useCallback(async () => {
+    if (!selectedLandlord) { setData({ items: [], total: 0, limit: 20, offset: 0 }); return; }
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set("landlord_id", String(selectedLandlord.id));
+    if (search) params.set("search", search);
+    if (statusFilter) params.set("status", statusFilter);
+    params.set("limit", "20");
+    params.set("offset", String(data.offset));
+    try {
+      const res = await fetch(`${API_BASE}/preview/${tab}?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setData(await res.json());
+    } catch {
+      setData({ items: [], total: 0, limit: 20, offset: 0 });
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedLandlord, tab, search, statusFilter, data.offset]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setData((d) => ({ ...d, offset: 0 })); }, [tab, search, statusFilter, selectedLandlord]);
+
+  async function showTenantAuth(tenantId: number) {
+    setAuthLoading(true);
+    setAuthModal(null);
+    try {
+      const res = await fetch(`${API_BASE}/preview/tenants/${tenantId}/auth`, { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setAuthModal(await res.json());
+    } catch {
+      setAuthModal({ tenant_id: tenantId, name: "Error", status: "?", failed_attempts: 0, locked_until: null, has_pin: false, pin: null });
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  return (
+    <Layout>
+      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Data Explorer</h1>
+
+      {/* Landlord Selector */}
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: "16px 20px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
+      }}>
+        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+          Select Landlord
+        </label>
+        <div style={{ position: "relative" }}>
+          <input
+            type="text"
+            value={selectedLandlord ? `${selectedLandlord.full_name} (@${selectedLandlord.username})` : landlordSearch}
+            onChange={(e) => {
+              setLandlordSearch(e.target.value);
+              setSelectedLandlord(null);
+              setShowDropdown(true);
+            }}
+            onFocus={() => setShowDropdown(true)}
+            placeholder="Search landlord by name or username…"
+            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, boxSizing: "border-box" }}
+          />
+          {showDropdown && !selectedLandlord && filteredLandlords.length > 0 && (
+            <div style={{
+              position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
+              background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8,
+              maxHeight: 240, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+            }}>
+              {filteredLandlords.map((l) => (
+                <div
+                  key={l.id}
+                  onClick={() => { setSelectedLandlord(l); setLandlordSearch(""); setShowDropdown(false); setSearch(""); setStatusFilter(""); }}
+                  style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: 14 }}
+                >
+                  <div style={{ fontWeight: 600, color: "#1a1d2e" }}>{l.full_name}</div>
+                  <div style={{ fontSize: 12, color: "#9ca3af" }}>@{l.username}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {selectedLandlord && (
+          <button
+            onClick={() => { setSelectedLandlord(null); setLandlordSearch(""); }}
+            style={{ marginTop: 8, padding: "4px 12px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer", color: "#6b7280" }}
+          >
+            Clear selection
+          </button>
+        )}
+      </div>
+
+      {!selectedLandlord && (
+        <div style={{ background: "#fff", borderRadius: 14, padding: "48px 24px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)", textAlign: "center", color: "#9ca3af" }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+          <p style={{ fontSize: 15 }}>Select a landlord above to explore their data</p>
+        </div>
+      )}
+
+      {selectedLandlord && (
+        <>
+          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+            {TABS.map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                style={{
+                  padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600,
+                  background: tab === t.key ? "#3b4a6b" : "#f3f4f6",
+                  color: tab === t.key ? "#fff" : "#374151",
+                  transition: "all 0.15s",
+                }}
+              >
+                {t.icon} {t.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{
+            background: "#fff", borderRadius: 14, padding: "16px 20px",
+            boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
+            display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
+          }}>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search…"
+              style={{ flex: 1, minWidth: 200, padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
+            >
+              <option value="">All statuses</option>
+              {tab === "tenants" && (
+                <>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </>
+              )}
+              {tab === "receipts" && (
+                <>
+                  <option value="PAID">Paid</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="OVERDUE">Overdue</option>
+                </>
+              )}
+              {tab === "kyc" && (
+                <>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </>
+              )}
+            </select>
+          </div>
+
+          <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+            {loading ? (
+              <p style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>Loading…</p>
+            ) : data.items.length === 0 ? (
+              <p style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>No results found for this landlord.</p>
+            ) : tab === "tenants" ? (
+              <TenantsTable items={data.items} onAuth={showTenantAuth} />
+            ) : tab === "receipts" ? (
+              <ReceiptsTable items={data.items} />
+            ) : (
+              <KYCTable items={data.items} />
+            )}
+          </div>
+
+          {data.total > data.limit && (
+            <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 20 }}>
+              <button
+                disabled={data.offset === 0}
+                onClick={() => setData((d) => ({ ...d, offset: Math.max(0, d.offset - d.limit) }))}
+                style={{
+                  padding: "8px 20px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff",
+                  cursor: data.offset === 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
+                  opacity: data.offset === 0 ? 0.5 : 1,
+                }}
+              >
+                Previous
+              </button>
+              <span style={{ padding: "8px 0", fontSize: 13, color: "#6b7280" }}>
+                {data.offset + 1}–{Math.min(data.offset + data.limit, data.total)} of {data.total}
+              </span>
+              <button
+                disabled={data.offset + data.limit >= data.total}
+                onClick={() => setData((d) => ({ ...d, offset: d.offset + d.limit }))}
+                style={{
+                  padding: "8px 20px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff",
+                  cursor: data.offset + data.limit >= data.total ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
+                  opacity: data.offset + data.limit >= data.total ? 0.5 : 1,
+                }}
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Tenant Auth Modal */}
+      {(authModal || authLoading) && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
+          onClick={() => { setAuthModal(null); setAuthLoading(false); }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff", borderRadius: 16, padding: "28px 32px", width: "100%", maxWidth: 400, margin: "0 16px", maxHeight: "80vh", overflowY: "auto",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            }}
+          >
+            <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 700, color: "#1a1d2e" }}>
+              Tenant Auth Details
+            </h2>
+            {authLoading && <p style={{ color: "#9ca3af" }}>Loading…</p>}
+            {authModal && !authLoading && (
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <tbody>
+                  {[
+                    ["Name", authModal.name],
+                    ["Status", authModal.status],
+                    ["Portal PIN", authModal.pin ?? "Not set"],
+                    ["Has PIN", authModal.has_pin ? "Yes" : "No"],
+                    ["Failed Attempts", String(authModal.failed_attempts)],
+                    ["Locked Until", authModal.locked_until ? new Date(authModal.locked_until).toLocaleString() : "Not locked"],
+                  ].map(([label, value]) => (
+                    <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                      <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 130 }}>{label}</td>
+                      <td style={{ padding: "10px 0", color: "#1a1d2e", fontFamily: label === "Portal PIN" ? "monospace" : "inherit" }}>
+                        {String(value)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <button
+              onClick={() => { setAuthModal(null); setAuthLoading(false); }}
+              style={{
+                marginTop: 20, width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
+                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </Layout>
+  );
+}
+```
+
+### `frontend/admin-app/src/pages/LandlordDetailPage.tsx`
+
+```typescript
+import { useEffect, useState } from "react";
+import { useParams, Link } from "react-router";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+interface LandlordDetail {
+  landlord: Record<string, unknown>;
+  has_password: boolean;
+  has_totp: boolean;
+  stats: {
+    tenants: number;
+    receipts: number;
+    kyc: number;
+    pending_revenue: number;
+  };
+}
+
+interface CreatorInfo {
+  landlord_id: number;
+  username: string;
+  full_name: string;
+  self_registered: boolean;
+  created_at: string;
+  signup_details: {
+    ip_address: string | null;
+    timestamp: string | null;
+    user_agent: string | null;
+  };
+  last_login: {
+    timestamp: string | null;
+    ip_address: string | null;
+  };
+}
+
+function StatBox({ label, value, color }: { label: string; value: number | string; color: string }) {
+  return (
+    <div style={{
+      background: "#f9fafb", borderRadius: 10, padding: "16px 20px", flex: "1 1 140px", minWidth: 130,
+      borderLeft: `4px solid ${color}`,
+    }}>
+      <div style={{ fontSize: 24, fontWeight: 700, color: "#1a1d2e" }}>{value}</div>
+      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{label}</div>
+    </div>
+  );
+}
+
+export default function LandlordDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const [detail, setDetail] = useState<LandlordDetail | null>(null);
+  const [creator, setCreator] = useState<CreatorInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!id) return;
+    Promise.all([
+      fetch(`${API_BASE}/landlords/${id}/details`, { credentials: "include" }).then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      }),
+      fetch(`${API_BASE}/landlords/${id}/creator-info`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
+    ])
+      .then(([d, c]) => { setDetail(d); setCreator(c); })
+      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) return <Layout><p style={{ color: "#9ca3af" }}>Loading…</p></Layout>;
+  if (error) return <Layout><p style={{ color: "#dc2626" }}>{error}</p></Layout>;
+  if (!detail) return <Layout><p style={{ color: "#9ca3af" }}>Landlord not found.</p></Layout>;
+
+  const l = detail.landlord;
+  const statusColor = l.status === "Active" ? "#22c55e" : l.status === "Locked" ? "#ef4444" : "#6b7280";
+
+  return (
+    <Layout>
+      <Link to="/landlords" style={{ fontSize: 13, color: "#3b4a6b", textDecoration: "none", marginBottom: 16, display: "inline-block" }}>
+        ← Back to Landlords
+      </Link>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#1a1d2e" }}>
+            {String(l.full_name || l.username)}
+          </h1>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
+            @{String(l.username)} · {String(l.email || "no email")}
+          </p>
+        </div>
+        <span style={{
+          display: "inline-block", padding: "4px 14px", borderRadius: 99, fontSize: 13, fontWeight: 600,
+          background: `${statusColor}20`, color: statusColor,
+        }}>
+          {String(l.status)}
+        </span>
+      </div>
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
+        <StatBox label="Tenants" value={detail.stats.tenants} color="#3b82f6" />
+        <StatBox label="Receipts" value={detail.stats.receipts} color="#22c55e" />
+        <StatBox label="KYC Files" value={detail.stats.kyc} color="#a855f7" />
+        <StatBox label="Pending Revenue" value={`₱${detail.stats.pending_revenue.toLocaleString()}`} color="#f59e0b" />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
+          <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "#374151" }}>Account Details</h2>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+            <tbody>
+              {[
+                ["Landlord ID", l.id],
+                ["UUID", l.landlord_uuid],
+                ["Phone", l.phone],
+                ["Created", l.created_at ? new Date(String(l.created_at)).toLocaleString() : "—"],
+                ["Updated", l.updated_at ? new Date(String(l.updated_at)).toLocaleString() : "—"],
+                ["Has Password", detail.has_password ? "Yes" : "No"],
+                ["Has TOTP", detail.has_totp ? "Yes" : "No"],
+                ["Failed Attempts", l.failed_attempts ?? 0],
+                ["Locked Until", l.locked_until ? new Date(String(l.locked_until)).toLocaleString() : "—"],
+                ["PW Change Required", l.requires_password_change ? "Yes (forced)" : "No"],
+              ].map(([label, value]) => (
+                <tr key={String(label)} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 140 }}>{String(label)}</td>
+                  <td style={{ padding: "10px 0", color: "#1a1d2e" }}>{String(value ?? "—")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {creator && (
+          <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
+            <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "#374151" }}>Creator Info</h2>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <tbody>
+                {[
+                  ["Registered By", creator.self_registered ? "Self-registered" : "Platform Admin"],
+                  ["Signup IP", creator.signup_details.ip_address ?? "—"],
+                  ["Signup Time", creator.signup_details.timestamp ? new Date(creator.signup_details.timestamp).toLocaleString() : "—"],
+                  ["Last Login", creator.last_login.timestamp ? new Date(creator.last_login.timestamp).toLocaleString() : "Never"],
+                  ["Last Login IP", creator.last_login.ip_address ?? "—"],
+                ].map(([label, value]) => (
+                  <tr key={String(label)} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 140 }}>{String(label)}</td>
+                    <td style={{ padding: "10px 0", color: "#1a1d2e" }}>{String(value)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+}
+```
+
+### `frontend/admin-app/src/pages/LandlordsPage.tsx`
+
+```typescript
+import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+interface Landlord {
+  id: number;
+  landlord_uuid: string;
+  full_name: string;
+  email: string;
+  phone: string;
+  username: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  has_totp: boolean;
+  failed_attempts: number;
+  locked_until: string | null;
+  requires_password_change: boolean;
+  tenant_count: number;
+  receipt_count: number;
+  kyc_count: number;
+}
+
+interface ModalData {
+  type: "totp" | "password" | "reset" | "reset_whatsapp";
+  landlord: Landlord;
+  result?: { password?: string; secret?: string; qr_code_base64?: string; message?: string; updated_at?: string; whatsapp_url?: string; requires_password_change?: boolean };
+  error?: string;
+  loading: boolean;
+}
+
+const badgeStyle = (status: string): React.CSSProperties => ({
+  display: "inline-block",
+  padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
+  background: status === "Active" ? "#dcfce7" : status === "Locked" ? "#fee2e2" : "#f3f4f6",
+  color: status === "Active" ? "#16a34a" : status === "Locked" ? "#dc2626" : "#6b7280",
+});
+
+export default function LandlordsPage() {
+  const [landlords, setLandlords] = useState<Landlord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [modal, setModal] = useState<ModalData | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("search", search);
+      if (statusFilter) params.set("status", statusFilter);
+      params.set("limit", "50");
+      const res = await fetch(`${API_BASE}/landlords?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setLandlords(await res.json());
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load landlords");
+    } finally {
+      setLoading(false);
+    }
+  }, [search, statusFilter]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  async function toggleTOTP(l: Landlord) {
+    setModal({ type: "totp", landlord: l, loading: true });
+    try {
+      const res = await fetch(`${API_BASE}/landlords/${l.id}/totp-toggle`, {
+        method: "POST", credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Failed");
+      setModal({ type: "totp", landlord: l, result: data, loading: false });
+      fetchData();
+    } catch (e: unknown) {
+      setModal({ type: "totp", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
+    }
+  }
+
+  async function revealPassword(l: Landlord) {
+    setModal({ type: "password", landlord: l, loading: true });
+    try {
+      const res = await fetch(`${API_BASE}/landlords/${l.id}/reveal-password`, { credentials: "include" });
+      const data = await res.json();
+      if (!res.ok) {
+        // Password not in vault — offer reset
+        setModal({ type: "password", landlord: l, error: data.detail ?? "Password not available. Use Reset instead.", loading: false });
+        return;
+      }
+      setModal({ type: "password", landlord: l, result: data, loading: false });
+    } catch (e: unknown) {
+      setModal({ type: "password", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
+    }
+  }
+
+  async function resetPassword(l: Landlord) {
+    if (!confirm(`Reset password for ${l.username}? The new password will be shown once.`)) return;
+    setModal({ type: "reset", landlord: l, loading: true });
+    try {
+      const res = await fetch(`${API_BASE}/landlords/${l.id}/reset-password`, {
+        method: "POST", credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Failed");
+      setModal({ type: "reset", landlord: l, result: data, loading: false });
+    } catch (e: unknown) {
+      setModal({ type: "reset", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
+    }
+  }
+
+  async function resetWithWhatsApp(l: Landlord) {
+    if (!l.phone) {
+      setModal({ type: "reset_whatsapp", landlord: l, error: "No phone number on file. Add one first.", loading: false });
+      return;
+    }
+    setModal({ type: "reset_whatsapp", landlord: l, loading: true });
+    try {
+      const res = await fetch(`${API_BASE}/landlords/${l.id}/reset-password`, {
+        method: "POST", credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? "Failed");
+      setModal({ type: "reset_whatsapp", landlord: l, result: data, loading: false });
+    } catch (e: unknown) {
+      setModal({ type: "reset_whatsapp", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
+    }
+  }
+
+  return (
+    <Layout>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Landlords</h1>
+      </div>
+
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: "16px 20px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
+        display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
+      }}>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search by name, username, or email…"
+          style={{ flex: 1, minWidth: 200, padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
+        >
+          <option value="">All statuses</option>
+          <option value="Active">Active</option>
+          <option value="Locked">Locked</option>
+          <option value="Inactive">Inactive</option>
+        </select>
+      </div>
+
+      {error && (
+        <div style={{ background: "#fef2f2", color: "#dc2626", padding: "12px 16px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
+          {error}
+        </div>
+      )}
+
+      {loading ? (
+        <p style={{ color: "#9ca3af" }}>Loading…</p>
+      ) : (
+        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <thead>
+                <tr style={{ background: "#f9fafb" }}>
+                  {["ID", "Name", "Username", "Status", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
+                    <th key={h} style={{ padding: "12px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb", fontSize: 13, whiteSpace: "nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {landlords.length === 0 && (
+                  <tr>
+                    <td colSpan={11} style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>
+                      No landlords found.
+                    </td>
+                  </tr>
+                )}
+                {landlords.map((l) => (
+                  <tr key={l.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "12px 12px", color: "#6b7280" }}>{l.id}</td>
+                    <td style={{ padding: "12px 12px", fontWeight: 600, color: "#1a1d2e" }}>
+                      <Link to={`/landlords/${l.id}`} style={{ color: "#3b4a6b", textDecoration: "none" }}>
+                        {l.full_name || "—"}
+                      </Link>
+                      {l.email && <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 400 }}>{l.email}</div>}
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      <code style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 6, fontSize: 13 }}>{l.username}</code>
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      <span style={badgeStyle(l.status)}>{l.status}</span>
+                    </td>
+                    <td style={{ padding: "12px 12px", fontSize: 13 }}>
+                      {l.has_totp ? "✅" : "—"}
+                    </td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>
+                      {l.requires_password_change ? (
+                        <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: "#fef3c7", color: "#92400e" }}>
+                          PW Pending
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.tenant_count}</td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.receipt_count}</td>
+                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.kyc_count}</td>
+                    <td style={{ padding: "12px 12px", fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>
+                      {l.created_at ? new Date(l.created_at).toLocaleDateString() : "—"}
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        <button
+                          onClick={() => toggleTOTP(l)}
+                          style={{
+                            padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
+                            background: l.has_totp ? "#fef9c3" : "#dcfce7",
+                            color: l.has_totp ? "#92400e" : "#166534",
+                          }}
+                        >
+                          {l.has_totp ? "Disable TOTP" : "Enable TOTP"}
+                        </button>
+                        <button
+                          onClick={() => revealPassword(l)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#e0e7ff", color: "#3730a3" }}
+                        >
+                          Show PW
+                        </button>
+                        <button
+                          onClick={() => resetPassword(l)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#fee2e2", color: "#dc2626" }}
+                        >
+                          Reset PW
+                        </button>
+                        <button
+                          onClick={() => resetWithWhatsApp(l)}
+                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#dcfce7", color: "#166534" }}
+                          title="Reset password and send via WhatsApp"
+                        >
+                          Send WA
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal */}
+      {modal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
+          onClick={() => setModal(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "#fff", borderRadius: 16, padding: "28px 32px", width: "100%", maxWidth: 440, margin: "0 16px", maxHeight: "80vh", overflowY: "auto",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+            }}
+          >
+            <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 700, color: "#1a1d2e" }}>
+              {modal.type === "totp" && (modal.landlord.has_totp ? "Disable TOTP" : "Enable TOTP")}
+              {modal.type === "password" && "Reveal Password"}
+              {modal.type === "reset" && "Reset Password"}
+              {modal.type === "reset_whatsapp" && "Reset & Send via WhatsApp"}
+              <span style={{ fontWeight: 400, color: "#6b7280", fontSize: 14 }}> — {modal.landlord.username}</span>
+            </h2>
+
+            {modal.loading && <p style={{ color: "#9ca3af" }}>Loading…</p>}
+
+            {modal.error && (
+              <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
+                {modal.error}
+              </div>
+            )}
+
+            {modal.result && (
+              <div>
+                {modal.type === "totp" && (
+                  <div style={{ textAlign: "center" }}>
+                    {modal.result.qr_code_base64 && (
+                      <>
+                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>Scan this QR code with the landlord's authenticator app:</p>
+                        <img
+                          src={`data:image/png;base64,${modal.result.qr_code_base64}`}
+                          alt="TOTP QR"
+                          style={{ width: 200, height: 200, borderRadius: 8, border: "1px solid #e5e7eb", marginBottom: 12 }}
+                        />
+                      </>
+                    )}
+                    {modal.result.secret && (
+                      <div style={{ background: "#f1f5f9", padding: "10px 14px", borderRadius: 8, fontSize: 13, fontFamily: "monospace" }}>
+                        Secret: {modal.result.secret}
+                      </div>
+                    )}
+                    {modal.result.message && (
+                      <p style={{ fontSize: 13, color: "#16a34a", marginTop: 8 }}>{modal.result.message}</p>
+                    )}
+                  </div>
+                )}
+
+                {(modal.type === "password" || modal.type === "reset") && modal.result.password && (
+                  <div>
+                    <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
+                      {modal.type === "reset" ? "New password (copy now — shown only once):" : "Current password:"}
+                    </p>
+                    <div style={{
+                      background: "#f1f5f9", padding: "12px 16px", borderRadius: 8,
+                      fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: "#1a1d2e",
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                    }}>
+                      <span>{modal.result.password}</span>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(modal.result!.password!)}
+                        style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    {modal.result.updated_at && (
+                      <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
+                        Last updated: {new Date(modal.result.updated_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {modal.type === "reset_whatsapp" && modal.result && (
+                  <div>
+                    {modal.result.password && (
+                      <>
+                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
+                          New password (copy now — shown only once):
+                        </p>
+                        <div style={{
+                          background: "#f1f5f9", padding: "12px 16px", borderRadius: 8,
+                          fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: "#1a1d2e",
+                          display: "flex", alignItems: "center", justifyContent: "space-between",
+                        }}>
+                          <span>{modal.result.password}</span>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(modal.result!.password!)}
+                            style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}
+                          >
+                            Copy
+                          </button>
+                        </div>
+                      </>
+                    )}
+
+                    {modal.result.whatsapp_url ? (
+                      <div style={{ marginTop: 16 }}>
+                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
+                          Open WhatsApp to send the credentials:
+                        </p>
+                        <a
+                          href={modal.result.whatsapp_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: "inline-flex", alignItems: "center", gap: 8,
+                            padding: "10px 20px", borderRadius: 8,
+                            background: "#25D366", color: "#fff", fontWeight: 600, fontSize: 14,
+                            textDecoration: "none",
+                          }}
+                        >
+                          Open WhatsApp
+                        </a>
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 12 }}>
+                        No phone number on file — WhatsApp URL not generated.
+                      </p>
+                    )}
+
+                    {modal.result.requires_password_change && (
+                      <p style={{ fontSize: 12, color: "#92400e", marginTop: 12, background: "#fef3c7", padding: "8px 12px", borderRadius: 6 }}>
+                        The landlord will be required to change their password on next login.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={() => setModal(null)}
+              style={{
+                marginTop: 20, width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
+                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+    </Layout>
+  );
+}
+```
+
+### `frontend/admin-app/src/pages/LoginPage.tsx`
+
+```typescript
+import { useState, type FormEvent } from "react";
+import { useNavigate } from "react-router";
+import { useAuth } from "../contexts/AuthContext";
+import AuthLayout from "../components/AuthLayout";
+
+export default function LoginPage() {
+  const { login, loginTOTP } = useAuth();
+  const navigate = useNavigate();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [totpRequired, setTotpRequired] = useState(false);
+  const [totpCode, setTotpCode] = useState("");
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const result = await login(username, password, rememberMe);
+      if (result.requires_totp) {
+        setTotpRequired(true);
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTOTPSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await loginTOTP(totpCode);
+      navigate("/dashboard", { replace: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "TOTP verification failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <AuthLayout>
+      <form
+        onSubmit={totpRequired ? handleTOTPSubmit : handleSubmit}
+        style={{
+          background: "#fff", borderRadius: 16, padding: "40px 36px",
+          width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        }}
+      >
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>{totpRequired ? "🔐" : "🏢"}</div>
+          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#1a1d2e" }}>
+            {totpRequired ? "Two-Factor Authentication" : "Platform Admin"}
+          </h1>
+          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#6b7280" }}>
+            {totpRequired ? "Enter your 6-digit authenticator code" : "Sign in to manage landlords"}
+          </p>
+        </div>
+
+        {error && (
+          <div style={{
+            background: "#fef2f2", border: "1px solid #fca5a5", color: "#dc2626",
+            borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13,
+          }}>
+            {error}
+          </div>
+        )}
+
+        {!totpRequired ? (
+          <>
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                Username
+              </span>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                autoFocus
+                style={inputStyle}
+                placeholder="admin"
+              />
+            </label>
+
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                Password
+              </span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                style={inputStyle}
+                placeholder="••••••••"
+              />
+            </label>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24, fontSize: 13, color: "#374151", cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+              />
+              Remember me for 180 days
+            </label>
+          </>
+        ) : (
+          <label style={{ display: "block", marginBottom: 24 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+              Authenticator Code
+            </span>
+            <input
+              type="text"
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              required
+              autoFocus
+              maxLength={6}
+              pattern="[0-9]{6}"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
+              placeholder="000000"
+            />
+          </label>
+        )}
+
+        <button
+          type="submit"
+          disabled={busy}
+          style={{
+            width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+            background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
+            fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
+            transition: "background 0.2s",
+          }}
+        >
+          {busy ? (totpRequired ? "Verifying…" : "Signing in…") : (totpRequired ? "Verify" : "Sign In")}
+        </button>
+
+        {totpRequired && (
+          <button
+            type="button"
+            onClick={() => { setTotpRequired(false); setTotpCode(""); setError(null); }}
+            style={{
+              width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
+              background: "transparent", color: "#6b7280",
+              fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 12,
+            }}
+          >
+            Back to login
+          </button>
+        )}
+      </form>
+    </AuthLayout>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "10px 12px", borderRadius: 8,
+  border: "1.5px solid #d1d5db", fontSize: 14, outline: "none",
+  boxSizing: "border-box",
+  transition: "border-color 0.15s",
+};
+```
+
+### `frontend/admin-app/src/pages/SettingsPage.tsx`
+
+```typescript
+import { useState, useEffect } from "react";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+import { useHealthStream } from "../hooks/useHealthStream";
+
+interface Profile {
+  id: number;
+  username: string;
+  email: string | null;
+  is_platform_admin: boolean;
+  has_totp: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export default function SettingsPage() {
+  const health = useHealthStream();
+  const [profile, setProfile] = useState<Profile | null>(null);
+
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [saveErr, setSaveErr] = useState<string | null>(null);
+
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState<string | null>(null);
+  const [pwErr, setPwErr] = useState<string | null>(null);
+
+  const [retentionDays, setRetentionDays] = useState(30);
+  const [auditSaving, setAuditSaving] = useState(false);
+  const [auditMsg, setAuditMsg] = useState<string | null>(null);
+  const [auditErr, setAuditErr] = useState<string | null>(null);
+
+  const [totpQr, setTotpQr] = useState<string | null>(null);
+  const [totpSecret, setTotpSecret] = useState<string | null>(null);
+  const [totpPassword, setTotpPassword] = useState("");
+  const [totpAction, setTotpAction] = useState<"setup" | "regenerate">("setup");
+  const [totpBusy, setTotpBusy] = useState(false);
+  const [totpErr, setTotpErr] = useState<string | null>(null);
+  const [totpSuccess, setTotpSuccess] = useState<string | null>(null);
+  const [showTotpDialog, setShowTotpDialog] = useState(false);
+  const [showPwText, setShowPwText] = useState(false);
+  const [showTotpSecret, setShowTotpSecret] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/settings/profile`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((p) => {
+        setProfile(p);
+        setUsername(p.username);
+        setEmail(p.email ?? "");
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (profile?.has_totp) {
+      fetch(`${API_BASE}/auth/totp-qr`, { credentials: "include" })
+        .then((r) => r.json())
+        .then((data) => { if (data.qr_code_base64) { setTotpQr(data.qr_code_base64); setTotpSecret(data.secret ?? null); } })
+        .catch(() => {});
+    }
+  }, [profile?.has_totp]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/settings/audit`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (d.retention_days) setRetentionDays(d.retention_days); })
+      .catch(() => {});
+  }, []);
+
+  async function handleSaveProfile(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setSaveMsg(null);
+    setSaveErr(null);
+    try {
+      const res = await fetch(`${API_BASE}/settings/profile`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, email }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Save failed" }));
+        throw new Error(err.detail ?? "Save failed");
+      }
+      setSaveMsg("Profile updated successfully");
+    } catch (err: unknown) {
+      setSaveErr(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (newPw !== confirmPw) { setPwErr("Passwords do not match"); return; }
+    setPwSaving(true);
+    setPwMsg(null);
+    setPwErr(null);
+    try {
+      const res = await fetch(`${API_BASE}/settings/change-password`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current_password: currentPw, new_password: newPw, confirm_password: confirmPw }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Change failed" }));
+        throw new Error(err.detail ?? "Change failed");
+      }
+      setPwMsg("Password changed successfully");
+      setCurrentPw("");
+      setNewPw("");
+      setConfirmPw("");
+    } catch (err: unknown) {
+      setPwErr(err instanceof Error ? err.message : "Change failed");
+    } finally {
+      setPwSaving(false);
+    }
+  }
+
+  function openTotpDialog(action: "setup" | "regenerate") {
+    setTotpAction(action);
+    setTotpPassword("");
+    setTotpErr(null);
+    setTotpSuccess(null);
+    setShowTotpDialog(true);
+  }
+
+  async function handleShowTotpQr() {
+    setTotpErr(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/totp-qr`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load QR");
+      const data = await res.json();
+      if (data.qr_code_base64) { setTotpQr(data.qr_code_base64); setTotpSecret(data.secret ?? null); }
+    } catch {
+      setTotpErr("Failed to load TOTP QR code.");
+    }
+  }
+
+  async function handleTotpConfirm() {
+    if (!totpPassword) return;
+    setTotpBusy(true);
+    setTotpErr(null);
+    setTotpSuccess(null);
+    try {
+      const res = await fetch(`${API_BASE}/auth/totp-regenerate`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current_password: totpPassword }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Operation failed" }));
+        throw new Error(err.detail ?? "Operation failed");
+      }
+      const data = await res.json();
+      if (data.qr_code_base64) { setTotpQr(data.qr_code_base64); setTotpSecret(data.secret ?? null); }
+      setTotpSuccess(totpAction === "setup" ? "TOTP configured successfully! Scan the QR code with your authenticator app." : "TOTP secret regenerated! Update your authenticator app.");
+      setShowTotpDialog(false);
+      setTotpPassword("");
+      // Refresh profile to update has_totp
+      const pRes = await fetch(`${API_BASE}/settings/profile`, { credentials: "include" });
+      if (pRes.ok) {
+        const p = await pRes.json();
+        setProfile(p);
+      }
+    } catch (err: unknown) {
+      setTotpErr(err instanceof Error ? err.message : "Operation failed");
+    } finally {
+      setTotpBusy(false);
+    }
+  }
+
+  async function handleSaveAudit(e: React.FormEvent) {
+    e.preventDefault();
+    setAuditSaving(true);
+    setAuditMsg(null);
+    setAuditErr(null);
+    try {
+      const res = await fetch(`${API_BASE}/settings/audit`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retention_days: retentionDays }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: "Save failed" }));
+        throw new Error(err.detail ?? "Save failed");
+      }
+      setAuditMsg("Audit log retention updated successfully.");
+    } catch (err: unknown) {
+      setAuditErr(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setAuditSaving(false);
+    }
+  }
+
+  return (
+    <Layout>
+      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Settings</h1>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, maxWidth: 900 }}>
+        {/* Profile */}
+        <form onSubmit={handleSaveProfile} style={{
+          background: "#fff", borderRadius: 14, padding: "28px 32px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.07)",
+        }}>
+          <h2 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Profile</h2>
+
+          {saveMsg && <div style={successStyle}>{saveMsg}</div>}
+          {saveErr && <div style={errorStyle}>{saveErr}</div>}
+
+          <label style={labelStyle}>
+            <span>Username</span>
+            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required style={inputStyle} />
+          </label>
+          <label style={labelStyle}>
+            <span>Email</span>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="admin@example.com" />
+          </label>
+
+          <div style={{ marginTop: 16, fontSize: 13, color: "#6b7280" }}>
+            <div>ID: {profile?.id ?? "—"}</div>
+            <div>Role: Platform Super Admin</div>
+            {profile?.created_at && <div>Created: {new Date(profile.created_at).toLocaleString()}</div>}
+          </div>
+
+          <button type="submit" disabled={saving} style={primaryBtn}>
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        </form>
+
+        {/* Password */}
+        <form onSubmit={handleChangePassword} style={{
+          background: "#fff", borderRadius: 14, padding: "28px 32px",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.07)",
+        }}>
+          <h2 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Change Password</h2>
+
+          {pwMsg && <div style={successStyle}>{pwMsg}</div>}
+          {pwErr && <div style={errorStyle}>{pwErr}</div>}
+
+          <label style={labelStyle}>
+            <span>Current Password</span>
+            <input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required style={inputStyle} />
+          </label>
+          <label style={labelStyle}>
+            <span>New Password</span>
+            <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={6} style={inputStyle} />
+          </label>
+          <label style={labelStyle}>
+            <span>Confirm New Password</span>
+            <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} required minLength={6} style={inputStyle} />
+          </label>
+
+          <button type="submit" disabled={pwSaving} style={primaryBtn}>
+            {pwSaving ? "Changing…" : "Change Password"}
+          </button>
+        </form>
+      </div>
+
+      {/* TOTP */}
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: "28px 32px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
+      }}>
+        <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Two-Factor Authentication</h2>
+        <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
+          {profile?.has_totp
+            ? "TOTP is currently enabled. You must enter a verification code after your password to login."
+            : "Two-factor authentication adds an extra layer of security to your account."}
+        </p>
+
+        {totpErr && <div style={errorStyle}>{totpErr}</div>}
+        {totpSuccess && <div style={successStyle}>{totpSuccess}</div>}
+
+        {totpQr && (
+          <div style={{ marginBottom: 20, textAlign: "center" }}>
+            <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>Scan this QR code with your authenticator app:</p>
+            <img src={`data:image/png;base64,${totpQr}`} alt="TOTP QR Code" style={{ width: 200, height: 200, borderRadius: 8, border: "1px solid #e5e7eb" }} />
+          </div>
+        )}
+
+        {totpSecret && (
+          <div style={{ marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: "#374151", marginBottom: 6, fontWeight: 600 }}>TOTP Secret (Manual Entry)</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{
+                flex: 1, padding: "10px 12px", borderRadius: 8,
+                border: "1.5px solid #d1d5db", fontFamily: "monospace", fontSize: 14,
+                background: "#f9fafb", wordBreak: "break-all",
+              }}>
+                {showTotpSecret ? totpSecret : "•".repeat(totpSecret.length)}
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTotpSecret(!showTotpSecret)}
+                style={{
+                  padding: "8px 14px", borderRadius: 8, border: "1.5px solid #d1d5db",
+                  background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {showTotpSecret ? "Hide" : "Show"}
+              </button>
+              <button
+                type="button"
+                onClick={() => { navigator.clipboard.writeText(totpSecret); }}
+                style={{
+                  padding: "8px 14px", borderRadius: 8, border: "1.5px solid #d1d5db",
+                  background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Copy
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10 }}>
+          {profile?.has_totp && (
+            <button
+              onClick={handleShowTotpQr}
+              style={{
+                padding: "10px 20px", borderRadius: 8, border: "1.5px solid #d1d5db",
+                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              }}
+            >
+              Show TOTP QR
+            </button>
+          )}
+          <button
+            onClick={() => openTotpDialog(profile?.has_totp ? "regenerate" : "setup")}
+            style={{
+              padding: "10px 20px", borderRadius: 8,
+              border: profile?.has_totp ? "1.5px solid #fca5a5" : "1.5px solid #d1d5db",
+              background: profile?.has_totp ? "#fef2f2" : "#fff",
+              color: profile?.has_totp ? "#dc2626" : "#374151",
+              fontSize: 14, fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            {profile?.has_totp ? "Regenerate TOTP Secret" : "Set Up TOTP"}
+          </button>
+        </div>
+      </div>
+
+      {/* Password Confirmation Dialog */}
+      {showTotpDialog && (
+        <div style={overlayStyle} onClick={() => setShowTotpDialog(false)}>
+          <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 700, color: "#1a1d2e" }}>
+              {totpAction === "setup" ? "Set Up Two-Factor Authentication" : "Regenerate TOTP Secret"}
+            </h3>
+            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
+              {totpAction === "setup"
+                ? "Enter your current password to set up TOTP for your account."
+                : "Enter your current password to regenerate your TOTP secret. Your old authenticator codes will stop working."}
+            </p>
+            {totpErr && <div style={errorStyle}>{totpErr}</div>}
+            <label style={{ display: "block", marginBottom: 16 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Current Password</span>
+              <div style={{ position: "relative" }}>
+                <input
+                  type={showPwText ? "text" : "password"}
+                  value={totpPassword}
+                  onChange={(e) => setTotpPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter") handleTotpConfirm(); }}
+                  style={inputStyle}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwText(!showPwText)}
+                  style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 13 }}
+                >
+                  {showPwText ? "Hide" : "Show"}
+                </button>
+              </div>
+            </label>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => { setShowTotpDialog(false); setTotpPassword(""); setTotpErr(null); }}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTotpConfirm}
+                disabled={totpBusy || !totpPassword}
+                style={{
+                  padding: "8px 16px", borderRadius: 8, border: "none",
+                  background: totpBusy || !totpPassword ? "#9ca3af" : totpAction === "regenerate" ? "#dc2626" : "#3b4a6b",
+                  color: "#fff", fontSize: 13, fontWeight: 700,
+                  cursor: totpBusy || !totpPassword ? "not-allowed" : "pointer",
+                }}
+              >
+                {totpBusy ? "Processing..." : totpAction === "setup" ? "Set Up TOTP" : "Regenerate Secret"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* System Info */}
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: "28px 32px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
+      }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>System Info</h2>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+          <tbody>
+            {[
+              ["API Base", "/rent/admin/api"],
+              ["Frontend Base", "/rent/admin"],
+              ["Auth Scope", "Cookie: access_token"],
+            ].map(([label, value]) => (
+              <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>
+                <td style={{ padding: "12px 0" }}><code style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 6 }}>{value}</code></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {health && (
+          <>
+            <h2 style={{ margin: "20px 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Live Health</h2>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+              <tbody>
+                {[
+                  ["Status", health.status],
+                  ["Database", health.database],
+                  ["Active Connections", String(health.active_connections)],
+                  ["Uptime", health.uptime],
+                  ["Last Update", new Date(health.timestamp).toLocaleTimeString()],
+                ].map(([label, value]) => (
+                  <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                    <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>
+                    <td style={{ padding: "12px 0" }}>
+                      <code style={{
+                        background: label === "Status" || label === "Database"
+                          ? value === "ok" ? "#dcfce7" : "#fef2f2"
+                          : "#f1f5f9",
+                        color: label === "Status" || label === "Database"
+                          ? value === "ok" ? "#16a34a" : "#dc2626"
+                          : "inherit",
+                        padding: "2px 8px", borderRadius: 6,
+                      }}>{value}</code>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+
+      {/* Audit Log Settings */}
+      <form onSubmit={handleSaveAudit} style={{
+        background: "#fff", borderRadius: 14, padding: "28px 32px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
+      }}>
+        <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Audit Log Settings</h2>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#6b7280" }}>
+          Configure how long audit log entries are retained before cleanup.
+        </p>
+        {auditMsg && <p style={successStyle}>{auditMsg}</p>}
+        {auditErr && <p style={errorStyle}>{auditErr}</p>}
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
+          <div>
+            <label style={{ display: "block", marginBottom: 6, fontSize: 14, fontWeight: 600, color: "#374151" }}>
+              Retention Period (days)
+            </label>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={retentionDays}
+              onChange={(e) => setRetentionDays(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
+              style={{ ...inputStyle, width: 120 }}
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={auditSaving}
+            style={{
+              ...primaryBtn,
+              opacity: auditSaving ? 0.6 : 1,
+            }}
+          >
+            {auditSaving ? "Saving…" : "Save"}
+          </button>
+        </div>
+        <p style={{ margin: "10px 0 0", fontSize: 12, color: "#9ca3af" }}>
+          Logs older than this period are automatically cleaned up. Default: 30 days.
+        </p>
+      </form>
+    </Layout>
+  );
+}
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "10px 12px", borderRadius: 8,
+  border: "1.5px solid #d1d5db", fontSize: 14, outline: "none", boxSizing: "border-box",
+};
+const labelStyle: React.CSSProperties = {
+  display: "block", marginBottom: 16,
+};
+const primaryBtn: React.CSSProperties = {
+  marginTop: 8, padding: "10px 24px", borderRadius: 8, border: "none",
+  background: "#3b4a6b", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
+};
+const successStyle: React.CSSProperties = {
+  background: "#dcfce7", color: "#16a34a", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13,
+};
+const errorStyle: React.CSSProperties = {
+  background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13,
+};
+const overlayStyle: React.CSSProperties = {
+  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex",
+  alignItems: "center", justifyContent: "center", zIndex: 1000,
+};
+const dialogStyle: React.CSSProperties = {
+  background: "#fff", borderRadius: 14, padding: "24px 28px", width: "100%", maxWidth: 380, margin: "0 16px",
+  boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+};
+```
+
+### `frontend/admin-app/tsconfig.json`
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@shared/*": ["../shared/*"]
+    }
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+```
+
+### `frontend/admin-app/tsconfig.node.json`
+
+```json
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "types": ["node"],
+    "strict": true
+  },
+  "include": ["vite.config.ts"]
+}
+```
+
+### `frontend/admin-app/vite.config.ts`
+
+```typescript
+import path from "path";
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+export default defineConfig({
+  base: "/rent/admin/",
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "@shared": path.resolve(__dirname, "../shared"),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/")) {
+            return "react-vendor";
+          }
+          if (id.includes("node_modules/react-router")) {
+            return "router";
+          }
+        },
+        entryFileNames: "assets/[name]-[hash].js",
+        chunkFileNames: "assets/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
+      },
+    },
+    target: "es2022",
+  },
+});
+```
+
 ### `frontend/build.sh`
 
 ```bash
@@ -16266,7 +19346,16 @@ set -e
 
 echo "=== Building Rent Frontend Apps ==="
 
-APPS="landing-app platform-admin-app landlord-app tenant-app"
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+  echo "=== Loaded frontend/.env (VITE_* build vars) ==="
+else
+  echo "=== WARNING: frontend/.env not found — VITE_* build vars unset ==="
+fi
+
+APPS="landing-app admin-app landlord-app tenant-app"
 
 for app in $APPS; do
   echo ""
@@ -16281,7 +19370,7 @@ mkdir -p build-output/rent
 
 cp -r landing-app/dist/* build-output/rent/
 mkdir -p build-output/rent/admin
-cp -r platform-admin-app/dist/* build-output/rent/admin/
+cp -r admin-app/dist/* build-output/rent/admin/
 mkdir -p build-output/rent/landlord
 cp -r landlord-app/dist/* build-output/rent/landlord/
 mkdir -p build-output/rent/tenant
@@ -20166,7 +23255,8 @@ export default function ExportPreviewModal({
             </DialogContent>
         </Dialog>
     );
-}```
+}
+```
 
 ### `frontend/landlord-app/src/components/modals/ExportService.ts`
 
@@ -21672,7 +24762,8 @@ export default function PaymentModal({ open, onOpenChange, bill, onUpdate }: Pay
             </DialogContent>
         </Dialog>
     );
-}```
+}
+```
 
 ### `frontend/landlord-app/src/components/modals/SchemaMismatchDialog.tsx`
 
@@ -22318,7 +25409,8 @@ export function parseSchemaMismatch(
     }
 
     return info;
-}```
+}
+```
 
 ### `frontend/landlord-app/src/components/shared/EditBillModal.tsx`
 
@@ -22595,7 +25687,8 @@ export default function PDFPreviewModal({ billNo, tenantId, onClose }: PDFPrevie
       </DialogContent>
     </Dialog>
   );
-}```
+}
+```
 
 ### `frontend/landlord-app/src/components/shared/ReceiptRow.tsx`
 
@@ -35560,7 +38653,8 @@ export default function Settings() {
       </Dialog>
     </div>
   );
-}```
+}
+```
 
 ### `frontend/landlord-app/src/pages/Tenants.tsx`
 
@@ -37866,2991 +40960,6 @@ export default defineConfig({
 }
 ```
 
-### `frontend/platform-admin-app/package.json`
-
-```json
-{
-  "name": "platform-admin-app",
-  "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "react-router": "^8.3.0"
-  },
-  "devDependencies": {
-    "@types/node": "^26.1.2",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.3",
-    "typescript": "^5.9.3",
-    "vite": "^8.1.5"
-  }
-}
-```
-
-### `frontend/platform-admin-app/src/api/client.ts`
-
-```typescript
-import { getApiUrl } from "@shared/api-config";
-
-export const fetchApi = (path: string) => fetch(getApiUrl(`/rent/admin/api${path}`));
-
-```
-
-### `frontend/platform-admin-app/src/components/AuthLayout.tsx`
-
-```typescript
-import type { ReactNode } from "react";
-
-const NAV_LINKS = [
-  { label: "Home", href: "/rent/", icon: "🌍" },
-  { label: "Landlord Portal", href: "/rent/landlord/login", icon: "🏠" },
-  { label: "Tenant Portal", href: "/rent/tenant", icon: "👤" },
-];
-
-export default function AuthLayout({ children }: { children: ReactNode }) {
-  return (
-    <div style={{
-      minHeight: "100vh", display: "flex", flexDirection: "column",
-      background: "linear-gradient(135deg, #1a1d2e 0%, #2d3561 100%)",
-      fontFamily: "system-ui, sans-serif",
-    }}>
-      {/* Header */}
-      <header style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "16px 32px", flexWrap: "wrap", gap: 12,
-      }}>
-        <a href="/rent/admin/login" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          <span style={{
-            width: 36, height: 36, borderRadius: 10, display: "flex",
-            alignItems: "center", justifyContent: "center",
-            background: "rgba(255,255,255,0.15)", color: "#fff",
-            fontSize: 18, fontWeight: 700,
-          }}>P</span>
-          <span style={{ fontSize: 18, fontWeight: 700 }}>
-            <span style={{ color: "#a0b4c8" }}>PROP</span>
-            <span style={{ color: "#95A58F" }}>AURA</span>
-          </span>
-        </a>
-        <nav style={{ display: "flex", gap: 10 }}>
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "8px 16px", borderRadius: 9999,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "rgba(255,255,255,0.75)",
-                fontSize: 13, fontWeight: 600, textDecoration: "none",
-                transition: "background 0.15s, color 0.15s",
-              }}
-            >
-              <span style={{ fontSize: 14 }}>{link.icon}</span>
-              {link.label}
-            </a>
-          ))}
-        </nav>
-      </header>
-
-      {/* Content */}
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 16px" }}>
-        {children}
-      </div>
-
-      {/* Footer */}
-      <footer style={{ borderTop: "1px solid rgba(255,255,255,0.08)", padding: "16px 32px", textAlign: "center" }}>
-        <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
-          &copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.
-        </p>
-      </footer>
-    </div>
-  );
-}
-```
-
-### `frontend/platform-admin-app/src/components/BroadcastBanner.tsx`
-
-```typescript
-import { useState, useEffect, useCallback } from "react";
-import { getApiUrl } from "@shared/api-config";
-import "./BroadcastBanner.css";
-
-interface BroadcastConfig {
-  enabled: boolean;
-  message: string;
-  type: "info" | "warning" | "maintenance";
-  dismissible: boolean;
-}
-
-interface BroadcastBannerProps {
-  healthUrl?: string;
-}
-
-export default function BroadcastBanner({ healthUrl }: BroadcastBannerProps) {
-  const [broadcast, setBroadcast] = useState<BroadcastConfig | null>(null);
-  const [dismissed, setDismissed] = useState(false);
-  const url = healthUrl || getApiUrl("/health");
-
-  const fetchBroadcast = useCallback(async () => {
-    try {
-      const res = await fetch(url, { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.broadcast?.enabled && data.broadcast.message) {
-          setBroadcast(data.broadcast);
-        } else {
-          setBroadcast(null);
-        }
-      }
-    } catch {
-      // Silently ignore — broadcast is non-critical
-    }
-  }, [url]);
-
-  useEffect(() => {
-    fetchBroadcast();
-    const interval = setInterval(fetchBroadcast, 30000);
-    return () => clearInterval(interval);
-  }, [fetchBroadcast]);
-
-  if (!broadcast || dismissed) return null;
-
-  const typeClass = broadcast.type || "info";
-
-  return (
-    <div className={`broadcast-banner broadcast-${typeClass}`}>
-      <div className="broadcast-banner-content">
-        <span className="broadcast-banner-icon">
-          {typeClass === "maintenance" ? "🔧" : typeClass === "warning" ? "⚠️" : "ℹ️"}
-        </span>
-        <span className="broadcast-banner-message">{broadcast.message}</span>
-      </div>
-      {broadcast.dismissible && (
-        <button
-          className="broadcast-banner-close"
-          onClick={() => setDismissed(true)}
-          aria-label="Dismiss"
-        >
-          ×
-        </button>
-      )}
-    </div>
-  );
-}
-```
-
-### `frontend/platform-admin-app/src/components/Layout.tsx`
-
-```typescript
-import { Link, useLocation, useNavigate } from "react-router";
-import { useAuth } from "../contexts/AuthContext";
-
-const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: "📊" },
-  { to: "/landlords", label: "Landlords", icon: "🏠" },
-  { to: "/explorer", label: "Data Explorer", icon: "🔍" },
-  { to: "/audit-logs", label: "Audit Logs", icon: "📋" },
-  { to: "/settings",  label: "Settings",  icon: "⚙️"  },
-];
-
-export default function Layout({ children }: { children: React.ReactNode }) {
-  const { admin, logout } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
-
-  async function handleLogout() {
-    await logout();
-    navigate("/login", { replace: true });
-  }
-
-  return (
-    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "system-ui, sans-serif", background: "#f4f6fa" }}>
-      <aside style={{
-        width: 220,
-        background: "#1a1d2e",
-        color: "#c9cdd8",
-        display: "flex",
-        flexDirection: "column",
-        padding: "24px 0",
-        position: "fixed",
-        inset: "0 auto 0 0",
-        zIndex: 100,
-      }}>
-        <div style={{ padding: "0 20px 24px", borderBottom: "1px solid #2c2f3f" }}>
-          <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></p>
-          <p style={{ fontSize: 14, fontWeight: 600, color: "#e9ecf2", margin: 0 }}>Control Panel</p>
-        </div>
-        <nav style={{ flex: 1, padding: "16px 12px" }}>
-          {NAV.map(({ to, label, icon }) => {
-            const active = to === "/landlords"
-              ? location.pathname.startsWith("/landlords")
-              : location.pathname.startsWith(to);
-            return (
-              <Link
-                key={to}
-                to={to}
-                style={{
-                  display: "flex", alignItems: "center", gap: 10,
-                  padding: "10px 12px", borderRadius: 8, marginBottom: 4,
-                  color: active ? "#fff" : "#9ca3af",
-                  background: active ? "#3b4a6b" : "transparent",
-                  textDecoration: "none", fontSize: 14, fontWeight: active ? 600 : 400,
-                  transition: "background 0.15s",
-                }}
-              >
-                <span>{icon}</span>
-                {label}
-              </Link>
-            );
-          })}
-        </nav>
-        <div style={{ padding: "16px 12px", borderTop: "1px solid #2c2f3f" }}>
-          {/* Cross-app quick access */}
-          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: 1, padding: "0 12px" }}>
-            Quick Access
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12, padding: "0 4px" }}>
-            <a href="/rent/" style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "8px 12px", borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
-              color: "#9ca3af", fontSize: 13, fontWeight: 500, textDecoration: "none",
-            }}>
-              <span style={{ fontSize: 14 }}>🌍</span>
-              Home
-            </a>
-            <a href="/rent/landlord/login" style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "8px 12px", borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
-              color: "#9ca3af", fontSize: 13, fontWeight: 500, textDecoration: "none",
-            }}>
-              <span style={{ fontSize: 14 }}>🏠</span>
-              Landlord Portal
-            </a>
-            <a href="/rent/tenant" style={{
-              display: "flex", alignItems: "center", gap: 8,
-              padding: "8px 12px", borderRadius: 8,
-              border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
-              color: "#9ca3af", fontSize: 13, fontWeight: 500, textDecoration: "none",
-            }}>
-              <span style={{ fontSize: 14 }}>👤</span>
-              Tenant Portal
-            </a>
-          </div>
-
-          {/* User info + logout */}
-          <div style={{ borderTop: "1px solid #2c2f3f", paddingTop: 12 }}>
-            <p style={{ margin: "0 0 8px", fontSize: 13, color: "#9ca3af", padding: "0 12px" }}>
-              Logged in as <strong style={{ color: "#e9ecf2" }}>{admin?.username ?? "…"}</strong>
-            </p>
-            <button
-              onClick={handleLogout}
-              style={{
-                width: "100%", padding: "8px 0", borderRadius: 6, border: "none",
-                background: "#ef4444", color: "#fff", fontSize: 13, cursor: "pointer", fontWeight: 600,
-              }}
-            >
-              Log out
-            </button>
-          </div>
-          <p style={{ margin: "10px 0 0", fontSize: 10, color: "#4b5563", textAlign: "center" }}>
-            &copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.
-          </p>
-        </div>
-      </aside>
-
-      <main style={{ marginLeft: 220, flex: 1, padding: 32 }}>
-        {children}
-      </main>
-    </div>
-  );
-}
-```
-
-### `frontend/platform-admin-app/src/components/LoadingScreen.tsx`
-
-```typescript
-import { useState, useEffect } from "react";
-import "./LoadingScreen.css";
-
-interface LoadingScreenProps {
-  isLoading: boolean;
-}
-
-export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
-  const [visible, setVisible] = useState(true);
-  const [fading, setFading] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading && visible) {
-      setFading(true);
-      const timer = setTimeout(() => setVisible(false), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading, visible]);
-
-  if (!visible) return null;
-
-  return (
-    <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
-      <div className="loading-brand">
-        <span className="loading-prop">PROP</span>
-        <span className="loading-aura">AURA</span>
-      </div>
-      <div className="loading-spinner" />
-    </div>
-  );
-}
-```
-
-### `frontend/platform-admin-app/src/contexts/AuthContext.tsx`
-
-```typescript
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
-import { API_BASE } from "../lib/runtime";
-import { useAuthSync } from "../hooks/useAuthSync";
-
-interface Admin {
-  id: number;
-  username: string;
-  email: string | null;
-  is_platform_admin: boolean;
-  has_totp: boolean;
-}
-
-interface TOTPResult {
-  requires_totp: boolean;
-}
-
-interface AuthContextValue {
-  admin: Admin | null;
-  loading: boolean;
-  login: (username: string, password: string, rememberMe?: boolean) => Promise<TOTPResult>;
-  loginTOTP: (totpToken: string) => Promise<void>;
-  logout: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [admin, setAdmin] = useState<Admin | null>(null);
-  const [loading, setLoading] = useState(true);
-  const pendingCreds = useRef<{ username: string; password: string; rememberMe: boolean } | null>(null);
-
-  useEffect(() => {
-    fetch(`${API_BASE}/auth/me`, { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) setAdmin(data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  const login = useCallback(async (username: string, password: string, rememberMe = false): Promise<TOTPResult> => {
-    const res = await fetch(`${API_BASE}/auth/login`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, remember_me: rememberMe }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Login failed" }));
-      throw new Error(err.detail ?? "Login failed");
-    }
-    const data = await res.json();
-    if (data.status === "totp_required") {
-      pendingCreds.current = { username, password, rememberMe };
-      return { requires_totp: true };
-    }
-    const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
-    setAdmin(me);
-    return { requires_totp: false };
-  }, []);
-
-  const loginTOTP = useCallback(async (totpToken: string) => {
-    const creds = pendingCreds.current;
-    if (!creds) throw new Error("No pending credentials. Please login again.");
-    const res = await fetch(`${API_BASE}/auth/login-totp`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        username: creds.username,
-        password: creds.password,
-        totpToken,
-        remember_me: creds.rememberMe,
-      }),
-    });
-    pendingCreds.current = null;
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "TOTP verification failed" }));
-      throw new Error(err.detail ?? "TOTP verification failed");
-    }
-    const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
-    setAdmin(me);
-  }, []);
-
-  const logout = useCallback(async () => {
-    await fetch(`${API_BASE}/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {});
-    setAdmin(null);
-    pendingCreds.current = null;
-  }, []);
-
-  const refreshMe = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        setAdmin(data);
-      }
-    } catch {
-      // Ignore — non-critical
-    }
-  }, []);
-
-  // Real-time auth state sync via WebSocket
-  useAuthSync(
-    "platform_admin",
-    useCallback(
-      (event) => {
-        if (
-          event.type === "AUTH_STATE_CHANGED" ||
-          event.type === "TOTP_STATE_CHANGED" ||
-          event.type === "PASSWORD_RESET"
-        ) {
-          refreshMe();
-        }
-      },
-      [refreshMe]
-    ),
-    !!admin
-  );
-
-  return (
-    <AuthContext.Provider value={{ admin, loading, login, loginTOTP, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
-}
-```
-
-### `frontend/platform-admin-app/src/hooks/useAuthSync.ts`
-
-```typescript
-import { useEffect, useRef } from "react";
-import { getApiBaseUrl } from "@shared/api-config";
-
-export interface AuthSyncEvent {
-  type: string;
-  [key: string]: any;
-}
-
-type AuthEventHandler = (event: AuthSyncEvent) => void;
-
-/**
- * Subscribe to real-time auth state changes via WebSocket.
- * Connects to /ws/auth and listens for AUTH_STATE_CHANGED, TOTP_STATE_CHANGED, PASSWORD_RESET.
- * Automatically reconnects on disconnect.
- *
- * @param channel - Auth channel (e.g., "landlord:{uuid}")
- * @param onEvent - Callback invoked when an auth event is received
- * @param enabled - Whether to enable the connection (default: true)
- */
-export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled = true) {
-  const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
-
-  useEffect(() => {
-    if (!enabled || !channel) return;
-
-    let ws: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let pingTimer: ReturnType<typeof setInterval> | null = null;
-    let unmounted = false;
-
-    function connect() {
-      if (unmounted) return;
-
-      const apiBase = getApiBaseUrl();
-      let wsUrl: string;
-
-      if (apiBase) {
-        const wsBase = apiBase.replace(/^https?/, "ws");
-        wsUrl = `${wsBase}/ws/auth?channel=${encodeURIComponent(channel)}`;
-      } else {
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        wsUrl = `${protocol}//${window.location.host}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
-      }
-
-      ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        pingTimer = setInterval(() => {
-          if (ws?.readyState === WebSocket.OPEN) {
-            ws.send("ping");
-          }
-        }, 30000);
-      };
-
-      ws.onmessage = (e) => {
-        try {
-          const event = JSON.parse(e.data);
-          if (event.type !== "pong") {
-            onEventRef.current(event);
-          }
-        } catch {
-          // Ignore malformed messages
-        }
-      };
-
-      ws.onclose = () => {
-        if (pingTimer) clearInterval(pingTimer);
-        if (!unmounted) {
-          reconnectTimer = setTimeout(connect, 3000);
-        }
-      };
-
-      ws.onerror = () => {
-        ws?.close();
-      };
-    }
-
-    connect();
-
-    return () => {
-      unmounted = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (pingTimer) clearInterval(pingTimer);
-      ws?.close();
-    };
-  }, [channel, enabled]);
-}
-```
-
-### `frontend/platform-admin-app/src/hooks/useHealthStream.ts`
-
-```typescript
-import { useEffect, useRef, useState } from "react";
-import { getApiBaseUrl } from "@shared/api-config";
-
-export interface HealthSnapshot {
-  type: string;
-  status: string;
-  database: string;
-  active_connections: number;
-  uptime: string;
-  timestamp: string;
-}
-
-/**
- * Subscribe to real-time system health via WebSocket.
- * Connects to /ws/health and receives periodic health snapshots (every 15s).
- * Automatically reconnects on disconnect.
- *
- * @param enabled - Whether to enable the stream (default: true)
- */
-export function useHealthStream(enabled = true) {
-  const [health, setHealth] = useState<HealthSnapshot | null>(null);
-  const healthRef = useRef(health);
-  healthRef.current = health;
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    let ws: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let unmounted = false;
-
-    function connect() {
-      if (unmounted) return;
-
-      const apiBase = getApiBaseUrl();
-      let wsUrl: string;
-
-      if (apiBase) {
-        const wsBase = apiBase.replace(/^https?/, "ws");
-        wsUrl = `${wsBase}/ws/health`;
-      } else {
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        wsUrl = `${protocol}//${window.location.host}/rent/ws/health`;
-      }
-
-      ws = new WebSocket(wsUrl);
-
-      ws.onmessage = (e) => {
-        try {
-          const snapshot = JSON.parse(e.data);
-          if (snapshot.type === "HEALTH_UPDATE") {
-            setHealth(snapshot);
-          }
-        } catch {
-          // Ignore malformed messages
-        }
-      };
-
-      ws.onclose = () => {
-        if (!unmounted) {
-          reconnectTimer = setTimeout(connect, 5000);
-        }
-      };
-
-      ws.onerror = () => {
-        ws?.close();
-      };
-    }
-
-    connect();
-
-    return () => {
-      unmounted = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      ws?.close();
-    };
-  }, [enabled]);
-
-  return health;
-}
-```
-
-### `frontend/platform-admin-app/src/lib/runtime.ts`
-
-```typescript
-import { getApiBaseUrl } from "@shared/api-config";
-
-export const APP_BASE = "/rent/admin";
-export const API_BASE = getApiBaseUrl() + "/rent/admin/api";
-
-```
-
-### `frontend/platform-admin-app/src/pages/AuditLogsPage.tsx`
-
-```typescript
-import { useState, useEffect, useCallback } from "react";
-import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
-
-const ACTION_COLORS: Record<string, { bg: string; fg: string }> = {
-  login_success:       { bg: "#dcfce7", fg: "#16a34a" },
-  login_password_ok:   { bg: "#dbeafe", fg: "#2563eb" },
-  login_failed:        { bg: "#fef2f2", fg: "#dc2626" },
-  login_locked_out:    { bg: "#fff7ed", fg: "#ea580c" },
-  login_totp_failed:   { bg: "#fef2f2", fg: "#dc2626" },
-  logout:              { bg: "#f3f4f6", fg: "#6b7280" },
-  totp_regenerated:    { bg: "#f5f3ff", fg: "#7c3aed" },
-  totp_enabled:        { bg: "#ecfdf5", fg: "#059669" },
-  totp_disabled:       { bg: "#fef2f2", fg: "#dc2626" },
-  password_changed:    { bg: "#eff6ff", fg: "#2563eb" },
-  password_revealed:   { bg: "#fdf2f8", fg: "#db2777" },
-  password_reset:      { bg: "#fef9c3", fg: "#a16207" },
-  profile_updated:     { bg: "#ecfdf5", fg: "#059669" },
-  landlord_totp_toggled: { bg: "#fefce8", fg: "#ca8a04" },
-  tenant_created:      { bg: "#dcfce7", fg: "#16a34a" },
-  tenant_updated:      { bg: "#dbeafe", fg: "#2563eb" },
-  tenant_archive:      { bg: "#fef9c3", fg: "#a16207" },
-  tenant_delete:       { bg: "#fef2f2", fg: "#dc2626" },
-  bill_created:        { bg: "#dcfce7", fg: "#16a34a" },
-  bill_updated:        { bg: "#dbeafe", fg: "#2563eb" },
-  bill_deleted:        { bg: "#fef2f2", fg: "#dc2626" },
-  backup_created:      { bg: "#f5f3ff", fg: "#7c3aed" },
-  backup_restored:     { bg: "#fef9c3", fg: "#a16207" },
-  settings_updated:    { bg: "#ecfdf5", fg: "#059669" },
-  Token_Refreshed:     { bg: "#f3f4f6", fg: "#6b7280" },
-  "Logout All Devices": { bg: "#fef2f2", fg: "#dc2626" },
-};
-
-const APP_SOURCE_COLORS: Record<string, { bg: string; fg: string; label: string }> = {
-  platform_admin: { bg: "#ede9fe", fg: "#7c3aed", label: "Platform" },
-  landlord:       { bg: "#dbeafe", fg: "#2563eb", label: "Landlord" },
-  tenant:         { bg: "#dcfce7", fg: "#16a34a", label: "Tenant" },
-};
-
-function actionBadge(action: string) {
-  const c = ACTION_COLORS[action] || { bg: "#f3f4f6", fg: "#374151" };
-  return (
-    <span style={{
-      display: "inline-block", padding: "2px 10px", borderRadius: 9999,
-      fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg,
-      whiteSpace: "nowrap",
-    }}>
-      {action.replace(/_/g, " ")}
-    </span>
-  );
-}
-
-function appBadge(source: string) {
-  const c = APP_SOURCE_COLORS[source] || { bg: "#f3f4f6", fg: "#374151", label: source };
-  return (
-    <span style={{
-      display: "inline-block", padding: "2px 10px", borderRadius: 9999,
-      fontSize: 11, fontWeight: 700, background: c.bg, color: c.fg,
-      whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: 0.5,
-    }}>
-      {c.label}
-    </span>
-  );
-}
-
-function formatTs(ts: string) {
-  if (!ts) return "\u2014";
-  try {
-    const d = new Date(ts + (ts.includes("Z") ? "" : "Z"));
-    return d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
-  } catch { return ts; }
-}
-
-interface AuditEntry {
-  id: number;
-  app_source: string;
-  actor_id: number;
-  actor_name: string;
-  action: string;
-  target_type: string | null;
-  target_id: number | null;
-  ip_address: string;
-  meta: Record<string, unknown>;
-  created_at: string;
-}
-
-export default function AuditLogsPage() {
-  const [logs, setLogs] = useState<AuditEntry[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [offset, setOffset] = useState(0);
-  const [limit] = useState(30);
-
-  const [actionFilter, setActionFilter] = useState("");
-  const [appFilter, setAppFilter] = useState("");
-  const [searchFilter, setSearchFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [actionTypes, setActionTypes] = useState<string[]>([]);
-
-  const [exporting, setExporting] = useState(false);
-
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (actionFilter) params.set("action_type", actionFilter);
-      if (appFilter) params.set("app_source", appFilter);
-      if (searchFilter) params.set("search", searchFilter);
-      if (dateFrom) params.set("date_from", dateFrom);
-      if (dateTo) params.set("date_to", dateTo);
-      params.set("limit", String(limit));
-      params.set("offset", String(offset));
-
-      const res = await fetch(`${API_BASE}/audit-logs?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load");
-      const data = await res.json();
-      setLogs(data.items);
-      setTotal(data.total);
-    } catch {
-      setLogs([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [actionFilter, appFilter, searchFilter, dateFrom, dateTo, offset, limit]);
-
-  useEffect(() => { fetchLogs(); }, [fetchLogs]);
-
-  useEffect(() => {
-    const params = new URLSearchParams();
-    if (appFilter) params.set("app_source", appFilter);
-    fetch(`${API_BASE}/audit-logs/actions?${params}`, { credentials: "include" })
-      .then((r) => r.ok ? r.json() : [])
-      .then((d) => setActionTypes(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, [appFilter]);
-
-  const handleExport = async () => {
-    setExporting(true);
-    try {
-      const params = new URLSearchParams();
-      if (actionFilter) params.set("action_type", actionFilter);
-      if (appFilter) params.set("app_source", appFilter);
-      if (searchFilter) params.set("search", searchFilter);
-      if (dateFrom) params.set("date_from", dateFrom);
-      if (dateTo) params.set("date_to", dateTo);
-
-      const res = await fetch(`${API_BASE}/audit-logs/export?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Export failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.jsonl`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      alert("Export failed. Please try again.");
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const resetFilters = () => {
-    setActionFilter("");
-    setAppFilter("");
-    setSearchFilter("");
-    setDateFrom("");
-    setDateTo("");
-    setOffset(0);
-  };
-
-  const hasFilters = actionFilter || appFilter || searchFilter || dateFrom || dateTo;
-  const totalPages = Math.ceil(total / limit);
-
-  return (
-    <Layout>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Audit Logs</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
-            Unified activity across Platform, Landlord, and Tenant apps
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={handleExport}
-            disabled={exporting || logs.length === 0}
-            style={{
-              padding: "8px 18px", borderRadius: 8, border: "1.5px solid #d1d5db",
-              background: "#fff", fontSize: 13, fontWeight: 600, cursor: exporting ? "wait" : "pointer",
-              opacity: logs.length === 0 ? 0.5 : 1,
-            }}
-          >
-            {exporting ? "Exporting\u2026" : "Export JSONL"}
-          </button>
-        </div>
-      </div>
-
-      <div style={{
-        display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end",
-        padding: "14px 16px", borderRadius: 10, background: "#fff", border: "1px solid #e5e7eb",
-      }}>
-        <div>
-          <label style={labelSm}>App</label>
-          <select
-            value={appFilter}
-            onChange={(e) => { setAppFilter(e.target.value); setOffset(0); }}
-            style={selectStyle}
-          >
-            <option value="">All Apps</option>
-            <option value="platform_admin">Platform Admin</option>
-            <option value="landlord">Landlord</option>
-            <option value="tenant">Tenant</option>
-          </select>
-        </div>
-        <div>
-          <label style={labelSm}>Action Type</label>
-          <select
-            value={actionFilter}
-            onChange={(e) => { setActionFilter(e.target.value); setOffset(0); }}
-            style={selectStyle}
-          >
-            <option value="">All Actions</option>
-            {actionTypes.map((a) => (
-              <option key={a} value={a}>{a.replace(/_/g, " ")}</option>
-            ))}
-          </select>
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <label style={labelSm}>Search</label>
-          <input
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { setOffset(0); fetchLogs(); } }}
-            placeholder="Action, IP, actor\u2026"
-            style={inputStyle}
-          />
-        </div>
-        <div>
-          <label style={labelSm}>From</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => { setDateFrom(e.target.value); setOffset(0); }}
-            style={inputStyle}
-          />
-        </div>
-        <div>
-          <label style={labelSm}>To</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => { setDateTo(e.target.value); setOffset(0); }}
-            style={inputStyle}
-          />
-        </div>
-        {hasFilters && (
-          <button onClick={resetFilters} style={{ ...btnSecondary, marginBottom: 1 }}>
-            Reset
-          </button>
-        )}
-      </div>
-
-      <div style={{ marginBottom: 12, fontSize: 13, color: "#6b7280" }}>
-        {total} total entries{hasFilters ? ` (filtered)` : ""}
-      </div>
-
-      <div style={{ borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden", background: "#fff" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-            <thead>
-              <tr style={{ background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                <th style={thStyle}>Timestamp</th>
-                <th style={thStyle}>App</th>
-                <th style={thStyle}>Actor</th>
-                <th style={thStyle}>Action</th>
-                <th style={thStyle}>Target</th>
-                <th style={thStyle}>IP Address</th>
-                <th style={thStyle}>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                    Loading\u2026
-                  </td>
-                </tr>
-              ) : logs.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
-                    No audit logs found
-                  </td>
-                </tr>
-              ) : logs.map((log) => (
-                <tr key={`${log.app_source}-${log.id}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={tdStyle} title={log.created_at}>{formatTs(log.created_at)}</td>
-                  <td style={tdStyle}>{appBadge(log.app_source)}</td>
-                  <td style={tdStyle}>
-                    <span style={{ fontWeight: 600, color: "#1a1d2e" }}>{log.actor_name || "\u2014"}</span>
-                  </td>
-                  <td style={tdStyle}>{actionBadge(log.action)}</td>
-                  <td style={tdStyle}>
-                    {log.target_type ? (
-                      <span style={{ color: "#6b7280" }}>
-                        {log.target_type}{log.target_id ? ` #${log.target_id}` : ""}
-                      </span>
-                    ) : "\u2014"}
-                  </td>
-                  <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 12 }}>{log.ip_address || "\u2014"}</td>
-                  <td style={{ ...tdStyle, maxWidth: 220 }}>
-                    {log.meta && Object.keys(log.meta).length > 0 ? (
-                      <span style={{ color: "#6b7280", fontSize: 12 }} title={JSON.stringify(log.meta, null, 2)}>
-                        {Object.entries(log.meta).map(([k, v]) => `${k}=${String(v)}`).join(", ")}
-                      </span>
-                    ) : "\u2014"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {totalPages > 1 && (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 16 }}>
-          <button
-            onClick={() => setOffset(Math.max(0, offset - limit))}
-            disabled={offset === 0}
-            style={{ ...btnSecondary, opacity: offset === 0 ? 0.4 : 1 }}
-          >
-            Previous
-          </button>
-          <span style={{ fontSize: 13, color: "#6b7280" }}>
-            Page {Math.floor(offset / limit) + 1} of {totalPages}
-          </span>
-          <button
-            onClick={() => setOffset(offset + limit)}
-            disabled={offset + limit >= total}
-            style={{ ...btnSecondary, opacity: offset + limit >= total ? 0.4 : 1 }}
-          >
-            Next
-          </button>
-        </div>
-      )}
-    </Layout>
-  );
-}
-
-const thStyle: React.CSSProperties = {
-  padding: "10px 14px", textAlign: "left", fontWeight: 600, color: "#374151",
-  fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5, whiteSpace: "nowrap",
-};
-const tdStyle: React.CSSProperties = {
-  padding: "10px 14px", color: "#374151", verticalAlign: "middle",
-};
-const labelSm: React.CSSProperties = {
-  display: "block", marginBottom: 4, fontSize: 11, fontWeight: 600,
-  color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5,
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "7px 10px", borderRadius: 6,
-  border: "1.5px solid #d1d5db", fontSize: 13, outline: "none",
-};
-const selectStyle: React.CSSProperties = {
-  padding: "7px 10px", borderRadius: 6,
-  border: "1.5px solid #d1d5db", fontSize: 13, outline: "none",
-  background: "#fff", minWidth: 150,
-};
-const btnSecondary: React.CSSProperties = {
-  padding: "7px 16px", borderRadius: 6, border: "1.5px solid #d1d5db",
-  background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer",
-};
-```
-
-### `frontend/platform-admin-app/src/pages/DashboardPage.tsx`
-
-```typescript
-import { useEffect, useState } from "react";
-import { Link } from "react-router";
-import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
-
-interface Stats {
-  total_landlords: number;
-  active_landlords: number;
-  total_admins: number;
-  total_tenants: number;
-}
-
-function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number | string; color: string }) {
-  return (
-    <div style={{
-      background: "#fff", borderRadius: 14, padding: "24px 28px",
-      boxShadow: "0 2px 12px rgba(0,0,0,0.07)", flex: "1 1 200px", minWidth: 180,
-      borderTop: `4px solid ${color}`,
-    }}>
-      <div style={{ fontSize: 28, marginBottom: 10 }}>{icon}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: "#1a1d2e" }}>{value}</div>
-      <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{label}</div>
-    </div>
-  );
-}
-
-export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetch(`${API_BASE}/stats`, { credentials: "include" })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then(setStats)
-      .catch((e) => setError(e.message));
-  }, []);
-
-  return (
-    <Layout>
-      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>
-        Dashboard
-      </h1>
-
-      {error && (
-        <div style={{ background: "#fef2f2", color: "#dc2626", padding: "12px 16px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
-          Error loading stats: {error}
-        </div>
-      )}
-
-      {!stats && !error && (
-        <p style={{ color: "#9ca3af" }}>Loading stats…</p>
-      )}
-
-      {stats && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 20, marginBottom: 32 }}>
-          <StatCard icon="🏢" label="Total Landlords"  value={stats.total_landlords}  color="#3b82f6" />
-          <StatCard icon="✅" label="Active Landlords" value={stats.active_landlords} color="#22c55e" />
-          <StatCard icon="👤" label="Admin Accounts"  value={stats.total_admins}     color="#a855f7" />
-          <StatCard icon="🏠" label="Total Tenants"   value={stats.total_tenants}    color="#f59e0b" />
-        </div>
-      )}
-
-      <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-        <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600, color: "#374151" }}>Quick Actions</h2>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link to="/landlords"
-            style={{ padding: "10px 20px", borderRadius: 8, background: "#3b4a6b", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
-            Manage Landlords
-          </Link>
-        </div>
-      </div>
-    </Layout>
-  );
-}
-```
-
-### `frontend/platform-admin-app/src/pages/DataExplorerPage.tsx`
-
-```typescript
-import { useEffect, useState, useCallback } from "react";
-import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
-
-type Tab = "tenants" | "receipts" | "kyc";
-
-interface Landlord {
-  id: number;
-  full_name: string;
-  username: string;
-}
-
-interface PageResult {
-  items: Record<string, unknown>[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-interface TenantAuth {
-  tenant_id: number;
-  name: string;
-  status: string;
-  failed_attempts: number;
-  locked_until: string | null;
-  has_pin: boolean;
-  pin: string | null;
-  pin_updated_at?: string;
-}
-
-const TABS: { key: Tab; label: string; icon: string }[] = [
-  { key: "tenants", label: "Tenants", icon: "👤" },
-  { key: "receipts", label: "Receipts", icon: "🧾" },
-  { key: "kyc", label: "KYC Files", icon: "📄" },
-];
-
-const thStyle: React.CSSProperties = {
-  padding: "12px 14px", textAlign: "left", fontWeight: 600, color: "#374151",
-  borderBottom: "1px solid #e5e7eb", fontSize: 13,
-};
-const tdStyle: React.CSSProperties = {
-  padding: "12px 14px", fontSize: 14, color: "#1a1d2e",
-};
-const btnSm: React.CSSProperties = {
-  padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer",
-  fontSize: 12, fontWeight: 600,
-};
-
-function TenantsTable({ items, onAuth }: { items: Record<string, unknown>[]; onAuth: (id: number) => void }) {
-  return (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-      <thead>
-        <tr style={{ background: "#f9fafb" }}>
-          <th style={thStyle}>ID</th>
-          <th style={thStyle}>Name</th>
-          <th style={thStyle}>Unit</th>
-          <th style={thStyle}>Status</th>
-          <th style={thStyle}>Rent</th>
-          <th style={thStyle}>Landlord</th>
-          <th style={thStyle}>Auth</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((r) => (
-          <tr key={Number(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
-            <td style={tdStyle}>{String(r.id)}</td>
-            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.name)}</td>
-            <td style={tdStyle}>{String(r.unit ?? "—")}</td>
-            <td style={tdStyle}>
-              <span style={{
-                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
-                background: r.status === "Active" ? "#dcfce7" : "#fee2e2",
-                color: r.status === "Active" ? "#16a34a" : "#dc2626",
-              }}>
-                {String(r.status)}
-              </span>
-            </td>
-            <td style={tdStyle}>₱{String(r.rent_amount ?? 0)}</td>
-            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
-            <td style={tdStyle}>
-              <button
-                onClick={() => onAuth(Number(r.id))}
-                style={{ ...btnSm, background: "#e0e7ff", color: "#3730a3" }}
-              >
-                View PIN
-              </button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function ReceiptsTable({ items }: { items: Record<string, unknown>[] }) {
-  return (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-      <thead>
-        <tr style={{ background: "#f9fafb" }}>
-          <th style={thStyle}>Bill #</th>
-          <th style={thStyle}>Tenant</th>
-          <th style={thStyle}>Unit</th>
-          <th style={thStyle}>Total</th>
-          <th style={thStyle}>Status</th>
-          <th style={thStyle}>Date</th>
-          <th style={thStyle}>Month</th>
-          <th style={thStyle}>Landlord</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((r) => (
-          <tr key={String(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
-            <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 13 }}>{String(r.id)}</td>
-            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.tenant_name ?? "—")}</td>
-            <td style={tdStyle}>{String(r.tenant_unit ?? "—")}</td>
-            <td style={tdStyle}>₱{String(r.total ?? 0)}</td>
-            <td style={tdStyle}>
-              <span style={{
-                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
-                background: r.paymentstatus === "PAID" ? "#dcfce7" : r.paymentstatus === "PENDING" ? "#fef9c3" : "#fee2e2",
-                color: r.paymentstatus === "PAID" ? "#16a34a" : r.paymentstatus === "PENDING" ? "#92400e" : "#dc2626",
-              }}>
-                {String(r.paymentstatus)}
-              </span>
-            </td>
-            <td style={tdStyle}>{r.issued_at ? new Date(String(r.issued_at)).toLocaleDateString() : "—"}</td>
-            <td style={tdStyle}>{String(r.month ?? "—")}</td>
-            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function KYCTable({ items }: { items: Record<string, unknown>[] }) {
-  return (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-      <thead>
-        <tr style={{ background: "#f9fafb" }}>
-          <th style={thStyle}>UUID</th>
-          <th style={thStyle}>Name</th>
-          <th style={thStyle}>Status</th>
-          <th style={thStyle}>Mobile</th>
-          <th style={thStyle}>Since</th>
-          <th style={thStyle}>Tenant</th>
-          <th style={thStyle}>Unit</th>
-          <th style={thStyle}>Landlord</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((r) => (
-          <tr key={String(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
-            <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>{String(r.id).slice(0, 8)}…</td>
-            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.name)}</td>
-            <td style={tdStyle}>
-              <span style={{
-                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
-                background: r.status === "Active" ? "#dcfce7" : "#f3f4f6",
-                color: r.status === "Active" ? "#16a34a" : "#6b7280",
-              }}>
-                {String(r.status ?? "—")}
-              </span>
-            </td>
-            <td style={tdStyle}>{String(r.mobile ?? "—")}</td>
-            <td style={tdStyle}>{String(r.residentSince ?? "—")}</td>
-            <td style={tdStyle}>{String(r.tenant_name ?? "—")}</td>
-            <td style={tdStyle}>{String(r.tenant_unit ?? "—")}</td>
-            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-export default function DataExplorerPage() {
-  const [landlords, setLandlords] = useState<Landlord[]>([]);
-  const [selectedLandlord, setSelectedLandlord] = useState<Landlord | null>(null);
-  const [landlordSearch, setLandlordSearch] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-
-  const [tab, setTab] = useState<Tab>("tenants");
-  const [data, setData] = useState<PageResult>({ items: [], total: 0, limit: 20, offset: 0 });
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const [authModal, setAuthModal] = useState<TenantAuth | null>(null);
-  const [authLoading, setAuthLoading] = useState(false);
-
-  // Fetch landlords for dropdown
-  useEffect(() => {
-    fetch(`${API_BASE}/landlords?limit=1000`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((data) => setLandlords(Array.isArray(data) ? data : []))
-      .catch(() => {});
-  }, []);
-
-  const filteredLandlords = landlords.filter((l) => {
-    if (!landlordSearch) return true;
-    const q = landlordSearch.toLowerCase();
-    return l.full_name?.toLowerCase().includes(q) || l.username?.toLowerCase().includes(q);
-  });
-
-  // Fetch preview data
-  const fetchData = useCallback(async () => {
-    if (!selectedLandlord) { setData({ items: [], total: 0, limit: 20, offset: 0 }); return; }
-    setLoading(true);
-    const params = new URLSearchParams();
-    params.set("landlord_id", String(selectedLandlord.id));
-    if (search) params.set("search", search);
-    if (statusFilter) params.set("status", statusFilter);
-    params.set("limit", "20");
-    params.set("offset", String(data.offset));
-    try {
-      const res = await fetch(`${API_BASE}/preview/${tab}?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setData(await res.json());
-    } catch {
-      setData({ items: [], total: 0, limit: 20, offset: 0 });
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedLandlord, tab, search, statusFilter, data.offset]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-  useEffect(() => { setData((d) => ({ ...d, offset: 0 })); }, [tab, search, statusFilter, selectedLandlord]);
-
-  async function showTenantAuth(tenantId: number) {
-    setAuthLoading(true);
-    setAuthModal(null);
-    try {
-      const res = await fetch(`${API_BASE}/preview/tenants/${tenantId}/auth`, { credentials: "include" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setAuthModal(await res.json());
-    } catch {
-      setAuthModal({ tenant_id: tenantId, name: "Error", status: "?", failed_attempts: 0, locked_until: null, has_pin: false, pin: null });
-    } finally {
-      setAuthLoading(false);
-    }
-  }
-
-  return (
-    <Layout>
-      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Data Explorer</h1>
-
-      {/* Landlord Selector */}
-      <div style={{
-        background: "#fff", borderRadius: 14, padding: "16px 20px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
-      }}>
-        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-          Select Landlord
-        </label>
-        <div style={{ position: "relative" }}>
-          <input
-            type="text"
-            value={selectedLandlord ? `${selectedLandlord.full_name} (@${selectedLandlord.username})` : landlordSearch}
-            onChange={(e) => {
-              setLandlordSearch(e.target.value);
-              setSelectedLandlord(null);
-              setShowDropdown(true);
-            }}
-            onFocus={() => setShowDropdown(true)}
-            placeholder="Search landlord by name or username…"
-            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, boxSizing: "border-box" }}
-          />
-          {showDropdown && !selectedLandlord && filteredLandlords.length > 0 && (
-            <div style={{
-              position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
-              background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8,
-              maxHeight: 240, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-            }}>
-              {filteredLandlords.map((l) => (
-                <div
-                  key={l.id}
-                  onClick={() => { setSelectedLandlord(l); setLandlordSearch(""); setShowDropdown(false); setSearch(""); setStatusFilter(""); }}
-                  style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: 14 }}
-                >
-                  <div style={{ fontWeight: 600, color: "#1a1d2e" }}>{l.full_name}</div>
-                  <div style={{ fontSize: 12, color: "#9ca3af" }}>@{l.username}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-        {selectedLandlord && (
-          <button
-            onClick={() => { setSelectedLandlord(null); setLandlordSearch(""); }}
-            style={{ marginTop: 8, padding: "4px 12px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer", color: "#6b7280" }}
-          >
-            Clear selection
-          </button>
-        )}
-      </div>
-
-      {!selectedLandlord && (
-        <div style={{ background: "#fff", borderRadius: 14, padding: "48px 24px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)", textAlign: "center", color: "#9ca3af" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
-          <p style={{ fontSize: 15 }}>Select a landlord above to explore their data</p>
-        </div>
-      )}
-
-      {selectedLandlord && (
-        <>
-          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
-            {TABS.map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                style={{
-                  padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600,
-                  background: tab === t.key ? "#3b4a6b" : "#f3f4f6",
-                  color: tab === t.key ? "#fff" : "#374151",
-                  transition: "all 0.15s",
-                }}
-              >
-                {t.icon} {t.label}
-              </button>
-            ))}
-          </div>
-
-          <div style={{
-            background: "#fff", borderRadius: 14, padding: "16px 20px",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
-            display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
-          }}>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search…"
-              style={{ flex: 1, minWidth: 200, padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
-            >
-              <option value="">All statuses</option>
-              {tab === "tenants" && (
-                <>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </>
-              )}
-              {tab === "receipts" && (
-                <>
-                  <option value="PAID">Paid</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="OVERDUE">Overdue</option>
-                </>
-              )}
-              {tab === "kyc" && (
-                <>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </>
-              )}
-            </select>
-          </div>
-
-          <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", overflow: "hidden" }}>
-            {loading ? (
-              <p style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>Loading…</p>
-            ) : data.items.length === 0 ? (
-              <p style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>No results found for this landlord.</p>
-            ) : tab === "tenants" ? (
-              <TenantsTable items={data.items} onAuth={showTenantAuth} />
-            ) : tab === "receipts" ? (
-              <ReceiptsTable items={data.items} />
-            ) : (
-              <KYCTable items={data.items} />
-            )}
-          </div>
-
-          {data.total > data.limit && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 20 }}>
-              <button
-                disabled={data.offset === 0}
-                onClick={() => setData((d) => ({ ...d, offset: Math.max(0, d.offset - d.limit) }))}
-                style={{
-                  padding: "8px 20px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff",
-                  cursor: data.offset === 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
-                  opacity: data.offset === 0 ? 0.5 : 1,
-                }}
-              >
-                Previous
-              </button>
-              <span style={{ padding: "8px 0", fontSize: 13, color: "#6b7280" }}>
-                {data.offset + 1}–{Math.min(data.offset + data.limit, data.total)} of {data.total}
-              </span>
-              <button
-                disabled={data.offset + data.limit >= data.total}
-                onClick={() => setData((d) => ({ ...d, offset: d.offset + d.limit }))}
-                style={{
-                  padding: "8px 20px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff",
-                  cursor: data.offset + data.limit >= data.total ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
-                  opacity: data.offset + data.limit >= data.total ? 0.5 : 1,
-                }}
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Tenant Auth Modal */}
-      {(authModal || authLoading) && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
-          onClick={() => { setAuthModal(null); setAuthLoading(false); }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff", borderRadius: 16, padding: "28px 32px", width: "100%", maxWidth: 400, margin: "0 16px", maxHeight: "80vh", overflowY: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-            }}
-          >
-            <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 700, color: "#1a1d2e" }}>
-              Tenant Auth Details
-            </h2>
-            {authLoading && <p style={{ color: "#9ca3af" }}>Loading…</p>}
-            {authModal && !authLoading && (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                <tbody>
-                  {[
-                    ["Name", authModal.name],
-                    ["Status", authModal.status],
-                    ["Portal PIN", authModal.pin ?? "Not set"],
-                    ["Has PIN", authModal.has_pin ? "Yes" : "No"],
-                    ["Failed Attempts", String(authModal.failed_attempts)],
-                    ["Locked Until", authModal.locked_until ? new Date(authModal.locked_until).toLocaleString() : "Not locked"],
-                  ].map(([label, value]) => (
-                    <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                      <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 130 }}>{label}</td>
-                      <td style={{ padding: "10px 0", color: "#1a1d2e", fontFamily: label === "Portal PIN" ? "monospace" : "inherit" }}>
-                        {String(value)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-            <button
-              onClick={() => { setAuthModal(null); setAuthLoading(false); }}
-              style={{
-                marginTop: 20, width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
-                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-    </Layout>
-  );
-}
-```
-
-### `frontend/platform-admin-app/src/pages/LandlordDetailPage.tsx`
-
-```typescript
-import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router";
-import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
-
-interface LandlordDetail {
-  landlord: Record<string, unknown>;
-  has_password: boolean;
-  has_totp: boolean;
-  stats: {
-    tenants: number;
-    receipts: number;
-    kyc: number;
-    pending_revenue: number;
-  };
-}
-
-interface CreatorInfo {
-  landlord_id: number;
-  username: string;
-  full_name: string;
-  self_registered: boolean;
-  created_at: string;
-  signup_details: {
-    ip_address: string | null;
-    timestamp: string | null;
-    user_agent: string | null;
-  };
-  last_login: {
-    timestamp: string | null;
-    ip_address: string | null;
-  };
-}
-
-function StatBox({ label, value, color }: { label: string; value: number | string; color: string }) {
-  return (
-    <div style={{
-      background: "#f9fafb", borderRadius: 10, padding: "16px 20px", flex: "1 1 140px", minWidth: 130,
-      borderLeft: `4px solid ${color}`,
-    }}>
-      <div style={{ fontSize: 24, fontWeight: 700, color: "#1a1d2e" }}>{value}</div>
-      <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>{label}</div>
-    </div>
-  );
-}
-
-export default function LandlordDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const [detail, setDetail] = useState<LandlordDetail | null>(null);
-  const [creator, setCreator] = useState<CreatorInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!id) return;
-    Promise.all([
-      fetch(`${API_BASE}/landlords/${id}/details`, { credentials: "include" }).then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      }),
-      fetch(`${API_BASE}/landlords/${id}/creator-info`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
-    ])
-      .then(([d, c]) => { setDetail(d); setCreator(c); })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
-      .finally(() => setLoading(false));
-  }, [id]);
-
-  if (loading) return <Layout><p style={{ color: "#9ca3af" }}>Loading…</p></Layout>;
-  if (error) return <Layout><p style={{ color: "#dc2626" }}>{error}</p></Layout>;
-  if (!detail) return <Layout><p style={{ color: "#9ca3af" }}>Landlord not found.</p></Layout>;
-
-  const l = detail.landlord;
-  const statusColor = l.status === "Active" ? "#22c55e" : l.status === "Locked" ? "#ef4444" : "#6b7280";
-
-  return (
-    <Layout>
-      <Link to="/landlords" style={{ fontSize: 13, color: "#3b4a6b", textDecoration: "none", marginBottom: 16, display: "inline-block" }}>
-        ← Back to Landlords
-      </Link>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700, color: "#1a1d2e" }}>
-            {String(l.full_name || l.username)}
-          </h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
-            @{String(l.username)} · {String(l.email || "no email")}
-          </p>
-        </div>
-        <span style={{
-          display: "inline-block", padding: "4px 14px", borderRadius: 99, fontSize: 13, fontWeight: 600,
-          background: `${statusColor}20`, color: statusColor,
-        }}>
-          {String(l.status)}
-        </span>
-      </div>
-
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginBottom: 28 }}>
-        <StatBox label="Tenants" value={detail.stats.tenants} color="#3b82f6" />
-        <StatBox label="Receipts" value={detail.stats.receipts} color="#22c55e" />
-        <StatBox label="KYC Files" value={detail.stats.kyc} color="#a855f7" />
-        <StatBox label="Pending Revenue" value={`₱${detail.stats.pending_revenue.toLocaleString()}`} color="#f59e0b" />
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-        <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-          <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "#374151" }}>Account Details</h2>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-            <tbody>
-              {[
-                ["Landlord ID", l.id],
-                ["UUID", l.landlord_uuid],
-                ["Phone", l.phone],
-                ["Created", l.created_at ? new Date(String(l.created_at)).toLocaleString() : "—"],
-                ["Updated", l.updated_at ? new Date(String(l.updated_at)).toLocaleString() : "—"],
-                ["Has Password", detail.has_password ? "Yes" : "No"],
-                ["Has TOTP", detail.has_totp ? "Yes" : "No"],
-                ["Failed Attempts", l.failed_attempts ?? 0],
-                ["Locked Until", l.locked_until ? new Date(String(l.locked_until)).toLocaleString() : "—"],
-                ["PW Change Required", l.requires_password_change ? "Yes (forced)" : "No"],
-              ].map(([label, value]) => (
-                <tr key={String(label)} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                  <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 140 }}>{String(label)}</td>
-                  <td style={{ padding: "10px 0", color: "#1a1d2e" }}>{String(value ?? "—")}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {creator && (
-          <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-            <h2 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "#374151" }}>Creator Info</h2>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-              <tbody>
-                {[
-                  ["Registered By", creator.self_registered ? "Self-registered" : "Platform Admin"],
-                  ["Signup IP", creator.signup_details.ip_address ?? "—"],
-                  ["Signup Time", creator.signup_details.timestamp ? new Date(creator.signup_details.timestamp).toLocaleString() : "—"],
-                  ["Last Login", creator.last_login.timestamp ? new Date(creator.last_login.timestamp).toLocaleString() : "Never"],
-                  ["Last Login IP", creator.last_login.ip_address ?? "—"],
-                ].map(([label, value]) => (
-                  <tr key={String(label)} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 140 }}>{String(label)}</td>
-                    <td style={{ padding: "10px 0", color: "#1a1d2e" }}>{String(value)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </Layout>
-  );
-}
-```
-
-### `frontend/platform-admin-app/src/pages/LandlordsPage.tsx`
-
-```typescript
-import { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router";
-import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
-
-interface Landlord {
-  id: number;
-  landlord_uuid: string;
-  full_name: string;
-  email: string;
-  phone: string;
-  username: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-  has_totp: boolean;
-  failed_attempts: number;
-  locked_until: string | null;
-  requires_password_change: boolean;
-  tenant_count: number;
-  receipt_count: number;
-  kyc_count: number;
-}
-
-interface ModalData {
-  type: "totp" | "password" | "reset" | "reset_whatsapp";
-  landlord: Landlord;
-  result?: { password?: string; secret?: string; qr_code_base64?: string; message?: string; updated_at?: string; whatsapp_url?: string; requires_password_change?: boolean };
-  error?: string;
-  loading: boolean;
-}
-
-const badgeStyle = (status: string): React.CSSProperties => ({
-  display: "inline-block",
-  padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
-  background: status === "Active" ? "#dcfce7" : status === "Locked" ? "#fee2e2" : "#f3f4f6",
-  color: status === "Active" ? "#16a34a" : status === "Locked" ? "#dc2626" : "#6b7280",
-});
-
-export default function LandlordsPage() {
-  const [landlords, setLandlords] = useState<Landlord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [modal, setModal] = useState<ModalData | null>(null);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (statusFilter) params.set("status", statusFilter);
-      params.set("limit", "50");
-      const res = await fetch(`${API_BASE}/landlords?${params}`, { credentials: "include" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setLandlords(await res.json());
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load landlords");
-    } finally {
-      setLoading(false);
-    }
-  }, [search, statusFilter]);
-
-  useEffect(() => { fetchData(); }, [fetchData]);
-
-  async function toggleTOTP(l: Landlord) {
-    setModal({ type: "totp", landlord: l, loading: true });
-    try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/totp-toggle`, {
-        method: "POST", credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail ?? "Failed");
-      setModal({ type: "totp", landlord: l, result: data, loading: false });
-      fetchData();
-    } catch (e: unknown) {
-      setModal({ type: "totp", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
-    }
-  }
-
-  async function revealPassword(l: Landlord) {
-    setModal({ type: "password", landlord: l, loading: true });
-    try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/reveal-password`, { credentials: "include" });
-      const data = await res.json();
-      if (!res.ok) {
-        // Password not in vault — offer reset
-        setModal({ type: "password", landlord: l, error: data.detail ?? "Password not available. Use Reset instead.", loading: false });
-        return;
-      }
-      setModal({ type: "password", landlord: l, result: data, loading: false });
-    } catch (e: unknown) {
-      setModal({ type: "password", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
-    }
-  }
-
-  async function resetPassword(l: Landlord) {
-    if (!confirm(`Reset password for ${l.username}? The new password will be shown once.`)) return;
-    setModal({ type: "reset", landlord: l, loading: true });
-    try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/reset-password`, {
-        method: "POST", credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail ?? "Failed");
-      setModal({ type: "reset", landlord: l, result: data, loading: false });
-    } catch (e: unknown) {
-      setModal({ type: "reset", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
-    }
-  }
-
-  async function resetWithWhatsApp(l: Landlord) {
-    if (!l.phone) {
-      setModal({ type: "reset_whatsapp", landlord: l, error: "No phone number on file. Add one first.", loading: false });
-      return;
-    }
-    setModal({ type: "reset_whatsapp", landlord: l, loading: true });
-    try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/reset-password`, {
-        method: "POST", credentials: "include",
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail ?? "Failed");
-      setModal({ type: "reset_whatsapp", landlord: l, result: data, loading: false });
-    } catch (e: unknown) {
-      setModal({ type: "reset_whatsapp", landlord: l, error: e instanceof Error ? e.message : "Failed", loading: false });
-    }
-  }
-
-  return (
-    <Layout>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Landlords</h1>
-      </div>
-
-      <div style={{
-        background: "#fff", borderRadius: 14, padding: "16px 20px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
-        display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
-      }}>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by name, username, or email…"
-          style={{ flex: 1, minWidth: 200, padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
-        />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
-        >
-          <option value="">All statuses</option>
-          <option value="Active">Active</option>
-          <option value="Locked">Locked</option>
-          <option value="Inactive">Inactive</option>
-        </select>
-      </div>
-
-      {error && (
-        <div style={{ background: "#fef2f2", color: "#dc2626", padding: "12px 16px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
-          {error}
-        </div>
-      )}
-
-      {loading ? (
-        <p style={{ color: "#9ca3af" }}>Loading…</p>
-      ) : (
-        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", overflow: "hidden" }}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  {["ID", "Name", "Username", "Status", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
-                    <th key={h} style={{ padding: "12px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb", fontSize: 13, whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {landlords.length === 0 && (
-                  <tr>
-                    <td colSpan={11} style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>
-                      No landlords found.
-                    </td>
-                  </tr>
-                )}
-                {landlords.map((l) => (
-                  <tr key={l.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "12px 12px", color: "#6b7280" }}>{l.id}</td>
-                    <td style={{ padding: "12px 12px", fontWeight: 600, color: "#1a1d2e" }}>
-                      <Link to={`/landlords/${l.id}`} style={{ color: "#3b4a6b", textDecoration: "none" }}>
-                        {l.full_name || "—"}
-                      </Link>
-                      {l.email && <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 400 }}>{l.email}</div>}
-                    </td>
-                    <td style={{ padding: "12px 12px" }}>
-                      <code style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 6, fontSize: 13 }}>{l.username}</code>
-                    </td>
-                    <td style={{ padding: "12px 12px" }}>
-                      <span style={badgeStyle(l.status)}>{l.status}</span>
-                    </td>
-                    <td style={{ padding: "12px 12px", fontSize: 13 }}>
-                      {l.has_totp ? "✅" : "—"}
-                    </td>
-                    <td style={{ padding: "12px 12px", textAlign: "center" }}>
-                      {l.requires_password_change ? (
-                        <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: "#fef3c7", color: "#92400e" }}>
-                          PW Pending
-                        </span>
-                      ) : "—"}
-                    </td>
-                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.tenant_count}</td>
-                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.receipt_count}</td>
-                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.kyc_count}</td>
-                    <td style={{ padding: "12px 12px", fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>
-                      {l.created_at ? new Date(l.created_at).toLocaleDateString() : "—"}
-                    </td>
-                    <td style={{ padding: "12px 12px" }}>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        <button
-                          onClick={() => toggleTOTP(l)}
-                          style={{
-                            padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                            background: l.has_totp ? "#fef9c3" : "#dcfce7",
-                            color: l.has_totp ? "#92400e" : "#166534",
-                          }}
-                        >
-                          {l.has_totp ? "Disable TOTP" : "Enable TOTP"}
-                        </button>
-                        <button
-                          onClick={() => revealPassword(l)}
-                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#e0e7ff", color: "#3730a3" }}
-                        >
-                          Show PW
-                        </button>
-                        <button
-                          onClick={() => resetPassword(l)}
-                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#fee2e2", color: "#dc2626" }}
-                        >
-                          Reset PW
-                        </button>
-                        <button
-                          onClick={() => resetWithWhatsApp(l)}
-                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#dcfce7", color: "#166534" }}
-                          title="Reset password and send via WhatsApp"
-                        >
-                          Send WA
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Modal */}
-      {modal && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
-          onClick={() => setModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff", borderRadius: 16, padding: "28px 32px", width: "100%", maxWidth: 440, margin: "0 16px", maxHeight: "80vh", overflowY: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-            }}
-          >
-            <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 700, color: "#1a1d2e" }}>
-              {modal.type === "totp" && (modal.landlord.has_totp ? "Disable TOTP" : "Enable TOTP")}
-              {modal.type === "password" && "Reveal Password"}
-              {modal.type === "reset" && "Reset Password"}
-              {modal.type === "reset_whatsapp" && "Reset & Send via WhatsApp"}
-              <span style={{ fontWeight: 400, color: "#6b7280", fontSize: 14 }}> — {modal.landlord.username}</span>
-            </h2>
-
-            {modal.loading && <p style={{ color: "#9ca3af" }}>Loading…</p>}
-
-            {modal.error && (
-              <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
-                {modal.error}
-              </div>
-            )}
-
-            {modal.result && (
-              <div>
-                {modal.type === "totp" && (
-                  <div style={{ textAlign: "center" }}>
-                    {modal.result.qr_code_base64 && (
-                      <>
-                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>Scan this QR code with the landlord's authenticator app:</p>
-                        <img
-                          src={`data:image/png;base64,${modal.result.qr_code_base64}`}
-                          alt="TOTP QR"
-                          style={{ width: 200, height: 200, borderRadius: 8, border: "1px solid #e5e7eb", marginBottom: 12 }}
-                        />
-                      </>
-                    )}
-                    {modal.result.secret && (
-                      <div style={{ background: "#f1f5f9", padding: "10px 14px", borderRadius: 8, fontSize: 13, fontFamily: "monospace" }}>
-                        Secret: {modal.result.secret}
-                      </div>
-                    )}
-                    {modal.result.message && (
-                      <p style={{ fontSize: 13, color: "#16a34a", marginTop: 8 }}>{modal.result.message}</p>
-                    )}
-                  </div>
-                )}
-
-                {(modal.type === "password" || modal.type === "reset") && modal.result.password && (
-                  <div>
-                    <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
-                      {modal.type === "reset" ? "New password (copy now — shown only once):" : "Current password:"}
-                    </p>
-                    <div style={{
-                      background: "#f1f5f9", padding: "12px 16px", borderRadius: 8,
-                      fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: "#1a1d2e",
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                    }}>
-                      <span>{modal.result.password}</span>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(modal.result!.password!)}
-                        style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}
-                      >
-                        Copy
-                      </button>
-                    </div>
-                    {modal.result.updated_at && (
-                      <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
-                        Last updated: {new Date(modal.result.updated_at).toLocaleString()}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {modal.type === "reset_whatsapp" && modal.result && (
-                  <div>
-                    {modal.result.password && (
-                      <>
-                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
-                          New password (copy now — shown only once):
-                        </p>
-                        <div style={{
-                          background: "#f1f5f9", padding: "12px 16px", borderRadius: 8,
-                          fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: "#1a1d2e",
-                          display: "flex", alignItems: "center", justifyContent: "space-between",
-                        }}>
-                          <span>{modal.result.password}</span>
-                          <button
-                            onClick={() => navigator.clipboard.writeText(modal.result!.password!)}
-                            style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}
-                          >
-                            Copy
-                          </button>
-                        </div>
-                      </>
-                    )}
-
-                    {modal.result.whatsapp_url ? (
-                      <div style={{ marginTop: 16 }}>
-                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
-                          Open WhatsApp to send the credentials:
-                        </p>
-                        <a
-                          href={modal.result.whatsapp_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: "inline-flex", alignItems: "center", gap: 8,
-                            padding: "10px 20px", borderRadius: 8,
-                            background: "#25D366", color: "#fff", fontWeight: 600, fontSize: 14,
-                            textDecoration: "none",
-                          }}
-                        >
-                          Open WhatsApp
-                        </a>
-                      </div>
-                    ) : (
-                      <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 12 }}>
-                        No phone number on file — WhatsApp URL not generated.
-                      </p>
-                    )}
-
-                    {modal.result.requires_password_change && (
-                      <p style={{ fontSize: 12, color: "#92400e", marginTop: 12, background: "#fef3c7", padding: "8px 12px", borderRadius: 6 }}>
-                        The landlord will be required to change their password on next login.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <button
-              onClick={() => setModal(null)}
-              style={{
-                marginTop: 20, width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
-                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
-    </Layout>
-  );
-}
-```
-
-### `frontend/platform-admin-app/src/pages/LoginPage.tsx`
-
-```typescript
-import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
-import { useAuth } from "../contexts/AuthContext";
-import AuthLayout from "../components/AuthLayout";
-
-export default function LoginPage() {
-  const { login, loginTOTP } = useAuth();
-  const navigate = useNavigate();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [totpRequired, setTotpRequired] = useState(false);
-  const [totpCode, setTotpCode] = useState("");
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      const result = await login(username, password, rememberMe);
-      if (result.requires_totp) {
-        setTotpRequired(true);
-      } else {
-        navigate("/dashboard", { replace: true });
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Login failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleTOTPSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      await loginTOTP(totpCode);
-      navigate("/dashboard", { replace: true });
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "TOTP verification failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <AuthLayout>
-      <form
-        onSubmit={totpRequired ? handleTOTPSubmit : handleSubmit}
-        style={{
-          background: "#fff", borderRadius: 16, padding: "40px 36px",
-          width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-        }}
-      >
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>{totpRequired ? "🔐" : "🏢"}</div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#1a1d2e" }}>
-            {totpRequired ? "Two-Factor Authentication" : "Platform Admin"}
-          </h1>
-          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#6b7280" }}>
-            {totpRequired ? "Enter your 6-digit authenticator code" : "Sign in to manage landlords"}
-          </p>
-        </div>
-
-        {error && (
-          <div style={{
-            background: "#fef2f2", border: "1px solid #fca5a5", color: "#dc2626",
-            borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13,
-          }}>
-            {error}
-          </div>
-        )}
-
-        {!totpRequired ? (
-          <>
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-                Username
-              </span>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoFocus
-                style={inputStyle}
-                placeholder="admin"
-              />
-            </label>
-
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-                Password
-              </span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={inputStyle}
-                placeholder="••••••••"
-              />
-            </label>
-
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24, fontSize: 13, color: "#374151", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              />
-              Remember me for 180 days
-            </label>
-          </>
-        ) : (
-          <label style={{ display: "block", marginBottom: 24 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-              Authenticator Code
-            </span>
-            <input
-              type="text"
-              value={totpCode}
-              onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              required
-              autoFocus
-              maxLength={6}
-              pattern="[0-9]{6}"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
-              placeholder="000000"
-            />
-          </label>
-        )}
-
-        <button
-          type="submit"
-          disabled={busy}
-          style={{
-            width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-            background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
-            fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
-            transition: "background 0.2s",
-          }}
-        >
-          {busy ? (totpRequired ? "Verifying…" : "Signing in…") : (totpRequired ? "Verify" : "Sign In")}
-        </button>
-
-        {totpRequired && (
-          <button
-            type="button"
-            onClick={() => { setTotpRequired(false); setTotpCode(""); setError(null); }}
-            style={{
-              width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
-              background: "transparent", color: "#6b7280",
-              fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 12,
-            }}
-          >
-            Back to login
-          </button>
-        )}
-      </form>
-    </AuthLayout>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 12px", borderRadius: 8,
-  border: "1.5px solid #d1d5db", fontSize: 14, outline: "none",
-  boxSizing: "border-box",
-  transition: "border-color 0.15s",
-};
-```
-
-### `frontend/platform-admin-app/src/pages/SettingsPage.tsx`
-
-```typescript
-import { useState, useEffect } from "react";
-import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
-import { useHealthStream } from "../hooks/useHealthStream";
-
-interface Profile {
-  id: number;
-  username: string;
-  email: string | null;
-  is_platform_admin: boolean;
-  has_totp: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export default function SettingsPage() {
-  const health = useHealthStream();
-  const [profile, setProfile] = useState<Profile | null>(null);
-
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
-  const [saveErr, setSaveErr] = useState<string | null>(null);
-
-  const [currentPw, setCurrentPw] = useState("");
-  const [newPw, setNewPw] = useState("");
-  const [confirmPw, setConfirmPw] = useState("");
-  const [pwSaving, setPwSaving] = useState(false);
-  const [pwMsg, setPwMsg] = useState<string | null>(null);
-  const [pwErr, setPwErr] = useState<string | null>(null);
-
-  const [retentionDays, setRetentionDays] = useState(30);
-  const [auditSaving, setAuditSaving] = useState(false);
-  const [auditMsg, setAuditMsg] = useState<string | null>(null);
-  const [auditErr, setAuditErr] = useState<string | null>(null);
-
-  const [totpQr, setTotpQr] = useState<string | null>(null);
-  const [totpSecret, setTotpSecret] = useState<string | null>(null);
-  const [totpPassword, setTotpPassword] = useState("");
-  const [totpAction, setTotpAction] = useState<"setup" | "regenerate">("setup");
-  const [totpBusy, setTotpBusy] = useState(false);
-  const [totpErr, setTotpErr] = useState<string | null>(null);
-  const [totpSuccess, setTotpSuccess] = useState<string | null>(null);
-  const [showTotpDialog, setShowTotpDialog] = useState(false);
-  const [showPwText, setShowPwText] = useState(false);
-  const [showTotpSecret, setShowTotpSecret] = useState(false);
-
-  useEffect(() => {
-    fetch(`${API_BASE}/settings/profile`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((p) => {
-        setProfile(p);
-        setUsername(p.username);
-        setEmail(p.email ?? "");
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (profile?.has_totp) {
-      fetch(`${API_BASE}/auth/totp-qr`, { credentials: "include" })
-        .then((r) => r.json())
-        .then((data) => { if (data.qr_code_base64) { setTotpQr(data.qr_code_base64); setTotpSecret(data.secret ?? null); } })
-        .catch(() => {});
-    }
-  }, [profile?.has_totp]);
-
-  useEffect(() => {
-    fetch(`${API_BASE}/settings/audit`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => { if (d.retention_days) setRetentionDays(d.retention_days); })
-      .catch(() => {});
-  }, []);
-
-  async function handleSaveProfile(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setSaveMsg(null);
-    setSaveErr(null);
-    try {
-      const res = await fetch(`${API_BASE}/settings/profile`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, email }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Save failed" }));
-        throw new Error(err.detail ?? "Save failed");
-      }
-      setSaveMsg("Profile updated successfully");
-    } catch (err: unknown) {
-      setSaveErr(err instanceof Error ? err.message : "Save failed");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleChangePassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (newPw !== confirmPw) { setPwErr("Passwords do not match"); return; }
-    setPwSaving(true);
-    setPwMsg(null);
-    setPwErr(null);
-    try {
-      const res = await fetch(`${API_BASE}/settings/change-password`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current_password: currentPw, new_password: newPw, confirm_password: confirmPw }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Change failed" }));
-        throw new Error(err.detail ?? "Change failed");
-      }
-      setPwMsg("Password changed successfully");
-      setCurrentPw("");
-      setNewPw("");
-      setConfirmPw("");
-    } catch (err: unknown) {
-      setPwErr(err instanceof Error ? err.message : "Change failed");
-    } finally {
-      setPwSaving(false);
-    }
-  }
-
-  function openTotpDialog(action: "setup" | "regenerate") {
-    setTotpAction(action);
-    setTotpPassword("");
-    setTotpErr(null);
-    setTotpSuccess(null);
-    setShowTotpDialog(true);
-  }
-
-  async function handleShowTotpQr() {
-    setTotpErr(null);
-    try {
-      const res = await fetch(`${API_BASE}/auth/totp-qr`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load QR");
-      const data = await res.json();
-      if (data.qr_code_base64) { setTotpQr(data.qr_code_base64); setTotpSecret(data.secret ?? null); }
-    } catch {
-      setTotpErr("Failed to load TOTP QR code.");
-    }
-  }
-
-  async function handleTotpConfirm() {
-    if (!totpPassword) return;
-    setTotpBusy(true);
-    setTotpErr(null);
-    setTotpSuccess(null);
-    try {
-      const res = await fetch(`${API_BASE}/auth/totp-regenerate`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current_password: totpPassword }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Operation failed" }));
-        throw new Error(err.detail ?? "Operation failed");
-      }
-      const data = await res.json();
-      if (data.qr_code_base64) { setTotpQr(data.qr_code_base64); setTotpSecret(data.secret ?? null); }
-      setTotpSuccess(totpAction === "setup" ? "TOTP configured successfully! Scan the QR code with your authenticator app." : "TOTP secret regenerated! Update your authenticator app.");
-      setShowTotpDialog(false);
-      setTotpPassword("");
-      // Refresh profile to update has_totp
-      const pRes = await fetch(`${API_BASE}/settings/profile`, { credentials: "include" });
-      if (pRes.ok) {
-        const p = await pRes.json();
-        setProfile(p);
-      }
-    } catch (err: unknown) {
-      setTotpErr(err instanceof Error ? err.message : "Operation failed");
-    } finally {
-      setTotpBusy(false);
-    }
-  }
-
-  async function handleSaveAudit(e: React.FormEvent) {
-    e.preventDefault();
-    setAuditSaving(true);
-    setAuditMsg(null);
-    setAuditErr(null);
-    try {
-      const res = await fetch(`${API_BASE}/settings/audit`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ retention_days: retentionDays }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: "Save failed" }));
-        throw new Error(err.detail ?? "Save failed");
-      }
-      setAuditMsg("Audit log retention updated successfully.");
-    } catch (err: unknown) {
-      setAuditErr(err instanceof Error ? err.message : "Save failed");
-    } finally {
-      setAuditSaving(false);
-    }
-  }
-
-  return (
-    <Layout>
-      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Settings</h1>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, maxWidth: 900 }}>
-        {/* Profile */}
-        <form onSubmit={handleSaveProfile} style={{
-          background: "#fff", borderRadius: 14, padding: "28px 32px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.07)",
-        }}>
-          <h2 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Profile</h2>
-
-          {saveMsg && <div style={successStyle}>{saveMsg}</div>}
-          {saveErr && <div style={errorStyle}>{saveErr}</div>}
-
-          <label style={labelStyle}>
-            <span>Username</span>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required style={inputStyle} />
-          </label>
-          <label style={labelStyle}>
-            <span>Email</span>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="admin@example.com" />
-          </label>
-
-          <div style={{ marginTop: 16, fontSize: 13, color: "#6b7280" }}>
-            <div>ID: {profile?.id ?? "—"}</div>
-            <div>Role: Platform Super Admin</div>
-            {profile?.created_at && <div>Created: {new Date(profile.created_at).toLocaleString()}</div>}
-          </div>
-
-          <button type="submit" disabled={saving} style={primaryBtn}>
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
-        </form>
-
-        {/* Password */}
-        <form onSubmit={handleChangePassword} style={{
-          background: "#fff", borderRadius: 14, padding: "28px 32px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.07)",
-        }}>
-          <h2 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Change Password</h2>
-
-          {pwMsg && <div style={successStyle}>{pwMsg}</div>}
-          {pwErr && <div style={errorStyle}>{pwErr}</div>}
-
-          <label style={labelStyle}>
-            <span>Current Password</span>
-            <input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required style={inputStyle} />
-          </label>
-          <label style={labelStyle}>
-            <span>New Password</span>
-            <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={6} style={inputStyle} />
-          </label>
-          <label style={labelStyle}>
-            <span>Confirm New Password</span>
-            <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} required minLength={6} style={inputStyle} />
-          </label>
-
-          <button type="submit" disabled={pwSaving} style={primaryBtn}>
-            {pwSaving ? "Changing…" : "Change Password"}
-          </button>
-        </form>
-      </div>
-
-      {/* TOTP */}
-      <div style={{
-        background: "#fff", borderRadius: 14, padding: "28px 32px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
-      }}>
-        <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Two-Factor Authentication</h2>
-        <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
-          {profile?.has_totp
-            ? "TOTP is currently enabled. You must enter a verification code after your password to login."
-            : "Two-factor authentication adds an extra layer of security to your account."}
-        </p>
-
-        {totpErr && <div style={errorStyle}>{totpErr}</div>}
-        {totpSuccess && <div style={successStyle}>{totpSuccess}</div>}
-
-        {totpQr && (
-          <div style={{ marginBottom: 20, textAlign: "center" }}>
-            <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>Scan this QR code with your authenticator app:</p>
-            <img src={`data:image/png;base64,${totpQr}`} alt="TOTP QR Code" style={{ width: 200, height: 200, borderRadius: 8, border: "1px solid #e5e7eb" }} />
-          </div>
-        )}
-
-        {totpSecret && (
-          <div style={{ marginBottom: 20 }}>
-            <p style={{ fontSize: 13, color: "#374151", marginBottom: 6, fontWeight: 600 }}>TOTP Secret (Manual Entry)</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{
-                flex: 1, padding: "10px 12px", borderRadius: 8,
-                border: "1.5px solid #d1d5db", fontFamily: "monospace", fontSize: 14,
-                background: "#f9fafb", wordBreak: "break-all",
-              }}>
-                {showTotpSecret ? totpSecret : "•".repeat(totpSecret.length)}
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowTotpSecret(!showTotpSecret)}
-                style={{
-                  padding: "8px 14px", borderRadius: 8, border: "1.5px solid #d1d5db",
-                  background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {showTotpSecret ? "Hide" : "Show"}
-              </button>
-              <button
-                type="button"
-                onClick={() => { navigator.clipboard.writeText(totpSecret); }}
-                style={{
-                  padding: "8px 14px", borderRadius: 8, border: "1.5px solid #d1d5db",
-                  background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div style={{ display: "flex", gap: 10 }}>
-          {profile?.has_totp && (
-            <button
-              onClick={handleShowTotpQr}
-              style={{
-                padding: "10px 20px", borderRadius: 8, border: "1.5px solid #d1d5db",
-                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
-              }}
-            >
-              Show TOTP QR
-            </button>
-          )}
-          <button
-            onClick={() => openTotpDialog(profile?.has_totp ? "regenerate" : "setup")}
-            style={{
-              padding: "10px 20px", borderRadius: 8,
-              border: profile?.has_totp ? "1.5px solid #fca5a5" : "1.5px solid #d1d5db",
-              background: profile?.has_totp ? "#fef2f2" : "#fff",
-              color: profile?.has_totp ? "#dc2626" : "#374151",
-              fontSize: 14, fontWeight: 600, cursor: "pointer",
-            }}
-          >
-            {profile?.has_totp ? "Regenerate TOTP Secret" : "Set Up TOTP"}
-          </button>
-        </div>
-      </div>
-
-      {/* Password Confirmation Dialog */}
-      {showTotpDialog && (
-        <div style={overlayStyle} onClick={() => setShowTotpDialog(false)}>
-          <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 700, color: "#1a1d2e" }}>
-              {totpAction === "setup" ? "Set Up Two-Factor Authentication" : "Regenerate TOTP Secret"}
-            </h3>
-            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
-              {totpAction === "setup"
-                ? "Enter your current password to set up TOTP for your account."
-                : "Enter your current password to regenerate your TOTP secret. Your old authenticator codes will stop working."}
-            </p>
-            {totpErr && <div style={errorStyle}>{totpErr}</div>}
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Current Password</span>
-              <div style={{ position: "relative" }}>
-                <input
-                  type={showPwText ? "text" : "password"}
-                  value={totpPassword}
-                  onChange={(e) => setTotpPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoFocus
-                  onKeyDown={(e) => { if (e.key === "Enter") handleTotpConfirm(); }}
-                  style={inputStyle}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPwText(!showPwText)}
-                  style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 13 }}
-                >
-                  {showPwText ? "Hide" : "Show"}
-                </button>
-              </div>
-            </label>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => { setShowTotpDialog(false); setTotpPassword(""); setTotpErr(null); }}
-                style={{ padding: "8px 16px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleTotpConfirm}
-                disabled={totpBusy || !totpPassword}
-                style={{
-                  padding: "8px 16px", borderRadius: 8, border: "none",
-                  background: totpBusy || !totpPassword ? "#9ca3af" : totpAction === "regenerate" ? "#dc2626" : "#3b4a6b",
-                  color: "#fff", fontSize: 13, fontWeight: 700,
-                  cursor: totpBusy || !totpPassword ? "not-allowed" : "pointer",
-                }}
-              >
-                {totpBusy ? "Processing..." : totpAction === "setup" ? "Set Up TOTP" : "Regenerate Secret"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* System Info */}
-      <div style={{
-        background: "#fff", borderRadius: 14, padding: "28px 32px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
-      }}>
-        <h2 style={{ margin: "0 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>System Info</h2>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-          <tbody>
-            {[
-              ["API Base", "/rent/admin/api"],
-              ["Frontend Base", "/rent/admin"],
-              ["Auth Scope", "Cookie: access_token"],
-            ].map(([label, value]) => (
-              <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>
-                <td style={{ padding: "12px 0" }}><code style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 6 }}>{value}</code></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {health && (
-          <>
-            <h2 style={{ margin: "20px 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Live Health</h2>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-              <tbody>
-                {[
-                  ["Status", health.status],
-                  ["Database", health.database],
-                  ["Active Connections", String(health.active_connections)],
-                  ["Uptime", health.uptime],
-                  ["Last Update", new Date(health.timestamp).toLocaleTimeString()],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>
-                    <td style={{ padding: "12px 0" }}>
-                      <code style={{
-                        background: label === "Status" || label === "Database"
-                          ? value === "ok" ? "#dcfce7" : "#fef2f2"
-                          : "#f1f5f9",
-                        color: label === "Status" || label === "Database"
-                          ? value === "ok" ? "#16a34a" : "#dc2626"
-                          : "inherit",
-                        padding: "2px 8px", borderRadius: 6,
-                      }}>{value}</code>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-      </div>
-
-      {/* Audit Log Settings */}
-      <form onSubmit={handleSaveAudit} style={{
-        background: "#fff", borderRadius: 14, padding: "28px 32px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
-      }}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Audit Log Settings</h2>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#6b7280" }}>
-          Configure how long audit log entries are retained before cleanup.
-        </p>
-        {auditMsg && <p style={successStyle}>{auditMsg}</p>}
-        {auditErr && <p style={errorStyle}>{auditErr}</p>}
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
-          <div>
-            <label style={{ display: "block", marginBottom: 6, fontSize: 14, fontWeight: 600, color: "#374151" }}>
-              Retention Period (days)
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={365}
-              value={retentionDays}
-              onChange={(e) => setRetentionDays(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
-              style={{ ...inputStyle, width: 120 }}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={auditSaving}
-            style={{
-              ...primaryBtn,
-              opacity: auditSaving ? 0.6 : 1,
-            }}
-          >
-            {auditSaving ? "Saving…" : "Save"}
-          </button>
-        </div>
-        <p style={{ margin: "10px 0 0", fontSize: 12, color: "#9ca3af" }}>
-          Logs older than this period are automatically cleaned up. Default: 30 days.
-        </p>
-      </form>
-    </Layout>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 12px", borderRadius: 8,
-  border: "1.5px solid #d1d5db", fontSize: 14, outline: "none", boxSizing: "border-box",
-};
-const labelStyle: React.CSSProperties = {
-  display: "block", marginBottom: 16,
-};
-const primaryBtn: React.CSSProperties = {
-  marginTop: 8, padding: "10px 24px", borderRadius: 8, border: "none",
-  background: "#3b4a6b", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
-};
-const successStyle: React.CSSProperties = {
-  background: "#dcfce7", color: "#16a34a", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13,
-};
-const errorStyle: React.CSSProperties = {
-  background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13,
-};
-const overlayStyle: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex",
-  alignItems: "center", justifyContent: "center", zIndex: 1000,
-};
-const dialogStyle: React.CSSProperties = {
-  background: "#fff", borderRadius: 14, padding: "24px 28px", width: "100%", maxWidth: 380, margin: "0 16px",
-  boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-};
-```
-
-### `frontend/platform-admin-app/tsconfig.json`
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "module": "ESNext",
-    "skipLibCheck": true,
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "types": ["vite/client"],
-    "baseUrl": ".",
-    "paths": {
-      "@shared/*": ["../shared/*"]
-    }
-  },
-  "include": ["src"],
-  "references": [{ "path": "./tsconfig.node.json" }]
-}
-```
-
-### `frontend/platform-admin-app/tsconfig.node.json`
-
-```json
-{
-  "compilerOptions": {
-    "composite": true,
-    "skipLibCheck": true,
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true,
-    "types": ["node"],
-    "strict": true
-  },
-  "include": ["vite.config.ts"]
-}
-```
-
-### `frontend/platform-admin-app/vite.config.ts`
-
-```typescript
-import path from "path";
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
-
-export default defineConfig({
-  base: "/rent/admin/",
-  plugins: [react()],
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@shared": path.resolve(__dirname, "../shared"),
-    },
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks(id) {
-          if (id.includes("node_modules/react/") || id.includes("node_modules/react-dom/")) {
-            return "react-vendor";
-          }
-          if (id.includes("node_modules/react-router")) {
-            return "router";
-          }
-        },
-        entryFileNames: "assets/[name]-[hash].js",
-        chunkFileNames: "assets/[name]-[hash].js",
-        assetFileNames: "assets/[name]-[hash][extname]",
-      },
-    },
-    target: "es2022",
-  },
-});
-```
-
 ### `frontend/shared/api-config.ts`
 
 ```typescript
@@ -42767,7 +42876,8 @@ export const useTheme = () => {
     if (context === undefined)
         throw new Error("useTheme must be used within a ThemeProvider")
     return context
-}```
+}
+```
 
 ### `frontend/tenant-app/src/components/theme-toggle.tsx`
 
@@ -42807,7 +42917,8 @@ export function ThemeToggle() {
             </DropdownMenuContent>
         </DropdownMenu>
     )
-}```
+}
+```
 
 ### `frontend/tenant-app/src/components/ui/alert.tsx`
 

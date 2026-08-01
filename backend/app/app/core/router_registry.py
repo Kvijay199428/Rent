@@ -23,6 +23,9 @@ from app.routers.landlordauth import router as landlordauth_router
 from app.pages.spa import router as spa_router
 from app.pages.errors import register_exception_handlers
 
+# Public landing page at /
+from app.pages.landing import router as landing_router
+
 from fastapi import Depends
 from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
@@ -76,10 +79,13 @@ def register_all_routers(app: FastAPI):
     # 5. Platform admin
     app.include_router(platform_admin_router)
 
-    # 6. WebSocket sync (no auth dependency — channel-based access control)
+    # 6. Public landing page at /
+    app.include_router(landing_router)
+
+    # 7. WebSocket sync (no auth dependency — channel-based access control)
     app.include_router(sync_ws_router)
 
-    # 7. Tenant SPA routes (tenant stays in Docker — dynamic URL pattern
+    # 8. Tenant SPA routes (tenant stays in Docker — dynamic URL pattern
     #    /{landlordUuid}/t/{tenantId}/{viewToken} can't be served by Cloudflare Pages)
     app.include_router(spa_router)
 

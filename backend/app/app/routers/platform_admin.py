@@ -56,7 +56,7 @@ router = APIRouter(prefix="/admin", tags=["Platform Admin"])
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _dist_index() -> str:
-    return os.path.join("frontend", "platform-admin-app", "dist", "index.html")
+    return os.path.join("frontend", "admin-app", "dist", "index.html")
 
 
 async def _serve_platform_admin_spa():
@@ -64,7 +64,7 @@ async def _serve_platform_admin_spa():
     if not os.path.exists(index_file):
         raise HTTPException(
             status_code=503,
-            detail="Platform admin frontend build not found. Run: npm run build inside frontend/platform-admin-app",
+            detail="Platform admin frontend build not found. Run: npm run build inside frontend/admin-app",
         )
     return FileResponse(index_file)
 
@@ -1512,7 +1512,7 @@ async def platform_admin_root_redirect(request: Request):
 async def serve_platform_admin_app(request: Request, path: str = ""):
     if path.startswith("api"):
         raise HTTPException(status_code=404, detail="Platform admin API route not found")
-    dist_dir = os.path.join("frontend", "platform-admin-app", "dist")
+    dist_dir = os.path.join("frontend", "admin-app", "dist")
     file_path = os.path.normpath(os.path.join(dist_dir, path))
     if not file_path.startswith(os.path.normpath(dist_dir)):
         raise HTTPException(status_code=404)

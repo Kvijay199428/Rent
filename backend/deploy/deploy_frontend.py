@@ -12,7 +12,7 @@ Output structure:
         ├── favicon.svg
         ├── assets/                 ← landing-app assets
         ├── admin/
-        │   ├── index.html          ← platform-admin-app
+        │   ├── index.html          ← admin-app
         │   └── assets/
         ├── tenant/
         │   ├── index.html          ← tenant-app
@@ -45,7 +45,7 @@ APPS = [
     },
     {
         "name": "platform-admin",
-        "dir": "../frontend/platform-admin-app",
+        "dir": "../frontend/admin-app",
         "output": "rent/admin",
         "skip_flag": "--skip-admin",
     },
@@ -69,7 +69,7 @@ def parse_args():
     parser.add_argument("--no-build", action="store_true",
                         help="Skip npm builds, only assemble from existing dist/")
     parser.add_argument("--skip-landing", action="store_true", help="Skip landing-app build")
-    parser.add_argument("--skip-admin", action="store_true", help="Skip platform-admin-app build")
+    parser.add_argument("--skip-admin", action="store_true", help="Skip admin-app build")
     parser.add_argument("--skip-tenant", action="store_true", help="Skip tenant-app build")
     parser.add_argument("--skip-landlord", action="store_true", help="Skip landlord-app build")
     parser.add_argument("--output", default=OUTPUT_DIR, help="Output directory")

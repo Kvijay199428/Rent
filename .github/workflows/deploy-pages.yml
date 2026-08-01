@@ -31,7 +31,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             frontend/landing-app/package-lock.json
-            frontend/platform-admin-app/package-lock.json
+            frontend/admin-app/package-lock.json
             frontend/landlord-app/package-lock.json
             frontend/tenant-app/package-lock.json
 

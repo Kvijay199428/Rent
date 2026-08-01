@@ -47,4 +47,3 @@ async def get_config(request: Request):
 
 async def get_theme(request: Request):
     return getattr(request.state, 'theme', 'system')
-

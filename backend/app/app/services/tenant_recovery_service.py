@@ -734,10 +734,10 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                     archiveddate, archivedby, deleteddate, additionalpersons,
                     additionalpersonrate, receiptversion, generatedby,
                     paymentstatus, maintenancecharge, maintenancedesc,
-                    previousarrears, amountreceived
+                    previousarrears, amountreceived, landlord_id
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
                 """,
                 (
@@ -773,6 +773,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                     r.get("maintenancedesc", ""),
                     float(r.get("previousarrears", 0)),
                     float(r.get("amountreceived", 0)),
+                    t.get("landlord_id"),
                 ),
             )
             restored_receipts += 1

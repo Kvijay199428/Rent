@@ -928,6 +928,13 @@ async def import_execute_data(
                     if not tenantId:
                         continue  # Should not happen based on validation
 
+                    # Resolve the tenant's landlord so imported receipts carry it.
+                    # CREATE_NEW tenants have no landlord yet (admin assigns later).
+                    _lrow = conn.execute(
+                        "SELECT landlord_id FROM tenants WHERE id = ?", (tenantId,)
+                    ).fetchone()
+                    tenant_landlord_id = _lrow["landlord_id"] if _lrow else None
+
                     # ── PIN HANDLING ──
                     if action in ("CREATE_NEW", "UPDATE_EXISTING"):
                         raw_pin = str(p.get("PIN") or "").strip()
@@ -1012,15 +1019,16 @@ async def import_execute_data(
                                         additional, water, tankWater, electricity, total, pdf,
                                         tenantphone, tenantcompany, tenantaddress, rate, status,
                                         additionalpersons, additionalpersonrate, receiptversion, generatedby, paymentstatus,
-                                        maintenancecharge, maintenancedesc, previousarrears, amountreceived
-                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        maintenancecharge, maintenancedesc, previousarrears, amountreceived, landlord_id
+                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                                 """, (
                                     billNo, r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
                                     float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
                                     float(r.get("Water", 0) or 0), float(r.get("tankWater", 0) or 0), float(r.get("Electricity", 0) or 0), 
                                     float(r.get("Total", 0) or 0), "", "", "", "", float(r.get("Rate", 0) or 0), r.get("receiptStatus", "ACTIVE"),
                                     0, float(r.get("additionalPersonRate", 0) or 0), 8, "Import", r.get("paymentStatus", "PENDING"),
-                                    float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), float(r.get("amountReceived", 0) or 0)
+                                    float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), float(r.get("amountReceived", 0) or 0),
+                                    tenant_landlord_id
                                 ))
                                 imported_receipts += 1
                                 

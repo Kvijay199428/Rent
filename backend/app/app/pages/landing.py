@@ -20,3 +20,8 @@ router = APIRouter(tags=["Public"])
 async def public_landing(request: Request):
     """Serve the public landing page for the Rent app."""
     return FileResponse("frontend/landing-app/dist/index.html")
+
+
+@router.get("/favicon.svg", include_in_schema=False)
+async def landing_favicon():
+    return FileResponse("frontend/landing-app/dist/favicon.svg")

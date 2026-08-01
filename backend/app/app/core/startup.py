@@ -37,6 +37,15 @@ class StartupManager:
         if os.path.isdir(STATIC_DIR):
             app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+        for path, rel in [
+            ("/admin/assets", "frontend/admin-app/dist/assets"),
+            ("/landlord/assets", "frontend/landlord-app/dist/assets"),
+            ("/t/assets", "frontend/tenant-app/dist/assets"),
+            ("/assets", "frontend/landing-app/dist/assets"),
+        ]:
+            if os.path.isdir(rel):
+                app.mount(path, StaticFiles(directory=rel), name=path.strip("/").replace("/", "_"))
+
     @staticmethod
     def register_middlewares(app: FastAPI):
         # We will add middlewares here if needed

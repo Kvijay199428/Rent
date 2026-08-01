@@ -381,14 +381,37 @@ def init_db():
         conn.execute("CREATE INDEX IF NOT EXISTS idx_occupants_landlord_id ON occupants(landlord_id)")
         conn.commit()
 
-        # Backfill: assign existing data to first landlord if unassigned
+        # Backfill: assign landlord_id to unassigned rows.
+        # Receipts/occupants take the landlord of their tenant; tenants and any
+        # still-unassigned receipts/occupants fall back to the first landlord.
         first_landlord = conn.execute("SELECT id FROM landlord_accounts ORDER BY id LIMIT 1").fetchone()
-        if first_landlord:
-            lid = first_landlord["id"]
+        lid = first_landlord["id"] if first_landlord else None
+
+        if lid:
             conn.execute("UPDATE tenants SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
+
+        conn.execute(
+            """
+            UPDATE receipts SET landlord_id = (
+                SELECT landlord_id FROM tenants WHERE tenants.id = receipts.tenantId
+            )
+            WHERE landlord_id IS NULL
+              AND tenantId IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
+            """
+        )
+        conn.execute(
+            """
+            UPDATE occupants SET landlord_id = (
+                SELECT landlord_id FROM tenants WHERE tenants.id = occupants.tenantId
+            )
+            WHERE landlord_id IS NULL
+              AND tenantId IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
+            """
+        )
+        if lid:
             conn.execute("UPDATE receipts SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
             conn.execute("UPDATE occupants SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
-            conn.commit()
+        conn.commit()
 
         # ─── Platform admin audit trail ──────────────────────────────
         conn.execute("""

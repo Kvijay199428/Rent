@@ -3,7 +3,16 @@ set -e
 
 echo "=== Building Rent Frontend Apps ==="
 
-APPS="landing-app platform-admin-app landlord-app tenant-app"
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+  echo "=== Loaded frontend/.env (VITE_* build vars) ==="
+else
+  echo "=== WARNING: frontend/.env not found — VITE_* build vars unset ==="
+fi
+
+APPS="landing-app admin-app landlord-app tenant-app"
 
 for app in $APPS; do
   echo ""
@@ -18,7 +27,7 @@ mkdir -p build-output/rent
 
 cp -r landing-app/dist/* build-output/rent/
 mkdir -p build-output/rent/admin
-cp -r platform-admin-app/dist/* build-output/rent/admin/
+cp -r admin-app/dist/* build-output/rent/admin/
 mkdir -p build-output/rent/landlord
 cp -r landlord-app/dist/* build-output/rent/landlord/
 mkdir -p build-output/rent/tenant

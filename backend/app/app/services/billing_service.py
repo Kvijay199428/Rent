@@ -309,6 +309,11 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
             "SELECT COUNT(*) FROM receipts WHERE tenantId = ?", 
             (tenant.id,)
         ).fetchone()[0]
+        # Resolve the tenant's landlord so the receipt stays visible to them
+        _lrow = conn.execute(
+            "SELECT landlord_id FROM tenants WHERE id = ?", (tenant.id,)
+        ).fetchone()
+        tenant_landlord_id = _lrow["landlord_id"] if _lrow else None
     
     # Format: T{tenantId}-{sequence:03d}  e.g., T1-001, T1-002, T2-001
     receipt_seq = tenant_receipt_count + 1
@@ -382,15 +387,16 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
                 tenantphone, tenantcompany, tenantaddress, rate, status,
                 archiveddate, archivedby, deleteddate, additionalpersons,
                 additionalpersonrate, receiptversion, generatedby, paymentstatus,
-                maintenancecharge, maintenancedesc, previousarrears, amountreceived
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                maintenancecharge, maintenancedesc, previousarrears, amountreceived, landlord_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             billNo, current_date, month, tenant.id, tenantName, prev, current_reading,
             charges["units"], tenant.rent, charges["additional"], tenant.water, tankWater,
             charges["electricity"], charges["total"], pdf_filename, tenant.phone, tenant.company,
             tenant.address, tenant.electricityRate, "ACTIVE", "", "", "",
             additional_persons, tenant.additionalPersonCharge, 8, "Admin",
-            paymentStatus, MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived
+            paymentStatus, MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived,
+            tenant_landlord_id
         ))
         conn.commit()
 
