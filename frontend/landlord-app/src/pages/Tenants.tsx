@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { api } from '@/services/api';
+import { API_BASE } from '@/services/base';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Tenant } from '@/types';
@@ -606,7 +607,7 @@ export default function Tenants() {
 
                 <div className="mt-4 flex justify-center bg-white p-2">
                   <QRCode
-                    value={`${window.location.origin}/rent/${landlordUuid}/t/${qrTenant.id}/${qrTenant.viewToken}`}
+                    value={`${API_BASE}/${landlordUuid}/t/${qrTenant.id}/${qrTenant.viewToken}`}
                     size={200}
                     level="H"
                   />
@@ -857,7 +858,7 @@ function TenantCard({
             size="sm"
             className="w-full"
             disabled={!tenant.viewToken}
-            onClick={() => tenant.viewToken && window.open(`/rent/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`, '_blank')}
+            onClick={() => tenant.viewToken && window.open(`${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`, '_blank')}
             title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Open public profile'}
           >
             Public Profile
@@ -882,7 +883,7 @@ function TenantCard({
             onClick={async () => {
               if (!tenant.viewToken || !tenant.id) return;
 
-              const url = `${window.location.origin}/rent/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
+              const url = `${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
 
               let pin = '----';
               try {

@@ -17,6 +17,18 @@ export async function onRequest(context) {
     });
   }
 
+  // Legacy tenant deep links (/rent/{landlordUuid}/t/{tenantId}/{viewToken} on the Pages
+  // domain) are served by the backend — 301 to the API origin so old QR codes/links work.
+  const tenantLinkRe =
+    /^\/rent\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/t\/[0-9]+\/[0-9a-zA-Z-]+(?:\/.*)?$/;
+  if (tenantLinkRe.test(path)) {
+    const target = new URL(`${path}${url.search}`, "https://api.vijaykrsha.online");
+    return new Response(null, {
+      status: 301,
+      headers: { Location: target.toString() },
+    });
+  }
+
   const response = await context.next();
 
   if (response.status === 404) {
