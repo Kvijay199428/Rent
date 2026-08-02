@@ -835,6 +835,10 @@ async def import_execute_data(
     admin_username = "Admin"
     job_result = {"items": []}
 
+    from app.database.landlord_repository import get_landlord_by_uuid
+    _import_landlord_row = get_landlord_by_uuid(landlordUuid)
+    import_landlord_id = _import_landlord_row["id"] if _import_landlord_row else None
+
     try:
         with get_conn() as conn:
             # Start transaction explicitly
@@ -888,14 +892,14 @@ async def import_execute_data(
                             INSERT INTO tenants (
                                 id, name, company, phone, email, address, roomnumber, occupation, notes, status,
                                 rent, water, electricityrate, previousmeter, additionalpersoncharge, securitydeposit,
-                                defaulttankWatercharge, meterid, viewToken, tenantpin, failed_attempts
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                defaulttankWatercharge, meterid, viewToken, tenantpin, failed_attempts, landlord_id
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ''', (
                             tenantId, t_name, p.get("Company", ""), p.get("Phone", ""), p.get("Email", ""),
                             p.get("Address", ""), p.get("Room", ""), "", "", normalize_tenant_status(status_overrides.get(target_key), p.get("Status", "Active")),
                             float(p.get("Rent", 0) or 0), float(p.get("Water", 0) or 0), float(p.get("electricityRate", 0) or 0),
                             0, float(p.get("additionalPersonRate", 0) or 0), 0, float(p.get("tankWater", 0) or 0),
-                            p.get("meterId", ""), viewToken, "", 0
+                            p.get("meterId", ""), viewToken, "", 0, import_landlord_id
                         ))
                         sys_tenant_ids.add(tenantId)
                         is_new = True

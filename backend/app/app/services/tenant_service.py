@@ -39,7 +39,8 @@ def load_tenants(include_archived: bool = False) -> List[Tenant]:
             meterId=row["meterid"],
             viewToken=row["viewToken"],
             tenantPin=row["tenantpin"],
-            statusChangedAt=row["status_changed_at"] or None
+            statusChangedAt=row["status_changed_at"] or None,
+            landlord_id=row["landlord_id"],
         )
         tenants.append(t)
     return tenants
@@ -75,7 +76,8 @@ def get_tenant(tenantId: int) -> Optional[Tenant]:
         meterId=row["meterid"],
         viewToken=row["viewToken"],
         tenantPin=row["tenantpin"],
-        statusChangedAt=row["status_changed_at"] or None
+        statusChangedAt=row["status_changed_at"] or None,
+        landlord_id=row["landlord_id"],
     )
 
 def get_tenant_by_name(name: str) -> Optional[Tenant]:
@@ -106,7 +108,8 @@ def get_tenant_by_name(name: str) -> Optional[Tenant]:
         meterId=row["meterid"],
         viewToken=row["viewToken"],
         tenantPin=row["tenantpin"],
-        statusChangedAt=row["status_changed_at"] or None
+        statusChangedAt=row["status_changed_at"] or None,
+        landlord_id=row["landlord_id"],
     )
 
 def save_all_tenants(tenants_list: List[Tenant]):
@@ -129,13 +132,13 @@ def add_tenant(t: Tenant):
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
                 additionalpersoncharge, securitydeposit, defaulttankWatercharge,
-                meterid, viewToken, tenantpin
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meterid, viewToken, tenantpin, landlord_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
-            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin
+            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id
         ))
         if t.id is None:
             t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]

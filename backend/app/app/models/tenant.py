@@ -4,6 +4,9 @@ from typing import Optional
 class Tenant(BaseModel):
     id: Optional[int] = None
 
+    # Owning landlord (multi-tenancy)
+    landlord_id: Optional[int] = None
+
     # General Info
     name: str
     company: Optional[str] = ""

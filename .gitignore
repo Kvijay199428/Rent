@@ -53,3 +53,4 @@ storage/
 scratch/
 output/
 *.zip
+.gstack/

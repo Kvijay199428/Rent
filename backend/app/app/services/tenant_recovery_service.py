@@ -682,8 +682,8 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
                 additionalpersoncharge, securitydeposit, defaulttankwatercharge,
-                meterid, viewToken, tenantpin, failed_attempts, locked_until
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meterid, viewToken, tenantpin, failed_attempts, locked_until, landlord_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 new_tenant_id,
@@ -708,6 +708,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                 t.get("tenantpin", ""),
                 0,
                 None,
+                t.get("landlord_id"),
             ),
         )
 

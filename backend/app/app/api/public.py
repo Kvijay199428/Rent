@@ -180,7 +180,8 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
     with get_conn() as conn:
         row = conn.execute(
             "SELECT id, landlord_id, viewToken, tenantpin, failed_attempts, locked_until "
-            "FROM tenants WHERE LOWER(phone) = ? OR LOWER(email) = ?",
+            "FROM tenants WHERE LOWER(phone) = ? OR LOWER(email) = ? "
+            "ORDER BY id LIMIT 1",
             (username, username),
         ).fetchone()
 
@@ -222,6 +223,13 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
         landlord = conn.execute(
             "SELECT landlord_uuid FROM landlord_accounts WHERE id = ?",
             (row["landlord_id"],),
+        ).fetchone()
+
+    if not landlord:
+        # Tenant may be a legacy row with no (or a dangling) landlord_id.
+        # Fall back to the first landlord so login never 500s.
+        landlord = conn.execute(
+            "SELECT landlord_uuid FROM landlord_accounts ORDER BY id LIMIT 1"
         ).fetchone()
 
     if not landlord:

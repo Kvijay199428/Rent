@@ -83,7 +83,16 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     encrypted_pin = encrypt_admin_view_pin(plain_pin)
     
     t.tenantPin = hashed_pin
-        
+    
+    from app.database.landlord_repository import get_landlord_by_uuid
+    landlord_id = extract_landlord_id(request)
+    if not landlord_id:
+        # Fall back to the landlord identified by the URL when the JWT cookie
+        # is unavailable, so the tenant is always owned by a landlord.
+        landlord_row = get_landlord_by_uuid(landlordUuid)
+        landlord_id = landlord_row["id"] if landlord_row else None
+    t.landlord_id = landlord_id
+
     tenantId = add_tenant(t)
     t.id = tenantId
     
@@ -97,7 +106,6 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     response_tenant = t.dict()
     response_tenant.pop("tenantPin", None)
 
-    landlord_id = extract_landlord_id(request)
     if landlord_id:
         create_landlord_audit_log(
             landlord_id, "tenant_created",
