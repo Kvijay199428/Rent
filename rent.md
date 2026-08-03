@@ -3,8 +3,8 @@
 Generated: 2025-07-29
 Script:   /root/rent/copy.py
 Source:   /root/rent
-Files:    297
-Size:     1554 KB
+Files:    299
+Size:     1561 KB
 Skipped:  0
 
 ---
@@ -115,6 +115,7 @@ Skipped:  0
 - frontend/admin-app/src/api/client.ts
 - frontend/admin-app/src/components/AuthLayout.tsx
 - frontend/admin-app/src/components/BroadcastBanner.tsx
+- frontend/admin-app/src/components/ErrorBoundary.tsx
 - frontend/admin-app/src/components/Layout.tsx
 - frontend/admin-app/src/components/LoadingScreen.tsx
 - frontend/admin-app/src/contexts/AuthContext.tsx
@@ -152,6 +153,7 @@ Skipped:  0
 - frontend/landing-app/vite.config.ts
 - frontend/landlord-app/package.json
 - frontend/landlord-app/src/components/BroadcastBanner.tsx
+- frontend/landlord-app/src/components/ErrorBoundary.tsx
 - frontend/landlord-app/src/components/LoadingScreen.tsx
 - frontend/landlord-app/src/components/archive/ArchiveTenantCard.tsx
 - frontend/landlord-app/src/components/dashboard/DuePaymentsModal.tsx
@@ -389,6 +391,7 @@ storage/
 scratch/
 output/
 *.zip
+.gstack/
 ```
 
 ### `README.md`
@@ -1047,27 +1050,35 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
         "occupation": getattr(tenant, "occupation", ""),
         "company": getattr(tenant, "company", ""),
     }
-    
-    if unlocked:
-        receipts = get_all_receipts()
-        tenant_receipts = [
-            r for r in receipts
-            if int(r.get("TenantId", 0) or 0) == tenant.id
-            and (r.get("Status") or "").upper() != "ARCHIVED"
-        ]
-        tenant_receipts.reverse()
-        tenant_receipts = tenant_receipts[:config.get("system.limits.public_history_months", 12)]
-        occupants = get_occupants(tenant.id)
-        
+
+    if not unlocked:
+        # Do not leak tenant identity to a logged-out visitor: the portal
+        # login screen is rendered from this payload, so return only the
+        # minimal, non-identifying fields until the tenant unlocks.
         return {
-            "tenant": base_info,
-            "receipts": tenant_receipts,
-            "occupants": occupants
+            "tenant": {
+                "id": tenant.id,
+                "viewToken": viewToken,
+                "unlocked": unlocked,
+                "readOnly": tenant.status != "Active",
+            }
         }
-    else:
-        return {
-            "tenant": base_info
-        }
+
+    receipts = get_all_receipts()
+    tenant_receipts = [
+        r for r in receipts
+        if int(r.get("TenantId", 0) or 0) == tenant.id
+        and (r.get("Status") or "").upper() != "ARCHIVED"
+    ]
+    tenant_receipts.reverse()
+    tenant_receipts = tenant_receipts[:config.get("system.limits.public_history_months", 12)]
+    occupants = get_occupants(tenant.id)
+
+    return {
+        "tenant": base_info,
+        "receipts": tenant_receipts,
+        "occupants": occupants
+    }
 
 @router.get(TenantRoutes.TENANTAPIAUTHPUBLICKEY, name=TenantNames.TENANTPUBLICKEY)
 async def get_public_key():
@@ -1156,7 +1167,8 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
     with get_conn() as conn:
         row = conn.execute(
             "SELECT id, landlord_id, viewToken, tenantpin, failed_attempts, locked_until "
-            "FROM tenants WHERE LOWER(phone) = ? OR LOWER(email) = ?",
+            "FROM tenants WHERE LOWER(phone) = ? OR LOWER(email) = ? "
+            "ORDER BY id LIMIT 1",
             (username, username),
         ).fetchone()
 
@@ -1198,6 +1210,13 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
         landlord = conn.execute(
             "SELECT landlord_uuid FROM landlord_accounts WHERE id = ?",
             (row["landlord_id"],),
+        ).fetchone()
+
+    if not landlord:
+        # Tenant may be a legacy row with no (or a dangling) landlord_id.
+        # Fall back to the first landlord so login never 500s.
+        landlord = conn.execute(
+            "SELECT landlord_uuid FROM landlord_accounts ORDER BY id LIMIT 1"
         ).fetchone()
 
     if not landlord:
@@ -2501,6 +2520,10 @@ async def import_execute_data(
     admin_username = "Admin"
     job_result = {"items": []}
 
+    from app.database.landlord_repository import get_landlord_by_uuid
+    _import_landlord_row = get_landlord_by_uuid(landlordUuid)
+    import_landlord_id = _import_landlord_row["id"] if _import_landlord_row else None
+
     try:
         with get_conn() as conn:
             # Start transaction explicitly
@@ -2554,14 +2577,14 @@ async def import_execute_data(
                             INSERT INTO tenants (
                                 id, name, company, phone, email, address, roomnumber, occupation, notes, status,
                                 rent, water, electricityrate, previousmeter, additionalpersoncharge, securitydeposit,
-                                defaulttankWatercharge, meterid, viewToken, tenantpin, failed_attempts
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                defaulttankWatercharge, meterid, viewToken, tenantpin, failed_attempts, landlord_id
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ''', (
                             tenantId, t_name, p.get("Company", ""), p.get("Phone", ""), p.get("Email", ""),
                             p.get("Address", ""), p.get("Room", ""), "", "", normalize_tenant_status(status_overrides.get(target_key), p.get("Status", "Active")),
                             float(p.get("Rent", 0) or 0), float(p.get("Water", 0) or 0), float(p.get("electricityRate", 0) or 0),
                             0, float(p.get("additionalPersonRate", 0) or 0), 0, float(p.get("tankWater", 0) or 0),
-                            p.get("meterId", ""), viewToken, "", 0
+                            p.get("meterId", ""), viewToken, "", 0, import_landlord_id
                         ))
                         sys_tenant_ids.add(tenantId)
                         is_new = True
@@ -3578,7 +3601,7 @@ _START_TIME = time.time()
 
 # ─── /ws/sync — general data sync ───────────────────────────────────────────
 
-@router.websocket("/rent/ws/sync")
+@router.websocket("/ws/sync")
 async def sync_websocket(
     websocket: WebSocket,
     channel: str = Query(...),
@@ -3623,7 +3646,7 @@ async def sync_websocket(
 
 _AUTH_CHANNELS = ("landlord:", "platform_admin")
 
-@router.websocket("/rent/ws/auth")
+@router.websocket("/ws/auth")
 async def auth_websocket(
     websocket: WebSocket,
     channel: str = Query(...),
@@ -3674,7 +3697,7 @@ def _build_health_snapshot() -> dict:
     }
 
 
-@router.websocket("/rent/ws/health")
+@router.websocket("/ws/health")
 async def health_websocket(websocket: WebSocket):
     """
     WebSocket endpoint for live system health stream.
@@ -3890,7 +3913,16 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     encrypted_pin = encrypt_admin_view_pin(plain_pin)
     
     t.tenantPin = hashed_pin
-        
+    
+    from app.database.landlord_repository import get_landlord_by_uuid
+    landlord_id = extract_landlord_id(request)
+    if not landlord_id:
+        # Fall back to the landlord identified by the URL when the JWT cookie
+        # is unavailable, so the tenant is always owned by a landlord.
+        landlord_row = get_landlord_by_uuid(landlordUuid)
+        landlord_id = landlord_row["id"] if landlord_row else None
+    t.landlord_id = landlord_id
+
     tenantId = add_tenant(t)
     t.id = tenantId
     
@@ -3904,7 +3936,6 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     response_tenant = t.dict()
     response_tenant.pop("tenantPin", None)
 
-    landlord_id = extract_landlord_id(request)
     if landlord_id:
         create_landlord_audit_log(
             landlord_id, "tenant_created",
@@ -8281,6 +8312,9 @@ from typing import Optional
 
 class Tenant(BaseModel):
     id: Optional[int] = None
+
+    # Owning landlord (multi-tenancy)
+    landlord_id: Optional[int] = None
 
     # General Info
     name: str
@@ -14654,8 +14688,8 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
                 additionalpersoncharge, securitydeposit, defaulttankwatercharge,
-                meterid, viewToken, tenantpin, failed_attempts, locked_until
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meterid, viewToken, tenantpin, failed_attempts, locked_until, landlord_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 new_tenant_id,
@@ -14680,6 +14714,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                 t.get("tenantpin", ""),
                 0,
                 None,
+                t.get("landlord_id"),
             ),
         )
 
@@ -14927,7 +14962,8 @@ def load_tenants(include_archived: bool = False) -> List[Tenant]:
             meterId=row["meterid"],
             viewToken=row["viewToken"],
             tenantPin=row["tenantpin"],
-            statusChangedAt=row["status_changed_at"] or None
+            statusChangedAt=row["status_changed_at"] or None,
+            landlord_id=row["landlord_id"],
         )
         tenants.append(t)
     return tenants
@@ -14963,7 +14999,8 @@ def get_tenant(tenantId: int) -> Optional[Tenant]:
         meterId=row["meterid"],
         viewToken=row["viewToken"],
         tenantPin=row["tenantpin"],
-        statusChangedAt=row["status_changed_at"] or None
+        statusChangedAt=row["status_changed_at"] or None,
+        landlord_id=row["landlord_id"],
     )
 
 def get_tenant_by_name(name: str) -> Optional[Tenant]:
@@ -14994,7 +15031,8 @@ def get_tenant_by_name(name: str) -> Optional[Tenant]:
         meterId=row["meterid"],
         viewToken=row["viewToken"],
         tenantPin=row["tenantpin"],
-        statusChangedAt=row["status_changed_at"] or None
+        statusChangedAt=row["status_changed_at"] or None,
+        landlord_id=row["landlord_id"],
     )
 
 def save_all_tenants(tenants_list: List[Tenant]):
@@ -15017,13 +15055,13 @@ def add_tenant(t: Tenant):
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
                 additionalpersoncharge, securitydeposit, defaulttankWatercharge,
-                meterid, viewToken, tenantpin
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meterid, viewToken, tenantpin, landlord_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
-            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin
+            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id
         ))
         if t.id is None:
             t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -16536,6 +16574,99 @@ export default function BroadcastBanner({ healthUrl }: BroadcastBannerProps) {
 }
 ```
 
+### `frontend/admin-app/src/components/ErrorBoundary.tsx`
+
+```typescript
+import { Component, type ErrorInfo, type ReactNode } from "react";
+
+interface Props {
+  children: ReactNode;
+}
+
+interface State {
+  hasError: boolean;
+  message: string;
+}
+
+export default class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false, message: "" };
+
+  static getDerivedStateFromError(error: unknown): State {
+    return { hasError: true, message: error instanceof Error ? error.message : String(error) };
+  }
+
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    console.error("Unhandled app error:", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 16,
+            background: "#0b1120",
+            color: "#e2e8f0",
+            fontFamily: "system-ui, -apple-system, sans-serif",
+            padding: 24,
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 40, marginBottom: 8 }}>⚠️</div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#fff" }}>
+            Something went wrong
+          </h1>
+          <p style={{ margin: 0, fontSize: 14, color: "#94a3b8", maxWidth: 560 }}>
+            An unexpected error occurred while rendering this page. Try reloading, or
+            contact support if the problem persists.
+          </p>
+          {this.state.message && (
+            <code
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 8,
+                padding: "8px 12px",
+                fontSize: 12,
+                color: "#fca5a5",
+                maxWidth: 560,
+                overflowWrap: "break-word",
+              }}
+            >
+              {this.state.message}
+            </code>
+          )}
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: 8,
+              padding: "10px 20px",
+              borderRadius: 8,
+              border: "none",
+              background: "#3b4a6b",
+              color: "#fff",
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Reload page
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+```
+
 ### `frontend/admin-app/src/components/Layout.tsx`
 
 ```typescript
@@ -16878,14 +17009,21 @@ export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled 
       let wsUrl: string;
 
       if (apiBase) {
-        const wsBase = apiBase.replace(/^https?/, "ws");
-        wsUrl = `${wsBase}/ws/auth?channel=${encodeURIComponent(channel)}`;
+        const wsBase = apiBase.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+        wsUrl = `${wsBase}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
       } else {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         wsUrl = `${protocol}//${window.location.host}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
       }
 
-      ws = new WebSocket(wsUrl);
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+        return;
+      }
 
       ws.onopen = () => {
         pingTimer = setInterval(() => {
@@ -16971,14 +17109,21 @@ export function useHealthStream(enabled = true) {
       let wsUrl: string;
 
       if (apiBase) {
-        const wsBase = apiBase.replace(/^https?/, "ws");
-        wsUrl = `${wsBase}/ws/health`;
+        const wsBase = apiBase.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+        wsUrl = `${wsBase}/rent/ws/health`;
       } else {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         wsUrl = `${protocol}//${window.location.host}/rent/ws/health`;
       }
 
-      ws = new WebSocket(wsUrl);
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 5000);
+        }
+        return;
+      }
 
       ws.onmessage = (e) => {
         try {
@@ -19373,15 +19518,15 @@ mkdir -p build-output/rent/admin
 cp -r admin-app/dist/* build-output/rent/admin/
 mkdir -p build-output/rent/landlord
 cp -r landlord-app/dist/* build-output/rent/landlord/
-mkdir -p build-output/rent/tenant
-cp -r tenant-app/dist/* build-output/rent/tenant/
+mkdir -p build-output/rent/t
+cp -r tenant-app/dist/* build-output/rent/t/
+
+mkdir -p build-output/functions
+cp -r functions/* build-output/functions/
 
 cat > build-output/_redirects << 'EOF'
-# SPA fallback: all routes under /rent/* serve index.html
-/rent/admin/*   /rent/admin/index.html   200
-/rent/landlord/* /rent/landlord/index.html 200
-/rent/t/*       /rent/t/index.html        200
-/rent/*         /rent/index.html          200
+# Root redirect: bare domain -> landing app
+/ /rent/ 301
 EOF
 
 cat > build-output/_headers << 'EOF'
@@ -20545,6 +20690,99 @@ export default function BroadcastBanner({ healthUrl = "/health" }: BroadcastBann
       )}
     </div>
   );
+}
+```
+
+### `frontend/landlord-app/src/components/ErrorBoundary.tsx`
+
+```typescript
+import { Component, type ErrorInfo, type ReactNode } from 'react'
+
+interface Props {
+  children: ReactNode
+}
+
+interface State {
+  hasError: boolean
+  message: string
+}
+
+export default class ErrorBoundary extends Component<Props, State> {
+  state: State = { hasError: false, message: '' }
+
+  static getDerivedStateFromError(error: unknown): State {
+    return { hasError: true, message: error instanceof Error ? error.message : String(error) }
+  }
+
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    console.error('Unhandled app error:', error, info.componentStack)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 16,
+            background: '#0b1120',
+            color: '#e2e8f0',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            padding: 24,
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 40, marginBottom: 8 }}>⚠️</div>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#fff' }}>
+            Something went wrong
+          </h1>
+          <p style={{ margin: 0, fontSize: 14, color: '#94a3b8', maxWidth: 560 }}>
+            An unexpected error occurred while rendering this page. Try reloading, or
+            contact support if the problem persists.
+          </p>
+          {this.state.message && (
+            <code
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                borderRadius: 8,
+                padding: '8px 12px',
+                fontSize: 12,
+                color: '#fca5a5',
+                maxWidth: 560,
+                overflowWrap: 'break-word',
+              }}
+            >
+              {this.state.message}
+            </code>
+          )}
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              marginTop: 8,
+              padding: '10px 20px',
+              borderRadius: 8,
+              border: 'none',
+              background: '#3b4a6b',
+              color: '#fff',
+              fontSize: 14,
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            Reload page
+          </button>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
 }
 ```
 
@@ -32954,14 +33192,21 @@ export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled 
       let wsUrl: string;
 
       if (apiBase) {
-        const wsBase = apiBase.replace(/^https?/, "ws");
-        wsUrl = `${wsBase}/ws/auth?channel=${encodeURIComponent(channel)}`;
+        const wsBase = apiBase.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+        wsUrl = `${wsBase}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
       } else {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         wsUrl = `${protocol}//${window.location.host}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
       }
 
-      ws = new WebSocket(wsUrl);
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+        return;
+      }
 
       ws.onopen = () => {
         pingTimer = setInterval(() => {
@@ -33047,8 +33292,8 @@ export function useSync(channel: string, onEvent: EventHandler, enabled = true) 
 
       if (apiBase) {
         // Production: API on different origin (e.g. https://api.vijaykrsha.online/rent)
-        const wsBase = apiBase.replace(/^https?/, "ws");
-        wsUrl = `${wsBase}/ws/sync?channel=${encodeURIComponent(channel)}`;
+        const wsBase = apiBase.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+        wsUrl = `${wsBase}/rent/ws/sync?channel=${encodeURIComponent(channel)}`;
       } else {
         // Docker testing: same origin
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -33056,7 +33301,14 @@ export function useSync(channel: string, onEvent: EventHandler, enabled = true) 
         wsUrl = `${protocol}//${host}/rent/ws/sync?channel=${encodeURIComponent(channel)}`;
       }
 
-      ws = new WebSocket(wsUrl);
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch {
+        if (!unmounted) {
+          reconnectTimer = setTimeout(connect, 3000);
+        }
+        return;
+      }
 
       ws.onopen = () => {
         // Send periodic pings to keep alive
@@ -38674,6 +38926,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { api } from '@/services/api';
+import { API_BASE } from '@/services/base';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Tenant } from '@/types';
@@ -39267,7 +39520,7 @@ export default function Tenants() {
 
                 <div className="mt-4 flex justify-center bg-white p-2">
                   <QRCode
-                    value={`${window.location.origin}/rent/${landlordUuid}/t/${qrTenant.id}/${qrTenant.viewToken}`}
+                    value={`${API_BASE}/${landlordUuid}/t/${qrTenant.id}/${qrTenant.viewToken}`}
                     size={200}
                     level="H"
                   />
@@ -39518,7 +39771,7 @@ function TenantCard({
             size="sm"
             className="w-full"
             disabled={!tenant.viewToken}
-            onClick={() => tenant.viewToken && window.open(`/rent/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`, '_blank')}
+            onClick={() => tenant.viewToken && window.open(`${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`, '_blank')}
             title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Open public profile'}
           >
             Public Profile
@@ -39543,7 +39796,7 @@ function TenantCard({
             onClick={async () => {
               if (!tenant.viewToken || !tenant.id) return;
 
-              const url = `${window.location.origin}/rent/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
+              const url = `${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
 
               let pin = '----';
               try {
@@ -41530,12 +41783,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "./AuthLayout";
 
 export default function LoginModal({
-  tenantName,
   onSubmit,
   error,
   loading,
 }: {
-  tenantName: string;
   onSubmit: (pin: string) => void;
   error?: string;
   loading: boolean;
@@ -41551,7 +41802,6 @@ export default function LoginModal({
               <Lock className="w-7 h-7 text-primary" />
             </div>
             <h1 className="text-2xl font-bold">Tenant Portal</h1>
-            <p className="text-muted-foreground mt-2">{tenantName}</p>
           </div>
 
           <div className="grid grid-cols-3 gap-3 mb-6">
@@ -44446,7 +44696,7 @@ export default function TenantLoginPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">Phone or Email</Label>
               <div className="relative">
@@ -44460,8 +44710,7 @@ export default function TenantLoginPage() {
                     setError("");
                   }}
                   className="pl-9"
-                  autoComplete="username"
-                  autoFocus
+                  autoComplete="off"
                   required
                 />
               </div>
