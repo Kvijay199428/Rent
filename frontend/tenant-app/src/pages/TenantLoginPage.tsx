@@ -67,7 +67,7 @@ export default function TenantLoginPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">Phone or Email</Label>
               <div className="relative">
@@ -81,8 +81,7 @@ export default function TenantLoginPage() {
                     setError("");
                   }}
                   className="pl-9"
-                  autoComplete="username"
-                  autoFocus
+                  autoComplete="off"
                   required
                 />
               </div>

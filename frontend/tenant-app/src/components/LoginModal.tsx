@@ -7,12 +7,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "./AuthLayout";
 
 export default function LoginModal({
-  tenantName,
   onSubmit,
   error,
   loading,
 }: {
-  tenantName: string;
   onSubmit: (pin: string) => void;
   error?: string;
   loading: boolean;
@@ -28,7 +26,6 @@ export default function LoginModal({
               <Lock className="w-7 h-7 text-primary" />
             </div>
             <h1 className="text-2xl font-bold">Tenant Portal</h1>
-            <p className="text-muted-foreground mt-2">{tenantName}</p>
           </div>
 
           <div className="grid grid-cols-3 gap-3 mb-6">

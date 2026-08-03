@@ -71,7 +71,6 @@ function TenantPortalInner() {
   if (!isUnlocked) {
     return (
       <LoginModal
-        tenantName={tenant.name}
         error={loginError}
         loading={isLoggingIn}
         onSubmit={async (pin) => {

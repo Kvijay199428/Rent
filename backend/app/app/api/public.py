@@ -71,27 +71,35 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
         "occupation": getattr(tenant, "occupation", ""),
         "company": getattr(tenant, "company", ""),
     }
-    
-    if unlocked:
-        receipts = get_all_receipts()
-        tenant_receipts = [
-            r for r in receipts
-            if int(r.get("TenantId", 0) or 0) == tenant.id
-            and (r.get("Status") or "").upper() != "ARCHIVED"
-        ]
-        tenant_receipts.reverse()
-        tenant_receipts = tenant_receipts[:config.get("system.limits.public_history_months", 12)]
-        occupants = get_occupants(tenant.id)
-        
+
+    if not unlocked:
+        # Do not leak tenant identity to a logged-out visitor: the portal
+        # login screen is rendered from this payload, so return only the
+        # minimal, non-identifying fields until the tenant unlocks.
         return {
-            "tenant": base_info,
-            "receipts": tenant_receipts,
-            "occupants": occupants
+            "tenant": {
+                "id": tenant.id,
+                "viewToken": viewToken,
+                "unlocked": unlocked,
+                "readOnly": tenant.status != "Active",
+            }
         }
-    else:
-        return {
-            "tenant": base_info
-        }
+
+    receipts = get_all_receipts()
+    tenant_receipts = [
+        r for r in receipts
+        if int(r.get("TenantId", 0) or 0) == tenant.id
+        and (r.get("Status") or "").upper() != "ARCHIVED"
+    ]
+    tenant_receipts.reverse()
+    tenant_receipts = tenant_receipts[:config.get("system.limits.public_history_months", 12)]
+    occupants = get_occupants(tenant.id)
+
+    return {
+        "tenant": base_info,
+        "receipts": tenant_receipts,
+        "occupants": occupants
+    }
 
 @router.get(TenantRoutes.TENANTAPIAUTHPUBLICKEY, name=TenantNames.TENANTPUBLICKEY)
 async def get_public_key():
