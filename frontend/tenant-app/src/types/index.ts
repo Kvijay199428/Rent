@@ -66,3 +66,37 @@ export interface AuthResponse {
 }
 
 export type PaymentState = "PENDING" | "PARTIAL" | "PAID" | "ADVANCE";
+
+// ── QR Login Flow ──
+export interface QrTenantProfile {
+  id: number;
+  name: string;
+  viewToken: string;
+  unlocked: boolean;
+  readOnly: boolean;
+}
+
+export interface QrLoginResponse {
+  status: "success" | "error";
+  message?: string;
+  tenant?: QrTenantProfile;
+}
+
+// ── Portal Login Flow ──
+export interface PortalLoginResponse {
+  status: "success" | "error";
+  tenant?: {
+    id: number;
+    name: string;
+    landlord_uuid: string;
+    view_token: string;
+  };
+  redirect_url: string | null;
+  message?: string;
+}
+
+// ── Shared ──
+export interface ApiError {
+  detail?: string;
+  message?: string;
+}

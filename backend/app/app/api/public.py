@@ -73,12 +73,12 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
     }
 
     if not unlocked:
-        # Do not leak tenant identity to a logged-out visitor: the portal
-        # login screen is rendered from this payload, so return only the
-        # minimal, non-identifying fields until the tenant unlocks.
+        # Controlled disclosure: only the first-name greeting for the QR
+        # unlock screen. No receipts, no occupants, no phone/email/address.
         return {
             "tenant": {
                 "id": tenant.id,
+                "name": getattr(tenant, "name", ""),
                 "viewToken": viewToken,
                 "unlocked": unlocked,
                 "readOnly": tenant.status != "Active",
@@ -270,6 +270,12 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
 
     return {
         "status": "success",
+        "tenant": {
+            "id": tenant_id,
+            "name": row["name"],
+            "landlord_uuid": landlord_uuid,
+            "view_token": view_token,
+        },
         "redirect_url": f"{rootpath}/{landlord_uuid}/t/{tenant_id}/{view_token}",
     }
 

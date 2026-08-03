@@ -15,6 +15,17 @@ const AES_GCM_PARAMS: AesKeyAlgorithm = {
 };
 
 /**
+ * Fetch the tenant login RSA public key (PEM) from the given endpoint.
+ */
+export async function getPublicKey(endpoint: string): Promise<string> {
+    const res = await fetch(endpoint, { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to load public key");
+    const data = await res.json();
+    if (!data.publicKey) throw new Error("Failed to load public key");
+    return data.publicKey;
+}
+
+/**
  * Encrypt a payload using hybrid AES+RSA encryption.
  * 1. Generate random AES-256 key
  * 2. Encrypt payload with AES-GCM

@@ -4,7 +4,7 @@ Generated: 2025-07-29
 Script:   /root/rent/copy.py
 Source:   /root/rent
 Files:    299
-Size:     1561 KB
+Size:     1563 KB
 Skipped:  0
 
 ---
@@ -269,7 +269,6 @@ Skipped:  0
 - frontend/tenant-app/src/components/BroadcastBanner.tsx
 - frontend/tenant-app/src/components/ErrorBoundary.tsx
 - frontend/tenant-app/src/components/LoadingScreen.tsx
-- frontend/tenant-app/src/components/LoginModal.tsx
 - frontend/tenant-app/src/components/OccupantCard.tsx
 - frontend/tenant-app/src/components/OccupantDocumentViewer.tsx
 - frontend/tenant-app/src/components/OccupantKycUploadDialog.tsx
@@ -301,7 +300,8 @@ Skipped:  0
 - frontend/tenant-app/src/lib/queryClient.ts
 - frontend/tenant-app/src/lib/tenant-runtime.ts
 - frontend/tenant-app/src/lib/utils.ts
-- frontend/tenant-app/src/pages/TenantLoginPage.tsx
+- frontend/tenant-app/src/pages/PortalLoginPage.tsx
+- frontend/tenant-app/src/pages/QrUnlockPage.tsx
 - frontend/tenant-app/src/types/index.ts
 - frontend/tenant-app/tsconfig.app.json
 - frontend/tenant-app/tsconfig.json
@@ -1052,12 +1052,12 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
     }
 
     if not unlocked:
-        # Do not leak tenant identity to a logged-out visitor: the portal
-        # login screen is rendered from this payload, so return only the
-        # minimal, non-identifying fields until the tenant unlocks.
+        # Controlled disclosure: only the first-name greeting for the QR
+        # unlock screen. No receipts, no occupants, no phone/email/address.
         return {
             "tenant": {
                 "id": tenant.id,
+                "name": getattr(tenant, "name", ""),
                 "viewToken": viewToken,
                 "unlocked": unlocked,
                 "readOnly": tenant.status != "Active",
@@ -1249,6 +1249,12 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
 
     return {
         "status": "success",
+        "tenant": {
+            "id": tenant_id,
+            "name": row["name"],
+            "landlord_uuid": landlord_uuid,
+            "view_token": view_token,
+        },
         "redirect_url": f"{rootpath}/{landlord_uuid}/t/{tenant_id}/{view_token}",
     }
 
@@ -41771,115 +41777,6 @@ export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
 }
 ```
 
-### `frontend/tenant-app/src/components/LoginModal.tsx`
-
-```typescript
-import { useState } from "react";
-import { Lock, ShieldCheck, Receipt, Users } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import AuthLayout from "./AuthLayout";
-
-export default function LoginModal({
-  onSubmit,
-  error,
-  loading,
-}: {
-  onSubmit: (pin: string) => void;
-  error?: string;
-  loading: boolean;
-}) {
-  const [pin, setPin] = useState("");
-
-  return (
-    <AuthLayout>
-      <Card className="w-full max-w-md rounded-3xl border-0 shadow-xl">
-        <CardContent className="p-8">
-          <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <Lock className="w-7 h-7 text-primary" />
-            </div>
-            <h1 className="text-2xl font-bold">Tenant Portal</h1>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <div className="rounded-2xl bg-muted p-3 text-center">
-              <Receipt className="w-4 h-4 mx-auto mb-1 text-primary" />
-              <div className="text-xs text-muted-foreground">Bills</div>
-            </div>
-            <div className="rounded-2xl bg-muted p-3 text-center">
-              <Users className="w-4 h-4 mx-auto mb-1 text-primary" />
-              <div className="text-xs text-muted-foreground">Occupants</div>
-            </div>
-            <div className="rounded-2xl bg-muted p-3 text-center">
-              <ShieldCheck className="w-4 h-4 mx-auto mb-1 text-primary" />
-              <div className="text-xs text-muted-foreground">Secure</div>
-            </div>
-          </div>
-
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (pin.length === 4) onSubmit(pin);
-            }}
-            className="space-y-4"
-          >
-            <div>
-              <label className="text-sm font-medium block mb-2">
-                Enter 4-digit PIN
-              </label>
-              <Input
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={4}
-                autoFocus
-                required
-                value={pin}
-                onChange={(e) =>
-                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
-                placeholder="••••"
-                className="h-14 text-center text-2xl tracking-[0.5em] rounded-2xl"
-              />
-            </div>
-
-            <Button
-              type="submit"
-              disabled={loading || pin.length !== 4}
-              className="w-full h-12 rounded-2xl"
-            >
-              {loading ? "Unlocking..." : "Unlock Portal"}
-            </Button>
-
-            <p className="text-xs text-center text-muted-foreground">
-              Your bills and occupant KYC are shown only after PIN verification.
-            </p>
-
-            <div className="text-center pt-2 border-t">
-              <a
-                href="/rent/tenant/login"
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                Login with phone / email
-              </a>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </AuthLayout>
-  );
-}
-```
-
 ### `frontend/tenant-app/src/components/OccupantCard.tsx`
 
 ```typescript
@@ -44344,6 +44241,17 @@ const AES_GCM_PARAMS: AesKeyAlgorithm = {
 };
 
 /**
+ * Fetch the tenant login RSA public key (PEM) from the given endpoint.
+ */
+export async function getPublicKey(endpoint: string): Promise<string> {
+    const res = await fetch(endpoint, { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to load public key");
+    const data = await res.json();
+    if (!data.publicKey) throw new Error("Failed to load public key");
+    return data.publicKey;
+}
+
+/**
  * Encrypt a payload using hybrid AES+RSA encryption.
  * 1. Generate random AES-256 key
  * 2. Encrypt payload with AES-GCM
@@ -44433,35 +44341,79 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 ### `frontend/tenant-app/src/lib/login-api.ts`
 
 ```typescript
-import axios from "axios";
-import { encryptPayload } from "./encryption";
+import { getPublicKey, encryptPayload } from "./encryption";
 
-const http = axios.create({
-  baseURL: "/rent/tenant",
-  withCredentials: true,
-  headers: { "Content-Type": "application/json" },
-});
+// ── QR Flow: login via encrypted PIN (scoped to the QR URL) ──
+export async function qrLoginByPin(
+  basePath: string,
+  pin: string
+): Promise<{ status: string; message?: string }> {
+  const pubKey = await getPublicKey(`${basePath}/api/auth/public-key`);
+  const encrypted = await encryptPayload({ pin, rememberme: true }, pubKey);
 
-export async function loginByUsername(
+  const res = await fetch(`${basePath}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      key: encrypted.key,
+      data: encrypted.data,
+      nonce: encrypted.nonce,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.status !== "success") {
+    throw new Error(data.detail || data.message || "Invalid PIN");
+  }
+  return data;
+}
+
+// ── Portal Flow: login via username + PIN (global endpoint) ──
+export async function portalLoginByUsername(
   username: string,
   pin: string,
-  rememberMe = false
-): Promise<{ status: string; redirect_url: string }> {
-  const { data: keyRes } = await http.get<{ publicKey: string }>(
-    "api/auth/public-key"
-  );
-  if (!keyRes.publicKey) throw new Error("Failed to load public key");
-
+  rememberMe: boolean = false
+): Promise<{
+  status: string;
+  tenant?: {
+    id: number;
+    name: string;
+    landlord_uuid: string;
+    view_token: string;
+  };
+  redirect_url: string | null;
+}> {
+  const pubKey = await getPublicKey("/rent/tenant/api/auth/public-key");
   const encrypted = await encryptPayload(
-    { username, pin, rememberme: rememberMe },
-    keyRes.publicKey
+    { username, pin, rememberme: rememberMe, portal_mode: true },
+    pubKey
   );
 
-  const { data } = await http.post<{ status: string; redirect_url: string }>(
-    "api/auth/login-by-username",
-    encrypted
-  );
+  const res = await fetch("/rent/tenant/api/auth/login-by-username", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      key: encrypted.key,
+      data: encrypted.data,
+      nonce: encrypted.nonce,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.status !== "success") {
+    throw new Error(data.detail || data.message || "Login failed");
+  }
   return data;
+}
+
+// ── Logout (works for both flows) ──
+export async function logoutTenant(basePath: string): Promise<void> {
+  await fetch(`${basePath}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
 }
 ```
 
@@ -44624,152 +44576,244 @@ export function formatResidentSince(dateStr: string): string {
 }
 ```
 
-### `frontend/tenant-app/src/pages/TenantLoginPage.tsx`
+### `frontend/tenant-app/src/pages/PortalLoginPage.tsx`
 
 ```typescript
-import { useState, type FormEvent } from "react";
-import { User, Lock, AlertTriangle, ArrowLeft } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useState } from "react";
+import { KeyRound, User, ArrowRight } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "@/components/AuthLayout";
-import { loginByUsername } from "@/lib/login-api";
+import { portalLoginByUsername } from "@/lib/login-api";
 
-export default function TenantLoginPage() {
+export default function PortalLoginPage() {
   const [username, setUsername] = useState("");
   const [pin, setPin] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username.trim() || pin.length !== 4) return;
+
     setError("");
-
-    if (!username.trim()) {
-      setError("Please enter your phone number or email");
-      return;
-    }
-    if (pin.length !== 4) {
-      setError("PIN must be exactly 4 digits");
-      return;
-    }
-
     setLoading(true);
     try {
-      const result = await loginByUsername(username.trim(), pin, rememberMe);
-      if (result.status === "success" && result.redirect_url) {
-        window.location.href = result.redirect_url;
+      const data = await portalLoginByUsername(username.trim(), pin);
+      if (data.redirect_url) {
+        window.location.href = data.redirect_url;
+      } else {
+        window.location.reload();
       }
     } catch (err: any) {
-      const detail =
-        err?.response?.data?.detail ||
-        err?.message ||
-        "Login failed. Please try again.";
-      setError(detail);
-    } finally {
+      setError(err.message || "Login failed. Please check your credentials.");
       setLoading(false);
     }
   };
 
   return (
     <AuthLayout>
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <Lock className="h-8 w-8 text-primary" />
+      <Card className="w-full max-w-md rounded-3xl border shadow-xl">
+        <CardContent className="p-8">
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <KeyRound className="w-7 h-7 text-primary" />
             </div>
+            <h1 className="text-2xl font-bold tracking-tight">Tenant Portal</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Sign in with your registered phone or email
+            </p>
           </div>
-          <CardTitle className="text-2xl text-center">Tenant Login</CardTitle>
-          <CardDescription className="text-center">
-            Sign in with your phone or email and PIN
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+
           {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertTriangle className="h-4 w-4" />
+            <Alert variant="destructive" className="mb-4 rounded-xl">
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} autoComplete="off" className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="username">Phone or Email</Label>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-sm font-semibold block mb-2">
+                Phone or Email
+              </label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  id="username"
-                  placeholder="Enter phone number or email"
+                  type="text"
+                  autoFocus
+                  required
+                  disabled={loading}
                   value={username}
-                  onChange={(e) => {
-                    setUsername(e.target.value);
-                    setError("");
-                  }}
-                  className="pl-9"
-                  autoComplete="off"
-                  required
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="9876543210 or name@email.com"
+                  className="h-12 pl-10 rounded-2xl"
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="pin">4-Digit PIN</Label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  id="pin"
-                  type="password"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={4}
-                  placeholder="••••"
-                  value={pin}
-                  onChange={(e) =>
-                    setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
-                  }
-                  className="pl-9 text-center text-lg tracking-[0.5em]"
-                  autoComplete="one-time-code"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="remember"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="rounded border-gray-300"
+            <div>
+              <label className="text-sm font-semibold block mb-2">
+                4-digit PIN
+              </label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
+                required
+                disabled={loading}
+                value={pin}
+                onChange={(e) =>
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
+                placeholder="• • • •"
+                className="h-12 text-center text-2xl tracking-[0.6em] rounded-2xl font-mono"
               />
-              <Label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
-                Remember me
-              </Label>
             </div>
-
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
-            </Button>
 
             <Button
-              type="button"
-              variant="ghost"
-              className="w-full"
-              onClick={() => window.history.back()}
+              type="submit"
+              disabled={loading || pin.length !== 4 || !username.trim()}
+              className="w-full h-12 rounded-2xl text-base"
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+              {loading ? "Signing in…" : "Sign In"}
+              {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
             </Button>
           </form>
 
-          <div className="mt-4 pt-4 border-t text-center">
-            <p className="text-xs text-muted-foreground">
-              You can also login by scanning your QR code link.
+          <p className="text-xs text-center text-muted-foreground mt-6 leading-relaxed">
+            This is a generic portal login. If you received a QR code from your landlord, scan it for direct access.
+          </p>
+        </CardContent>
+      </Card>
+    </AuthLayout>
+  );
+}
+```
+
+### `frontend/tenant-app/src/pages/QrUnlockPage.tsx`
+
+```typescript
+import { useState } from "react";
+import { Lock, ShieldCheck, Receipt, Users, ArrowRight } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import AuthLayout from "@/components/AuthLayout";
+import { qrLoginByPin } from "@/lib/login-api";
+import type { QrTenantProfile } from "@/types";
+
+interface Props {
+  tenant: QrTenantProfile;
+  basePath: string;
+}
+
+export default function QrUnlockPage({ tenant, basePath }: Props) {
+  const [pin, setPin] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const firstName = tenant.name?.split(" ")[0] || "Tenant";
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pin.length !== 4) return;
+
+    setError("");
+    setLoading(true);
+    try {
+      await qrLoginByPin(basePath, pin);
+      window.location.reload();
+    } catch (err: any) {
+      setError(err.message || "Invalid PIN. Please try again.");
+      setPin("");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthLayout>
+      <Card className="w-full max-w-md rounded-3xl border shadow-xl">
+        <CardContent className="p-8">
+          <div className="text-center mb-6">
+            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-7 h-7 text-primary" />
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">
+              Welcome, {firstName}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Enter your 4-digit PIN to unlock your portal
             </p>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div className="rounded-2xl bg-muted p-3 text-center">
+              <Receipt className="w-4 h-4 mx-auto mb-1 text-primary" />
+              <div className="text-[11px] font-medium text-muted-foreground">Bills</div>
+            </div>
+            <div className="rounded-2xl bg-muted p-3 text-center">
+              <Users className="w-4 h-4 mx-auto mb-1 text-primary" />
+              <div className="text-[11px] font-medium text-muted-foreground">Occupants</div>
+            </div>
+            <div className="rounded-2xl bg-muted p-3 text-center">
+              <ShieldCheck className="w-4 h-4 mx-auto mb-1 text-primary" />
+              <div className="text-[11px] font-medium text-muted-foreground">Secure</div>
+            </div>
+          </div>
+
+          {error && (
+            <Alert variant="destructive" className="mb-4 rounded-xl">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-sm font-semibold block mb-2">
+                4-digit PIN
+              </label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={4}
+                autoFocus
+                required
+                disabled={loading}
+                value={pin}
+                onChange={(e) =>
+                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
+                placeholder="• • • •"
+                className="h-14 text-center text-2xl tracking-[0.6em] rounded-2xl font-mono"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loading || pin.length !== 4}
+              className="w-full h-12 rounded-2xl text-base"
+            >
+              {loading ? "Unlocking…" : "Unlock Portal"}
+              {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
+            </Button>
+          </form>
+
+          <p className="text-xs text-center text-muted-foreground mt-5 leading-relaxed">
+            Your rent receipts and occupant KYC are shown only after PIN verification.
+          </p>
+
+          <div className="mt-6 pt-4 border-t text-center">
+            <a
+              href="/rent/tenant/login"
+              className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+            >
+              Login with phone / email instead
+            </a>
           </div>
         </CardContent>
       </Card>
@@ -44849,6 +44893,40 @@ export interface AuthResponse {
 }
 
 export type PaymentState = "PENDING" | "PARTIAL" | "PAID" | "ADVANCE";
+
+// ── QR Login Flow ──
+export interface QrTenantProfile {
+  id: number;
+  name: string;
+  viewToken: string;
+  unlocked: boolean;
+  readOnly: boolean;
+}
+
+export interface QrLoginResponse {
+  status: "success" | "error";
+  message?: string;
+  tenant?: QrTenantProfile;
+}
+
+// ── Portal Login Flow ──
+export interface PortalLoginResponse {
+  status: "success" | "error";
+  tenant?: {
+    id: number;
+    name: string;
+    landlord_uuid: string;
+    view_token: string;
+  };
+  redirect_url: string | null;
+  message?: string;
+}
+
+// ── Shared ──
+export interface ApiError {
+  detail?: string;
+  message?: string;
+}
 ```
 
 ### `frontend/tenant-app/tsconfig.app.json`

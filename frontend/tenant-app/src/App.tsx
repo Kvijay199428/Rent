@@ -2,15 +2,12 @@ import { useState, useMemo } from "react";
 import { Routes, Route, Navigate } from "react-router";
 import { TenantProvider } from "@/context/TenantContext";
 import { useTenant } from "@/context/TenantContext";
-import LoginModal from "@/components/LoginModal";
 import BroadcastBanner from "@/components/BroadcastBanner";
 import LoadingScreen from "@/components/LoadingScreen";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { toast } from "sonner";
 import { ReceiptRoller } from "@/components/receipts";
 import PdfPreviewModal from "@/components/modals/PdfPreviewModal";
 import OccupantList from "@/components/OccupantList";
-import { DashboardSkeleton } from "@/components/Skeletons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PaymentStatusCard from "@/components/PaymentStatusCard";
 import ArchiveReceiptCard from "@/components/ArchiveReceiptCard";
@@ -18,13 +15,12 @@ import TenantProfileDetails from "@/components/TenantProfileDetails";
 import ActivityLog from "@/components/ActivityLog";
 import { Receipt as ReceiptIcon, Users, Archive, User, Shield } from "lucide-react";
 import { isOlderThan12Months } from "@/lib/utils";
-import TenantLoginPage from "@/pages/TenantLoginPage";
-import type { Receipt } from "@/types";
+import QrUnlockPage from "@/pages/QrUnlockPage";
+import PortalLoginPage from "@/pages/PortalLoginPage";
+import type { Receipt, QrTenantProfile } from "@/types";
 
 function TenantPortalInner() {
-  const { profile, receipts, occupants, login, logout, isUnlocked, isLoading } = useTenant();
-  const [loginError, setLoginError] = useState("");
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const { profile, receipts, occupants, logout, isUnlocked, isLoading } = useTenant();
   const [previewBill, setPreviewBill] = useState<string | null>(null);
 
   const tenant = profile?.tenant;
@@ -70,21 +66,9 @@ function TenantPortalInner() {
 
   if (!isUnlocked) {
     return (
-      <LoginModal
-        error={loginError}
-        loading={isLoggingIn}
-        onSubmit={async (pin) => {
-          setLoginError("");
-          setIsLoggingIn(true);
-          try {
-            await login(pin);
-            toast.success("Portal unlocked");
-          } catch (err: any) {
-            setLoginError(err?.response?.data?.detail || err?.message || "Login failed");
-          } finally {
-            setIsLoggingIn(false);
-          }
-        }}
+      <QrUnlockPage
+        tenant={tenant as QrTenantProfile}
+        basePath={window.location.pathname}
       />
     );
   }
@@ -262,8 +246,8 @@ export default function App() {
   return (
     <Routes>
       <Route path="/tenant" element={<Navigate to="/tenant/login" replace />} />
-      <Route path="/tenant/login" element={<TenantLoginPage />} />
-      <Route path="/login" element={<TenantLoginPage />} />
+      <Route path="/tenant/login" element={<PortalLoginPage />} />
+      <Route path="/login" element={<PortalLoginPage />} />
       <Route
         path="/:landlordUuid/t/:tenantId/:viewToken"
         element={
