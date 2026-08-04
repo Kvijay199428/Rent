@@ -13,6 +13,25 @@ import {
 
 type View = "login" | "forgot" | "forced-change";
 
+const USERNAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9\-_.!@#$%^&*+]{2,}$/;
+
+function validateUsername(v: string): string | null {
+  if (!v) return "Username is required";
+  if (/\s/.test(v)) return "Username must not contain spaces";
+  if (v.length < 3) return "Username must be at least 3 characters";
+  if (v.length > 50) return "Username must not exceed 50 characters";
+  if (!USERNAME_RE.test(v))
+    return "Username must start with a letter or digit and contain only letters, digits, and !@#$%^&*_-";
+  return null;
+}
+
+function validatePassword(v: string): string | null {
+  if (!v) return "Password is required";
+  if (/\s/.test(v)) return "Password must not contain spaces";
+  if (v.length < 8) return "Password must be at least 8 characters";
+  return null;
+}
+
 export default function PortalLoginPage() {
   const [view, setView] = useState<View>("login");
   const [username, setUsername] = useState("");
@@ -33,6 +52,11 @@ export default function PortalLoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) return;
+
+    const usernameErr = validateUsername(username.trim());
+    if (usernameErr) { setError(usernameErr); return; }
+    const passwordErr = validatePassword(password);
+    if (passwordErr) { setError(passwordErr); return; }
 
     setError("");
     setInfo("");
@@ -60,6 +84,9 @@ export default function PortalLoginPage() {
     e.preventDefault();
     if (!username.trim()) return;
 
+    const usernameErr = validateUsername(username.trim());
+    if (usernameErr) { setError(usernameErr); return; }
+
     setError("");
     setInfo("");
     setLoading(true);
@@ -81,6 +108,8 @@ export default function PortalLoginPage() {
       setError("New password must be at least 8 characters.");
       return;
     }
+    const passwordErr = validatePassword(newPassword);
+    if (passwordErr) { setError(passwordErr); return; }
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match.");
       return;

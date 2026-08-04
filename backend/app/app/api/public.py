@@ -193,6 +193,10 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
     if not username or not password:
         raise HTTPException(status_code=400, detail="Username and password are required")
 
+    from app.authentication.common.utils import validate_username, validate_password
+    validate_username(username)
+    validate_password(password)
+
     ip = request.client.host if request.client else "Unknown IP"
 
     with get_conn() as conn:
@@ -310,6 +314,9 @@ async def global_tenant_forgot_password(request: Request, login_req: EncryptedLo
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted payload")
 
+    from app.authentication.common.utils import validate_username
+    validate_username(username)
+
     ip = request.client.host if request.client else "Unknown IP"
 
     with get_conn() as conn:
@@ -363,6 +370,10 @@ async def global_tenant_reset_password(request: Request, response: Response, log
         raise HTTPException(status_code=400, detail="Username and reset token are required")
     if len(new_password) < 8:
         raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    from app.authentication.common.utils import validate_username, validate_password
+    validate_username(username)
+    validate_password(new_password)
 
     ip = request.client.host if request.client else "Unknown IP"
 
@@ -431,6 +442,10 @@ async def global_tenant_change_password(request: Request, response: Response, lo
         raise HTTPException(status_code=400, detail="Username and current password are required")
     if len(new_password) < 8:
         raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    from app.authentication.common.utils import validate_username, validate_password
+    validate_username(username)
+    validate_password(new_password)
 
     ip = request.client.host if request.client else "Unknown IP"
 

@@ -4,7 +4,7 @@ Generated: 2025-07-29
 Script:   /root/rent/copy.py
 Source:   /root/rent
 Files:    299
-Size:     1563 KB
+Size:     1608 KB
 Skipped:  0
 
 ---
@@ -1104,8 +1104,17 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
     try:
         decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
         pin = decrypted.get("pin", "")
+        qr_key = (decrypted.get("qr_key") or "").strip()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted payload")
+
+    # When a qr_key is supplied, it must match the tenant's stored key. This
+    # binds each QR login to the specific printed QR (invalidateable by rotation).
+    if qr_key:
+        stored_key = (getattr(tenant, "qr_key", "") or "").strip()
+        from app.authentication.common.utils import constant_time_eq
+        if not stored_key or not constant_time_eq(qr_key, stored_key):
+            raise HTTPException(status_code=401, detail="Invalid QR link")
 
     if getattr(tenant, "tenantPin", None) != pin:
         from app.authentication.common.utils import verify_pin
@@ -1142,8 +1151,9 @@ async def global_tenant_public_key():
     return {"publicKey": get_public_key_pem()}
 
 
-@router.post("/tenant/api/auth/login-by-username", include_in_schema=False)
-async def global_tenant_login_by_username(request: Request, response: Response, login_req: EncryptedLoginRequest):
+@router.post("/tenant/api/auth/login", include_in_schema=False)
+async def global_tenant_login(request: Request, response: Response, login_req: EncryptedLoginRequest):
+    """Portal login with tenant_username + password_hash."""
     from app.encryption import decrypt_payload
     from app.authentication.common.utils import verify_pin
     from app.authentication.tenant.sessions import create_tenant_session
@@ -1154,54 +1164,62 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
     try:
         decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
         username = decrypted.get("username", "").strip().lower()
-        pin = decrypted.get("pin", "")
+        password = decrypted.get("password", "")
         remember_me = decrypted.get("rememberme", False)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted payload")
 
-    if not username or not pin:
-        raise HTTPException(status_code=400, detail="Username and PIN are required")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
+
+    from app.authentication.common.utils import validate_username, validate_password
+    validate_username(username)
+    validate_password(password)
 
     ip = request.client.host if request.client else "Unknown IP"
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, landlord_id, viewToken, tenantpin, failed_attempts, locked_until "
-            "FROM tenants WHERE LOWER(phone) = ? OR LOWER(email) = ? "
-            "ORDER BY id LIMIT 1",
-            (username, username),
+            "SELECT id, name, landlord_id, viewToken, password_hash, "
+            "password_failed_attempts, password_locked_until, password_reset_required "
+            "FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            (username,),
         ).fetchone()
 
-    if not row:
-        raise HTTPException(status_code=404, detail="No account found with that phone or email")
+    # Generic failure for unknown user OR missing password — do not leak account existence.
+    def generic_fail():
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    if not row or not row["password_hash"]:
+        generic_fail()
 
     from datetime import datetime, timedelta
-    if row["locked_until"]:
+    if row["password_locked_until"]:
         try:
-            locked_until = datetime.fromisoformat(row["locked_until"])
+            locked_until = datetime.fromisoformat(row["password_locked_until"])
             if datetime.utcnow() < locked_until:
                 raise HTTPException(status_code=429, detail="Account locked. Try again later.")
         except ValueError:
             pass
 
-    if not row["tenantpin"] or not verify_pin(pin, row["tenantpin"]):
-        log_audit(row["id"], "Username Login Failed - Wrong PIN", ip)
-        failed_attempts = (row["failed_attempts"] or 0) + 1
+    if not verify_pin(password, row["password_hash"]):
+        log_audit(row["id"], "Portal Login Failed - Wrong Password", ip)
+        failed_attempts = (row["password_failed_attempts"] or 0) + 1
         locked_until_str = None
         if failed_attempts >= 5:
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                "UPDATE tenants SET password_failed_attempts = ?, password_locked_until = ? WHERE id = ?",
                 (failed_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
-        raise HTTPException(status_code=401, detail="Incorrect PIN")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    if (row["failed_attempts"] or 0) > 0:
+    if (row["password_failed_attempts"] or 0) > 0:
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET failed_attempts = 0, locked_until = NULL WHERE id = ?",
+                "UPDATE tenants SET password_failed_attempts = 0, password_locked_until = NULL WHERE id = ?",
                 (row["id"],),
             )
             conn.commit()
@@ -1213,8 +1231,6 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
         ).fetchone()
 
     if not landlord:
-        # Tenant may be a legacy row with no (or a dangling) landlord_id.
-        # Fall back to the first landlord so login never 500s.
         landlord = conn.execute(
             "SELECT landlord_uuid FROM landlord_accounts ORDER BY id LIMIT 1"
         ).fetchone()
@@ -1245,7 +1261,7 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
         path=f"{cookie_path}/api/auth", max_age=max_age_refresh,
     )
 
-    log_audit(tenant_id, "Username Login Success", ip)
+    log_audit(tenant_id, "Portal Login Success", ip)
 
     return {
         "status": "success",
@@ -1256,7 +1272,188 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
             "view_token": view_token,
         },
         "redirect_url": f"{rootpath}/{landlord_uuid}/t/{tenant_id}/{view_token}",
+        "reset_required": bool(row["password_reset_required"]),
     }
+
+
+@router.post("/tenant/api/auth/forgot-password", include_in_schema=False)
+async def global_tenant_forgot_password(request: Request, login_req: EncryptedLoginRequest):
+    """Request a password reset. Returns a generic message; the reset token is
+    delivered by the landlord (v1) — no tenant email/SMS channel exists yet."""
+    from app.encryption import decrypt_payload
+    from app.authentication.common.utils import hash_pin
+    from app.core.db import get_conn
+    from app.database.auth_repository import log_audit
+    import secrets as _secrets
+    from datetime import datetime, timedelta
+
+    try:
+        decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
+        username = decrypted.get("username", "").strip().lower()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid encrypted payload")
+
+    from app.authentication.common.utils import validate_username
+    validate_username(username)
+
+    ip = request.client.host if request.client else "Unknown IP"
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            (username,),
+        ).fetchone()
+
+    if row:
+        token = _secrets.token_urlsafe(32)
+        now = datetime.utcnow()
+        expires_at = now + timedelta(minutes=15)
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE tenants SET password_reset_token_hash = ?, password_reset_expires_at = ?, password_reset_requested_at = ? WHERE id = ?",
+                (hash_pin(token), expires_at.isoformat(), now.isoformat(), row["id"]),
+            )
+            conn.execute(
+                "INSERT INTO tenant_password_reset_events (tenantId, channel, token_hash, created_at, expires_at, requested_ip) VALUES (?, 'self-service', ?, ?, ?, ?)",
+                (row["id"], hash_pin(token), now.isoformat(), expires_at.isoformat(), ip),
+            )
+            conn.commit()
+        log_audit(row["id"], "Password Reset Requested", ip)
+        # TODO(delivery): no tenant email/SMS channel exists. Landlord sets the
+        # temporary password via portal-auth; self-service token delivery is a stub.
+
+    return {
+        "status": "success",
+        "message": "If an account exists for that username, a password reset will be made available.",
+    }
+
+
+@router.post("/tenant/api/auth/reset-password", include_in_schema=False)
+async def global_tenant_reset_password(request: Request, response: Response, login_req: EncryptedLoginRequest):
+    """Complete a password reset using the token issued via forgot-password."""
+    from app.encryption import decrypt_payload
+    from app.authentication.common.utils import hash_pin, verify_pin
+    from app.core.db import get_conn
+    from app.database.auth_repository import log_audit, revoke_all_tenant_sessions
+    from datetime import datetime
+
+    try:
+        decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
+        username = decrypted.get("username", "").strip().lower()
+        token = decrypted.get("token", "")
+        new_password = decrypted.get("new_password", "")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid encrypted payload")
+
+    if not username or not token:
+        raise HTTPException(status_code=400, detail="Username and reset token are required")
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    from app.authentication.common.utils import validate_username, validate_password
+    validate_username(username)
+    validate_password(new_password)
+
+    ip = request.client.host if request.client else "Unknown IP"
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, name, landlord_id, viewToken, password_reset_token_hash, password_reset_expires_at FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            (username,),
+        ).fetchone()
+
+    if not row or not row["password_reset_token_hash"]:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    if not verify_pin(token, row["password_reset_token_hash"]):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    if row["password_reset_expires_at"]:
+        try:
+            expires_at = datetime.fromisoformat(row["password_reset_expires_at"])
+            if datetime.utcnow() > expires_at:
+                raise HTTPException(status_code=400, detail="Reset token has expired")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid reset token state")
+
+    now = datetime.utcnow()
+    tenant_id = row["id"]
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE tenants SET password_hash = ?, password_reset_token_hash = NULL, password_reset_expires_at = NULL, password_reset_requested_at = NULL, password_reset_required = 0, password_failed_attempts = 0, password_locked_until = NULL, last_password_change_at = ? WHERE id = ?",
+            (hash_pin(new_password), now.isoformat(), tenant_id),
+        )
+        conn.execute(
+            "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (?, ?, ?, 'tenant-reset')",
+            (tenant_id, hash_pin(new_password), now.isoformat()),
+        )
+        conn.execute(
+            "UPDATE tenant_password_reset_events SET used_at = ? WHERE tenantId = ? AND used_at IS NULL",
+            (now.isoformat(), tenant_id),
+        )
+        conn.commit()
+
+    revoke_all_tenant_sessions(tenant_id)
+    log_audit(tenant_id, "Password Reset Completed", ip)
+
+    return {"status": "success", "message": "Password updated. Please sign in."}
+
+
+@router.post("/tenant/api/auth/change-password", include_in_schema=False)
+async def global_tenant_change_password(request: Request, response: Response, login_req: EncryptedLoginRequest):
+    """Change a tenant's password (current password required). Used for the
+    forced first-login change after a landlord-assigned temporary password."""
+    from app.encryption import decrypt_payload
+    from app.authentication.common.utils import hash_pin, verify_pin
+    from app.core.db import get_conn
+    from app.database.auth_repository import log_audit, revoke_all_tenant_sessions
+    from datetime import datetime
+
+    try:
+        decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
+        username = decrypted.get("username", "").strip().lower()
+        current_password = decrypted.get("current_password", "")
+        new_password = decrypted.get("new_password", "")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid encrypted payload")
+
+    if not username or not current_password:
+        raise HTTPException(status_code=400, detail="Username and current password are required")
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    from app.authentication.common.utils import validate_username, validate_password
+    validate_username(username)
+    validate_password(new_password)
+
+    ip = request.client.host if request.client else "Unknown IP"
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, password_hash FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            (username,),
+        ).fetchone()
+
+    if not row or not row["password_hash"] or not verify_pin(current_password, row["password_hash"]):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    now = datetime.utcnow()
+    tenant_id = row["id"]
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE tenants SET password_hash = ?, password_reset_required = 0, password_reset_token_hash = NULL, password_reset_expires_at = NULL, password_reset_requested_at = NULL, password_failed_attempts = 0, password_locked_until = NULL, last_password_change_at = ? WHERE id = ?",
+            (hash_pin(new_password), now.isoformat(), tenant_id),
+        )
+        conn.execute(
+            "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (?, ?, ?, 'tenant-change')",
+            (tenant_id, hash_pin(new_password), now.isoformat()),
+        )
+        conn.commit()
+
+    revoke_all_tenant_sessions(tenant_id)
+    log_audit(tenant_id, "Password Changed", ip)
+
+    return {"status": "success", "message": "Password updated. Please sign in."}
 
 
 @router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)
@@ -4064,6 +4261,155 @@ async def admin_reveal_tenantPin(
         "updated_at": row["updated_at"]
     }
 
+
+class PortalAuthRequest(BaseModel):
+    tenantUsername: Optional[str] = None
+    temporaryPassword: Optional[str] = None
+    resetRequired: bool = True
+
+
+@router.post(Routes.LANDLORDAPITENANTSPORTALAUTH, name=Names.LANDLORDTENANTPORTALAUTH)
+async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: PortalAuthRequest, request: Request, background_tasks: BackgroundTasks):
+    """Assign or clear a tenant's portal username/password (username + password flow)."""
+    from app.authentication.common.utils import hash_pin
+    from app.authentication.tenant.sessions import revoke_all_tenant_sessions
+    from app.database.auth_repository import log_audit
+    from app.database.landlord_repository import create_landlord_audit_log
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.core.db import get_conn
+    from datetime import datetime
+
+    background_tasks.add_task(create_full_backup, tag="portal_auth")
+
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id, name FROM tenants WHERE id = ?", (tenantId,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+
+        # Clear portal auth when nothing is provided
+        if not payload.tenantUsername and not payload.temporaryPassword:
+            conn.execute(
+                "UPDATE tenants SET tenant_username = NULL, password_hash = NULL, "
+                "password_reset_required = 0, password_failed_attempts = 0, password_locked_until = NULL, "
+                "password_reset_token_hash = NULL, password_reset_expires_at = NULL "
+                "WHERE id = ?",
+                (tenantId,),
+            )
+            conn.commit()
+            ip = request.client.host if request.client else "Unknown IP"
+            log_audit(tenantId, "Portal Auth Disabled", ip)
+            return {"status": "success", "message": "Portal login disabled for this tenant."}
+
+        username = (payload.tenantUsername or "").strip().lower()
+        if not username:
+            raise HTTPException(status_code=400, detail="tenantUsername is required")
+
+        from app.authentication.common.utils import validate_username, validate_password
+        validate_username(username)
+
+        # Uniqueness check
+        conflict = conn.execute(
+            "SELECT id FROM tenants WHERE LOWER(tenant_username) = ? AND id != ? LIMIT 1",
+            (username, tenantId),
+        ).fetchone()
+        if conflict:
+            raise HTTPException(status_code=409, detail="That username is already in use by another tenant.")
+
+        now = datetime.utcnow().isoformat()
+
+        updates = ["tenant_username = ?"]
+        params = [username]
+
+        if payload.temporaryPassword:
+            if len(str(payload.temporaryPassword)) < 8:
+                raise HTTPException(status_code=400, detail="Temporary password must be at least 8 characters.")
+            from app.authentication.common.utils import validate_password
+            validate_password(str(payload.temporaryPassword))
+            pwd_hash = hash_pin(str(payload.temporaryPassword))
+            updates.append("password_hash = ?")
+            params.append(pwd_hash)
+            updates.append("password_reset_required = ?")
+            params.append(1 if payload.resetRequired else 0)
+            updates.append("last_password_change_at = ?")
+            params.append(now)
+            conn.execute(
+                "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (?, ?, ?, 'landlord')",
+                (tenantId, pwd_hash, now),
+            )
+        else:
+            updates.append("password_reset_required = 0")
+
+        updates.append("password_failed_attempts = 0")
+        updates.append("password_locked_until = NULL")
+        params.append(tenantId)
+        conn.execute(
+            f"UPDATE tenants SET {', '.join(updates)} WHERE id = ?",
+            tuple(params),
+        )
+        conn.commit()
+
+    revoke_all_tenant_sessions(tenantId)
+    ip = request.client.host if request.client else "Unknown IP"
+    log_audit(tenantId, "Portal Auth Configured", ip)
+
+    landlord_id = extract_landlord_id(request)
+    if landlord_id:
+        create_landlord_audit_log(
+            landlord_id, "tenant_portal_auth_configured",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"tenant_id": tenantId, "tenant_username": username}),
+        )
+
+    await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_UPDATED", "tenantId": tenantId})
+
+    return {
+        "status": "success",
+        "message": "Portal login configured." if payload.temporaryPassword else "Portal username assigned.",
+        "tenantUsername": username,
+        "resetRequired": bool(payload.resetRequired) if payload.temporaryPassword else False,
+    }
+
+
+@router.post(Routes.LANDLORDAPITENANTSQRKEY, name=Names.LANDLORDTENANTQRKEY)
+async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request: Request, background_tasks: BackgroundTasks):
+    """Regenerate a tenant's QR key (rotates the QR link; revokes all sessions)."""
+    import uuid as _uuid
+    from app.authentication.tenant.sessions import revoke_all_tenant_sessions
+    from app.database.auth_repository import log_audit
+    from app.database.landlord_repository import create_landlord_audit_log
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.core.db import get_conn
+
+    background_tasks.add_task(create_full_backup, tag="regenerate_qr_key")
+
+    new_key = _uuid.uuid4().hex + _uuid.uuid4().hex
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id, name FROM tenants WHERE id = ?", (tenantId,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        conn.execute("UPDATE tenants SET qr_key = ? WHERE id = ?", (new_key, tenantId))
+        conn.commit()
+
+    revoke_all_tenant_sessions(tenantId)
+    ip = request.client.host if request.client else "Unknown IP"
+    log_audit(tenantId, "QR Key Regenerated", ip)
+
+    landlord_id = extract_landlord_id(request)
+    if landlord_id:
+        create_landlord_audit_log(
+            landlord_id, "tenant_qr_key_regenerated",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"tenant_id": tenantId}),
+        )
+
+    await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_UPDATED", "tenantId": tenantId})
+
+    return {"status": "success", "message": "QR key regenerated.", "qr_key": new_key}
+
 @router.delete(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIDELETETENANT)
 async def api_delete_tenant(
     landlordUuid: str,
@@ -4763,9 +5109,17 @@ class AuthPrincipal:
 ﻿import re
 from fastapi import HTTPException
 from passlib.context import CryptContext
+from hmac import compare_digest
 
 # Phase 1: PIN Security using Argon2id
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+def constant_time_eq(a: str, b: str) -> bool:
+    """Constant-time string comparison."""
+    try:
+        return compare_digest(str(a or ""), str(b or ""))
+    except Exception:
+        return False
 
 def hash_pin(pin: str) -> str:
     """Hashes a plaintext PIN or Token using Argon2id."""
@@ -4786,6 +5140,33 @@ def validate_tenantPin(pin: str) -> str:
             detail="Tenant PIN must contain exactly 4 digits."
         )
     return str(pin)
+
+_USERNAME_RE = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9\-_.!@#$%^&*+]{2,}$')
+
+def validate_username(username: str):
+    """Username must not contain spaces, be 3-50 chars, and use only letters, digits, and special characters."""
+    if not username:
+        raise HTTPException(status_code=400, detail="Username is required")
+    if re.search(r'\s', username):
+        raise HTTPException(status_code=400, detail="Username must not contain spaces")
+    if len(username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters")
+    if len(username) > 50:
+        raise HTTPException(status_code=400, detail="Username must not exceed 50 characters")
+    if not _USERNAME_RE.match(username):
+        raise HTTPException(
+            status_code=400,
+            detail="Username must start with a letter or digit and contain only letters, digits, and !@#$%^&*_-."
+        )
+
+def validate_password(password: str):
+    """Password must not contain spaces and be at least 8 characters."""
+    if not password:
+        raise HTTPException(status_code=400, detail="Password is required")
+    if re.search(r'\s', password):
+        raise HTTPException(status_code=400, detail="Password must not contain spaces")
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
 
 ```
 
@@ -6089,7 +6470,7 @@ def init_db():
         INSERT OR REPLACE INTO app_metadata (key, value) VALUES 
             ('auth_schema_version', '1'),
             ('receipt_schema_version', '1'),
-            ('tenant_schema_version', '2');
+            ('tenant_schema_version', '3');
 
         -- 2. ADMINS
         CREATE TABLE IF NOT EXISTS admins (
@@ -6145,8 +6526,46 @@ def init_db():
             tenantpin TEXT,
             failed_attempts INTEGER NOT NULL DEFAULT 0,
             locked_until TEXT,
-            status_changed_at TEXT
+            status_changed_at TEXT,
+            qr_key TEXT,
+            tenant_username TEXT,
+            password_hash TEXT,
+            password_failed_attempts INTEGER NOT NULL DEFAULT 0,
+            password_locked_until TEXT,
+            password_reset_token_hash TEXT,
+            password_reset_expires_at TEXT,
+            password_reset_requested_at TEXT,
+            password_reset_required INTEGER NOT NULL DEFAULT 0,
+            last_password_change_at TEXT
         );
+
+        -- Portal auth support tables (tenant password history + reset events)
+        CREATE TABLE IF NOT EXISTS tenant_password_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenantId INTEGER NOT NULL,
+            password_hash TEXT NOT NULL,
+            changed_at TEXT NOT NULL,
+            changed_by TEXT,
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tenant_password_history_tenantId
+            ON tenant_password_history(tenantId);
+
+        CREATE TABLE IF NOT EXISTS tenant_password_reset_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenantId INTEGER NOT NULL,
+            channel TEXT NOT NULL DEFAULT 'landlord',
+            token_hash TEXT,
+            created_at TEXT NOT NULL,
+            expires_at TEXT,
+            used_at TEXT,
+            requested_ip TEXT,
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tenant_password_reset_tenantId
+            ON tenant_password_reset_events(tenantId);
 
         -- 5. TENANT PIN HISTORY
         CREATE TABLE IF NOT EXISTS tenantPin_history (
@@ -6313,7 +6732,9 @@ def init_db():
             password_hash TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'Active',
             created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            totp_secret TEXT,
+            totp_enabled INTEGER NOT NULL DEFAULT 0
         );
 
         -- 15. LANDLORD SESSIONS
@@ -6392,6 +6813,48 @@ def init_db():
             )
             conn.commit()
 
+        # ─── Tenant portal auth + QR key columns ────────────────────────
+        for col, ddl in [
+            ("qr_key", "ALTER TABLE tenants ADD COLUMN qr_key TEXT"),
+            ("tenant_username", "ALTER TABLE tenants ADD COLUMN tenant_username TEXT"),
+            ("password_hash", "ALTER TABLE tenants ADD COLUMN password_hash TEXT"),
+            ("password_failed_attempts", "ALTER TABLE tenants ADD COLUMN password_failed_attempts INTEGER NOT NULL DEFAULT 0"),
+            ("password_locked_until", "ALTER TABLE tenants ADD COLUMN password_locked_until TEXT"),
+            ("password_reset_token_hash", "ALTER TABLE tenants ADD COLUMN password_reset_token_hash TEXT"),
+            ("password_reset_expires_at", "ALTER TABLE tenants ADD COLUMN password_reset_expires_at TEXT"),
+            ("password_reset_requested_at", "ALTER TABLE tenants ADD COLUMN password_reset_requested_at TEXT"),
+            ("password_reset_required", "ALTER TABLE tenants ADD COLUMN password_reset_required INTEGER NOT NULL DEFAULT 0"),
+            ("last_password_change_at", "ALTER TABLE tenants ADD COLUMN last_password_change_at TEXT"),
+        ]:
+            if not _column_exists(conn, "tenants", col):
+                conn.execute(ddl)
+                conn.commit()
+
+        # Legacy tenants tables predate status_changed_at; the app reads it in load_tenants.
+        if not _column_exists(conn, "tenants", "status_changed_at"):
+            conn.execute("ALTER TABLE tenants ADD COLUMN status_changed_at TEXT")
+            conn.commit()
+
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_tenant_username ON tenants(tenant_username) WHERE tenant_username IS NOT NULL AND tenant_username != ''")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenants_qr_key ON tenants(qr_key)")
+        conn.commit()
+
+        # Backfill qr_key for existing tenants (idempotent)
+        conn.execute("UPDATE tenants SET qr_key = lower(hex(randomblob(16))) WHERE qr_key IS NULL OR qr_key = ''")
+        conn.commit()
+
+        # ─── Tenant schema drift reconciliation ───────────────────────
+        # Legacy DBs created these tables with snake_case tenant_id, but the
+        # canonical schema (and all application SQL) uses tenantId. Rename
+        # the legacy column in place (data-preserving, idempotent).
+        for _tbl in ("tenant_sessions", "tenant_audit_logs"):
+            if (
+                _column_exists(conn, _tbl, "tenant_id")
+                and not _column_exists(conn, _tbl, "tenantId")
+            ):
+                conn.execute(f"ALTER TABLE {_tbl} RENAME COLUMN tenant_id TO tenantId")
+                conn.commit()
+
         # ─── Multi-tenancy: Add landlord_id to core tables ──────────
         if not _column_exists(conn, "tenants", "landlord_id"):
             conn.execute("ALTER TABLE tenants ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
@@ -6429,13 +6892,17 @@ def init_db():
               AND tenantId IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
             """
         )
+        # Some legacy DBs created occupants with snake_case tenant_id; the
+        # canonical schema (and this backfill) uses tenantId. Pick whichever
+        # column the table actually has so the backfill works on both.
+        occupants_id_col = "tenant_id" if _column_exists(conn, "occupants", "tenant_id") else "tenantId"
         conn.execute(
-            """
+            f"""
             UPDATE occupants SET landlord_id = (
-                SELECT landlord_id FROM tenants WHERE tenants.id = occupants.tenantId
+                SELECT landlord_id FROM tenants WHERE tenants.id = occupants.{occupants_id_col}
             )
             WHERE landlord_id IS NULL
-              AND tenantId IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
+              AND {occupants_id_col} IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
             """
         )
         if lid:
@@ -6478,6 +6945,18 @@ def init_db():
             )
             conn.commit()
 
+        # ─── Landlord brute-force columns ────────────────────────────
+        if not _column_exists(conn, "landlord_accounts", "failed_attempts"):
+            conn.execute(
+                "ALTER TABLE landlord_accounts ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "locked_until"):
+            conn.execute(
+                "ALTER TABLE landlord_accounts ADD COLUMN locked_until TEXT"
+            )
+            conn.commit()
+
         # ─── Platform admin brute-force columns ────────────────────────
         if not _column_exists(conn, "admins", "failed_attempts"):
             conn.execute(
@@ -6497,13 +6976,27 @@ def init_db():
 
         # ─── Google OAuth columns for landlord_accounts ────────────────
         if not _column_exists(conn, "landlord_accounts", "google_sub"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN google_sub TEXT UNIQUE")
+            # SQLite cannot ADD COLUMN with UNIQUE; add plain and enforce
+            # uniqueness with a partial index (matches fresh-schema UNIQUE).
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN google_sub TEXT")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_landlord_accounts_google_sub "
+                "ON landlord_accounts(google_sub) WHERE google_sub IS NOT NULL AND google_sub != ''"
+            )
             conn.commit()
         if not _column_exists(conn, "landlord_accounts", "auth_provider"):
             conn.execute("ALTER TABLE landlord_accounts ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'email'")
             conn.commit()
         if not _column_exists(conn, "landlord_accounts", "avatar_url"):
             conn.execute("ALTER TABLE landlord_accounts ADD COLUMN avatar_url TEXT")
+            conn.commit()
+
+        # ─── Landlord TOTP columns (landlord_login reads them unconditionally) ──
+        if not _column_exists(conn, "landlord_accounts", "totp_secret"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_secret TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "totp_enabled"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0")
             conn.commit()
 
         # ─── Landlord password admin store (for platform admin reveal) ──
@@ -6891,6 +7384,8 @@ class LandlordRoutes:
     LANDLORDAPITENANTSCHANGEPIN = "/landlord/{landlordUuid}/api/tenants/{tenantId}/change-pin"
     LANDLORDAPITENANTSREVEALPIN = "/landlord/{landlordUuid}/api/tenants/{tenantId}/reveal-pin"
     LANDLORDAPITENANTSRECEIPTS = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts"
+    LANDLORDAPITENANTSPORTALAUTH = "/landlord/{landlordUuid}/api/tenants/{tenantId}/portal-auth"
+    LANDLORDAPITENANTSQRKEY = "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr-key"
 
     # Landlord API: Tenant Recovery Snapshots
     LANDLORDAPITENANTSNAPSHOTS = "/landlord/{landlordUuid}/api/tenant-recovery-snapshots"
@@ -7045,6 +7540,8 @@ class LandlordNames:
 
     CHANGETENANTPIN = "change_tenantPin"
     LANDLORDREVEALPIN = "landlord_reveal_tenantPin"
+    LANDLORDTENANTPORTALAUTH = "landlord_tenant_portal_auth"
+    LANDLORDTENANTQRKEY = "landlord_tenant_qr_key"
 
 
 class LandlordTemplates:
@@ -7545,7 +8042,7 @@ def init_production_db():
     INSERT OR REPLACE INTO app_metadata (key, value) VALUES 
         ('auth_schema_version', '1'),
         ('receipt_schema_version', '1'),
-        ('tenant_schema_version', '2');
+        ('tenant_schema_version', '3');
     """)
 
     # ============================================================
@@ -7612,8 +8109,53 @@ def init_production_db():
         viewToken TEXT,
         tenantpin TEXT,
         failed_attempts INTEGER NOT NULL DEFAULT 0,
-        locked_until TEXT
+        locked_until TEXT,
+        qr_key TEXT,
+        tenant_username TEXT,
+        password_hash TEXT,
+        password_failed_attempts INTEGER NOT NULL DEFAULT 0,
+        password_locked_until TEXT,
+        password_reset_token_hash TEXT,
+        password_reset_expires_at TEXT,
+        password_reset_requested_at TEXT,
+        password_reset_required INTEGER NOT NULL DEFAULT 0,
+        last_password_change_at TEXT
     );
+    """)
+
+    # ============================================================
+    # 4b. TENANT PASSWORD HISTORY (Portal auth audit)
+    # ============================================================
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS tenant_password_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenantId INTEGER NOT NULL,
+        password_hash TEXT NOT NULL,
+        changed_at TEXT NOT NULL,
+        changed_by TEXT,
+        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tenant_password_history_tenantId
+        ON tenant_password_history(tenantId);
+
+    CREATE TABLE IF NOT EXISTS tenant_password_reset_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenantId INTEGER NOT NULL,
+        channel TEXT NOT NULL DEFAULT 'landlord',
+        token_hash TEXT,
+        created_at TEXT NOT NULL,
+        expires_at TEXT,
+        used_at TEXT,
+        requested_ip TEXT,
+        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_tenant_password_reset_tenantId
+        ON tenant_password_reset_events(tenantId);
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_tenant_username
+        ON tenants(tenant_username) WHERE tenant_username IS NOT NULL AND tenant_username != '';
     """)
 
     # ============================================================
@@ -8163,6 +8705,14 @@ class UsernameLoginRequest(BaseModel):
     pin: str
     remember_me: bool = False
 
+class ForgotPasswordRequest(BaseModel):
+    username: str
+
+class ResetPasswordRequest(BaseModel):
+    username: str
+    token: str
+    new_password: str
+
 class ChangePinRequest(BaseModel):
     current_pin: str
     new_pin: str
@@ -8352,6 +8902,12 @@ class Tenant(BaseModel):
 
     # NEW: Security PIN for Tenant Portal
     tenantPin: Optional[str] = None
+
+    # NEW: QR login key (unique per-tenant token used for QR links)
+    qr_key: Optional[str] = ""
+
+    # NEW: Portal login username (tenant_username)
+    tenantUsername: Optional[str] = ""
 
     # NEW: Current arrears (balance due)
     arrears: float = 0.0
@@ -14688,14 +15244,19 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
 
         # Restore tenant row
         t = tenant_profile
+        # QR key: prefer snapshot's value; regenerate a fresh key if missing.
+        qr_key = t.get("qr_key") or ""
+        if not qr_key:
+            qr_key = uuid.uuid4().hex + uuid.uuid4().hex
         conn.execute(
             """
             INSERT INTO tenants (
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
                 additionalpersoncharge, securitydeposit, defaulttankwatercharge,
-                meterid, viewToken, tenantpin, failed_attempts, locked_until, landlord_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meterid, viewToken, tenantpin, failed_attempts, locked_until, landlord_id,
+                qr_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 new_tenant_id,
@@ -14721,6 +15282,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                 0,
                 None,
                 t.get("landlord_id"),
+                qr_key,
             ),
         )
 
@@ -14968,6 +15530,8 @@ def load_tenants(include_archived: bool = False) -> List[Tenant]:
             meterId=row["meterid"],
             viewToken=row["viewToken"],
             tenantPin=row["tenantpin"],
+            qr_key=row["qr_key"] or "",
+            tenantUsername=row["tenant_username"] or "",
             statusChangedAt=row["status_changed_at"] or None,
             landlord_id=row["landlord_id"],
         )
@@ -15054,6 +15618,9 @@ def add_tenant(t: Tenant):
         import uuid
         viewToken = str(uuid.uuid4())
     tenantpin = t_dict.get("tenantPin") or ""
+    qr_key = (t_dict.get("qr_key") or "").strip()
+    if not qr_key:
+        qr_key = uuid.uuid4().hex + uuid.uuid4().hex
     
     with get_conn() as conn:
         conn.execute('''
@@ -15061,13 +15628,14 @@ def add_tenant(t: Tenant):
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
                 additionalpersoncharge, securitydeposit, defaulttankWatercharge,
-                meterid, viewToken, tenantpin, landlord_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meterid, viewToken, tenantpin, landlord_id, qr_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
-            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id
+            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id,
+            qr_key
         ))
         if t.id is None:
             t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -15078,26 +15646,30 @@ def update_tenant(t: Tenant):
     t_dict = t.dict()
     viewToken = t_dict.get("viewToken") or ""
     tenantpin = t_dict.get("tenantPin") or ""
+    qr_key = (t_dict.get("qr_key") or "").strip()
     
     with get_conn() as conn:
         # Detect status change and record timestamp
         if t.id is not None:
-            existing = conn.execute("SELECT status FROM tenants WHERE id = ?", (t.id,)).fetchone()
+            existing = conn.execute("SELECT status, qr_key FROM tenants WHERE id = ?", (t.id,)).fetchone()
             if existing and (existing["status"] or "").strip().lower() != (t.status or "").strip().lower():
                 t.statusChangedAt = datetime.utcnow().isoformat()
+            # Preserve the existing qr_key when the model doesn't carry one
+            if not qr_key and existing and (existing["qr_key"] or ""):
+                qr_key = existing["qr_key"]
 
         conn.execute('''
             UPDATE tenants SET
                 name=?, company=?, phone=?, email=?, address=?, roomnumber=?, occupation=?,
                 notes=?, status=?, rent=?, water=?, electricityrate=?, previousmeter=?,
                 additionalpersoncharge=?, securitydeposit=?, defaulttankWatercharge=?,
-                meterid=?, viewToken=?, tenantpin=?, status_changed_at=?
+                meterid=?, viewToken=?, tenantpin=?, qr_key=?, status_changed_at=?
             WHERE id=?
         ''', (
             t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
-            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin,
+            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, qr_key,
             t.statusChangedAt, t.id
         ))
         # Cascade identity/contact fields to all receipt rows for this tenant.
@@ -33796,6 +34368,8 @@ export const ROUTES = {
     LANDLORDAPITENANTSRESTORE(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "restore", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTSCHANGEPIN(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "changePin", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTSREVEALPIN(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "revealPin", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSPORTALAUTH(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "portalAuth", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSQRKEY(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "qrKey", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTSRECEIPTS(landlordUuid: string, tenantId: number | string) { return api("landlord", "tenants", "receipts", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTRECOVERYSNAPSHOTS(landlordUuid: string) { return api("landlord", "tenants", "recoverySnapshots", { landlordUuid }); },
     LANDLORDAPITENANTSNAPSHOT_PREVIEW(landlordUuid: string, snapshotId: string) { return api("landlord", "tenants", "recoverySnapshotPreview", { landlordUuid, snapshotId }); },
@@ -38978,6 +39552,11 @@ function formatDisplayDate(date = new Date()) {
   });
 }
 
+function buildTenantUrl(landlordUuid: string, tenant: Tenant): string {
+  const base = `${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
+  return tenant.qr_key ? `${base}?qr_key=${encodeURIComponent(tenant.qr_key)}` : base;
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, '&amp;')
@@ -39230,6 +39809,7 @@ export default function Tenants() {
   const [showQrPinEditor, setShowQrPinEditor] = useState(false);
   const [newQrPin, setNewQrPin] = useState('');
   const [savingQrPin, setSavingQrPin] = useState(false);
+  const [regeneratingQr, setRegeneratingQr] = useState(false);
   const [occupantsTenant, setOccupantsTenant] = useState<Tenant | null>(null);
 
   const [billsTenant, setBillsTenant] = useState<Tenant | null>(null);
@@ -39285,6 +39865,21 @@ export default function Tenants() {
       setQrPin('----');
     } finally {
       setQrPinLoading(false);
+    }
+  };
+
+  const handleRegenerateQr = async () => {
+    if (!qrTenant?.id) return;
+    try {
+      setRegeneratingQr(true);
+      const res = await api.regenerateQrKey(landlordUuid!, qrTenant.id);
+      setQrTenant({ ...qrTenant, qr_key: res.qr_key });
+      toast.success(res.message || 'QR key regenerated');
+      loadTenants();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to regenerate QR key');
+    } finally {
+      setRegeneratingQr(false);
     }
   };
 
@@ -39498,6 +40093,19 @@ export default function Tenants() {
                   toast.error(e?.message || 'Failed to change tenant PIN');
                 }
               }}
+              onSavePortalAuth={async (data) => {
+                if (!editingTenant.id) return;
+                try {
+                  await api.portalAuth(landlordUuid!, editingTenant.id, data);
+                  toast.success(data.tenantUsername || data.temporaryPassword
+                    ? 'Portal login configured'
+                    : 'Portal login disabled');
+                  setEditingTenant({ ...editingTenant, tenantUsername: data.tenantUsername ?? editingTenant.tenantUsername });
+                  loadTenants();
+                } catch (e: any) {
+                  toast.error(e?.message || 'Failed to configure portal login');
+                }
+              }}
             />
           )}
         </DialogContent>
@@ -39526,7 +40134,7 @@ export default function Tenants() {
 
                 <div className="mt-4 flex justify-center bg-white p-2">
                   <QRCode
-                    value={`${API_BASE}/${landlordUuid}/t/${qrTenant.id}/${qrTenant.viewToken}`}
+                    value={buildTenantUrl(landlordUuid!, qrTenant)}
                     size={200}
                     level="H"
                   />
@@ -39619,6 +40227,20 @@ export default function Tenants() {
               </div>
             </div>
           )}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full"
+            disabled={regeneratingQr}
+            onClick={handleRegenerateQr}
+          >
+            {regeneratingQr ? 'Regenerating...' : 'Regenerate QR'}
+          </Button>
+          <p className="mt-1 text-center text-xs text-gray-500">
+            Regenerating revokes all existing tenant sessions and makes the old QR link unusable.
+          </p>
         </DialogContent>
       </Dialog>
 
@@ -39777,7 +40399,7 @@ function TenantCard({
             size="sm"
             className="w-full"
             disabled={!tenant.viewToken}
-            onClick={() => tenant.viewToken && window.open(`${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`, '_blank')}
+            onClick={() => tenant.viewToken && window.open(buildTenantUrl(landlordUuid!, tenant), '_blank')}
             title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Open public profile'}
           >
             Public Profile
@@ -39802,7 +40424,7 @@ function TenantCard({
             onClick={async () => {
               if (!tenant.viewToken || !tenant.id) return;
 
-              const url = `${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
+              const url = buildTenantUrl(landlordUuid!, tenant);
 
               let pin = '----';
               try {
@@ -39885,13 +40507,20 @@ function TenantForm({
   tenant,
   onSave,
   onChangePin,
+  onSavePortalAuth,
 }: {
   tenant?: Tenant | null;
   onSave: (data: Record<string, unknown>) => void;
   onChangePin?: (pin: string) => Promise<void>;
+  onSavePortalAuth?: (data: { tenantUsername?: string; temporaryPassword?: string; resetRequired?: boolean }) => Promise<void>;
 }) {
   const [newPin, setNewPin] = useState('');
   const [changingPin, setChangingPin] = useState(false);
+
+  const [portalUsername, setPortalUsername] = useState(tenant?.tenantUsername || '');
+  const [portalPassword, setPortalPassword] = useState('');
+  const [portalResetRequired, setPortalResetRequired] = useState(true);
+  const [savingPortalAuth, setSavingPortalAuth] = useState(false);
 
   const [form, setForm] = useState({
     name: tenant?.name || '',
@@ -39914,6 +40543,23 @@ function TenantForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(form);
+  };
+
+  const handleSavePortalAuth = async () => {
+    if (!onSavePortalAuth) return;
+    try {
+      setSavingPortalAuth(true);
+      await onSavePortalAuth({
+        tenantUsername: portalUsername.trim() || undefined,
+        temporaryPassword: portalPassword || undefined,
+        resetRequired: portalResetRequired,
+      });
+      setPortalPassword('');
+    } catch {
+      // parent handler shows the error toast
+    } finally {
+      setSavingPortalAuth(false);
+    }
   };
 
   return (
@@ -40080,6 +40726,75 @@ function TenantForm({
         </div>
       )}
 
+      {tenant && (
+        <div className="border-t pt-4 space-y-3">
+          <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+            Portal Login (Username + Password)
+          </h4>
+
+          <div className="space-y-2">
+            <Label>Username</Label>
+            <Input
+              value={portalUsername}
+              onChange={(e) => setPortalUsername(e.target.value)}
+              placeholder="e.g. john.doe"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Temporary Password</Label>
+            <Input
+              type="password"
+              value={portalPassword}
+              onChange={(e) => setPortalPassword(e.target.value)}
+              placeholder="At least 8 characters"
+            />
+          </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={portalResetRequired}
+              onChange={(e) => setPortalResetRequired(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Require password change on first login
+          </label>
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="flex-1"
+              disabled={!onSavePortalAuth || savingPortalAuth}
+              onClick={handleSavePortalAuth}
+            >
+              {savingPortalAuth ? 'Saving...' : 'Save Portal Login'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              disabled={!onSavePortalAuth || savingPortalAuth}
+              onClick={async () => {
+                if (!onSavePortalAuth) return;
+                try {
+                  setSavingPortalAuth(true);
+                  await onSavePortalAuth({});
+                  setPortalUsername('');
+                  setPortalPassword('');
+                } finally {
+                  setSavingPortalAuth(false);
+                }
+              }}
+            >
+              Disable
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Button type="submit" className="w-full">
         {tenant ? 'Update Tenant' : 'Add Tenant'}
       </Button>
@@ -40185,6 +40900,29 @@ export const api = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Failed to change tenant PIN");
+    return data;
+  },
+
+  portalAuth: async (
+    landlordUuid: string,
+    tenantId: number,
+    payload: { tenantUsername?: string; temporaryPassword?: string; resetRequired?: boolean }
+  ): Promise<{ status: string; message: string; tenantUsername: string; resetRequired: boolean }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSPORTALAUTH(landlordUuid, tenantId), {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to configure portal login");
+    return data;
+  },
+
+  regenerateQrKey: async (landlordUuid: string, tenantId: number): Promise<{ status: string; message: string; qr_key: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSQRKEY(landlordUuid, tenantId), {
+      method: "POST",
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to regenerate QR key");
     return data;
   },
 
@@ -40632,6 +41370,8 @@ export interface Tenant {
   meterId?: string;
   viewToken?: string;
   tenantPin?: string | null;
+  qr_key?: string;
+  tenantUsername?: string;
   arrears: number;
 }
 
@@ -44349,7 +45089,15 @@ export async function qrLoginByPin(
   pin: string
 ): Promise<{ status: string; message?: string }> {
   const pubKey = await getPublicKey(`${basePath}/api/auth/public-key`);
-  const encrypted = await encryptPayload({ pin, rememberme: true }, pubKey);
+
+  // Bind the login to the printed QR via its qr_key query param.
+  const params = new URLSearchParams(window.location.search);
+  const qrKey = params.get("qr_key") || "";
+
+  const encrypted = await encryptPayload(
+    { pin, rememberme: true, qr_key: qrKey },
+    pubKey
+  );
 
   const res = await fetch(`${basePath}/api/auth/login`, {
     method: "POST",
@@ -44369,10 +45117,10 @@ export async function qrLoginByPin(
   return data;
 }
 
-// ── Portal Flow: login via username + PIN (global endpoint) ──
-export async function portalLoginByUsername(
+// ── Portal Flow: login via tenant_username + password (global endpoint) ──
+export async function portalLogin(
   username: string,
-  pin: string,
+  password: string,
   rememberMe: boolean = false
 ): Promise<{
   status: string;
@@ -44383,14 +45131,15 @@ export async function portalLoginByUsername(
     view_token: string;
   };
   redirect_url: string | null;
+  reset_required?: boolean;
 }> {
   const pubKey = await getPublicKey("/rent/tenant/api/auth/public-key");
   const encrypted = await encryptPayload(
-    { username, pin, rememberme: rememberMe, portal_mode: true },
+    { username, password, rememberme: rememberMe },
     pubKey
   );
 
-  const res = await fetch("/rent/tenant/api/auth/login-by-username", {
+  const res = await fetch("/rent/tenant/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -44404,6 +45153,61 @@ export async function portalLoginByUsername(
   const data = await res.json();
   if (!res.ok || data.status !== "success") {
     throw new Error(data.detail || data.message || "Login failed");
+  }
+  return data;
+}
+
+// ── Portal Flow: forgot password (delivery handled by the landlord in v1) ──
+export async function forgotTenantPassword(
+  username: string
+): Promise<{ status: string; message: string }> {
+  const pubKey = await getPublicKey("/rent/tenant/api/auth/public-key");
+  const encrypted = await encryptPayload({ username }, pubKey);
+
+  const res = await fetch("/rent/tenant/api/auth/forgot-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      key: encrypted.key,
+      data: encrypted.data,
+      nonce: encrypted.nonce,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || data.message || "Request failed");
+  }
+  return data;
+}
+
+// ── Portal Flow: set a new password (forced change after temp password) ──
+export async function changeTenantPassword(
+  username: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ status: string; message: string }> {
+  const pubKey = await getPublicKey("/rent/tenant/api/auth/public-key");
+  const encrypted = await encryptPayload(
+    { username, current_password: currentPassword, new_password: newPassword },
+    pubKey
+  );
+
+  const res = await fetch("/rent/tenant/api/auth/change-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      key: encrypted.key,
+      data: encrypted.data,
+      nonce: encrypted.nonce,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || data.message || "Password change failed");
   }
   return data;
 }
@@ -44580,30 +45384,78 @@ export function formatResidentSince(dateStr: string): string {
 
 ```typescript
 import { useState } from "react";
-import { KeyRound, User, ArrowRight } from "lucide-react";
+import { KeyRound, User, Lock, ArrowRight, ArrowLeft, ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "@/components/AuthLayout";
-import { portalLoginByUsername } from "@/lib/login-api";
+import {
+  portalLogin,
+  forgotTenantPassword,
+  changeTenantPassword,
+} from "@/lib/login-api";
+
+type View = "login" | "forgot" | "forced-change";
+
+const USERNAME_RE = /^[a-zA-Z0-9][a-zA-Z0-9\-_.!@#$%^&*+]{2,}$/;
+
+function validateUsername(v: string): string | null {
+  if (!v) return "Username is required";
+  if (/\s/.test(v)) return "Username must not contain spaces";
+  if (v.length < 3) return "Username must be at least 3 characters";
+  if (v.length > 50) return "Username must not exceed 50 characters";
+  if (!USERNAME_RE.test(v))
+    return "Username must start with a letter or digit and contain only letters, digits, and !@#$%^&*_-";
+  return null;
+}
+
+function validatePassword(v: string): string | null {
+  if (!v) return "Password is required";
+  if (/\s/.test(v)) return "Password must not contain spaces";
+  if (v.length < 8) return "Password must be at least 8 characters";
+  return null;
+}
 
 export default function PortalLoginPage() {
+  const [view, setView] = useState<View>("login");
   const [username, setUsername] = useState("");
-  const [pin, setPin] = useState("");
+  const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const go = (next: View) => {
+    setError("");
+    setInfo("");
+    setView(next);
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username.trim() || pin.length !== 4) return;
+    if (!username.trim() || !password) return;
+
+    const usernameErr = validateUsername(username.trim());
+    if (usernameErr) { setError(usernameErr); return; }
+    const passwordErr = validatePassword(password);
+    if (passwordErr) { setError(passwordErr); return; }
 
     setError("");
+    setInfo("");
     setLoading(true);
     try {
-      const data = await portalLoginByUsername(username.trim(), pin);
+      const data = await portalLogin(username.trim(), password, rememberMe);
+      if (data.reset_required) {
+        setPassword("");
+        setLoading(false);
+        setView("forced-change");
+        return;
+      }
       if (data.redirect_url) {
-        window.location.href = data.redirect_url;
+        window.location.assign(data.redirect_url);
       } else {
         window.location.reload();
       }
@@ -44613,78 +45465,303 @@ export default function PortalLoginPage() {
     }
   };
 
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim()) return;
+
+    const usernameErr = validateUsername(username.trim());
+    if (usernameErr) { setError(usernameErr); return; }
+
+    setError("");
+    setInfo("");
+    setLoading(true);
+    try {
+      await forgotTenantPassword(username.trim());
+      setInfo(
+        "If an account exists for that username, the landlord can arrange a password reset."
+      );
+    } catch (err: any) {
+      setError(err.message || "Request failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForcedChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 8) {
+      setError("New password must be at least 8 characters.");
+      return;
+    }
+    const passwordErr = validatePassword(newPassword);
+    if (passwordErr) { setError(passwordErr); return; }
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setError("");
+    setInfo("");
+    setLoading(true);
+    try {
+      await changeTenantPassword(username.trim(), password, newPassword);
+      setPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setInfo("Password updated. Please sign in with your new password.");
+      go("login");
+    } catch (err: any) {
+      setError(err.message || "Password change failed. Please try again.");
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthLayout>
       <Card className="w-full max-w-md rounded-3xl border shadow-xl">
         <CardContent className="p-8">
-          <div className="text-center mb-6">
-            <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
-              <KeyRound className="w-7 h-7 text-primary" />
-            </div>
-            <h1 className="text-2xl font-bold tracking-tight">Tenant Portal</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Sign in with your registered phone or email
-            </p>
-          </div>
+          {view === "login" && (
+            <>
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <KeyRound className="w-7 h-7 text-primary" />
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight">Tenant Portal</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Sign in with your username and password
+                </p>
+              </div>
 
-          {error && (
-            <Alert variant="destructive" className="mb-4 rounded-xl">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+              {error && (
+                <Alert variant="destructive" className="mb-4 rounded-xl">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              {info && (
+                <Alert className="mb-4 rounded-xl">
+                  <AlertDescription>{info}</AlertDescription>
+                </Alert>
+              )}
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className="text-sm font-semibold block mb-2">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      autoFocus
+                      required
+                      disabled={loading}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Your tenant username"
+                      className="h-12 pl-10 rounded-2xl"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold block mb-2">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="password"
+                      required
+                      disabled={loading}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="h-12 pl-10 rounded-2xl"
+                    />
+                  </div>
+                </div>
+
+                <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="h-4 w-4 rounded border-border"
+                  />
+                  Remember me
+                </label>
+
+                <Button
+                  type="submit"
+                  disabled={loading || !username.trim() || !password}
+                  className="w-full h-12 rounded-2xl text-base"
+                >
+                  {loading ? "Signing in…" : "Sign In"}
+                  {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
+                </Button>
+              </form>
+
+              <div className="mt-6 pt-4 border-t text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPassword("");
+                    go("forgot");
+                  }}
+                  className="text-xs font-medium text-primary hover:underline bg-transparent border-none cursor-pointer"
+                >
+                  Forgot your password?
+                </button>
+              </div>
+            </>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="text-sm font-semibold block mb-2">
-                Phone or Email
-              </label>
-              <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  type="text"
-                  autoFocus
-                  required
-                  disabled={loading}
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="9876543210 or name@email.com"
-                  className="h-12 pl-10 rounded-2xl"
-                />
+          {view === "forgot" && (
+            <>
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <ShieldCheck className="w-7 h-7 text-primary" />
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight">
+                  Forgot Password
+                </h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Enter your username and the landlord will arrange a reset
+                </p>
               </div>
-            </div>
 
-            <div>
-              <label className="text-sm font-semibold block mb-2">
-                4-digit PIN
-              </label>
-              <Input
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={4}
-                required
-                disabled={loading}
-                value={pin}
-                onChange={(e) =>
-                  setPin(e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
-                placeholder="• • • •"
-                className="h-12 text-center text-2xl tracking-[0.6em] rounded-2xl font-mono"
-              />
-            </div>
+              {info && (
+                <Alert className="mb-4 rounded-xl">
+                  <AlertDescription>{info}</AlertDescription>
+                </Alert>
+              )}
+              {error && (
+                <Alert variant="destructive" className="mb-4 rounded-xl">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
-            <Button
-              type="submit"
-              disabled={loading || pin.length !== 4 || !username.trim()}
-              className="w-full h-12 rounded-2xl text-base"
-            >
-              {loading ? "Signing in…" : "Sign In"}
-              {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
-            </Button>
-          </form>
+              <form onSubmit={handleForgot} className="space-y-4">
+                <div>
+                  <label className="text-sm font-semibold block mb-2">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      autoFocus
+                      required
+                      disabled={loading}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="Your tenant username"
+                      className="h-12 pl-10 rounded-2xl"
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading || !username.trim()}
+                  className="w-full h-12 rounded-2xl text-base"
+                >
+                  {loading ? "Submitting…" : "Request Reset"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={loading}
+                  onClick={() => go("login")}
+                  className="w-full h-12 rounded-2xl text-sm"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" /> Back to sign in
+                </Button>
+              </form>
+            </>
+          )}
+
+          {view === "forced-change" && (
+            <>
+              <div className="text-center mb-6">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <Lock className="w-7 h-7 text-primary" />
+                </div>
+                <h1 className="text-2xl font-bold tracking-tight">
+                  Set a New Password
+                </h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Your temporary password must be changed before you can continue
+                </p>
+              </div>
+
+              {error && (
+                <Alert variant="destructive" className="mb-4 rounded-xl">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <form onSubmit={handleForcedChange} className="space-y-4">
+                <div>
+                  <label className="text-sm font-semibold block mb-2">
+                    Temporary password
+                  </label>
+                  <Input
+                    type="password"
+                    required
+                    disabled={loading}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Current temporary password"
+                    className="h-12 rounded-2xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold block mb-2">
+                    New password
+                  </label>
+                  <Input
+                    type="password"
+                    required
+                    disabled={loading}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    className="h-12 rounded-2xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-semibold block mb-2">
+                    Confirm new password
+                  </label>
+                  <Input
+                    type="password"
+                    required
+                    disabled={loading}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter new password"
+                    className="h-12 rounded-2xl"
+                  />
+                </div>
+
+                <Button
+                  type="submit"
+                  disabled={loading || !password || newPassword.length < 8}
+                  className="w-full h-12 rounded-2xl text-base"
+                >
+                  {loading ? "Updating…" : "Update Password"}
+                </Button>
+              </form>
+            </>
+          )}
 
           <p className="text-xs text-center text-muted-foreground mt-6 leading-relaxed">
-            This is a generic portal login. If you received a QR code from your landlord, scan it for direct access.
+            This portal uses your username and password. QR-code links are a
+            separate, direct access method.
           </p>
         </CardContent>
       </Card>
@@ -44697,6 +45774,7 @@ export default function PortalLoginPage() {
 
 ```typescript
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { Lock, ShieldCheck, Receipt, Users, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44712,6 +45790,7 @@ interface Props {
 }
 
 export default function QrUnlockPage({ tenant, basePath }: Props) {
+  const navigate = useNavigate();
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -44808,12 +45887,18 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
           </p>
 
           <div className="mt-6 pt-4 border-t text-center">
-            <a
-              href="/rent/tenant/login"
-              className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={loading}
+              className="w-full h-11 rounded-2xl text-sm"
+              onClick={() => {
+                sessionStorage.setItem("tenantLoginMode", "credentials");
+                navigate("/tenant/login", { replace: true });
+              }}
             >
-              Login with phone / email instead
-            </a>
+              Login with username instead
+            </Button>
           </div>
         </CardContent>
       </Card>

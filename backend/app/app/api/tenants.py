@@ -273,6 +273,9 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
         if not username:
             raise HTTPException(status_code=400, detail="tenantUsername is required")
 
+        from app.authentication.common.utils import validate_username, validate_password
+        validate_username(username)
+
         # Uniqueness check
         conflict = conn.execute(
             "SELECT id FROM tenants WHERE LOWER(tenant_username) = ? AND id != ? LIMIT 1",
@@ -289,6 +292,8 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
         if payload.temporaryPassword:
             if len(str(payload.temporaryPassword)) < 8:
                 raise HTTPException(status_code=400, detail="Temporary password must be at least 8 characters.")
+            from app.authentication.common.utils import validate_password
+            validate_password(str(payload.temporaryPassword))
             pwd_hash = hash_pin(str(payload.temporaryPassword))
             updates.append("password_hash = ?")
             params.append(pwd_hash)
