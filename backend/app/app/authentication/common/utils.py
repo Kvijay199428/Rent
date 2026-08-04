@@ -1,9 +1,17 @@
 ﻿import re
 from fastapi import HTTPException
 from passlib.context import CryptContext
+from hmac import compare_digest
 
 # Phase 1: PIN Security using Argon2id
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+
+def constant_time_eq(a: str, b: str) -> bool:
+    """Constant-time string comparison."""
+    try:
+        return compare_digest(str(a or ""), str(b or ""))
+    except Exception:
+        return False
 
 def hash_pin(pin: str) -> str:
     """Hashes a plaintext PIN or Token using Argon2id."""

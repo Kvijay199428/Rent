@@ -39,6 +39,8 @@ def load_tenants(include_archived: bool = False) -> List[Tenant]:
             meterId=row["meterid"],
             viewToken=row["viewToken"],
             tenantPin=row["tenantpin"],
+            qr_key=row["qr_key"] or "",
+            tenantUsername=row["tenant_username"] or "",
             statusChangedAt=row["status_changed_at"] or None,
             landlord_id=row["landlord_id"],
         )
@@ -125,6 +127,9 @@ def add_tenant(t: Tenant):
         import uuid
         viewToken = str(uuid.uuid4())
     tenantpin = t_dict.get("tenantPin") or ""
+    qr_key = (t_dict.get("qr_key") or "").strip()
+    if not qr_key:
+        qr_key = uuid.uuid4().hex + uuid.uuid4().hex
     
     with get_conn() as conn:
         conn.execute('''
@@ -132,13 +137,14 @@ def add_tenant(t: Tenant):
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
                 additionalpersoncharge, securitydeposit, defaulttankWatercharge,
-                meterid, viewToken, tenantpin, landlord_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meterid, viewToken, tenantpin, landlord_id, qr_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
-            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id
+            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id,
+            qr_key
         ))
         if t.id is None:
             t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -149,26 +155,30 @@ def update_tenant(t: Tenant):
     t_dict = t.dict()
     viewToken = t_dict.get("viewToken") or ""
     tenantpin = t_dict.get("tenantPin") or ""
+    qr_key = (t_dict.get("qr_key") or "").strip()
     
     with get_conn() as conn:
         # Detect status change and record timestamp
         if t.id is not None:
-            existing = conn.execute("SELECT status FROM tenants WHERE id = ?", (t.id,)).fetchone()
+            existing = conn.execute("SELECT status, qr_key FROM tenants WHERE id = ?", (t.id,)).fetchone()
             if existing and (existing["status"] or "").strip().lower() != (t.status or "").strip().lower():
                 t.statusChangedAt = datetime.utcnow().isoformat()
+            # Preserve the existing qr_key when the model doesn't carry one
+            if not qr_key and existing and (existing["qr_key"] or ""):
+                qr_key = existing["qr_key"]
 
         conn.execute('''
             UPDATE tenants SET
                 name=?, company=?, phone=?, email=?, address=?, roomnumber=?, occupation=?,
                 notes=?, status=?, rent=?, water=?, electricityrate=?, previousmeter=?,
                 additionalpersoncharge=?, securitydeposit=?, defaulttankWatercharge=?,
-                meterid=?, viewToken=?, tenantpin=?, status_changed_at=?
+                meterid=?, viewToken=?, tenantpin=?, qr_key=?, status_changed_at=?
             WHERE id=?
         ''', (
             t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
-            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin,
+            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, qr_key,
             t.statusChangedAt, t.id
         ))
         # Cascade identity/contact fields to all receipt rows for this tenant.

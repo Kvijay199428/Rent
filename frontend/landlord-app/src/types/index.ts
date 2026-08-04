@@ -21,6 +21,8 @@ export interface Tenant {
   meterId?: string;
   viewToken?: string;
   tenantPin?: string | null;
+  qr_key?: string;
+  tenantUsername?: string;
   arrears: number;
 }
 

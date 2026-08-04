@@ -125,8 +125,17 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
     try:
         decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
         pin = decrypted.get("pin", "")
+        qr_key = (decrypted.get("qr_key") or "").strip()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted payload")
+
+    # When a qr_key is supplied, it must match the tenant's stored key. This
+    # binds each QR login to the specific printed QR (invalidateable by rotation).
+    if qr_key:
+        stored_key = (getattr(tenant, "qr_key", "") or "").strip()
+        from app.authentication.common.utils import constant_time_eq
+        if not stored_key or not constant_time_eq(qr_key, stored_key):
+            raise HTTPException(status_code=401, detail="Invalid QR link")
 
     if getattr(tenant, "tenantPin", None) != pin:
         from app.authentication.common.utils import verify_pin
@@ -163,8 +172,9 @@ async def global_tenant_public_key():
     return {"publicKey": get_public_key_pem()}
 
 
-@router.post("/tenant/api/auth/login-by-username", include_in_schema=False)
-async def global_tenant_login_by_username(request: Request, response: Response, login_req: EncryptedLoginRequest):
+@router.post("/tenant/api/auth/login", include_in_schema=False)
+async def global_tenant_login(request: Request, response: Response, login_req: EncryptedLoginRequest):
+    """Portal login with tenant_username + password_hash."""
     from app.encryption import decrypt_payload
     from app.authentication.common.utils import verify_pin
     from app.authentication.tenant.sessions import create_tenant_session
@@ -175,54 +185,58 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
     try:
         decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
         username = decrypted.get("username", "").strip().lower()
-        pin = decrypted.get("pin", "")
+        password = decrypted.get("password", "")
         remember_me = decrypted.get("rememberme", False)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid encrypted payload")
 
-    if not username or not pin:
-        raise HTTPException(status_code=400, detail="Username and PIN are required")
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="Username and password are required")
 
     ip = request.client.host if request.client else "Unknown IP"
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, landlord_id, viewToken, tenantpin, failed_attempts, locked_until "
-            "FROM tenants WHERE LOWER(phone) = ? OR LOWER(email) = ? "
-            "ORDER BY id LIMIT 1",
-            (username, username),
+            "SELECT id, name, landlord_id, viewToken, password_hash, "
+            "password_failed_attempts, password_locked_until, password_reset_required "
+            "FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            (username,),
         ).fetchone()
 
-    if not row:
-        raise HTTPException(status_code=404, detail="No account found with that phone or email")
+    # Generic failure for unknown user OR missing password — do not leak account existence.
+    def generic_fail():
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+    if not row or not row["password_hash"]:
+        generic_fail()
 
     from datetime import datetime, timedelta
-    if row["locked_until"]:
+    if row["password_locked_until"]:
         try:
-            locked_until = datetime.fromisoformat(row["locked_until"])
+            locked_until = datetime.fromisoformat(row["password_locked_until"])
             if datetime.utcnow() < locked_until:
                 raise HTTPException(status_code=429, detail="Account locked. Try again later.")
         except ValueError:
             pass
 
-    if not row["tenantpin"] or not verify_pin(pin, row["tenantpin"]):
-        log_audit(row["id"], "Username Login Failed - Wrong PIN", ip)
-        failed_attempts = (row["failed_attempts"] or 0) + 1
+    if not verify_pin(password, row["password_hash"]):
+        log_audit(row["id"], "Portal Login Failed - Wrong Password", ip)
+        failed_attempts = (row["password_failed_attempts"] or 0) + 1
         locked_until_str = None
         if failed_attempts >= 5:
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                "UPDATE tenants SET password_failed_attempts = ?, password_locked_until = ? WHERE id = ?",
                 (failed_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
-        raise HTTPException(status_code=401, detail="Incorrect PIN")
+        raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    if (row["failed_attempts"] or 0) > 0:
+    if (row["password_failed_attempts"] or 0) > 0:
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET failed_attempts = 0, locked_until = NULL WHERE id = ?",
+                "UPDATE tenants SET password_failed_attempts = 0, password_locked_until = NULL WHERE id = ?",
                 (row["id"],),
             )
             conn.commit()
@@ -234,8 +248,6 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
         ).fetchone()
 
     if not landlord:
-        # Tenant may be a legacy row with no (or a dangling) landlord_id.
-        # Fall back to the first landlord so login never 500s.
         landlord = conn.execute(
             "SELECT landlord_uuid FROM landlord_accounts ORDER BY id LIMIT 1"
         ).fetchone()
@@ -266,7 +278,7 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
         path=f"{cookie_path}/api/auth", max_age=max_age_refresh,
     )
 
-    log_audit(tenant_id, "Username Login Success", ip)
+    log_audit(tenant_id, "Portal Login Success", ip)
 
     return {
         "status": "success",
@@ -277,7 +289,177 @@ async def global_tenant_login_by_username(request: Request, response: Response, 
             "view_token": view_token,
         },
         "redirect_url": f"{rootpath}/{landlord_uuid}/t/{tenant_id}/{view_token}",
+        "reset_required": bool(row["password_reset_required"]),
     }
+
+
+@router.post("/tenant/api/auth/forgot-password", include_in_schema=False)
+async def global_tenant_forgot_password(request: Request, login_req: EncryptedLoginRequest):
+    """Request a password reset. Returns a generic message; the reset token is
+    delivered by the landlord (v1) — no tenant email/SMS channel exists yet."""
+    from app.encryption import decrypt_payload
+    from app.authentication.common.utils import hash_pin
+    from app.core.db import get_conn
+    from app.database.auth_repository import log_audit
+    import secrets as _secrets
+    from datetime import datetime, timedelta
+
+    try:
+        decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
+        username = decrypted.get("username", "").strip().lower()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid encrypted payload")
+
+    ip = request.client.host if request.client else "Unknown IP"
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            (username,),
+        ).fetchone()
+
+    if row:
+        token = _secrets.token_urlsafe(32)
+        now = datetime.utcnow()
+        expires_at = now + timedelta(minutes=15)
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE tenants SET password_reset_token_hash = ?, password_reset_expires_at = ?, password_reset_requested_at = ? WHERE id = ?",
+                (hash_pin(token), expires_at.isoformat(), now.isoformat(), row["id"]),
+            )
+            conn.execute(
+                "INSERT INTO tenant_password_reset_events (tenantId, channel, token_hash, created_at, expires_at, requested_ip) VALUES (?, 'self-service', ?, ?, ?, ?)",
+                (row["id"], hash_pin(token), now.isoformat(), expires_at.isoformat(), ip),
+            )
+            conn.commit()
+        log_audit(row["id"], "Password Reset Requested", ip)
+        # TODO(delivery): no tenant email/SMS channel exists. Landlord sets the
+        # temporary password via portal-auth; self-service token delivery is a stub.
+
+    return {
+        "status": "success",
+        "message": "If an account exists for that username, a password reset will be made available.",
+    }
+
+
+@router.post("/tenant/api/auth/reset-password", include_in_schema=False)
+async def global_tenant_reset_password(request: Request, response: Response, login_req: EncryptedLoginRequest):
+    """Complete a password reset using the token issued via forgot-password."""
+    from app.encryption import decrypt_payload
+    from app.authentication.common.utils import hash_pin, verify_pin
+    from app.core.db import get_conn
+    from app.database.auth_repository import log_audit, revoke_all_tenant_sessions
+    from datetime import datetime
+
+    try:
+        decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
+        username = decrypted.get("username", "").strip().lower()
+        token = decrypted.get("token", "")
+        new_password = decrypted.get("new_password", "")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid encrypted payload")
+
+    if not username or not token:
+        raise HTTPException(status_code=400, detail="Username and reset token are required")
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    ip = request.client.host if request.client else "Unknown IP"
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, name, landlord_id, viewToken, password_reset_token_hash, password_reset_expires_at FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            (username,),
+        ).fetchone()
+
+    if not row or not row["password_reset_token_hash"]:
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    if not verify_pin(token, row["password_reset_token_hash"]):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    if row["password_reset_expires_at"]:
+        try:
+            expires_at = datetime.fromisoformat(row["password_reset_expires_at"])
+            if datetime.utcnow() > expires_at:
+                raise HTTPException(status_code=400, detail="Reset token has expired")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid reset token state")
+
+    now = datetime.utcnow()
+    tenant_id = row["id"]
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE tenants SET password_hash = ?, password_reset_token_hash = NULL, password_reset_expires_at = NULL, password_reset_requested_at = NULL, password_reset_required = 0, password_failed_attempts = 0, password_locked_until = NULL, last_password_change_at = ? WHERE id = ?",
+            (hash_pin(new_password), now.isoformat(), tenant_id),
+        )
+        conn.execute(
+            "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (?, ?, ?, 'tenant-reset')",
+            (tenant_id, hash_pin(new_password), now.isoformat()),
+        )
+        conn.execute(
+            "UPDATE tenant_password_reset_events SET used_at = ? WHERE tenantId = ? AND used_at IS NULL",
+            (now.isoformat(), tenant_id),
+        )
+        conn.commit()
+
+    revoke_all_tenant_sessions(tenant_id)
+    log_audit(tenant_id, "Password Reset Completed", ip)
+
+    return {"status": "success", "message": "Password updated. Please sign in."}
+
+
+@router.post("/tenant/api/auth/change-password", include_in_schema=False)
+async def global_tenant_change_password(request: Request, response: Response, login_req: EncryptedLoginRequest):
+    """Change a tenant's password (current password required). Used for the
+    forced first-login change after a landlord-assigned temporary password."""
+    from app.encryption import decrypt_payload
+    from app.authentication.common.utils import hash_pin, verify_pin
+    from app.core.db import get_conn
+    from app.database.auth_repository import log_audit, revoke_all_tenant_sessions
+    from datetime import datetime
+
+    try:
+        decrypted = decrypt_payload(login_req.key, login_req.data, login_req.nonce)
+        username = decrypted.get("username", "").strip().lower()
+        current_password = decrypted.get("current_password", "")
+        new_password = decrypted.get("new_password", "")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid encrypted payload")
+
+    if not username or not current_password:
+        raise HTTPException(status_code=400, detail="Username and current password are required")
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+
+    ip = request.client.host if request.client else "Unknown IP"
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, password_hash FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            (username,),
+        ).fetchone()
+
+    if not row or not row["password_hash"] or not verify_pin(current_password, row["password_hash"]):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    now = datetime.utcnow()
+    tenant_id = row["id"]
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE tenants SET password_hash = ?, password_reset_required = 0, password_reset_token_hash = NULL, password_reset_expires_at = NULL, password_reset_requested_at = NULL, password_failed_attempts = 0, password_locked_until = NULL, last_password_change_at = ? WHERE id = ?",
+            (hash_pin(new_password), now.isoformat(), tenant_id),
+        )
+        conn.execute(
+            "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (?, ?, ?, 'tenant-change')",
+            (tenant_id, hash_pin(new_password), now.isoformat()),
+        )
+        conn.commit()
+
+    revoke_all_tenant_sessions(tenant_id)
+    log_audit(tenant_id, "Password Changed", ip)
+
+    return {"status": "success", "message": "Password updated. Please sign in."}
 
 
 @router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)

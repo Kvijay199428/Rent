@@ -676,14 +676,19 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
 
         # Restore tenant row
         t = tenant_profile
+        # QR key: prefer snapshot's value; regenerate a fresh key if missing.
+        qr_key = t.get("qr_key") or ""
+        if not qr_key:
+            qr_key = uuid.uuid4().hex + uuid.uuid4().hex
         conn.execute(
             """
             INSERT INTO tenants (
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
                 additionalpersoncharge, securitydeposit, defaulttankwatercharge,
-                meterid, viewToken, tenantpin, failed_attempts, locked_until, landlord_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meterid, viewToken, tenantpin, failed_attempts, locked_until, landlord_id,
+                qr_key
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 new_tenant_id,
@@ -709,6 +714,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                 0,
                 None,
                 t.get("landlord_id"),
+                qr_key,
             ),
         )
 

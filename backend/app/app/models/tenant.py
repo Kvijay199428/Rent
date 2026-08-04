@@ -38,6 +38,12 @@ class Tenant(BaseModel):
     # NEW: Security PIN for Tenant Portal
     tenantPin: Optional[str] = None
 
+    # NEW: QR login key (unique per-tenant token used for QR links)
+    qr_key: Optional[str] = ""
+
+    # NEW: Portal login username (tenant_username)
+    tenantUsername: Optional[str] = ""
+
     # NEW: Current arrears (balance due)
     arrears: float = 0.0
 

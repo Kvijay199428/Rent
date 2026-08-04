@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS app_metadata (
 INSERT OR REPLACE INTO app_metadata (key, value) VALUES 
     ('auth_schema_version', '1'),
     ('receipt_schema_version', '1'),
-    ('tenant_schema_version', '2');
+    ('tenant_schema_version', '3');
 
 -- ============================================================
 -- 2. ADMINS (Admin User Management with TOTP)
@@ -83,8 +83,51 @@ CREATE TABLE IF NOT EXISTS tenants (
     viewToken TEXT,
     tenantpin TEXT,
     failed_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until TEXT
+    locked_until TEXT,
+    qr_key TEXT,
+    tenant_username TEXT,
+    password_hash TEXT,
+    password_failed_attempts INTEGER NOT NULL DEFAULT 0,
+    password_locked_until TEXT,
+    password_reset_token_hash TEXT,
+    password_reset_expires_at TEXT,
+    password_reset_requested_at TEXT,
+    password_reset_required INTEGER NOT NULL DEFAULT 0,
+    last_password_change_at TEXT
 );
+
+-- ============================================================
+-- 4b. TENANT PASSWORD HISTORY (Portal auth audit)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS tenant_password_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenantId INTEGER NOT NULL,
+    password_hash TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    changed_by TEXT,
+    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_password_history_tenantId
+    ON tenant_password_history(tenantId);
+
+CREATE TABLE IF NOT EXISTS tenant_password_reset_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenantId INTEGER NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'landlord',
+    token_hash TEXT,
+    created_at TEXT NOT NULL,
+    expires_at TEXT,
+    used_at TEXT,
+    requested_ip TEXT,
+    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_password_reset_tenantId
+    ON tenant_password_reset_events(tenantId);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_tenant_username
+    ON tenants(tenant_username) WHERE tenant_username IS NOT NULL AND tenant_username != '';
 
 -- ============================================================
 -- 5. TENANT PIN HISTORY (Security Audit)

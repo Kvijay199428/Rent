@@ -289,6 +289,8 @@ export const ROUTES = {
     LANDLORDAPITENANTSRESTORE(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "restore", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTSCHANGEPIN(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "changePin", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTSREVEALPIN(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "revealPin", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSPORTALAUTH(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "portalAuth", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSQRKEY(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "qrKey", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTSRECEIPTS(landlordUuid: string, tenantId: number | string) { return api("landlord", "tenants", "receipts", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTRECOVERYSNAPSHOTS(landlordUuid: string) { return api("landlord", "tenants", "recoverySnapshots", { landlordUuid }); },
     LANDLORDAPITENANTSNAPSHOT_PREVIEW(landlordUuid: string, snapshotId: string) { return api("landlord", "tenants", "recoverySnapshotPreview", { landlordUuid, snapshotId }); },

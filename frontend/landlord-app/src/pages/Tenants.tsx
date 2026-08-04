@@ -59,6 +59,11 @@ function formatDisplayDate(date = new Date()) {
   });
 }
 
+function buildTenantUrl(landlordUuid: string, tenant: Tenant): string {
+  const base = `${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
+  return tenant.qr_key ? `${base}?qr_key=${encodeURIComponent(tenant.qr_key)}` : base;
+}
+
 function escapeHtml(value: string) {
   return value
     .replace(/&/g, '&amp;')
@@ -311,6 +316,7 @@ export default function Tenants() {
   const [showQrPinEditor, setShowQrPinEditor] = useState(false);
   const [newQrPin, setNewQrPin] = useState('');
   const [savingQrPin, setSavingQrPin] = useState(false);
+  const [regeneratingQr, setRegeneratingQr] = useState(false);
   const [occupantsTenant, setOccupantsTenant] = useState<Tenant | null>(null);
 
   const [billsTenant, setBillsTenant] = useState<Tenant | null>(null);
@@ -366,6 +372,21 @@ export default function Tenants() {
       setQrPin('----');
     } finally {
       setQrPinLoading(false);
+    }
+  };
+
+  const handleRegenerateQr = async () => {
+    if (!qrTenant?.id) return;
+    try {
+      setRegeneratingQr(true);
+      const res = await api.regenerateQrKey(landlordUuid!, qrTenant.id);
+      setQrTenant({ ...qrTenant, qr_key: res.qr_key });
+      toast.success(res.message || 'QR key regenerated');
+      loadTenants();
+    } catch (e: any) {
+      toast.error(e?.message || 'Failed to regenerate QR key');
+    } finally {
+      setRegeneratingQr(false);
     }
   };
 
@@ -579,6 +600,19 @@ export default function Tenants() {
                   toast.error(e?.message || 'Failed to change tenant PIN');
                 }
               }}
+              onSavePortalAuth={async (data) => {
+                if (!editingTenant.id) return;
+                try {
+                  await api.portalAuth(landlordUuid!, editingTenant.id, data);
+                  toast.success(data.tenantUsername || data.temporaryPassword
+                    ? 'Portal login configured'
+                    : 'Portal login disabled');
+                  setEditingTenant({ ...editingTenant, tenantUsername: data.tenantUsername ?? editingTenant.tenantUsername });
+                  loadTenants();
+                } catch (e: any) {
+                  toast.error(e?.message || 'Failed to configure portal login');
+                }
+              }}
             />
           )}
         </DialogContent>
@@ -607,7 +641,7 @@ export default function Tenants() {
 
                 <div className="mt-4 flex justify-center bg-white p-2">
                   <QRCode
-                    value={`${API_BASE}/${landlordUuid}/t/${qrTenant.id}/${qrTenant.viewToken}`}
+                    value={buildTenantUrl(landlordUuid!, qrTenant)}
                     size={200}
                     level="H"
                   />
@@ -700,6 +734,20 @@ export default function Tenants() {
               </div>
             </div>
           )}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full"
+            disabled={regeneratingQr}
+            onClick={handleRegenerateQr}
+          >
+            {regeneratingQr ? 'Regenerating...' : 'Regenerate QR'}
+          </Button>
+          <p className="mt-1 text-center text-xs text-gray-500">
+            Regenerating revokes all existing tenant sessions and makes the old QR link unusable.
+          </p>
         </DialogContent>
       </Dialog>
 
@@ -858,7 +906,7 @@ function TenantCard({
             size="sm"
             className="w-full"
             disabled={!tenant.viewToken}
-            onClick={() => tenant.viewToken && window.open(`${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`, '_blank')}
+            onClick={() => tenant.viewToken && window.open(buildTenantUrl(landlordUuid!, tenant), '_blank')}
             title={!tenant.viewToken ? 'Portal token missing for this tenant' : 'Open public profile'}
           >
             Public Profile
@@ -883,7 +931,7 @@ function TenantCard({
             onClick={async () => {
               if (!tenant.viewToken || !tenant.id) return;
 
-              const url = `${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
+              const url = buildTenantUrl(landlordUuid!, tenant);
 
               let pin = '----';
               try {
@@ -966,13 +1014,20 @@ function TenantForm({
   tenant,
   onSave,
   onChangePin,
+  onSavePortalAuth,
 }: {
   tenant?: Tenant | null;
   onSave: (data: Record<string, unknown>) => void;
   onChangePin?: (pin: string) => Promise<void>;
+  onSavePortalAuth?: (data: { tenantUsername?: string; temporaryPassword?: string; resetRequired?: boolean }) => Promise<void>;
 }) {
   const [newPin, setNewPin] = useState('');
   const [changingPin, setChangingPin] = useState(false);
+
+  const [portalUsername, setPortalUsername] = useState(tenant?.tenantUsername || '');
+  const [portalPassword, setPortalPassword] = useState('');
+  const [portalResetRequired, setPortalResetRequired] = useState(true);
+  const [savingPortalAuth, setSavingPortalAuth] = useState(false);
 
   const [form, setForm] = useState({
     name: tenant?.name || '',
@@ -995,6 +1050,23 @@ function TenantForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(form);
+  };
+
+  const handleSavePortalAuth = async () => {
+    if (!onSavePortalAuth) return;
+    try {
+      setSavingPortalAuth(true);
+      await onSavePortalAuth({
+        tenantUsername: portalUsername.trim() || undefined,
+        temporaryPassword: portalPassword || undefined,
+        resetRequired: portalResetRequired,
+      });
+      setPortalPassword('');
+    } catch {
+      // parent handler shows the error toast
+    } finally {
+      setSavingPortalAuth(false);
+    }
   };
 
   return (
@@ -1156,6 +1228,75 @@ function TenantForm({
               }}
             >
               {changingPin ? 'Changing...' : 'Change PIN'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {tenant && (
+        <div className="border-t pt-4 space-y-3">
+          <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+            Portal Login (Username + Password)
+          </h4>
+
+          <div className="space-y-2">
+            <Label>Username</Label>
+            <Input
+              value={portalUsername}
+              onChange={(e) => setPortalUsername(e.target.value)}
+              placeholder="e.g. john.doe"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Temporary Password</Label>
+            <Input
+              type="password"
+              value={portalPassword}
+              onChange={(e) => setPortalPassword(e.target.value)}
+              placeholder="At least 8 characters"
+            />
+          </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={portalResetRequired}
+              onChange={(e) => setPortalResetRequired(e.target.checked)}
+              className="h-4 w-4"
+            />
+            Require password change on first login
+          </label>
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="flex-1"
+              disabled={!onSavePortalAuth || savingPortalAuth}
+              onClick={handleSavePortalAuth}
+            >
+              {savingPortalAuth ? 'Saving...' : 'Save Portal Login'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              disabled={!onSavePortalAuth || savingPortalAuth}
+              onClick={async () => {
+                if (!onSavePortalAuth) return;
+                try {
+                  setSavingPortalAuth(true);
+                  await onSavePortalAuth({});
+                  setPortalUsername('');
+                  setPortalPassword('');
+                } finally {
+                  setSavingPortalAuth(false);
+                }
+              }}
+            >
+              Disable
             </Button>
           </div>
         </div>

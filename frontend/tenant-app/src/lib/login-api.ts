@@ -6,7 +6,15 @@ export async function qrLoginByPin(
   pin: string
 ): Promise<{ status: string; message?: string }> {
   const pubKey = await getPublicKey(`${basePath}/api/auth/public-key`);
-  const encrypted = await encryptPayload({ pin, rememberme: true }, pubKey);
+
+  // Bind the login to the printed QR via its qr_key query param.
+  const params = new URLSearchParams(window.location.search);
+  const qrKey = params.get("qr_key") || "";
+
+  const encrypted = await encryptPayload(
+    { pin, rememberme: true, qr_key: qrKey },
+    pubKey
+  );
 
   const res = await fetch(`${basePath}/api/auth/login`, {
     method: "POST",
@@ -26,10 +34,10 @@ export async function qrLoginByPin(
   return data;
 }
 
-// ── Portal Flow: login via username + PIN (global endpoint) ──
-export async function portalLoginByUsername(
+// ── Portal Flow: login via tenant_username + password (global endpoint) ──
+export async function portalLogin(
   username: string,
-  pin: string,
+  password: string,
   rememberMe: boolean = false
 ): Promise<{
   status: string;
@@ -40,14 +48,15 @@ export async function portalLoginByUsername(
     view_token: string;
   };
   redirect_url: string | null;
+  reset_required?: boolean;
 }> {
   const pubKey = await getPublicKey("/rent/tenant/api/auth/public-key");
   const encrypted = await encryptPayload(
-    { username, pin, rememberme: rememberMe, portal_mode: true },
+    { username, password, rememberme: rememberMe },
     pubKey
   );
 
-  const res = await fetch("/rent/tenant/api/auth/login-by-username", {
+  const res = await fetch("/rent/tenant/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -61,6 +70,61 @@ export async function portalLoginByUsername(
   const data = await res.json();
   if (!res.ok || data.status !== "success") {
     throw new Error(data.detail || data.message || "Login failed");
+  }
+  return data;
+}
+
+// ── Portal Flow: forgot password (delivery handled by the landlord in v1) ──
+export async function forgotTenantPassword(
+  username: string
+): Promise<{ status: string; message: string }> {
+  const pubKey = await getPublicKey("/rent/tenant/api/auth/public-key");
+  const encrypted = await encryptPayload({ username }, pubKey);
+
+  const res = await fetch("/rent/tenant/api/auth/forgot-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      key: encrypted.key,
+      data: encrypted.data,
+      nonce: encrypted.nonce,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || data.message || "Request failed");
+  }
+  return data;
+}
+
+// ── Portal Flow: set a new password (forced change after temp password) ──
+export async function changeTenantPassword(
+  username: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<{ status: string; message: string }> {
+  const pubKey = await getPublicKey("/rent/tenant/api/auth/public-key");
+  const encrypted = await encryptPayload(
+    { username, current_password: currentPassword, new_password: newPassword },
+    pubKey
+  );
+
+  const res = await fetch("/rent/tenant/api/auth/change-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      key: encrypted.key,
+      data: encrypted.data,
+      nonce: encrypted.nonce,
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || data.message || "Password change failed");
   }
   return data;
 }

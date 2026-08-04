@@ -65,12 +65,25 @@ function TenantPortalInner() {
   }
 
   if (!isUnlocked) {
-    return (
-      <QrUnlockPage
-        tenant={tenant as QrTenantProfile}
-        basePath={window.location.pathname}
-      />
-    );
+    // Once a tenant chooses credential login, the QR page is unreachable:
+    // even a manual back-navigation to this URL bounces to /tenant/login.
+    if (sessionStorage.getItem("tenantLoginMode") === "credentials") {
+      return <Navigate to="/tenant/login" replace />;
+    }
+
+    // QR links carry ?qr_key= — only those show the PIN unlock page.
+    const qrKey = new URLSearchParams(window.location.search).get("qr_key");
+    if (qrKey) {
+      return (
+        <QrUnlockPage
+          tenant={tenant as QrTenantProfile}
+          basePath={window.location.pathname}
+        />
+      );
+    }
+
+    // Direct (non-QR) arrival uses the username/password portal login.
+    return <PortalLoginPage />;
   }
 
   return (

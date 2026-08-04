@@ -228,6 +228,150 @@ async def admin_reveal_tenantPin(
         "updated_at": row["updated_at"]
     }
 
+
+class PortalAuthRequest(BaseModel):
+    tenantUsername: Optional[str] = None
+    temporaryPassword: Optional[str] = None
+    resetRequired: bool = True
+
+
+@router.post(Routes.LANDLORDAPITENANTSPORTALAUTH, name=Names.LANDLORDTENANTPORTALAUTH)
+async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: PortalAuthRequest, request: Request, background_tasks: BackgroundTasks):
+    """Assign or clear a tenant's portal username/password (username + password flow)."""
+    from app.authentication.common.utils import hash_pin
+    from app.authentication.tenant.sessions import revoke_all_tenant_sessions
+    from app.database.auth_repository import log_audit
+    from app.database.landlord_repository import create_landlord_audit_log
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.core.db import get_conn
+    from datetime import datetime
+
+    background_tasks.add_task(create_full_backup, tag="portal_auth")
+
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id, name FROM tenants WHERE id = ?", (tenantId,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+
+        # Clear portal auth when nothing is provided
+        if not payload.tenantUsername and not payload.temporaryPassword:
+            conn.execute(
+                "UPDATE tenants SET tenant_username = NULL, password_hash = NULL, "
+                "password_reset_required = 0, password_failed_attempts = 0, password_locked_until = NULL, "
+                "password_reset_token_hash = NULL, password_reset_expires_at = NULL "
+                "WHERE id = ?",
+                (tenantId,),
+            )
+            conn.commit()
+            ip = request.client.host if request.client else "Unknown IP"
+            log_audit(tenantId, "Portal Auth Disabled", ip)
+            return {"status": "success", "message": "Portal login disabled for this tenant."}
+
+        username = (payload.tenantUsername or "").strip().lower()
+        if not username:
+            raise HTTPException(status_code=400, detail="tenantUsername is required")
+
+        # Uniqueness check
+        conflict = conn.execute(
+            "SELECT id FROM tenants WHERE LOWER(tenant_username) = ? AND id != ? LIMIT 1",
+            (username, tenantId),
+        ).fetchone()
+        if conflict:
+            raise HTTPException(status_code=409, detail="That username is already in use by another tenant.")
+
+        now = datetime.utcnow().isoformat()
+
+        updates = ["tenant_username = ?"]
+        params = [username]
+
+        if payload.temporaryPassword:
+            if len(str(payload.temporaryPassword)) < 8:
+                raise HTTPException(status_code=400, detail="Temporary password must be at least 8 characters.")
+            pwd_hash = hash_pin(str(payload.temporaryPassword))
+            updates.append("password_hash = ?")
+            params.append(pwd_hash)
+            updates.append("password_reset_required = ?")
+            params.append(1 if payload.resetRequired else 0)
+            updates.append("last_password_change_at = ?")
+            params.append(now)
+            conn.execute(
+                "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (?, ?, ?, 'landlord')",
+                (tenantId, pwd_hash, now),
+            )
+        else:
+            updates.append("password_reset_required = 0")
+
+        updates.append("password_failed_attempts = 0")
+        updates.append("password_locked_until = NULL")
+        params.append(tenantId)
+        conn.execute(
+            f"UPDATE tenants SET {', '.join(updates)} WHERE id = ?",
+            tuple(params),
+        )
+        conn.commit()
+
+    revoke_all_tenant_sessions(tenantId)
+    ip = request.client.host if request.client else "Unknown IP"
+    log_audit(tenantId, "Portal Auth Configured", ip)
+
+    landlord_id = extract_landlord_id(request)
+    if landlord_id:
+        create_landlord_audit_log(
+            landlord_id, "tenant_portal_auth_configured",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"tenant_id": tenantId, "tenant_username": username}),
+        )
+
+    await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_UPDATED", "tenantId": tenantId})
+
+    return {
+        "status": "success",
+        "message": "Portal login configured." if payload.temporaryPassword else "Portal username assigned.",
+        "tenantUsername": username,
+        "resetRequired": bool(payload.resetRequired) if payload.temporaryPassword else False,
+    }
+
+
+@router.post(Routes.LANDLORDAPITENANTSQRKEY, name=Names.LANDLORDTENANTQRKEY)
+async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request: Request, background_tasks: BackgroundTasks):
+    """Regenerate a tenant's QR key (rotates the QR link; revokes all sessions)."""
+    import uuid as _uuid
+    from app.authentication.tenant.sessions import revoke_all_tenant_sessions
+    from app.database.auth_repository import log_audit
+    from app.database.landlord_repository import create_landlord_audit_log
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.core.db import get_conn
+
+    background_tasks.add_task(create_full_backup, tag="regenerate_qr_key")
+
+    new_key = _uuid.uuid4().hex + _uuid.uuid4().hex
+    with get_conn() as conn:
+        existing = conn.execute(
+            "SELECT id, name FROM tenants WHERE id = ?", (tenantId,)
+        ).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Tenant not found")
+        conn.execute("UPDATE tenants SET qr_key = ? WHERE id = ?", (new_key, tenantId))
+        conn.commit()
+
+    revoke_all_tenant_sessions(tenantId)
+    ip = request.client.host if request.client else "Unknown IP"
+    log_audit(tenantId, "QR Key Regenerated", ip)
+
+    landlord_id = extract_landlord_id(request)
+    if landlord_id:
+        create_landlord_audit_log(
+            landlord_id, "tenant_qr_key_regenerated",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"tenant_id": tenantId}),
+        )
+
+    await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_UPDATED", "tenantId": tenantId})
+
+    return {"status": "success", "message": "QR key regenerated.", "qr_key": new_key}
+
 @router.delete(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIDELETETENANT)
 async def api_delete_tenant(
     landlordUuid: str,

@@ -59,7 +59,7 @@ def init_db():
         INSERT OR REPLACE INTO app_metadata (key, value) VALUES 
             ('auth_schema_version', '1'),
             ('receipt_schema_version', '1'),
-            ('tenant_schema_version', '2');
+            ('tenant_schema_version', '3');
 
         -- 2. ADMINS
         CREATE TABLE IF NOT EXISTS admins (
@@ -115,8 +115,46 @@ def init_db():
             tenantpin TEXT,
             failed_attempts INTEGER NOT NULL DEFAULT 0,
             locked_until TEXT,
-            status_changed_at TEXT
+            status_changed_at TEXT,
+            qr_key TEXT,
+            tenant_username TEXT,
+            password_hash TEXT,
+            password_failed_attempts INTEGER NOT NULL DEFAULT 0,
+            password_locked_until TEXT,
+            password_reset_token_hash TEXT,
+            password_reset_expires_at TEXT,
+            password_reset_requested_at TEXT,
+            password_reset_required INTEGER NOT NULL DEFAULT 0,
+            last_password_change_at TEXT
         );
+
+        -- Portal auth support tables (tenant password history + reset events)
+        CREATE TABLE IF NOT EXISTS tenant_password_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenantId INTEGER NOT NULL,
+            password_hash TEXT NOT NULL,
+            changed_at TEXT NOT NULL,
+            changed_by TEXT,
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tenant_password_history_tenantId
+            ON tenant_password_history(tenantId);
+
+        CREATE TABLE IF NOT EXISTS tenant_password_reset_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tenantId INTEGER NOT NULL,
+            channel TEXT NOT NULL DEFAULT 'landlord',
+            token_hash TEXT,
+            created_at TEXT NOT NULL,
+            expires_at TEXT,
+            used_at TEXT,
+            requested_ip TEXT,
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_tenant_password_reset_tenantId
+            ON tenant_password_reset_events(tenantId);
 
         -- 5. TENANT PIN HISTORY
         CREATE TABLE IF NOT EXISTS tenantPin_history (
@@ -283,7 +321,9 @@ def init_db():
             password_hash TEXT NOT NULL,
             status TEXT NOT NULL DEFAULT 'Active',
             created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
+            updated_at TEXT NOT NULL,
+            totp_secret TEXT,
+            totp_enabled INTEGER NOT NULL DEFAULT 0
         );
 
         -- 15. LANDLORD SESSIONS
@@ -362,6 +402,48 @@ def init_db():
             )
             conn.commit()
 
+        # ─── Tenant portal auth + QR key columns ────────────────────────
+        for col, ddl in [
+            ("qr_key", "ALTER TABLE tenants ADD COLUMN qr_key TEXT"),
+            ("tenant_username", "ALTER TABLE tenants ADD COLUMN tenant_username TEXT"),
+            ("password_hash", "ALTER TABLE tenants ADD COLUMN password_hash TEXT"),
+            ("password_failed_attempts", "ALTER TABLE tenants ADD COLUMN password_failed_attempts INTEGER NOT NULL DEFAULT 0"),
+            ("password_locked_until", "ALTER TABLE tenants ADD COLUMN password_locked_until TEXT"),
+            ("password_reset_token_hash", "ALTER TABLE tenants ADD COLUMN password_reset_token_hash TEXT"),
+            ("password_reset_expires_at", "ALTER TABLE tenants ADD COLUMN password_reset_expires_at TEXT"),
+            ("password_reset_requested_at", "ALTER TABLE tenants ADD COLUMN password_reset_requested_at TEXT"),
+            ("password_reset_required", "ALTER TABLE tenants ADD COLUMN password_reset_required INTEGER NOT NULL DEFAULT 0"),
+            ("last_password_change_at", "ALTER TABLE tenants ADD COLUMN last_password_change_at TEXT"),
+        ]:
+            if not _column_exists(conn, "tenants", col):
+                conn.execute(ddl)
+                conn.commit()
+
+        # Legacy tenants tables predate status_changed_at; the app reads it in load_tenants.
+        if not _column_exists(conn, "tenants", "status_changed_at"):
+            conn.execute("ALTER TABLE tenants ADD COLUMN status_changed_at TEXT")
+            conn.commit()
+
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_tenant_username ON tenants(tenant_username) WHERE tenant_username IS NOT NULL AND tenant_username != ''")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenants_qr_key ON tenants(qr_key)")
+        conn.commit()
+
+        # Backfill qr_key for existing tenants (idempotent)
+        conn.execute("UPDATE tenants SET qr_key = lower(hex(randomblob(16))) WHERE qr_key IS NULL OR qr_key = ''")
+        conn.commit()
+
+        # ─── Tenant schema drift reconciliation ───────────────────────
+        # Legacy DBs created these tables with snake_case tenant_id, but the
+        # canonical schema (and all application SQL) uses tenantId. Rename
+        # the legacy column in place (data-preserving, idempotent).
+        for _tbl in ("tenant_sessions", "tenant_audit_logs"):
+            if (
+                _column_exists(conn, _tbl, "tenant_id")
+                and not _column_exists(conn, _tbl, "tenantId")
+            ):
+                conn.execute(f"ALTER TABLE {_tbl} RENAME COLUMN tenant_id TO tenantId")
+                conn.commit()
+
         # ─── Multi-tenancy: Add landlord_id to core tables ──────────
         if not _column_exists(conn, "tenants", "landlord_id"):
             conn.execute("ALTER TABLE tenants ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
@@ -399,13 +481,17 @@ def init_db():
               AND tenantId IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
             """
         )
+        # Some legacy DBs created occupants with snake_case tenant_id; the
+        # canonical schema (and this backfill) uses tenantId. Pick whichever
+        # column the table actually has so the backfill works on both.
+        occupants_id_col = "tenant_id" if _column_exists(conn, "occupants", "tenant_id") else "tenantId"
         conn.execute(
-            """
+            f"""
             UPDATE occupants SET landlord_id = (
-                SELECT landlord_id FROM tenants WHERE tenants.id = occupants.tenantId
+                SELECT landlord_id FROM tenants WHERE tenants.id = occupants.{occupants_id_col}
             )
             WHERE landlord_id IS NULL
-              AND tenantId IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
+              AND {occupants_id_col} IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
             """
         )
         if lid:
@@ -448,6 +534,18 @@ def init_db():
             )
             conn.commit()
 
+        # ─── Landlord brute-force columns ────────────────────────────
+        if not _column_exists(conn, "landlord_accounts", "failed_attempts"):
+            conn.execute(
+                "ALTER TABLE landlord_accounts ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0"
+            )
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "locked_until"):
+            conn.execute(
+                "ALTER TABLE landlord_accounts ADD COLUMN locked_until TEXT"
+            )
+            conn.commit()
+
         # ─── Platform admin brute-force columns ────────────────────────
         if not _column_exists(conn, "admins", "failed_attempts"):
             conn.execute(
@@ -467,13 +565,27 @@ def init_db():
 
         # ─── Google OAuth columns for landlord_accounts ────────────────
         if not _column_exists(conn, "landlord_accounts", "google_sub"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN google_sub TEXT UNIQUE")
+            # SQLite cannot ADD COLUMN with UNIQUE; add plain and enforce
+            # uniqueness with a partial index (matches fresh-schema UNIQUE).
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN google_sub TEXT")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_landlord_accounts_google_sub "
+                "ON landlord_accounts(google_sub) WHERE google_sub IS NOT NULL AND google_sub != ''"
+            )
             conn.commit()
         if not _column_exists(conn, "landlord_accounts", "auth_provider"):
             conn.execute("ALTER TABLE landlord_accounts ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'email'")
             conn.commit()
         if not _column_exists(conn, "landlord_accounts", "avatar_url"):
             conn.execute("ALTER TABLE landlord_accounts ADD COLUMN avatar_url TEXT")
+            conn.commit()
+
+        # ─── Landlord TOTP columns (landlord_login reads them unconditionally) ──
+        if not _column_exists(conn, "landlord_accounts", "totp_secret"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_secret TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "totp_enabled"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0")
             conn.commit()
 
         # ─── Landlord password admin store (for platform admin reveal) ──

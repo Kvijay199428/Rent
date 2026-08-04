@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { Lock, ShieldCheck, Receipt, Users, ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function QrUnlockPage({ tenant, basePath }: Props) {
+  const navigate = useNavigate();
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -110,12 +112,18 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
           </p>
 
           <div className="mt-6 pt-4 border-t text-center">
-            <a
-              href="/rent/tenant/login"
-              className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={loading}
+              className="w-full h-11 rounded-2xl text-sm"
+              onClick={() => {
+                sessionStorage.setItem("tenantLoginMode", "credentials");
+                navigate("/tenant/login", { replace: true });
+              }}
             >
-              Login with phone / email instead
-            </a>
+              Login with username instead
+            </Button>
           </div>
         </CardContent>
       </Card>

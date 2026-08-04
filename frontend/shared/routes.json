@@ -203,6 +203,8 @@
         "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/restore",
         "changePin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/change-pin",
         "revealPin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/reveal-pin",
+        "portalAuth": "/landlord/{landlordUuid}/api/tenants/{tenantId}/portal-auth",
+        "qrKey": "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr-key",
         "receipts": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
         "recoverySnapshots": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots",
         "recoverySnapshotPreview": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/preview",

@@ -95,6 +95,29 @@ export const api = {
     return data;
   },
 
+  portalAuth: async (
+    landlordUuid: string,
+    tenantId: number,
+    payload: { tenantUsername?: string; temporaryPassword?: string; resetRequired?: boolean }
+  ): Promise<{ status: string; message: string; tenantUsername: string; resetRequired: boolean }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSPORTALAUTH(landlordUuid, tenantId), {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to configure portal login");
+    return data;
+  },
+
+  regenerateQrKey: async (landlordUuid: string, tenantId: number): Promise<{ status: string; message: string; qr_key: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSQRKEY(landlordUuid, tenantId), {
+      method: "POST",
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to regenerate QR key");
+    return data;
+  },
+
   deleteTenant: async (landlordUuid: string, id: number, action: string = "archive"): Promise<{ status: string }> => {
     const res = await fetchWithAuth(`${ROUTES.LANDLORDAPITENANTSDELETE(landlordUuid, id)}?action=${action}`, {
       method: "DELETE",

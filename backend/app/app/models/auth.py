@@ -11,6 +11,14 @@ class UsernameLoginRequest(BaseModel):
     pin: str
     remember_me: bool = False
 
+class ForgotPasswordRequest(BaseModel):
+    username: str
+
+class ResetPasswordRequest(BaseModel):
+    username: str
+    token: str
+    new_password: str
+
 class ChangePinRequest(BaseModel):
     current_pin: str
     new_pin: str
