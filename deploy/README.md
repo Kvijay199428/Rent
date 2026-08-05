@@ -91,9 +91,21 @@ python3 deploy.py --prod --sshPublic
 
 Uploads the repo (no npm builds — Vite runs live), then on the server:
 `docker compose --env-file .env.development -f compose.dev.yml build && up -d`.
-Backend on port 28001 (hot reload), tenant-app Vite on 28003, ngrok dashboard
-on 4040. Copy the tunnel URL into `NGROK_API_BASE_URL` and `VITE_API_BASE_URL`
-in `.env.development` and redeploy to apply.
+Backend on port 28001 (hot reload), tenant-app Vite on 28003.
+
+The dev ngrok tunnel on the server is the **systemd-hosted** agent
+(`ngrok.service`, `/home/vega/.config/ngrok/ngrok.yml`) — it owns the account's
+reserved URL and is repointed to `http://localhost:28001`. The docker `ngrok`
+service is behind the `ngrok` compose profile (avoids a port/URL clash):
+
+```bash
+# only where no host ngrok exists (e.g. a laptop):
+docker compose --env-file .env.development -f compose.dev.yml --profile ngrok up -d
+# dashboard: http://localhost:4041
+```
+
+Copy the tunnel URL into `NGROK_API_BASE_URL` and `VITE_API_BASE_URL` in
+`.env.development` and redeploy to apply.
 
 ### What `--prod` runs
 

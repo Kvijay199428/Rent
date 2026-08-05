@@ -42,6 +42,14 @@ fi
 log "pulling origin/$BRANCH"
 cd "$REPO_DIR"
 export GIT_TERMINAL_PROMPT=0
+
+# Secrets live outside the repo (gitignored) — symlink them in so deploys see them.
+for f in .env.release .env.development; do
+  if [ -f "$SECRETS_DIR/$f" ] && [ ! -e "$REPO_DIR/$f" ]; then
+    ln -s "$SECRETS_DIR/$f" "$REPO_DIR/$f"
+  fi
+done
+
 git fetch origin "$BRANCH" --quiet
 
 LOCAL="$(git rev-parse HEAD)"
@@ -53,13 +61,6 @@ fi
 log "$BRANCH $LOCAL -> $REMOTE"
 git checkout -f -B "$BRANCH" "origin/$BRANCH"
 git submodule update --init --recursive 2>/dev/null || true
-
-# Secrets live outside the repo (gitignored) — symlink them in so deploys see them.
-for f in .env.release .env.development; do
-  if [ -f "$SECRETS_DIR/$f" ] && [ ! -e "$REPO_DIR/$f" ]; then
-    ln -s "$SECRETS_DIR/$f" "$REPO_DIR/$f"
-  fi
-done
 
 if [ "$BRANCH" = "release" ]; then
   python3 deploy.py --release --local --no-build
