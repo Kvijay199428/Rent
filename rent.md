@@ -3,8 +3,8 @@
 Generated: 2025-07-29
 Script:   /root/rent/copy.py
 Source:   /root/rent
-Files:    299
-Size:     1608 KB
+Files:    300
+Size:     1609 KB
 Skipped:  0
 
 ---
@@ -52,6 +52,7 @@ Skipped:  0
 - backend/app/app/authentication/tenant/jwt.py
 - backend/app/app/authentication/tenant/middleware.py
 - backend/app/app/authentication/tenant/sessions.py
+- backend/app/app/core/api_guard.py
 - backend/app/app/core/app_info.py
 - backend/app/app/core/audit.py
 - backend/app/app/core/config_defaults.py
@@ -5950,6 +5951,48 @@ def revoke_all_tenant_sessions(tenantId: int):
 
 ```
 
+### `backend/app/app/core/api_guard.py`
+
+```python
+"""Host-based guard for blocking frontend page serving on the API domain."""
+from fastapi import Request, HTTPException
+from starlette.staticfiles import StaticFiles
+from starlette.responses import JSONResponse
+
+API_DOMAIN = "api.vijaykrsha.online"
+
+
+def is_api_host(host: str) -> bool:
+    """Return True if the request host resolves to the API-only domain."""
+    return API_DOMAIN in (host or "")
+
+
+def check_api_host(request: Request):
+    """Raise 404 if the request arrives via the API domain.
+
+    This keeps the backend monolith serving both API + frontend,
+    but blocks frontend pages when accessed through the API hostname.
+    """
+    if is_api_host(request.headers.get("host", "")):
+        raise HTTPException(status_code=404, detail="Not found")
+
+
+class APIGuardedStaticFiles(StaticFiles):
+    """StaticFiles mount that refuses to serve anything on the API domain."""
+
+    async def __call__(self, scope, receive, send):
+        host = ""
+        for name, value in scope.get("headers", []):
+            if name == b"host":
+                host = value.decode(errors="replace")
+                break
+        if is_api_host(host):
+            response = JSONResponse({"detail": "Not found"}, status_code=404)
+            await response(scope, receive, send)
+            return
+        await super().__call__(scope, receive, send)
+```
+
 ### `backend/app/app/core/app_info.py`
 
 ```python
@@ -7148,7 +7191,7 @@ class RouteBuilder:
 ### `backend/app/app/core/router_registry.py`
 
 ```python
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 
 # API Routers
 from app.api.billing import router as billing_api_router
@@ -7176,7 +7219,6 @@ from app.pages.errors import register_exception_handlers
 # Public landing page at /
 from app.pages.landing import router as landing_router
 
-from fastapi import Depends
 from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
 PROTECTED_API_ROUTERS = [
@@ -7697,6 +7739,8 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config_service import ConfigService
 from app.core.paths import UPLOADS_DIR, STATIC_DIR, ensure_storage_dirs
 from app.core.db import init_db
+from app.core.api_guard import APIGuardedStaticFiles
+
 
 class StartupManager:
     @staticmethod
@@ -7737,7 +7781,7 @@ class StartupManager:
             ("/assets", "frontend/landing-app/dist/assets"),
         ]:
             if os.path.isdir(rel):
-                app.mount(path, StaticFiles(directory=rel), name=path.strip("/").replace("/", "_"))
+                app.mount(path, APIGuardedStaticFiles(directory=rel), name=path.strip("/").replace("/", "_"))
 
     @staticmethod
     def register_middlewares(app: FastAPI):
@@ -9069,43 +9113,43 @@ async def dashboard(request: Request):
 
 ```python
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from app.core.dependencies import templates
 
-from app.core.routes_manifest import Routes, Templates
+from app.core.routes_manifest import Templates
+from app.core.config_service import config
 
-from app.core.config_service import config  # Import the configuration service
 
 def register_exception_handlers(app: FastAPI):
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         # Pass through redirects properly
         if 300 <= exc.status_code < 400 and exc.headers and "Location" in exc.headers:
-            from fastapi.responses import RedirectResponse
             return RedirectResponse(url=exc.headers["Location"], status_code=exc.status_code)
-            
+
         accept = request.headers.get("accept", "")
-        if "text/html" in accept:
+        wants_html = "text/html" in accept
+
+        if wants_html:
+            from app.core.dependencies import templates
             response = templates.TemplateResponse(
                 request=request,
                 name=Templates.ERROR,
                 context={
-                    "request": request, 
-                    "status_code": exc.status_code, 
+                    "request": request,
+                    "status_code": exc.status_code,
                     "detail": exc.detail,
-                    "sys": config.get("system", {})  # Provide system config context
+                    "sys": config.get("system", {}),
                 },
-                status_code=exc.status_code
+                status_code=exc.status_code,
             )
         else:
             response = JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
-            
+
         if exc.headers:
             for k, v in exc.headers.items():
                 response.headers[k] = v
-                
-        # If the backend signaled to clear cookies, clear them on the response
+
         clear_cookies_type = (exc.headers or {}).get("X-Clear-Cookies")
         if clear_cookies_type == "admin":
             from app.authentication.admin.cookies import clear_admin_auth_cookies
@@ -9113,16 +9157,12 @@ def register_exception_handlers(app: FastAPI):
         elif clear_cookies_type == "tenant":
             from app.authentication.tenant.cookies import clear_tenant_auth_cookies
             clear_tenant_auth_cookies(response, request)
-            
+
         return response
 
     @app.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
-        from fastapi.responses import JSONResponse, PlainTextResponse
-        if request.url.path.startswith("/rent/admin/api/") or request.url.path.startswith("/api/"):
-            return JSONResponse(status_code=500, content={"detail": str(exc)})
-        
-        return PlainTextResponse("Internal Server Error", status_code=500)
+        return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 ```
 
@@ -9172,6 +9212,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 
 from app.core.routes_manifest import Names, Routes
+from app.core.api_guard import check_api_host
 
 router = APIRouter(tags=["Public"])
 
@@ -9179,11 +9220,13 @@ router = APIRouter(tags=["Public"])
 @router.get(Routes.PUBLICLANDING, name=Names.PUBLICLANDING)
 async def public_landing(request: Request):
     """Serve the public landing page for the Rent app."""
+    check_api_host(request)
     return FileResponse("frontend/landing-app/dist/index.html")
 
 
 @router.get("/favicon.svg", include_in_schema=False)
-async def landing_favicon():
+async def landing_favicon(request: Request):
+    check_api_host(request)
     return FileResponse("frontend/landing-app/dist/favicon.svg")
 ```
 
@@ -9261,6 +9304,8 @@ import os
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
+from app.core.api_guard import check_api_host
+
 TENANT_ASSETS_DIR = "frontend/tenant-app/dist/assets"
 
 router = APIRouter()
@@ -9268,6 +9313,7 @@ router = APIRouter()
 
 @router.get("/landlord")
 async def landlord_root_redirect(request: Request):
+    check_api_host(request)
     url = request.url
     if not url.path.endswith("/"):
         return RedirectResponse(url=str(url.replace(path=url.path + "/")), status_code=307)
@@ -9276,6 +9322,7 @@ async def landlord_root_redirect(request: Request):
 
 @router.get("/landlord/{path:path}")
 async def serve_landlord_app(request: Request, path: str = ""):
+    check_api_host(request)
     if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -9316,14 +9363,16 @@ async def serve_landlord_app(request: Request, path: str = ""):
 
 @router.get("/tenant")
 @router.get("/tenant/{path:path}", include_in_schema=False)
-async def serve_tenant_app_login(path: str = ""):
+async def serve_tenant_app_login(request: Request, path: str = ""):
+    check_api_host(request)
     if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse("frontend/tenant-app/dist/index.html")
 
 
 @router.get("/{landlordUuid}/t/{tenantId}/{viewToken}/assets/{asset_path:path}", include_in_schema=False)
-async def serve_tenant_assets(landlordUuid: str, tenantId: int, viewToken: str, asset_path: str):
+async def serve_tenant_assets(request: Request, landlordUuid: str, tenantId: int, viewToken: str, asset_path: str):
+    check_api_host(request)
     safe = os.path.normpath(asset_path).lstrip("/")
     if safe.startswith(".."):
         raise HTTPException(status_code=404, detail="Not found")
@@ -9335,7 +9384,8 @@ async def serve_tenant_assets(landlordUuid: str, tenantId: int, viewToken: str, 
 
 @router.get("/{landlordUuid}/t/{tenantId}/{viewToken}", name="serve_tenant_app", include_in_schema=False)
 @router.get("/{landlordUuid}/t/{tenantId}/{viewToken}/{path:path}", name="serve_tenant_app_path", include_in_schema=False)
-async def serve_tenant_app(landlordUuid: str, tenantId: int, viewToken: str, path: str = ""):
+async def serve_tenant_app(request: Request, landlordUuid: str, tenantId: int, viewToken: str, path: str = ""):
+    check_api_host(request)
     if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
         raise HTTPException(status_code=404, detail="API route not found")
     return FileResponse("frontend/tenant-app/dist/index.html")
@@ -11087,6 +11137,8 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
+from app.core.api_guard import check_api_host
+
 from app.core.db import get_conn
 from app.core.config_service import ConfigService
 from app.authentication.platform.jwt import (
@@ -12567,6 +12619,7 @@ async def update_audit_settings(request: Request, body: AuditSettingsRequest):
 
 @router.get("", include_in_schema=False)
 async def platform_admin_root_redirect(request: Request):
+    check_api_host(request)
     url = request.url
     if not url.path.endswith("/"):
         return RedirectResponse(url=str(url.replace(path=url.path + "/")), status_code=307)
@@ -12576,6 +12629,7 @@ async def platform_admin_root_redirect(request: Request):
 @router.get("/", include_in_schema=False)
 @router.get("/{path:path}", include_in_schema=False)
 async def serve_platform_admin_app(request: Request, path: str = ""):
+    check_api_host(request)
     if path.startswith("api"):
         raise HTTPException(status_code=404, detail="Platform admin API route not found")
     dist_dir = os.path.join("frontend", "admin-app", "dist")
@@ -46214,20 +46268,22 @@ location = /rent {
 }
 
 location /rent/ {
-    proxy_pass http://rent-backend:28001/;
-    proxy_http_version 1.1;
+    set $rent_backend "rent-backend:28001";
+    proxy_pass http://$rent_backend;
 
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto https;
+    proxy_set_header X-Forwarded-Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Port $server_port;
     proxy_set_header X-Forwarded-Prefix /rent;
+    proxy_set_header X-Request-ID $request_id;
 
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
+    proxy_connect_timeout 10s;
+    proxy_send_timeout 60s;
+    proxy_read_timeout 60s;
 
-    proxy_connect_timeout 30s;
-    proxy_read_timeout 120s;
     proxy_redirect off;
 }
 ```
