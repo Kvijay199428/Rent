@@ -5,7 +5,7 @@ Two fully isolated environments. `release` is production; `main` is development.
 ```
 RELEASE (production, api.vijaykrsha.online)        DEVELOPMENT (ngrok)
 ──────────────────────────────────────────        ─────────────────────────
-cloudflared / DNS  →  nginx_gateway (8080)        ngrok tunnel  →  backend_dev (28001)
+cloudflared / DNS  →  nginx_gateway (28005)        ngrok tunnel  →  backend_dev (28001)
                          │                                             │
       ┌──────────────────┼───────────────────┐                    storage/dev/rent.db
       │                    │                   │                        │
@@ -28,6 +28,7 @@ in-place during a deploy.
 |-----------------|------|---------|
 | Backend         | 28001 (ngrok) | 28002 / 28012 (blue/green, via nginx) |
 | Frontend        | 28003 (Vite) | 28004 (static SPA container) |
+| Edge            | —            | 28005 (nginx_gateway → 8080 in-container) |
 
 ## Required Docker network
 
@@ -189,7 +190,7 @@ systemctl enable --now rent-deploy-dev.timer rent-deploy-release.timer
 Release deploys are gated: `deploy/self-pull.sh release` exits without deploying
 until `/home/vega/rent-secrets/RELEASE_READY` exists. Create it only after the
 cloudflared tunnel ingress has been switched from the legacy `vega_gateway`
-(port 80) to `nginx_gateway` (port 8080) — the first blue-green deploy retires
+(port 80) to `nginx_gateway` (port 28005) — the first blue-green deploy retires
 the legacy edge.
 
 ## GitHub Actions (auto deploy)
