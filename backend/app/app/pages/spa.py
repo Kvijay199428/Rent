@@ -2,6 +2,8 @@ import os
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
+from app.core.api_guard import check_api_host
+
 TENANT_ASSETS_DIR = "frontend/tenant-app/dist/assets"
 
 router = APIRouter()
@@ -9,6 +11,7 @@ router = APIRouter()
 
 @router.get("/landlord")
 async def landlord_root_redirect(request: Request):
+    check_api_host(request)
     url = request.url
     if not url.path.endswith("/"):
         return RedirectResponse(url=str(url.replace(path=url.path + "/")), status_code=307)
@@ -17,6 +20,7 @@ async def landlord_root_redirect(request: Request):
 
 @router.get("/landlord/{path:path}")
 async def serve_landlord_app(request: Request, path: str = ""):
+    check_api_host(request)
     if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
         raise HTTPException(status_code=404, detail="Not found")
 
@@ -57,14 +61,16 @@ async def serve_landlord_app(request: Request, path: str = ""):
 
 @router.get("/tenant")
 @router.get("/tenant/{path:path}", include_in_schema=False)
-async def serve_tenant_app_login(path: str = ""):
+async def serve_tenant_app_login(request: Request, path: str = ""):
+    check_api_host(request)
     if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
         raise HTTPException(status_code=404, detail="Not found")
     return FileResponse("frontend/tenant-app/dist/index.html")
 
 
 @router.get("/{landlordUuid}/t/{tenantId}/{viewToken}/assets/{asset_path:path}", include_in_schema=False)
-async def serve_tenant_assets(landlordUuid: str, tenantId: int, viewToken: str, asset_path: str):
+async def serve_tenant_assets(request: Request, landlordUuid: str, tenantId: int, viewToken: str, asset_path: str):
+    check_api_host(request)
     safe = os.path.normpath(asset_path).lstrip("/")
     if safe.startswith(".."):
         raise HTTPException(status_code=404, detail="Not found")
@@ -76,7 +82,8 @@ async def serve_tenant_assets(landlordUuid: str, tenantId: int, viewToken: str, 
 
 @router.get("/{landlordUuid}/t/{tenantId}/{viewToken}", name="serve_tenant_app", include_in_schema=False)
 @router.get("/{landlordUuid}/t/{tenantId}/{viewToken}/{path:path}", name="serve_tenant_app_path", include_in_schema=False)
-async def serve_tenant_app(landlordUuid: str, tenantId: int, viewToken: str, path: str = ""):
+async def serve_tenant_app(request: Request, landlordUuid: str, tenantId: int, viewToken: str, path: str = ""):
+    check_api_host(request)
     if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
         raise HTTPException(status_code=404, detail="API route not found")
     return FileResponse("frontend/tenant-app/dist/index.html")

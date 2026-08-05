@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 
 # API Routers
 from app.api.billing import router as billing_api_router
@@ -26,7 +26,6 @@ from app.pages.errors import register_exception_handlers
 # Public landing page at /
 from app.pages.landing import router as landing_router
 
-from fastapi import Depends
 from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
 PROTECTED_API_ROUTERS = [

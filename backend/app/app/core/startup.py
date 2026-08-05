@@ -4,6 +4,8 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config_service import ConfigService
 from app.core.paths import UPLOADS_DIR, STATIC_DIR, ensure_storage_dirs
 from app.core.db import init_db
+from app.core.api_guard import APIGuardedStaticFiles
+
 
 class StartupManager:
     @staticmethod
@@ -44,7 +46,7 @@ class StartupManager:
             ("/assets", "frontend/landing-app/dist/assets"),
         ]:
             if os.path.isdir(rel):
-                app.mount(path, StaticFiles(directory=rel), name=path.strip("/").replace("/", "_"))
+                app.mount(path, APIGuardedStaticFiles(directory=rel), name=path.strip("/").replace("/", "_"))
 
     @staticmethod
     def register_middlewares(app: FastAPI):

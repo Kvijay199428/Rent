@@ -12,6 +12,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import FileResponse
 
 from app.core.routes_manifest import Names, Routes
+from app.core.api_guard import check_api_host
 
 router = APIRouter(tags=["Public"])
 
@@ -19,9 +20,11 @@ router = APIRouter(tags=["Public"])
 @router.get(Routes.PUBLICLANDING, name=Names.PUBLICLANDING)
 async def public_landing(request: Request):
     """Serve the public landing page for the Rent app."""
+    check_api_host(request)
     return FileResponse("frontend/landing-app/dist/index.html")
 
 
 @router.get("/favicon.svg", include_in_schema=False)
-async def landing_favicon():
+async def landing_favicon(request: Request):
+    check_api_host(request)
     return FileResponse("frontend/landing-app/dist/favicon.svg")

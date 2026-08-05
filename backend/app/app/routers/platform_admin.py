@@ -21,6 +21,8 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
+from app.core.api_guard import check_api_host
+
 from app.core.db import get_conn
 from app.core.config_service import ConfigService
 from app.authentication.platform.jwt import (
@@ -1501,6 +1503,7 @@ async def update_audit_settings(request: Request, body: AuditSettingsRequest):
 
 @router.get("", include_in_schema=False)
 async def platform_admin_root_redirect(request: Request):
+    check_api_host(request)
     url = request.url
     if not url.path.endswith("/"):
         return RedirectResponse(url=str(url.replace(path=url.path + "/")), status_code=307)
@@ -1510,6 +1513,7 @@ async def platform_admin_root_redirect(request: Request):
 @router.get("/", include_in_schema=False)
 @router.get("/{path:path}", include_in_schema=False)
 async def serve_platform_admin_app(request: Request, path: str = ""):
+    check_api_host(request)
     if path.startswith("api"):
         raise HTTPException(status_code=404, detail="Platform admin API route not found")
     dist_dir = os.path.join("frontend", "admin-app", "dist")
