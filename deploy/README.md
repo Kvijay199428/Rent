@@ -60,26 +60,49 @@ openssl rand -hex 32        # JWT secrets
 openssl rand -base64 32     # tenantPin_VAULT_KEY
 ```
 
-## Development
+## One script for both environments — `deploy.py`
+
+`deploy.py` is the single entry point for dev and prod deploys, on your machine
+or from GitHub Actions.
+
+| Flags | Deploys | Example |
+|-------|---------|---------|
+| `--dev` | Development stack (`compose.dev.yml` + `.env.development`, ngrok) | `python3 deploy.py --dev --sshPublic` |
+| `--prod` | Production blue-green (`deploy/deploy-release.sh`) | `python3 deploy.py --prod --sshPublic` |
+| `--main` | GitHub: dev deploy (same as `--dev`, targets `sshPublic`) | `python3 deploy.py --main` |
+| `--release` | GitHub: prod deploy (same as `--prod`, targets `sshPublic`) | `python3 deploy.py --release` |
+
+Existing flags still work: `--local`, `--sshLocal`, `--sshPublic`, `--clean`
+(dev only — refused for prod), `--no-build`. No env flag given defaults to
+`--dev`. For GitHub, set `DEPLOY_PASSWORD` (server password, default `1010`).
 
 ```bash
-docker compose --env-file .env.development -f compose.dev.yml up -d
+# Development
+python3 deploy.py --dev --sshPublic
+
+# Production (blue-green, zero downtime)
+python3 deploy.py --prod --sshPublic
 ```
 
-- Backend on `http://localhost:28001` with hot reload.
-- Tenant-app Vite dev server on `http://localhost:28003`.
-- ngrok dashboard on `http://localhost:4040`. Copy the tunnel URL into
-  `NGROK_API_BASE_URL` and `VITE_API_BASE_URL` in `.env.development`, then
-  restart: `docker compose --env-file .env.development -f compose.dev.yml up -d`.
+### What `--dev` runs
 
-## Release (blue-green, zero downtime)
+Uploads the repo (no npm builds — Vite runs live), then on the server:
+`docker compose --env-file .env.development -f compose.dev.yml build && up -d`.
+Backend on port 28001 (hot reload), tenant-app Vite on 28003, ngrok dashboard
+on 4040. Copy the tunnel URL into `NGROK_API_BASE_URL` and `VITE_API_BASE_URL`
+in `.env.development` and redeploy to apply.
+
+### What `--prod` runs
+
+Uploads the repo (building the 4 frontend apps unless `--no-build`), then on the
+server runs `./deploy/deploy-release.sh`: builds the inactive slot, waits for
+`/health`, flips the edge nginx, smoke-tests, stops the old slot. Requires
+`.env.release` on the server (shipped inside the upload).
 
 ```bash
 # First deploy
-docker compose --env-file .env.release -f compose.prod.yml build
-docker compose --env-file .env.release -f compose.prod.yml up -d
-./deploy/deploy-release.sh     # thereafter: builds inactive slot, health-gates,
-                               # flips nginx, stops old slot
+python3 deploy.py --prod --sshPublic
+# Thereafter: same command — it blue-greens every time
 ```
 
 The script:
@@ -104,7 +127,7 @@ Or simply: `git revert HEAD` and re-push to `release` (re-deploys old code).
 
 | Workflow | Trigger | Deploys |
 |----------|---------|---------|
-| `deploy-release.yml` | push to `release` (backend/nginx/deploy changes) | SSH → server → `deploy-release.sh` → health check |
+| `deploy-release.yml` | push to `main` or `release` (backend/nginx/deploy changes) | Runs `deploy.py --main` (main → dev stack) or `deploy.py --release` (release → blue-green prod) |
 | `deploy-cloudflare-pages.yml` | push to `release` (`frontend/**`) | Build → Cloudflare Pages (branch `release`) |
 | `create-github-release.yml` | tag `v*` | GitHub Release with auto notes |
 
@@ -112,27 +135,15 @@ Or simply: `git revert HEAD` and re-push to `release` (re-deploys old code).
 
 Settings → Secrets and variables → Actions:
 
-- `SSH_PRIVATE_KEY` (secret) — private key for the deploy server
-- `DEPLOY_SERVER_HOST` (secret) — e.g. `100.107.83.28`
-- `DEPLOY_SERVER_PORT` (secret) — e.g. `22009`
-- `DEPLOY_SERVER_USER` (secret) — e.g. `vega`
+- `DEPLOY_PASSWORD` (secret) — deploy server password (default `1010`)
 - `CLOUDFLARE_API_TOKEN` (secret) — Pages edit token
 - `CLOUDFLARE_ACCOUNT_ID` (secret)
 - `VITE_GOOGLE_CLIENT_ID` (secret)
 - `CLOUDFLARE_PROJECT_NAME` (variable) — `rent`
 
-### One-time SSH key setup (GitHub Actions → server)
-
-```bash
-ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/github_actions_deploy
-ssh-copy-id -i ~/.ssh/github_actions_deploy.pub vega@100.107.83.28 -p 22009
-gh secret set SSH_PRIVATE_KEY < ~/.ssh/github_actions_deploy
-gh secret set DEPLOY_SERVER_HOST --body "100.107.83.28"
-gh secret set DEPLOY_SERVER_PORT --body "22009"
-gh secret set DEPLOY_SERVER_USER --body "vega"
-```
-
-The server also needs `docker` (with compose v2) and `curl`.
+No SSH key is needed: `deploy.py` connects with password auth over paramiko
+(host/port/user from the workflow branch). The server only needs `docker`
+(with compose v2), `python3` (for zip extraction), and `curl`.
 
 ### Cloudflare Pages: set production branch to `release`
 

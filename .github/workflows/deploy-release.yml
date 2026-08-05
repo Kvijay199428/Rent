@@ -1,8 +1,8 @@
-name: Deploy Release Backend
+name: Deploy Backend
 
 on:
   push:
-    branches: [release]
+    branches: [main, release]
     paths:
       - 'backend/**'
       - 'compose.prod.yml'
@@ -12,40 +12,39 @@ on:
       - '.env.release.example'
       - '.env.development.example'
       - '.github/workflows/deploy-release.yml'
+      - 'deploy.py'
 
 concurrency:
-  group: deploy-release
+  group: deploy-backend
   cancel-in-progress: false
 
 jobs:
   deploy:
-    name: Blue-green deploy to server
+    name: Deploy via deploy.py (${{ github.ref_name }})
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Copy repo to server
-        uses: appleboy/scp-action@v0.1.7
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.DEPLOY_SERVER_HOST }}
-          port: ${{ secrets.DEPLOY_SERVER_PORT }}
-          username: ${{ secrets.DEPLOY_SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "."
-          target: "~/rent-app"
+          node-version: '22'
 
-      - name: Run release deploy
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.DEPLOY_SERVER_HOST }}
-          port: ${{ secrets.DEPLOY_SERVER_PORT }}
-          username: ${{ secrets.DEPLOY_SERVER_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -e
-            cd ~/rent-app
-            ./deploy/deploy-release.sh
+      - name: Install paramiko
+        run: pip install paramiko
+
+      - name: Deploy backend (main=dev, release=prod)
+        env:
+          DEPLOY_PASSWORD: ${{ secrets.DEPLOY_PASSWORD }}
+        run: |
+          if [ "${{ github.ref_name }}" = "release" ]; then
+            DEPLOY_ARGS="--release"
+          else
+            DEPLOY_ARGS="--main"
+          fi
+          echo "Deploying branch ${{ github.ref_name }} with $DEPLOY_ARGS"
+          python3 deploy.py $DEPLOY_ARGS
 
       - name: Health check
         run: |
