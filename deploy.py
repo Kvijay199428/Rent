@@ -58,8 +58,8 @@ parser = argparse.ArgumentParser(
     epilog="Examples:\n"
            "  python deploy.py --dev --sshPublic        # dev stack via SSH to public IP\n"
            "  python deploy.py --prod --sshPublic       # blue-green production deploy\n"
-           "  python deploy.py --release                # GitHub: production deploy\n"
-           "  python deploy.py --main                   # GitHub: dev deploy",
+           "  python deploy.py --release                # release branch deploy (self-pull, runs here)\n"
+           "  python deploy.py --main                   # main branch deploy (self-pull, runs here)",
 )
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--local", action="store_true", help="Deploy locally (restart Docker on this machine).")
@@ -71,8 +71,8 @@ env_group.add_argument("--dev", action="store_true", help="Deploy development en
 env_group.add_argument("--prod", action="store_true", help="Deploy production environment (blue-green zero-downtime via deploy/deploy-release.sh).")
 
 gh_group = parser.add_mutually_exclusive_group()
-gh_group.add_argument("--main", action="store_true", help="GitHub: deploy development environment to the server (same as --dev, targets sshPublic).")
-gh_group.add_argument("--release", action="store_true", help="GitHub: deploy production environment to the server (same as --prod, targets sshPublic).")
+gh_group.add_argument("--main", action="store_true", help="Deploy the main (development) branch. Defaults to running here (server self-pull); combine with --sshLocal/--sshPublic to push from a machine.")
+gh_group.add_argument("--release", action="store_true", help="Deploy the release (production) branch. Defaults to running here (server self-pull); combine with --sshLocal/--sshPublic to push from a machine.")
 
 parser.add_argument("--clean", action="store_true", help="Full rebuild: remove containers, images, volumes, and rebuild from scratch. NOT supported with --prod/--release.")
 parser.add_argument("--no-build", action="store_true", help="Skip frontend npm builds (useful for backend-only changes).")
@@ -88,16 +88,15 @@ REMOTE_DIR = REMOTE_DIR_PROD if env == ENV_PROD else REMOTE_DIR_DEV
 if env == ENV_PROD and args.clean:
     parser.error("--clean is not supported for --prod/--release: it would delete the server repo and wipe storage/release (SQLite). Use the rollback path in deploy/deploy-release.sh instead.")
 
-if github_mode and (args.local or args.sshLocal or args.sshPublic):
-    parser.error("--main/--release (GitHub modes) cannot be combined with --local/--sshLocal/--sshPublic.")
-
-# Default to sshLocal for backward compatibility
-if not args.local and not args.sshLocal and not args.sshPublic:
-    args.sshLocal = True
+# Transport. --main/--release (branch self-pull) default to running locally on
+# the server; explicit SSH flags push the code from this machine instead.
+if github_mode:
+    if not (args.local or args.sshLocal or args.sshPublic):
+        args.local = True
+elif not args.local and not args.sshLocal and not args.sshPublic:
+    args.sshLocal = True  # backward compatibility
 
 target_name = "local" if args.local else ("sshPublic" if args.sshPublic else "sshLocal")
-if github_mode:
-    target_name = "sshPublic"
 
 build_enabled = (env == ENV_PROD) and not args.no_build
 
@@ -265,9 +264,8 @@ print(f" BUILD: {'skip' if not build_enabled else 'yes'}")
 print("=" * 50)
 
 build_frontends()
-create_zip()
 
-# ── LOCAL deploy ──────────────────────────────────────────────────────────────
+# ── LOCAL deploy (self-pull on the server) ───────────────────────────────────
 if args.local:
     print("\n========================================")
     print(f" LOCAL DEPLOYMENT ({'PROD' if env == ENV_PROD else 'DEV'})")
@@ -301,7 +299,9 @@ if args.local:
     print("========================================")
     sys.exit(0)
 
-# ── SSH deploy ────────────────────────────────────────────────────────────────
+# ── SSH deploy (push from this machine) ───────────────────────────────────────
+create_zip()
+
 cfg = TARGETS[target_name]
 ssh = connect_ssh(cfg["host"], cfg["port"], cfg["user"], get_password())
 

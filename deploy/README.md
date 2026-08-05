@@ -69,12 +69,15 @@ or from GitHub Actions.
 |-------|---------|---------|
 | `--dev` | Development stack (`compose.dev.yml` + `.env.development`, ngrok) | `python3 deploy.py --dev --sshPublic` |
 | `--prod` | Production blue-green (`deploy/deploy-release.sh`) | `python3 deploy.py --prod --sshPublic` |
-| `--main` | GitHub: dev deploy (same as `--dev`, targets `sshPublic`) | `python3 deploy.py --main` |
-| `--release` | GitHub: prod deploy (same as `--prod`, targets `sshPublic`) | `python3 deploy.py --release` |
+| `--main` | Main-branch deploy — runs **here** (self-pull on the server) | `python3 deploy.py --main` |
+| `--release` | Release-branch deploy — runs **here** (self-pull on the server) | `python3 deploy.py --release` |
 
 Existing flags still work: `--local`, `--sshLocal`, `--sshPublic`, `--clean`
 (dev only — refused for prod), `--no-build`. No env flag given defaults to
-`--dev`. For GitHub, set `DEPLOY_PASSWORD` (server password, default `1010`).
+`--dev`. `--main`/`--release` default to running locally on the server
+(self-pull); combine them with `--sshLocal`/`--sshPublic` to push from a
+machine instead. For manual push deploys, `DEPLOY_PASSWORD` (server password,
+default `1010`) overrides the embedded password.
 
 ```bash
 # Development
@@ -123,11 +126,65 @@ docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps backe
 
 Or simply: `git revert HEAD` and re-push to `release` (re-deploys old code).
 
+## Server self-pull (automatic backend deploys)
+
+The deploy server is behind home NAT — it only has a Tailscale address
+(`100.107.83.28`), so GitHub Actions **cannot push to it**. Instead the server
+pulls from GitHub and deploys itself using the same `deploy.py`:
+
+```
+GitHub (main/release push)
+        │
+        ▼  git fetch (outbound — always works)
+server systemd timer ──► ./deploy/self-pull.sh main|release
+        │                          │
+        └──► python3 deploy.py --main (dev)   ──► compose.dev.yml up
+             python3 deploy.py --release --no-build (prod) ──► deploy-release.sh (blue-green)
+```
+
+Setup (run once on the server):
+
+```bash
+git clone https://github.com/Kvijay199428/Rent.git /home/vega/rent-app
+mkdir -p /home/vega/rent-secrets
+cp .env.release .env.development /home/vega/rent-secrets/
+# systemd oneshot services + 2-minute timers (as root):
+cat > /etc/systemd/system/rent-deploy-dev.service <<'EOF'
+[Unit]
+Description=Rent dev self-pull deploy
+After=network-online.target docker.service
+Wants=network-online.target
+[Service]
+Type=oneshot
+WorkingDirectory=/home/vega/rent-app
+ExecStart=/home/vega/rent-app/deploy/self-pull.sh main
+EOF
+cat > /etc/systemd/system/rent-deploy-dev.timer <<'EOF'
+[Unit]
+Description=Rent dev self-pull timer
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+Persistent=true
+[Install]
+WantedBy=timers.target
+EOF
+# same for release (self-pull.sh release)
+systemctl daemon-reload
+systemctl enable --now rent-deploy-dev.timer rent-deploy-release.timer
+```
+
+Release deploys are gated: `deploy/self-pull.sh release` exits without deploying
+until `/home/vega/rent-secrets/RELEASE_READY` exists. Create it only after the
+cloudflared tunnel ingress has been switched from the legacy `vega_gateway`
+(port 80) to `nginx_gateway` (port 8080) — the first blue-green deploy retires
+the legacy edge.
+
 ## GitHub Actions (auto deploy)
 
 | Workflow | Trigger | Deploys |
 |----------|---------|---------|
-| `deploy-release.yml` | push to `main` or `release` (backend/nginx/deploy changes) | Runs `deploy.py --main` (main → dev stack) or `deploy.py --release` (release → blue-green prod) |
+| server self-pull | push to `main` or `release` (polled every 2 min by systemd timer) | `deploy.py --main` (main → dev stack) or `deploy.py --release` (release → blue-green prod) |
 | `deploy-cloudflare-pages.yml` | push to `release` (`frontend/**`) | Build → Cloudflare Pages (branch `release`) |
 | `create-github-release.yml` | tag `v*` | GitHub Release with auto notes |
 
@@ -135,15 +192,14 @@ Or simply: `git revert HEAD` and re-push to `release` (re-deploys old code).
 
 Settings → Secrets and variables → Actions:
 
-- `DEPLOY_PASSWORD` (secret) — deploy server password (default `1010`)
 - `CLOUDFLARE_API_TOKEN` (secret) — Pages edit token
 - `CLOUDFLARE_ACCOUNT_ID` (secret)
 - `VITE_GOOGLE_CLIENT_ID` (secret)
 - `CLOUDFLARE_PROJECT_NAME` (variable) — `rent`
 
-No SSH key is needed: `deploy.py` connects with password auth over paramiko
-(host/port/user from the workflow branch). The server only needs `docker`
-(with compose v2), `python3` (for zip extraction), and `curl`.
+No server SSH key or password is needed in GitHub Actions — backend deploys run
+server-side via self-pull. The server only needs `docker` (with compose v2),
+`python3`, and `git`.
 
 ### Cloudflare Pages: set production branch to `release`
 
