@@ -4,16 +4,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.startup import StartupManager
 from app.core.router_registry import register_all_routers
 from app.core.app_info import APP_INFO
+from app.core.runtime import cors_origins, enable_swagger
 
 
-app = FastAPI(title=APP_INFO["name"], version=APP_INFO["version"])
+app = FastAPI(
+    title=APP_INFO["name"],
+    version=APP_INFO["version"],
+    docs_url="/docs" if enable_swagger() else None,
+    redoc_url="/redoc" if enable_swagger() else None,
+    openapi_url="/openapi.json" if enable_swagger() else None,
+)
 
 StartupManager.initialize(app)
 register_all_routers(app)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://rent.vijaykrsha.online"],
+    allow_origins=cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

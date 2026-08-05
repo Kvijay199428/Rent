@@ -1,0 +1,86 @@
+# Development stack — isolated from production.
+#   backend_dev   API on port 28001 (hot reload), tunneled by ngrok
+#   frontend_dev  Vite dev server for tenant-app on port 28003
+#   ngrok         tunnels to backend_dev:28001, dashboard on 4040
+#
+# Usage:
+#   docker compose --env-file .env.development -f compose.dev.yml up -d
+#
+# Separate network (dev-net) and separate storage (./storage/dev) so dev
+# changes can never touch release traffic.
+
+name: rent-dev
+
+services:
+  backend_dev:
+    build:
+      context: ./backend
+    image: rent-backend-dev
+    container_name: backend_dev
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_DEV_PORT:-28001}:28001"
+    env_file:
+      - .env.development
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "28001"
+      - --reload
+      - --proxy-headers
+      - --forwarded-allow-ips
+      - "*"
+    volumes:
+      - ./backend/app/app:/code/app
+      - ./backend/app/static:/code/static
+      - ./backend/app/templates:/code/templates
+      - ./storage/dev:/code/storage
+      - ./frontend:/code/frontend
+    networks:
+      - dev-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  frontend_dev:
+    image: node:22-alpine
+    container_name: frontend_dev
+    restart: unless-stopped
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+      - VITE_APP_BASE_PATH=${VITE_APP_BASE_PATH}
+      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+    ports:
+      - "${FRONTEND_DEV_PORT:-28003}:5173"
+    volumes:
+      - ./frontend/tenant-app:/app
+    networks:
+      - dev-net
+    depends_on:
+      - backend_dev
+
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: ngrok_dev
+    restart: unless-stopped
+    environment:
+      - NGROK_AUTHTOKEN=${NGROK_AUTH_TOKEN}
+    command: http backend_dev:28001
+    ports:
+      - "${NGROK_DASHBOARD_PORT:-4040}:4040"
+    networks:
+      - dev-net
+    depends_on:
+      - backend_dev
+
+networks:
+  dev-net:
+    driver: bridge

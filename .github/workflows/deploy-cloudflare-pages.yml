@@ -1,0 +1,49 @@
+name: Deploy Frontend to Cloudflare Pages (release)
+
+on:
+  push:
+    branches: [release]
+    paths:
+      - 'frontend/**'
+      - 'wrangler.toml'
+      - '.github/workflows/deploy-cloudflare-pages.yml'
+
+concurrency:
+  group: deploy-cloudflare-release
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: |
+            frontend/landing-app/package-lock.json
+            frontend/admin-app/package-lock.json
+            frontend/landlord-app/package-lock.json
+            frontend/tenant-app/package-lock.json
+
+      - name: Build Frontend Apps
+        env:
+          VITE_API_BASE_URL: https://api.vijaykrsha.online
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
+        run: |
+          cd frontend
+          bash build.sh
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: frontend/build-output
+          wranglerVersion: "3.90.0"
+          command: pages deploy . --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME || 'rent' }} --branch=release

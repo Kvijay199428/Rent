@@ -1,5 +1,7 @@
 from fastapi import FastAPI, Depends
 
+from app.core.runtime import serve_frontend
+
 # API Routers
 from app.api.billing import router as billing_api_router
 from app.api.tenants import router as tenants_api_router
@@ -78,14 +80,17 @@ def register_all_routers(app: FastAPI):
     # 5. Platform admin
     app.include_router(platform_admin_router)
 
-    # 6. Public landing page at /
-    app.include_router(landing_router)
+    # 6. Public landing page at / (skipped on API-only release backend)
+    if serve_frontend():
+        app.include_router(landing_router)
 
     # 7. WebSocket sync (no auth dependency — channel-based access control)
     app.include_router(sync_ws_router)
 
     # 8. Tenant SPA routes (tenant stays in Docker — dynamic URL pattern
     #    /{landlordUuid}/t/{tenantId}/{viewToken} can't be served by Cloudflare Pages)
-    app.include_router(spa_router)
+    #    Skipped on API-only release backend (frontend container serves the SPA).
+    if serve_frontend():
+        app.include_router(spa_router)
 
     register_exception_handlers(app)

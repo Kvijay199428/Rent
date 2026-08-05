@@ -9,6 +9,8 @@ __pycache__/
 .env
 .env.local
 .env.*.local
+.env.release
+.env.development
 backend/.env
 frontend/.env
 gateway/.env

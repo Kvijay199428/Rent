@@ -5,6 +5,7 @@ from app.core.config_service import ConfigService
 from app.core.paths import UPLOADS_DIR, STATIC_DIR, ensure_storage_dirs
 from app.core.db import init_db
 from app.core.api_guard import APIGuardedStaticFiles
+from app.core.runtime import serve_frontend
 
 
 class StartupManager:
@@ -38,6 +39,9 @@ class StartupManager:
         app.mount("/static/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
         if os.path.isdir(STATIC_DIR):
             app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+        if not serve_frontend():
+            return
 
         for path, rel in [
             ("/admin/assets", "frontend/admin-app/dist/assets"),

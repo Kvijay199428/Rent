@@ -1,0 +1,53 @@
+name: Deploy Release Backend
+
+on:
+  push:
+    branches: [release]
+    paths:
+      - 'backend/**'
+      - 'compose.prod.yml'
+      - 'compose.dev.yml'
+      - 'deploy/**'
+      - 'gateway/nginx/**'
+      - '.env.release.example'
+      - '.env.development.example'
+      - '.github/workflows/deploy-release.yml'
+
+concurrency:
+  group: deploy-release
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Blue-green deploy to server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy repo to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_SERVER_HOST }}
+          port: ${{ secrets.DEPLOY_SERVER_PORT }}
+          username: ${{ secrets.DEPLOY_SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "."
+          target: "~/rent-app"
+
+      - name: Run release deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_SERVER_HOST }}
+          port: ${{ secrets.DEPLOY_SERVER_PORT }}
+          username: ${{ secrets.DEPLOY_SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd ~/rent-app
+            ./deploy/deploy-release.sh
+
+      - name: Health check
+        run: |
+          sleep 5
+          curl -fsS https://api.vijaykrsha.online/health
