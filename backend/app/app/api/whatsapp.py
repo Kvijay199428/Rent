@@ -5,6 +5,7 @@ from urllib.parse import quote
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from app.core.dependencies import config
+from app.core.runtime import public_app_url
 from app.services.tenant_service import load_tenants
 from app.services.billing_service import get_receipt
 import re
@@ -52,7 +53,7 @@ async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: in
     if not landlordUuid:
         raise HTTPException(status_code=400, detail="Missing landlord context in request")
         
-    link = str(request.url_for("serve_tenant_app", landlordUuid=landlordUuid, tenantId=tenant.id, viewToken=token))
+    link = f"{public_app_url()}/rent/{landlordUuid}/t/{tenant.id}/{token}"
     grandTotal = float(receipt.get("Total", 0)) + float(receipt.get("previousArrears", 0))
 
     tenant_portal_pin = "(Unavailable)"

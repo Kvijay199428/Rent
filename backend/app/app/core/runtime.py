@@ -29,3 +29,13 @@ def cors_origins() -> list[str]:
         "CORS_ALLOW_ORIGINS", "https://rent.vijaykrsha.online"
     )
     return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+def public_app_url() -> str:
+    """Public frontend origin used for share/WhatsApp/QR links.
+
+    The API host is API-only in release (SERVE_FRONTEND=false) so routes
+    like `serve_tenant_app` are never registered — links must point at the
+    Cloudflare Pages frontend instead. Override with PUBLIC_APP_URL.
+    """
+    return os.environ.get("PUBLIC_APP_URL", "https://rent.vijaykrsha.online").rstrip("/")
