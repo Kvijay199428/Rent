@@ -5,7 +5,7 @@ Two fully isolated environments. `release` is production; `main` is development.
 ```
 RELEASE (production, api.vijaykrsha.online)        DEVELOPMENT (ngrok)
 ──────────────────────────────────────────        ─────────────────────────
-cloudflared / DNS  →  nginx_gateway (8080)        ngrok tunnel  →  backend_dev (28001)
+cloudflared / DNS  →  nginx_gateway (28005)        ngrok tunnel  →  backend_dev (28001)
                          │                                             │
       ┌──────────────────┼───────────────────┐                    storage/dev/rent.db
       │                    │                   │                        │
@@ -28,6 +28,7 @@ in-place during a deploy.
 |-----------------|------|---------|
 | Backend         | 28001 (ngrok) | 28002 / 28012 (blue/green, via nginx) |
 | Frontend        | 28003 (Vite) | 28004 (static SPA container) |
+| Edge            | —            | 28005 (nginx_gateway → 8080 in-container) |
 
 ## Required Docker network
 
@@ -189,8 +190,37 @@ systemctl enable --now rent-deploy-dev.timer rent-deploy-release.timer
 Release deploys are gated: `deploy/self-pull.sh release` exits without deploying
 until `/home/vega/rent-secrets/RELEASE_READY` exists. Create it only after the
 cloudflared tunnel ingress has been switched from the legacy `vega_gateway`
-(port 80) to `nginx_gateway` (port 8080) — the first blue-green deploy retires
+(port 80) to `nginx_gateway` (port 28005) — the first blue-green deploy retires
 the legacy edge.
+
+### First-time migration (one-time manual sequence)
+
+The scripted initial deploy (`deploy-release.sh`) stops the legacy edge before
+`nginx_gateway` is up, which would drop traffic if the tunnel still points at
+port 80. The first migration is therefore done by hand on the release clone
+(`/home/vega/rent-app-release`):
+
+1. Seed data into `storage/release/` (copy the legacy `rent.db` + `uploads/`,
+   `receipts/`, `config/` from the old backend's storage), and set
+   `tenantPin_VAULT_KEY` in `.env.release` to the legacy value so the migrated
+   DB can be decrypted.
+2. Build and start the stack, edge LAST, then flip the tunnel:
+   ```
+   docker compose --env-file .env.release -f compose.prod.yml build backend_release_blue backend_release_green
+   docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps backend_release_blue   # wait for /health
+   docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps nginx_gateway frontend_release
+   curl -f http://127.0.0.1:28005/health
+   ```
+3. Cloudflare dashboard: point the tunnel's `api.vijaykrsha.online` public
+   hostname at `http://localhost:28005`.
+4. Verify `https://api.vijaykrsha.online/health` returns the backend JSON
+   health, then retire the legacy edge:
+   ```
+   docker stop vega_gateway rent-backend
+   touch /home/vega/rent-secrets/RELEASE_READY
+   ```
+After this, all future release deploys run the standard gated blue-green flow
+via the self-pull timer.
 
 ## GitHub Actions (auto deploy)
 

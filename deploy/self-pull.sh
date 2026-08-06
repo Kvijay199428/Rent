@@ -33,7 +33,7 @@ log() { printf '\033[36m[self-pull]\033[0m %s\n' "$*"; }
 
 # Release deploys retire the legacy vega_gateway/rent-backend edge on first run.
 # Gate them behind a marker so that only happens once the operator has switched
-# the cloudflared tunnel ingress to nginx_gateway (port 8080).
+# the cloudflared tunnel ingress to nginx_gateway (port 28005).
 if [ "$BRANCH" = "release" ] && [ ! -f "$RELEASE_READY_FILE" ]; then
   log "release deploy gated — create $RELEASE_READY_FILE to enable"
   exit 0

@@ -3,8 +3,8 @@
 Generated: 2025-07-29
 Script:   /root/rent/copy.py
 Source:   /root/rent
-Files:    300
-Size:     1609 KB
+Files:    302
+Size:     1618 KB
 Skipped:  0
 
 ---
@@ -66,6 +66,7 @@ Skipped:  0
 - backend/app/app/core/routes_manifest_landlord.py
 - backend/app/app/core/routes_manifest_platform_admin.py
 - backend/app/app/core/routes_manifest_tenant.py
+- backend/app/app/core/runtime.py
 - backend/app/app/core/startup.py
 - backend/app/app/core/websocket_manager.py
 - backend/app/app/database/auth_repository.py
@@ -83,6 +84,7 @@ Skipped:  0
 - backend/app/app/pages/billing.py
 - backend/app/app/pages/dashboard.py
 - backend/app/app/pages/errors.py
+- backend/app/app/pages/frontend.py
 - backend/app/app/pages/history.py
 - backend/app/app/pages/landing.py
 - backend/app/app/pages/redirects.py
@@ -348,6 +350,8 @@ __pycache__/
 .env
 .env.local
 .env.*.local
+.env.release
+.env.development
 backend/.env
 frontend/.env
 gateway/.env
@@ -420,6 +424,16 @@ Multi-tenant rent receipt management system with a FastAPI backend and four Reac
 RENT_STORAGE_DIR=/code/storage
 RENT_DB_PATH=/code/storage/database/rent.db
 RSA_KEY_PATH=./keys
+
+# --- Runtime mode ---
+# release = API-only (no frontend pages served, swagger off)
+# development = serves pages + swagger (default)
+APP_ENV=development
+SERVE_FRONTEND=true
+ENABLE_SWAGGER=true
+
+# Comma-separated list of origins allowed to call the API
+CORS_ALLOW_ORIGINS=https://rent.vijaykrsha.online
 
 # --- JWT signing secrets (generate each: openssl rand -hex 32) ---
 ADMIN_JWT_SECRET=REPLACE_WITH_ADMIN_SECURE_RANDOM_KEY
@@ -4708,6 +4722,7 @@ from urllib.parse import quote
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from app.core.dependencies import config
+from app.core.runtime import public_app_url
 from app.services.tenant_service import load_tenants
 from app.services.billing_service import get_receipt
 import re
@@ -4755,7 +4770,7 @@ async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: in
     if not landlordUuid:
         raise HTTPException(status_code=400, detail="Missing landlord context in request")
         
-    link = str(request.url_for("serve_tenant_app", landlordUuid=landlordUuid, tenantId=tenant.id, viewToken=token))
+    link = f"{public_app_url()}/rent/{landlordUuid}/t/{tenant.id}/{token}"
     grandTotal = float(receipt.get("Total", 0)) + float(receipt.get("previousArrears", 0))
 
     tenant_portal_pin = "(Unavailable)"
@@ -7193,6 +7208,8 @@ class RouteBuilder:
 ```python
 from fastapi import FastAPI, Depends
 
+from app.core.runtime import serve_frontend
+
 # API Routers
 from app.api.billing import router as billing_api_router
 from app.api.tenants import router as tenants_api_router
@@ -7218,6 +7235,9 @@ from app.pages.errors import register_exception_handlers
 
 # Public landing page at /
 from app.pages.landing import router as landing_router
+
+# Dev-only canonical /rent/ page structure (registered when serve_frontend())
+from app.pages.frontend import router as frontend_pages_router
 
 from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
@@ -7271,15 +7291,19 @@ def register_all_routers(app: FastAPI):
     # 5. Platform admin
     app.include_router(platform_admin_router)
 
-    # 6. Public landing page at /
-    app.include_router(landing_router)
+    # 6. Public landing page at / (skipped on API-only release backend)
+    if serve_frontend():
+        app.include_router(landing_router)
+        app.include_router(frontend_pages_router)
 
     # 7. WebSocket sync (no auth dependency — channel-based access control)
     app.include_router(sync_ws_router)
 
     # 8. Tenant SPA routes (tenant stays in Docker — dynamic URL pattern
     #    /{landlordUuid}/t/{tenantId}/{viewToken} can't be served by Cloudflare Pages)
-    app.include_router(spa_router)
+    #    Skipped on API-only release backend (frontend container serves the SPA).
+    if serve_frontend():
+        app.include_router(spa_router)
 
     register_exception_handlers(app)
 ```
@@ -7730,6 +7754,52 @@ class TenantTemplates:
     TENANTPUBLICPROFILE = "tenant_public_profile.html"
 ```
 
+### `backend/app/app/core/runtime.py`
+
+```python
+"""Runtime environment helpers for the dev/release split."""
+import os
+
+
+def app_env() -> str:
+    """Return the runtime environment: 'release' or 'development'."""
+    return os.environ.get("APP_ENV", "development").strip().lower()
+
+
+def serve_frontend() -> bool:
+    """Whether this backend instance serves frontend pages (dev only).
+
+    Release backends are API-only — page routers and frontend static
+    mounts are skipped so no HTML is ever served on the API host.
+    """
+    value = os.environ.get("SERVE_FRONTEND", "true").strip().lower()
+    return value not in ("0", "false", "no")
+
+
+def enable_swagger() -> bool:
+    """Whether /docs, /redoc and /openapi.json are exposed."""
+    value = os.environ.get("ENABLE_SWAGGER", "true").strip().lower()
+    return value not in ("0", "false", "no")
+
+
+def cors_origins() -> list[str]:
+    """Comma-separated CORS allowlist from CORS_ALLOW_ORIGINS."""
+    raw = os.environ.get(
+        "CORS_ALLOW_ORIGINS", "https://rent.vijaykrsha.online"
+    )
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+def public_app_url() -> str:
+    """Public frontend origin used for share/WhatsApp/QR links.
+
+    The API host is API-only in release (SERVE_FRONTEND=false) so routes
+    like `serve_tenant_app` are never registered — links must point at the
+    Cloudflare Pages frontend instead. Override with PUBLIC_APP_URL.
+    """
+    return os.environ.get("PUBLIC_APP_URL", "https://rent.vijaykrsha.online").rstrip("/")
+```
+
 ### `backend/app/app/core/startup.py`
 
 ```python
@@ -7740,6 +7810,7 @@ from app.core.config_service import ConfigService
 from app.core.paths import UPLOADS_DIR, STATIC_DIR, ensure_storage_dirs
 from app.core.db import init_db
 from app.core.api_guard import APIGuardedStaticFiles
+from app.core.runtime import serve_frontend
 
 
 class StartupManager:
@@ -7773,6 +7844,9 @@ class StartupManager:
         app.mount("/static/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
         if os.path.isdir(STATIC_DIR):
             app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+        if not serve_frontend():
+            return
 
         for path, rel in [
             ("/admin/assets", "frontend/admin-app/dist/assets"),
@@ -8687,16 +8761,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.startup import StartupManager
 from app.core.router_registry import register_all_routers
 from app.core.app_info import APP_INFO
+from app.core.runtime import cors_origins, enable_swagger
 
 
-app = FastAPI(title=APP_INFO["name"], version=APP_INFO["version"])
+app = FastAPI(
+    title=APP_INFO["name"],
+    version=APP_INFO["version"],
+    docs_url="/docs" if enable_swagger() else None,
+    redoc_url="/redoc" if enable_swagger() else None,
+    openapi_url="/openapi.json" if enable_swagger() else None,
+)
 
 StartupManager.initialize(app)
 register_all_routers(app)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://rent.vijaykrsha.online"],
+    allow_origins=cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -9166,6 +9247,126 @@ def register_exception_handlers(app: FastAPI):
 
 ```
 
+### `backend/app/app/pages/frontend.py`
+
+```python
+"""app/pages/frontend.py
+
+Dev-only frontend router that serves the canonical /rent/ page structure
+(landing, admin, landlord, tenant apps + tenant deep links) straight from the
+per-app dist builds. Mirrors the production routing in gateway/nginx/routes/
+(frontend.conf + api.conf) so the dev stack behaves like prod when reached
+through the ngrok tunnel.
+
+Registered only when serve_frontend() is True (development). Release backends
+are API-only (serve_frontend() is False) and never include this router — the
+frontend container serves these pages instead.
+
+Route order matters: specific asset/deep-link routes are registered before the
+per-app SPA fallbacks and the final /rent/ catch-all.
+"""
+import os
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse, RedirectResponse
+
+from app.core.api_guard import check_api_host
+
+LANDING_DIST = "frontend/landing-app/dist"
+ADMIN_DIST = "frontend/admin-app/dist"
+LANDLORD_DIST = "frontend/landlord-app/dist"
+TENANT_DIST = "frontend/tenant-app/dist"
+
+router = APIRouter(tags=["Frontend"])
+
+
+def _serve_asset(root: str, path: str) -> FileResponse:
+    """Serve a static file from an app dist, refusing path traversal."""
+    safe = os.path.normpath(path).lstrip("/")
+    if safe.startswith(".."):
+        raise HTTPException(status_code=404, detail="Not found")
+    fpath = os.path.join(root, safe)
+    if os.path.isfile(fpath):
+        return FileResponse(fpath)
+    raise HTTPException(status_code=404, detail="Asset not found")
+
+
+def _spa_index(root: str, request: Request, path: str) -> FileResponse:
+    """Serve an SPA entry point, rejecting API/asset traffic and file paths."""
+    check_api_host(request)
+    if path.startswith("api/") or path.startswith("assets/"):
+        raise HTTPException(status_code=404, detail="Not found")
+    last = path.split("/")[-1]
+    if "." in last:
+        return _serve_asset(root, path)
+    return FileResponse(os.path.join(root, "index.html"))
+
+
+def _app_prefix(prefix: str, dist: str) -> None:
+    """Register asset + SPA-fallback routes for one app at /rent/{prefix}/..."""
+
+    @router.get(f"/rent/{prefix}/assets/{{asset_path:path}}", include_in_schema=False)
+    async def app_assets(asset_path: str):
+        return _serve_asset(os.path.join(dist, "assets"), asset_path)
+
+    @router.get(f"/rent/{prefix}", include_in_schema=False)
+    async def app_root_redirect(request: Request):
+        check_api_host(request)
+        return RedirectResponse(url=f"/rent/{prefix}/", status_code=301)
+
+    @router.get(f"/rent/{prefix}/", include_in_schema=False)
+    @router.get(f"/rent/{prefix}/{{path:path}}", include_in_schema=False)
+    async def app_spa(request: Request, path: str = ""):
+        return _spa_index(dist, request, path)
+
+
+# ─── Landing app (root of the /rent/ tree) ───────────────────────────────────
+
+@router.get("/rent", include_in_schema=False)
+async def rent_root_redirect(request: Request):
+    check_api_host(request)
+    return RedirectResponse(url="/rent/", status_code=301)
+
+
+@router.get("/rent/", include_in_schema=False)
+async def landing_app(request: Request):
+    check_api_host(request)
+    return FileResponse(os.path.join(LANDING_DIST, "index.html"))
+
+
+@router.get("/rent/favicon.svg", include_in_schema=False)
+async def landing_favicon(request: Request):
+    check_api_host(request)
+    return FileResponse(os.path.join(LANDING_DIST, "favicon.svg"))
+
+
+@router.get("/rent/assets/{asset_path:path}", include_in_schema=False)
+async def landing_assets(asset_path: str):
+    return _serve_asset(os.path.join(LANDING_DIST, "assets"), asset_path)
+
+
+# ─── Per-app routes (assets before SPA fallbacks) ────────────────────────────
+
+_app_prefix("admin", ADMIN_DIST)
+_app_prefix("landlord", LANDLORD_DIST)
+_app_prefix("t", TENANT_DIST)
+_app_prefix("tenant", TENANT_DIST)
+
+
+# ─── Tenant portal deep links /rent/{landlordUuid}/t/{tenantId}/{viewToken} ──
+
+@router.get("/rent/{landlordUuid}/t/{tenantId}/{viewToken}", include_in_schema=False)
+@router.get("/rent/{landlordUuid}/t/{tenantId}/{viewToken}/{path:path}", include_in_schema=False)
+async def tenant_deep_link(request: Request, landlordUuid: str, tenantId: str, viewToken: str, path: str = ""):
+    return _spa_index(TENANT_DIST, request, path)
+
+
+# ─── Catch-all: anything else under /rent/ → landing app (prod try_files) ────
+
+@router.get("/rent/{path:path}", include_in_schema=False)
+async def landing_app_fallback(request: Request, path: str = ""):
+    return _spa_index(LANDING_DIST, request, path)
+```
+
 ### `backend/app/app/pages/history.py`
 
 ```python
@@ -9202,14 +9403,12 @@ async def history_page(request: Request):
 app/pages/landing.py
 
 Public landing page at GET /.
-Renders landing.html with role-selection buttons:
-  - Landlord Login / Signup
-  - Platform Admin Login
-
-This router replaces the old root 301 redirect in redirects.py.
+Redirects to the canonical landing app at /rent/ (mirrors the prod
+_redirects rule "/ /rent/ 301"). The /rent/ tree is served by
+app/pages/frontend.py in dev and by the frontend container in prod.
 """
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.core.routes_manifest import Names, Routes
 from app.core.api_guard import check_api_host
@@ -9219,9 +9418,9 @@ router = APIRouter(tags=["Public"])
 
 @router.get(Routes.PUBLICLANDING, name=Names.PUBLICLANDING)
 async def public_landing(request: Request):
-    """Serve the public landing page for the Rent app."""
+    """Redirect the bare domain to the canonical landing app at /rent/."""
     check_api_host(request)
-    return FileResponse("frontend/landing-app/dist/index.html")
+    return RedirectResponse(url="/rent/", status_code=301)
 
 
 @router.get("/favicon.svg", include_in_schema=False)
@@ -39561,6 +39760,7 @@ import {
 } from '@/components/ui/dialog';
 import { api } from '@/services/api';
 import { API_BASE } from '@/services/base';
+import { getPublicAppUrl } from '@shared/api-config';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Tenant } from '@/types';
@@ -39607,7 +39807,7 @@ function formatDisplayDate(date = new Date()) {
 }
 
 function buildTenantUrl(landlordUuid: string, tenant: Tenant): string {
-  const base = `${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
+  const base = `${getPublicAppUrl()}/rent/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
   return tenant.qr_key ? `${base}?qr_key=${encodeURIComponent(tenant.qr_key)}` : base;
 }
 
@@ -42026,6 +42226,20 @@ export function getApiBaseUrl(): string {
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   if (envUrl) return envUrl.replace(/\/+$/, "");
   return "";
+}
+
+/**
+ * The public frontend origin. All share links / QR codes / deep links that
+ * reach users must point here (rent.vijaykrsha.online) — the API host is
+ * API-only and never serves frontend pages.
+ *
+ * Production default:  "https://rent.vijaykrsha.online"
+ * Override for testing: VITE_APP_URL
+ */
+export function getPublicAppUrl(): string {
+  const envUrl = import.meta.env.VITE_APP_URL;
+  if (envUrl !== undefined && envUrl !== "") return envUrl.replace(/\/+$/, "");
+  return "https://rent.vijaykrsha.online";
 }
 
 /**
@@ -44927,11 +45141,12 @@ export function useTenant() {
 import axios from "axios";
 import { getTenantRuntime } from "./tenant-runtime";
 import { encryptPayload } from "./encryption";
+import { getApiBaseUrl } from "@shared/api-config";
 
 const { tenantBase } = getTenantRuntime();
 
 const http = axios.create({
-  baseURL: tenantBase,
+  baseURL: getApiBaseUrl() + tenantBase,
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
@@ -44987,16 +45202,16 @@ export const tenantApi = {
       return http.delete(`api/kyc/${occupantUuid}`);
     },
     getFileUrl(filename: string) {
-      return `${tenantBase}/api/kyc/file/${encodeURIComponent(filename)}`;
+      return `${getApiBaseUrl()}${tenantBase}/api/kyc/file/${encodeURIComponent(filename)}`;
     },
   },
 
   pdf: {
     viewUrl(billNo: string) {
-      return `${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/view`;
+      return `${getApiBaseUrl()}${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/view`;
     },
     downloadUrl(billNo: string) {
-      return `${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/download`;
+      return `${getApiBaseUrl()}${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/download`;
     },
   },
 
@@ -45136,13 +45351,15 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 
 ```typescript
 import { getPublicKey, encryptPayload } from "./encryption";
+import { getApiBaseUrl } from "@shared/api-config";
 
 // ── QR Flow: login via encrypted PIN (scoped to the QR URL) ──
 export async function qrLoginByPin(
   basePath: string,
   pin: string
 ): Promise<{ status: string; message?: string }> {
-  const pubKey = await getPublicKey(`${basePath}/api/auth/public-key`);
+  const apiBase = getApiBaseUrl();
+  const pubKey = await getPublicKey(`${apiBase}${basePath}/api/auth/public-key`);
 
   // Bind the login to the printed QR via its qr_key query param.
   const params = new URLSearchParams(window.location.search);
@@ -45153,7 +45370,7 @@ export async function qrLoginByPin(
     pubKey
   );
 
-  const res = await fetch(`${basePath}/api/auth/login`, {
+  const res = await fetch(`${apiBase}${basePath}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -45187,13 +45404,13 @@ export async function portalLogin(
   redirect_url: string | null;
   reset_required?: boolean;
 }> {
-  const pubKey = await getPublicKey("/rent/tenant/api/auth/public-key");
+  const pubKey = await getPublicKey(`${getApiBaseUrl()}/rent/tenant/api/auth/public-key`);
   const encrypted = await encryptPayload(
     { username, password, rememberme: rememberMe },
     pubKey
   );
 
-  const res = await fetch("/rent/tenant/api/auth/login", {
+  const res = await fetch(`${getApiBaseUrl()}/rent/tenant/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -45215,10 +45432,10 @@ export async function portalLogin(
 export async function forgotTenantPassword(
   username: string
 ): Promise<{ status: string; message: string }> {
-  const pubKey = await getPublicKey("/rent/tenant/api/auth/public-key");
+  const pubKey = await getPublicKey(`${getApiBaseUrl()}/rent/tenant/api/auth/public-key`);
   const encrypted = await encryptPayload({ username }, pubKey);
 
-  const res = await fetch("/rent/tenant/api/auth/forgot-password", {
+  const res = await fetch(`${getApiBaseUrl()}/rent/tenant/api/auth/forgot-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -45242,13 +45459,13 @@ export async function changeTenantPassword(
   currentPassword: string,
   newPassword: string
 ): Promise<{ status: string; message: string }> {
-  const pubKey = await getPublicKey("/rent/tenant/api/auth/public-key");
+  const pubKey = await getPublicKey(`${getApiBaseUrl()}/rent/tenant/api/auth/public-key`);
   const encrypted = await encryptPayload(
     { username, current_password: currentPassword, new_password: newPassword },
     pubKey
   );
 
-  const res = await fetch("/rent/tenant/api/auth/change-password", {
+  const res = await fetch(`${getApiBaseUrl()}/rent/tenant/api/auth/change-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -45268,7 +45485,7 @@ export async function changeTenantPassword(
 
 // ── Logout (works for both flows) ──
 export async function logoutTenant(basePath: string): Promise<void> {
-  await fetch(`${basePath}/api/auth/logout`, {
+  await fetch(`${getApiBaseUrl()}${basePath}/api/auth/logout`, {
     method: "POST",
     credentials: "include",
   });
@@ -46241,20 +46458,44 @@ http {
     keepalive_timeout 65;
     client_max_body_size 100M;
 
+    # Docker embedded DNS — required for the variable-based proxy_pass used by
+    # the blue/green upstream toggle (/etc/nginx/upstream/active.conf).
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    # API edge — api.vijaykrsha.online. API-only: release backend routes
+    # (root-level + /rent/-prefixed) are proxied; all frontend page paths are
+    # redirected to the public frontend on rent.vijaykrsha.online. No frontend
+    # HTML is ever served on this host.
     server {
         listen 8080;
         server_name api.vijaykrsha.online;
 
-        include /etc/nginx/routes/*.conf;
+        # Active blue/green release backend slot — flipped by deploy-release.sh
+        include /etc/nginx/upstream/active.conf;
 
-        location = /health {
-            access_log off;
-            return 200 "VEGA Gateway OK\n";
-            add_header Content-Type text/plain;
+        include /etc/nginx/routes/api.conf;
+        include /etc/nginx/routes/tenant-api.conf;
+        include /etc/nginx/routes/redirect.conf;
+
+        # Bare API domain → the public frontend app
+        location = / {
+            return 301 https://rent.vijaykrsha.online/;
         }
 
         location / {
             return 404;
+        }
+    }
+
+    # Frontend edge — app.vijaykrsha.online (served by frontend_release:28004)
+    server {
+        listen 8080;
+        server_name app.vijaykrsha.online;
+
+        include /etc/nginx/routes/frontend.conf;
+
+        location = / {
+            return 301 /rent/;
         }
     }
 }
@@ -46263,27 +46504,7 @@ http {
 ### `gateway/nginx/routes/rent.conf`
 
 ```nginx
-location = /rent {
-    return 301 /rent/;
-}
-
-location /rent/ {
-    set $rent_backend "rent-backend:28001";
-    proxy_pass http://$rent_backend;
-
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Forwarded-Port $server_port;
-    proxy_set_header X-Forwarded-Prefix /rent;
-    proxy_set_header X-Request-ID $request_id;
-
-    proxy_connect_timeout 10s;
-    proxy_send_timeout 60s;
-    proxy_read_timeout 60s;
-
-    proxy_redirect off;
-}
+# Frontend routes have moved to frontend.conf (see api.conf and frontend.conf).
+# Kept as an empty placeholder to avoid a missing-file error if the old
+# deployment's nginx still glob-includes this directory.
 ```

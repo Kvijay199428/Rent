@@ -86,8 +86,8 @@ reload_edge() {
 }
 
 smoke_test() {
-  if curl -fsS "http://127.0.0.1:8080/health" >/dev/null 2>&1; then
-    ok "edge smoke test passed (/health via 127.0.0.1:8080)"
+  if curl -fsS "http://127.0.0.1:28005/health" >/dev/null 2>&1; then
+    ok "edge smoke test passed (/health via 127.0.0.1:28005)"
     return 0
   fi
   if curl -fsS "https://api.vijaykrsha.online/health" >/dev/null 2>&1; then

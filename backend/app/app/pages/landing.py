@@ -2,14 +2,12 @@
 app/pages/landing.py
 
 Public landing page at GET /.
-Renders landing.html with role-selection buttons:
-  - Landlord Login / Signup
-  - Platform Admin Login
-
-This router replaces the old root 301 redirect in redirects.py.
+Redirects to the canonical landing app at /rent/ (mirrors the prod
+_redirects rule "/ /rent/ 301"). The /rent/ tree is served by
+app/pages/frontend.py in dev and by the frontend container in prod.
 """
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 from app.core.routes_manifest import Names, Routes
 from app.core.api_guard import check_api_host
@@ -19,9 +17,9 @@ router = APIRouter(tags=["Public"])
 
 @router.get(Routes.PUBLICLANDING, name=Names.PUBLICLANDING)
 async def public_landing(request: Request):
-    """Serve the public landing page for the Rent app."""
+    """Redirect the bare domain to the canonical landing app at /rent/."""
     check_api_host(request)
-    return FileResponse("frontend/landing-app/dist/index.html")
+    return RedirectResponse(url="/rent/", status_code=301)
 
 
 @router.get("/favicon.svg", include_in_schema=False)
