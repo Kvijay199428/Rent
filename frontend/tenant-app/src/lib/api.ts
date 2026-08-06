@@ -1,11 +1,12 @@
 import axios from "axios";
 import { getTenantRuntime } from "./tenant-runtime";
 import { encryptPayload } from "./encryption";
+import { getApiBaseUrl } from "@shared/api-config";
 
 const { tenantBase } = getTenantRuntime();
 
 const http = axios.create({
-  baseURL: tenantBase,
+  baseURL: getApiBaseUrl() + tenantBase,
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
@@ -61,16 +62,16 @@ export const tenantApi = {
       return http.delete(`api/kyc/${occupantUuid}`);
     },
     getFileUrl(filename: string) {
-      return `${tenantBase}/api/kyc/file/${encodeURIComponent(filename)}`;
+      return `${getApiBaseUrl()}${tenantBase}/api/kyc/file/${encodeURIComponent(filename)}`;
     },
   },
 
   pdf: {
     viewUrl(billNo: string) {
-      return `${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/view`;
+      return `${getApiBaseUrl()}${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/view`;
     },
     downloadUrl(billNo: string) {
-      return `${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/download`;
+      return `${getApiBaseUrl()}${tenantBase}/api/pdf/${encodeURIComponent(billNo)}/download`;
     },
   },
 
