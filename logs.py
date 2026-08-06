@@ -1,6 +1,7 @@
 import sys
 import re
 import time
+import shlex
 import argparse
 import subprocess
 
@@ -9,8 +10,24 @@ try:
 except ImportError:
     paramiko = None
 
-REMOTE_DIR = "/home/vega/rent-app-20081"
-LOG_FILE = "rent.log"
+ENVIRONMENTS = {
+    "dev": {
+        "name": "dev",
+        "label": "rent-dev",
+        "remote_dir": "/home/vega/rent-app",
+        "compose_file": "compose.dev.yml",
+        "env_file": ".env.development",
+        "log_file": "rent-dev.log",
+    },
+    "prod": {
+        "name": "prod",
+        "label": "rent-prod",
+        "remote_dir": "/home/vega/rent-app-release",
+        "compose_file": "compose.prod.yml",
+        "env_file": ".env.release",
+        "log_file": "rent-prod.log",
+    },
+}
 
 TARGETS = {
     "sshLocal": {"host": "192.168.1.50", "port": 22, "user": "vega", "password": "1010"},
@@ -53,39 +70,53 @@ def write_and_print(line, log_f):
     sys.stdout.flush()
 
 
+def build_cmd(ctx, tail, services):
+    cmd = (
+        f"cd {ctx['remote_dir']} && "
+        f"docker compose --env-file {ctx['env_file']} -f {ctx['compose_file']} "
+        f"logs -f --tail {tail} --no-color"
+    )
+    if services:
+        cmd += " " + " ".join(shlex.quote(s) for s in services)
+    return cmd
+
+
 # ── Args ─────────────────────────────────────────────────────────────────────
 
-parser = argparse.ArgumentParser(description="Stream live Docker logs from Rent App")
+parser = argparse.ArgumentParser(description="Stream live Docker logs from the Rent dev/prod stacks")
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--local", action="store_true", help="Stream logs locally (no SSH).")
 group.add_argument("--sshLocal", action="store_true", help="Stream logs via SSH to LAN (192.168.1.50).")
 group.add_argument("--sshPublic", action="store_true", help="Stream logs via SSH to public IP (100.107.83.28:22009).")
+env_group = parser.add_mutually_exclusive_group()
+env_group.add_argument("--dev", action="store_true", help="Stream the dev stack (compose.dev.yml). Default when no env flag is given.")
+env_group.add_argument("--prod", action="store_true", help="Stream the production stack (compose.prod.yml).")
 parser.add_argument("--tail", type=int, default=50, help="Number of recent log lines to show (default: 50).")
+parser.add_argument("--service", action="append", dest="services", default=[], help="Limit to specific services/containers (repeatable).")
+parser.add_argument("--out", default=None, help="Log file path (default: rent-dev.log / rent-prod.log).")
 args = parser.parse_args()
 
 if not args.local and not args.sshLocal and not args.sshPublic:
     args.sshLocal = True
 
 target_name = "local" if args.local else ("sshPublic" if args.sshPublic else "sshLocal")
+env_name = "prod" if args.prod else "dev"
+ctx = ENVIRONMENTS[env_name]
+log_file = args.out or ctx["log_file"]
 
 
 # ── LOCAL mode ───────────────────────────────────────────────────────────────
 
 if args.local:
-    print(f"\n--- Live Docker logs (local) ---")
-    print(f"--- Saving logs to {LOG_FILE} ---")
+    print(f"\n--- Live Docker logs ({ctx['label']}) local ---")
+    print(f"--- Saving logs to {log_file} ---")
     print("--- Press CTRL + C to stop ---\n")
 
-    cmd = (
-        f"cd {REMOTE_DIR} && "
-        f"if command -v docker-compose >/dev/null 2>&1; "
-        f"then docker-compose logs -f --tail {args.tail} --no-color; "
-        f"else docker compose logs -f --tail {args.tail} --no-color; fi"
-    )
+    cmd = build_cmd(ctx, args.tail, args.services)
 
     try:
         proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        with open(LOG_FILE, "a", encoding="utf-8") as log_f:
+        with open(log_file, "a", encoding="utf-8") as log_f:
             for raw_line in iter(proc.stdout.readline, b""):
                 line = raw_line.decode("utf-8", errors="replace")
                 if not line:
@@ -123,16 +154,11 @@ else:
         transport = ssh.get_transport()
         transport.set_keepalive(10)
 
-        print(f"\n--- Live Docker logs for {REMOTE_DIR} ---")
-        print(f"--- Saving logs to {LOG_FILE} ---")
+        print(f"\n--- Live Docker logs ({ctx['label']} @ {ctx['remote_dir']}) ---")
+        print(f"--- Saving logs to {log_file} ---")
         print("--- Press CTRL + C to stop ---\n")
 
-        cmd = (
-            f"cd {REMOTE_DIR} && "
-            f"if command -v docker-compose >/dev/null 2>&1; "
-            f"then docker-compose logs -f --tail {args.tail} --no-color; "
-            f"else docker compose logs -f --tail {args.tail} --no-color; fi"
-        )
+        cmd = build_cmd(ctx, args.tail, args.services)
 
         channel = ssh.get_transport().open_session()
         channel.get_pty()
@@ -140,7 +166,7 @@ else:
 
         buffer = ""
 
-        with open(LOG_FILE, "a", encoding="utf-8") as log_f:
+        with open(log_file, "a", encoding="utf-8") as log_f:
             while True:
                 if channel.recv_ready():
                     data = channel.recv(4096).decode("utf-8", errors="replace")
