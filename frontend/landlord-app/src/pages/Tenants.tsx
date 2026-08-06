@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { api } from '@/services/api';
 import { API_BASE } from '@/services/base';
+import { getPublicAppUrl } from '@shared/api-config';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Tenant } from '@/types';
@@ -60,7 +61,7 @@ function formatDisplayDate(date = new Date()) {
 }
 
 function buildTenantUrl(landlordUuid: string, tenant: Tenant): string {
-  const base = `${API_BASE}/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
+  const base = `${getPublicAppUrl()}/rent/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
   return tenant.qr_key ? `${base}?qr_key=${encodeURIComponent(tenant.qr_key)}` : base;
 }
 

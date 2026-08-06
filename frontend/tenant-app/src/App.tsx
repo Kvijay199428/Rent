@@ -17,6 +17,7 @@ import { Receipt as ReceiptIcon, Users, Archive, User, Shield } from "lucide-rea
 import { isOlderThan12Months } from "@/lib/utils";
 import QrUnlockPage from "@/pages/QrUnlockPage";
 import PortalLoginPage from "@/pages/PortalLoginPage";
+import { getApiBaseUrl } from "@shared/api-config";
 import type { Receipt, QrTenantProfile } from "@/types";
 
 function TenantPortalInner() {
@@ -88,7 +89,7 @@ function TenantPortalInner() {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <BroadcastBanner />
+      <BroadcastBanner healthUrl={`${getApiBaseUrl()}/health`} />
       <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <div>
