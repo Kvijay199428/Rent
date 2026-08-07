@@ -75,11 +75,16 @@ wait_health() {
 }
 
 reload_edge() {
+  local reloaded=0
   if docker exec vega_gateway nginx -s reload >/dev/null 2>&1; then
     ok "reloaded edge nginx (vega_gateway)"
-  elif docker exec nginx_gateway nginx -s reload >/dev/null 2>&1; then
+    reloaded=1
+  fi
+  if docker exec nginx_gateway nginx -s reload >/dev/null 2>&1; then
     ok "reloaded edge nginx (nginx_gateway)"
-  else
+    reloaded=1
+  fi
+  if [ "$reloaded" -eq 0 ]; then
     warn "no edge nginx container found to reload — is compose.prod.yml nginx_gateway running?"
     warn "the upstream toggle file was still updated: $ACTIVE_FILE"
   fi
