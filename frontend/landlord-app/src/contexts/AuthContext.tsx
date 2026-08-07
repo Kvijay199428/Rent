@@ -15,7 +15,7 @@ type LoginResult =
   | { status: "success"; landlordUuid: string }
   | { status: "totp_required" }
   | { status: "password_change_required"; landlordUuid: string }
-  | { status: "failed" };
+  | { status: "failed"; message?: string };
 
 interface AuthContextType {
   isAuthenticated: boolean;
@@ -27,6 +27,10 @@ interface AuthContextType {
   login: (
     username: string,
     password: string,
+    rememberMe?: boolean
+  ) => Promise<LoginResult>;
+  googleLogin: (
+    credential: string,
     rememberMe?: boolean
   ) => Promise<LoginResult>;
   verifyTotp: (
@@ -130,6 +134,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { status: "failed" };
       } catch {
         return { status: "failed" };
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  const googleLogin = useCallback(
+    async (
+      credential: string,
+      rememberMe = false
+    ): Promise<LoginResult> => {
+      setIsLoading(true);
+
+      try {
+        const response = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credential, rememberMe }),
+        });
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          return {
+            status: "failed",
+            message: data?.detail || "Google authentication failed",
+          };
+        }
+
+        if (data.status === "password_change_required") {
+          return { status: "password_change_required", landlordUuid: data.landlordUuid };
+        }
+
+        if (data.status === "success") {
+          const uuid = data?.landlord?.landlordUuid ?? "";
+          setIsAuthenticated(true);
+          setLandlordUuid(uuid);
+          localStorage.setItem("landlordUuid", uuid);
+          return { status: "success", landlordUuid: uuid };
+        }
+
+        return {
+          status: "failed",
+          message: data?.detail || "Google authentication failed",
+        };
+      } catch {
+        return { status: "failed", message: "Network error during Google authentication" };
       } finally {
         setIsLoading(false);
       }
@@ -253,7 +306,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, landlordUuid, hasTotp, totpEnabled, requiresPasswordChange, login, verifyTotp, logout, changePassword, refreshMe }}
+      value={{ isAuthenticated, isLoading, landlordUuid, hasTotp, totpEnabled, requiresPasswordChange, login, googleLogin, verifyTotp, logout, changePassword, refreshMe }}
     >
       {children}
     </AuthContext.Provider>

@@ -9,11 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Shield, AlertTriangle, ArrowLeft, KeyRound } from 'lucide-react';
 import AuthLayout from '@/components/layout/AuthLayout';
-import { ROUTES } from '@/lib/routes';
 
 export default function LandlordLoginPage() {
   const navigate = useNavigate();
-  const { login, verifyTotp, isAuthenticated, isLoading, landlordUuid } = useAuth();
+  const { login, verifyTotp, isAuthenticated, isLoading, landlordUuid, googleLogin } = useAuth();
   const [loginData, setLoginData] = useState({ username: '', password: '', totpToken: '', rememberMe: false });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -31,22 +30,17 @@ export default function LandlordLoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential, rememberMe: loginData.rememberMe }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || "Google authentication failed");
+      const result = await googleLogin(credentialResponse.credential, loginData.rememberMe);
+      if (result.status === "failed") {
+        setError(result.message || "Google authentication failed");
         return;
       }
-      if (data.status === "password_change_required") {
+      if (result.status === "password_change_required") {
         navigate("/change-password?from=google", { replace: true });
         return;
       }
-      if (data.status === "success") {
-        navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true });
+      if (result.status === "success") {
+        navigate(`/${result.landlordUuid}/dashboard`, { replace: true });
       }
     } catch {
       setError("Network error during Google authentication");

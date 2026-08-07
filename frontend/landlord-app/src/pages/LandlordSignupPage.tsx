@@ -10,6 +10,7 @@ import { Eye, EyeOff, Shield, AlertTriangle, Check, X, Loader2 } from 'lucide-re
 import { toast } from 'sonner';
 import AuthLayout from '@/components/layout/AuthLayout';
 import { ROUTES } from '@/lib/routes';
+import { useAuth } from '@/contexts/AuthContext';
 
 type FieldStatus = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
@@ -22,6 +23,7 @@ interface Conflict {
 
 export default function LandlordSignupPage() {
   const navigate = useNavigate();
+  const { googleLogin } = useAuth();
   const [signupData, setSignupData] = useState({
     username: '',
     password: '',
@@ -123,23 +125,18 @@ export default function LandlordSignupPage() {
     setError('');
     setGoogleLoading(true);
     try {
-      const res = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential, rememberMe: false }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || "Google Sign-Up failed");
+      const result = await googleLogin(credentialResponse.credential, false);
+      if (result.status === "failed") {
+        setError(result.message || "Google Sign-Up failed");
         return;
       }
-      if (data.status === "password_change_required") {
+      if (result.status === "password_change_required") {
         navigate("/change-password?from=google", { replace: true });
         return;
       }
-      if (data.status === "success") {
+      if (result.status === "success") {
         toast.success('Account created via Google!', { description: 'Redirecting...' });
-        setTimeout(() => navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true }), 1200);
+        setTimeout(() => navigate(`/${result.landlordUuid}/dashboard`, { replace: true }), 1200);
       }
     } catch {
       setError("Network error during Google Sign-Up");
