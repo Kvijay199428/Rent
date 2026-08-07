@@ -4,7 +4,7 @@ Generated: 2025-07-29
 Script:   /root/rent/copy.py
 Source:   /root/rent
 Files:    302
-Size:     1618 KB
+Size:     1620 KB
 Skipped:  0
 
 ---
@@ -10939,14 +10939,12 @@ async def landlord_change_password(
         new_password = payload.get("newPassword", "")
         confirm_password = payload.get("confirmPassword", "")
 
-    if not current_password or not new_password or not confirm_password:
+    if not new_password or not confirm_password:
         raise HTTPException(status_code=400, detail="All fields are required.")
     if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="New passwords do not match.")
     if len(new_password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
-    if current_password == new_password:
-        raise HTTPException(status_code=400, detail="New password must be different from current password.")
 
     # Extract landlord from token
     token = request.cookies.get("access_token")
@@ -10959,14 +10957,21 @@ async def landlord_change_password(
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, landlord_uuid, username, password_hash FROM landlord_accounts WHERE id = ?",
+            "SELECT id, landlord_uuid, username, password_hash, requires_password_change FROM landlord_accounts WHERE id = ?",
             (landlord_id,),
         ).fetchone()
         if not landlord:
             raise HTTPException(status_code=404, detail="Landlord not found.")
 
-    if not verify_pin(current_password, landlord["password_hash"]):
-        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+    # When a password change is required (Google signup / admin reset), the user
+    # does not know the current (placeholder/temporary) password, so skip it.
+    if not landlord["requires_password_change"]:
+        if not current_password:
+            raise HTTPException(status_code=400, detail="Current password is required.")
+        if current_password == new_password:
+            raise HTTPException(status_code=400, detail="New password must be different from current password.")
+        if not verify_pin(current_password, landlord["password_hash"]):
+            raise HTTPException(status_code=401, detail="Current password is incorrect.")
 
     new_hash = hash_pin(new_password)
     encrypted_pw = encrypt_admin_view_pin(new_password)
@@ -14076,6 +14081,8 @@ def google_login(credential: str, remember_me: bool, request, response):
             "SELECT * FROM landlord_accounts WHERE google_sub = ?", (google_sub,)
         ).fetchone()
 
+    created_new = False
+
     if not landlord and email:
         landlord = get_landlord_by_email(email)
         if landlord:
@@ -14087,6 +14094,7 @@ def google_login(credential: str, remember_me: bool, request, response):
                 conn.commit()
 
     if not landlord:
+        created_new = True
         base_username = (email.split("@")[0] if email else "user").lower()
         username = _unique_username(base_username)
         landlord_uuid = str(uuid.uuid4())
@@ -14104,7 +14112,8 @@ def google_login(credential: str, remember_me: bool, request, response):
         with get_conn() as conn:
             conn.execute(
                 """UPDATE landlord_accounts
-                   SET google_sub = ?, auth_provider = 'google', avatar_url = ?, updated_at = ?
+                   SET google_sub = ?, auth_provider = 'google', avatar_url = ?,
+                       requires_password_change = 1, updated_at = ?
                    WHERE id = ?""",
                 (google_sub, avatar_url, datetime.utcnow().isoformat(), landlord["id"]),
             )
@@ -14123,6 +14132,13 @@ def google_login(credential: str, remember_me: bool, request, response):
     access_token = create_access_token(landlord["id"], session_id)
     cookie_value = f"{session_id}:{refresh_token}"
     set_landlord_auth_cookies(response, access_token, cookie_value, remember_me, request)
+
+    if created_new or landlord.get("requires_password_change"):
+        return {
+            "status": "password_change_required",
+            "message": "You must set a password before continuing.",
+            "landlordUuid": landlord["landlord_uuid"],
+        }
 
     return {
         "status": "success",
@@ -16444,6 +16460,7 @@ qrcode[pil]>=7.4.2
 httpx>=0.27.2
 pydantic>=2.0.0
 google-auth>=2.38.0
+requests>=2.32.0
 ```
 
 ### `backend/shared/routes.json`
@@ -36600,8 +36617,8 @@ export default function Billing() {
 ### `frontend/landlord-app/src/pages/ChangePasswordPage.tsx`
 
 ```typescript
-import { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36610,9 +36627,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, KeyRound, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
+import { ROUTES } from '@/lib/routes';
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isGoogleSignup = searchParams.get('from') === 'google';
   const { changePassword, landlordUuid, hasTotp } = useAuth();
   const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [showCurrent, setShowCurrent] = useState(false);
@@ -36620,8 +36640,19 @@ export default function ChangePasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [countdown, setCountdown] = useState(5);
   const [totpData, setTotpData] = useState<any>(null);
   const [showTotpModal, setShowTotpModal] = useState(false);
+
+  useEffect(() => {
+    if (!success || !isGoogleSignup) return;
+    if (countdown <= 0) {
+      window.location.assign(ROUTES.LANDLORDPAGELOGIN);
+      return;
+    }
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [countdown, success, isGoogleSignup]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36636,7 +36667,7 @@ export default function ChangePasswordPage() {
       setError('Password must be at least 6 characters.');
       return;
     }
-    if (form.currentPassword === form.newPassword) {
+    if (!isGoogleSignup && form.currentPassword === form.newPassword) {
       setError('New password must be different from current password.');
       return;
     }
@@ -36645,7 +36676,15 @@ export default function ChangePasswordPage() {
     try {
       const result = await changePassword(form.currentPassword, form.newPassword, form.confirmPassword);
       if (result.status === 'success') {
-        if (result.next_step === 'totp_review' && result.totp) {
+        if (isGoogleSignup) {
+          try {
+            await fetch(ROUTES.LANDLORDAPIAUTHLOGOUT, { method: 'POST', credentials: 'include' });
+          } catch {
+            // best-effort — full page reload to the login page resets client state anyway
+          }
+          setSuccess('Account created and password changed successfully!');
+          setCountdown(5);
+        } else if (result.next_step === 'totp_review' && result.totp) {
           setTotpData(result.totp);
           setShowTotpModal(true);
         } else {
@@ -36680,6 +36719,10 @@ export default function ChangePasswordPage() {
     }, 500);
   };
 
+  const goToLogin = () => {
+    window.location.assign(ROUTES.LANDLORDPAGELOGIN);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
       <Card className="w-full max-w-md shadow-xl">
@@ -36689,9 +36732,13 @@ export default function ChangePasswordPage() {
               <KeyRound className="h-8 w-8 text-amber-600 dark:text-amber-400" />
             </div>
           </div>
-          <CardTitle className="text-2xl text-center">Change Your Password</CardTitle>
+          <CardTitle className="text-2xl text-center">
+            {isGoogleSignup ? 'Set Your Password' : 'Change Your Password'}
+          </CardTitle>
           <CardDescription className="text-center">
-            Your password has been reset by an administrator. Please set a new password to continue.
+            {isGoogleSignup
+              ? 'Your account was created with Google. Set a password to finish creating your account.'
+              : 'Your password has been reset by an administrator. Please set a new password to continue.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -36709,68 +36756,84 @@ export default function ChangePasswordPage() {
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="currentPassword">Current Password</Label>
-              <div className="relative">
-                <Input
-                  id="currentPassword"
-                  type={showCurrent ? 'text' : 'password'}
-                  placeholder="Enter current password"
-                  value={form.currentPassword}
-                  onChange={(e) => setForm({ ...form, currentPassword: e.target.value })}
-                  required
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrent(!showCurrent)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+          {success && isGoogleSignup && (
+            <div className="space-y-3">
+              <p className="text-sm text-center text-muted-foreground">
+                Redirecting to login in {countdown}s...
+              </p>
+              <Button onClick={goToLogin} className="w-full">
+                Login
+              </Button>
             </div>
+          )}
 
-            <div className="space-y-2">
-              <Label htmlFor="newPassword">New Password</Label>
-              <div className="relative">
+          {!(success && isGoogleSignup) && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {!isGoogleSignup && (
+                <div className="space-y-2">
+                  <Label htmlFor="currentPassword">Current Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="currentPassword"
+                      type={showCurrent ? 'text' : 'password'}
+                      placeholder="Enter current password"
+                      value={form.currentPassword}
+                      onChange={(e) => setForm({ ...form, currentPassword: e.target.value })}
+                      required
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrent(!showCurrent)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">New Password</Label>
+                <div className="relative">
+                  <Input
+                    id="newPassword"
+                    type={showNew ? 'text' : 'password'}
+                    placeholder="Enter new password (min 6 characters)"
+                    value={form.newPassword}
+                    onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
+                    required
+                    minLength={6}
+                    autoFocus={isGoogleSignup}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNew(!showNew)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm New Password</Label>
                 <Input
-                  id="newPassword"
-                  type={showNew ? 'text' : 'password'}
-                  placeholder="Enter new password (min 6 characters)"
-                  value={form.newPassword}
-                  onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
+                  id="confirmPassword"
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={form.confirmPassword}
+                  onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
                   required
                   minLength={6}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowNew(!showNew)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm New Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                placeholder="Confirm new password"
-                value={form.confirmPassword}
-                onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                required
-                minLength={6}
-              />
-            </div>
-
-            <Button type="submit" className="w-full" disabled={loading || !!success}>
-              {loading ? 'Updating...' : 'Update Password'}
-            </Button>
-          </form>
+              <Button type="submit" className="w-full" disabled={loading || !!success}>
+                {loading ? 'Updating...' : isGoogleSignup ? 'Set Password' : 'Update Password'}
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
 
@@ -37540,6 +37603,10 @@ export default function LandlordLoginPage() {
         setError(data.detail || "Google authentication failed");
         return;
       }
+      if (data.status === "password_change_required") {
+        navigate("/change-password?from=google", { replace: true });
+        return;
+      }
       if (data.status === "success") {
         navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true });
       }
@@ -37893,6 +37960,10 @@ export default function LandlordSignupPage() {
       const data = await res.json();
       if (!res.ok) {
         setError(data.detail || "Google Sign-Up failed");
+        return;
+      }
+      if (data.status === "password_change_required") {
+        navigate("/change-password?from=google", { replace: true });
         return;
       }
       if (data.status === "success") {

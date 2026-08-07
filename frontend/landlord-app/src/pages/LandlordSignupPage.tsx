@@ -133,6 +133,10 @@ export default function LandlordSignupPage() {
         setError(data.detail || "Google Sign-Up failed");
         return;
       }
+      if (data.status === "password_change_required") {
+        navigate("/change-password?from=google", { replace: true });
+        return;
+      }
       if (data.status === "success") {
         toast.success('Account created via Google!', { description: 'Redirecting...' });
         setTimeout(() => navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true }), 1200);

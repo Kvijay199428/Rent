@@ -172,8 +172,7 @@ def extract_zip_cmds():
 def get_deploy_commands():
     if env == ENV_PROD:
         cmds = extract_zip_cmds()
-        deploy_args = " --no-build" if args.no_build else ""
-        cmds.append(f"cd {REMOTE_DIR} && bash deploy/deploy-release.sh{deploy_args}")
+        cmds.append(f"cd {REMOTE_DIR} && bash deploy/deploy-release.sh")
         return cmds
 
     compose = "compose.dev.yml"
@@ -272,8 +271,7 @@ if args.local:
     print("========================================")
 
     if env == ENV_PROD:
-        deploy_args = " --no-build" if args.no_build else ""
-        commands = [f"cd {LOCAL_DIR} && bash deploy/deploy-release.sh{deploy_args}"]
+        commands = [f"cd {LOCAL_DIR} && bash deploy/deploy-release.sh"]
     else:
         compose = "compose.dev.yml"
         env_file = ".env.development"

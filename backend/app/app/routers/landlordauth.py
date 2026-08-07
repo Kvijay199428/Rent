@@ -597,14 +597,12 @@ async def landlord_change_password(
         new_password = payload.get("newPassword", "")
         confirm_password = payload.get("confirmPassword", "")
 
-    if not current_password or not new_password or not confirm_password:
+    if not new_password or not confirm_password:
         raise HTTPException(status_code=400, detail="All fields are required.")
     if new_password != confirm_password:
         raise HTTPException(status_code=400, detail="New passwords do not match.")
     if len(new_password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
-    if current_password == new_password:
-        raise HTTPException(status_code=400, detail="New password must be different from current password.")
 
     # Extract landlord from token
     token = request.cookies.get("access_token")
@@ -617,14 +615,21 @@ async def landlord_change_password(
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, landlord_uuid, username, password_hash FROM landlord_accounts WHERE id = ?",
+            "SELECT id, landlord_uuid, username, password_hash, requires_password_change FROM landlord_accounts WHERE id = ?",
             (landlord_id,),
         ).fetchone()
         if not landlord:
             raise HTTPException(status_code=404, detail="Landlord not found.")
 
-    if not verify_pin(current_password, landlord["password_hash"]):
-        raise HTTPException(status_code=401, detail="Current password is incorrect.")
+    # When a password change is required (Google signup / admin reset), the user
+    # does not know the current (placeholder/temporary) password, so skip it.
+    if not landlord["requires_password_change"]:
+        if not current_password:
+            raise HTTPException(status_code=400, detail="Current password is required.")
+        if current_password == new_password:
+            raise HTTPException(status_code=400, detail="New password must be different from current password.")
+        if not verify_pin(current_password, landlord["password_hash"]):
+            raise HTTPException(status_code=401, detail="Current password is incorrect.")
 
     new_hash = hash_pin(new_password)
     encrypted_pw = encrypt_admin_view_pin(new_password)

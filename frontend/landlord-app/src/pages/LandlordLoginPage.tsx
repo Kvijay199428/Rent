@@ -41,6 +41,10 @@ export default function LandlordLoginPage() {
         setError(data.detail || "Google authentication failed");
         return;
       }
+      if (data.status === "password_change_required") {
+        navigate("/change-password?from=google", { replace: true });
+        return;
+      }
       if (data.status === "success") {
         navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true });
       }
