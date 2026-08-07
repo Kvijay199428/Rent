@@ -55,6 +55,8 @@ def google_login(credential: str, remember_me: bool, request, response):
             "SELECT * FROM landlord_accounts WHERE google_sub = ?", (google_sub,)
         ).fetchone()
 
+    created_new = False
+
     if not landlord and email:
         landlord = get_landlord_by_email(email)
         if landlord:
@@ -66,6 +68,7 @@ def google_login(credential: str, remember_me: bool, request, response):
                 conn.commit()
 
     if not landlord:
+        created_new = True
         base_username = (email.split("@")[0] if email else "user").lower()
         username = _unique_username(base_username)
         landlord_uuid = str(uuid.uuid4())
@@ -83,7 +86,8 @@ def google_login(credential: str, remember_me: bool, request, response):
         with get_conn() as conn:
             conn.execute(
                 """UPDATE landlord_accounts
-                   SET google_sub = ?, auth_provider = 'google', avatar_url = ?, updated_at = ?
+                   SET google_sub = ?, auth_provider = 'google', avatar_url = ?,
+                       requires_password_change = 1, updated_at = ?
                    WHERE id = ?""",
                 (google_sub, avatar_url, datetime.utcnow().isoformat(), landlord["id"]),
             )
@@ -102,6 +106,13 @@ def google_login(credential: str, remember_me: bool, request, response):
     access_token = create_access_token(landlord["id"], session_id)
     cookie_value = f"{session_id}:{refresh_token}"
     set_landlord_auth_cookies(response, access_token, cookie_value, remember_me, request)
+
+    if created_new or landlord.get("requires_password_change"):
+        return {
+            "status": "password_change_required",
+            "message": "You must set a password before continuing.",
+            "landlordUuid": landlord["landlord_uuid"],
+        }
 
     return {
         "status": "success",
