@@ -107,7 +107,7 @@ def google_login(credential: str, remember_me: bool, request, response):
     cookie_value = f"{session_id}:{refresh_token}"
     set_landlord_auth_cookies(response, access_token, cookie_value, remember_me, request)
 
-    if created_new or landlord.get("requires_password_change"):
+    if created_new or bool(landlord["requires_password_change"]):
         return {
             "status": "password_change_required",
             "message": "You must set a password before continuing.",
