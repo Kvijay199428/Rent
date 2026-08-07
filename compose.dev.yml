@@ -73,6 +73,19 @@ services:
     depends_on:
       - backend_dev
 
+  nginx_gateway_dev:
+    image: nginx:alpine
+    container_name: rent-nginx-gateway-dev
+    restart: unless-stopped
+    depends_on:
+      - backend_dev
+    ports:
+      - "127.0.0.1:28080:80"
+    volumes:
+      - ./nginx/dev-gateway.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - dev-net
+
   ngrok:
     image: ngrok/ngrok:latest
     container_name: ngrok_dev
