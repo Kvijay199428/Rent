@@ -398,8 +398,6 @@ export default function Backups() {
   const [backups, setBackups] = useState<Backup[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('All');
-  const [restoring, setRestoring] = useState<Backup | null>(null);
-  const [restoreStep, setRestoreStep] = useState(0);
   const toast = useToast();
 
   const loadBackups = async () => {
@@ -457,32 +455,13 @@ export default function Backups() {
     }
   };
 
-  const startRestore = async (backup: Backup) => {
-    setRestoring(backup);
-    setRestoreStep(1);
-  };
-
-  const executeRestore = async () => {
-    if (!restoring) return;
-    setRestoreStep(3);
-    try {
-      await api.restoreBackup(landlordUuid!, restoring.id);
-      toast.success('System restored successfully! Reloading...');
-      setTimeout(() => window.location.reload(), 1500);
-    } catch {
-      toast.error('Restore failed');
-      setRestoreStep(0);
-      setRestoring(null);
-    }
-  };
-
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b">
         <div>
           <h1 className="text-2xl font-bold">Disaster Recovery & Backups</h1>
-          <p className="text-sm text-muted-foreground">Manage, verify, and restore system snapshots safely.</p>
+          <p className="text-sm text-muted-foreground">Manage and verify system snapshots safely.</p>
         </div>
         <Button onClick={handleCreateBackup}>
           <ShieldPlus className="h-4 w-4 mr-1" /> Create Manual Backup
@@ -566,14 +545,6 @@ export default function Backups() {
                     </div>
 
                     <div className="flex items-center justify-between pt-3 border-t">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-full text-xs"
-                        onClick={() => startRestore(b)}
-                      >
-                        <RotateCcw className="h-3 w-3 mr-1" /> Restore
-                      </Button>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                           const a = document.createElement('a');
@@ -599,63 +570,6 @@ export default function Backups() {
         )
       )}
 
-      {/* Restore Wizard Dialog (system-level restore — separate from tenant recovery) */}
-      <Dialog open={!!restoring} onOpenChange={() => { setRestoring(null); setRestoreStep(0); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <RotateCcw className="h-5 w-5 text-primary" />
-              {restoreStep === 1 && 'Restore System'}
-              {restoreStep === 2 && 'Validating Backup...'}
-              {restoreStep === 3 && 'Restoring System...'}
-            </DialogTitle>
-          </DialogHeader>
-
-          {restoreStep === 1 && (
-            <div className="text-center py-6">
-              <AlertTriangle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-              <h4 className="text-lg font-bold mb-2">Confirm Restore</h4>
-              <p className="text-muted-foreground mb-4">
-                You are about to restore the system to:<br />
-                <strong className="text-foreground">{restoring?.notes || restoring?.id}</strong>
-              </p>
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-sm text-left text-blue-700 dark:text-blue-300 flex items-start gap-2">
-                <ShieldCheck className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                A temporary restore point will be created automatically before the rollback.
-              </div>
-            </div>
-          )}
-
-          {restoreStep === 2 && (
-            <div className="text-center py-8">
-              <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-              <h5 className="font-bold">Validating Backup...</h5>
-              <p className="text-sm text-muted-foreground">Checking checksums and archive integrity.</p>
-            </div>
-          )}
-
-          {restoreStep === 3 && (
-            <div className="text-center py-8">
-              <Loader2 className="h-12 w-12 animate-spin text-green-500 mx-auto mb-4" />
-              <h5 className="font-bold">Restoring System...</h5>
-              <p className="text-sm text-muted-foreground">Extracting files and safely replacing database.</p>
-            </div>
-          )}
-
-          <DialogFooter className="gap-2">
-            {restoreStep === 1 && (
-              <>
-                <Button variant="outline" onClick={() => { setRestoring(null); setRestoreStep(0); }}>
-                  Cancel
-                </Button>
-                <Button onClick={() => { setRestoreStep(2); setTimeout(() => setRestoreStep(3), 800); setTimeout(executeRestore, 2000); }}>
-                  Validate Integrity
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

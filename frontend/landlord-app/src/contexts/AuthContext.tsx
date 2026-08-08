@@ -15,18 +15,24 @@ type LoginResult =
   | { status: "success"; landlordUuid: string }
   | { status: "totp_required" }
   | { status: "password_change_required"; landlordUuid: string }
-  | { status: "failed" };
+  | { status: "failed"; message?: string };
 
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   landlordUuid: string | null;
+  username: string | null;
+  fullName: string | null;
   hasTotp: boolean;
   totpEnabled: boolean;
   requiresPasswordChange: boolean;
   login: (
     username: string,
     password: string,
+    rememberMe?: boolean
+  ) => Promise<LoginResult>;
+  googleLogin: (
+    credential: string,
     rememberMe?: boolean
   ) => Promise<LoginResult>;
   verifyTotp: (
@@ -50,6 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [landlordUuid, setLandlordUuid] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
   const [hasTotp, setHasTotp] = useState(false);
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
@@ -62,6 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const uuid = data?.landlord?.landlordUuid ?? null;
       setIsAuthenticated(true);
       setLandlordUuid(uuid);
+      setUsername(data?.landlord?.username ?? null);
+      setFullName(data?.landlord?.fullName ?? null);
       setHasTotp(data?.landlord?.hasTotp ?? false);
       setTotpEnabled(data?.landlord?.totpEnabled ?? false);
       setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
@@ -69,6 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       setIsAuthenticated(false);
       setLandlordUuid(null);
+      setUsername(null);
+      setFullName(null);
       setHasTotp(false);
       setTotpEnabled(false);
       setRequiresPasswordChange(false);
@@ -123,6 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const uuid = data?.landlord?.landlordUuid ?? "";
           setIsAuthenticated(true);
           setLandlordUuid(uuid);
+          setUsername(data?.landlord?.username ?? null);
+          setFullName(data?.landlord?.fullName ?? null);
           localStorage.setItem("landlordUuid", uuid);
           return { status: "success", landlordUuid: uuid };
         }
@@ -130,6 +144,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { status: "failed" };
       } catch {
         return { status: "failed" };
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
+
+  const googleLogin = useCallback(
+    async (
+      credential: string,
+      rememberMe = false
+    ): Promise<LoginResult> => {
+      setIsLoading(true);
+
+      try {
+        const response = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credential, rememberMe }),
+        });
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          return {
+            status: "failed",
+            message: data?.detail || "Google authentication failed",
+          };
+        }
+
+        if (data.status === "password_change_required") {
+          return { status: "password_change_required", landlordUuid: data.landlordUuid };
+        }
+
+        if (data.status === "success") {
+          const uuid = data?.landlord?.landlordUuid ?? "";
+          setIsAuthenticated(true);
+          setLandlordUuid(uuid);
+          setUsername(data?.landlord?.username ?? null);
+          setFullName(data?.landlord?.fullName ?? null);
+          localStorage.setItem("landlordUuid", uuid);
+          return { status: "success", landlordUuid: uuid };
+        }
+
+        return {
+          status: "failed",
+          message: data?.detail || "Google authentication failed",
+        };
+      } catch {
+        return { status: "failed", message: "Network error during Google authentication" };
       } finally {
         setIsLoading(false);
       }
@@ -171,6 +236,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const uuid = data?.landlord?.landlordUuid ?? "";
         setIsAuthenticated(true);
         setLandlordUuid(uuid);
+        setUsername(data?.landlord?.username ?? null);
+        setFullName(data?.landlord?.fullName ?? null);
         localStorage.setItem("landlordUuid", uuid);
         return { status: "success", landlordUuid: uuid };
       } catch {
@@ -220,6 +287,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsAuthenticated(false);
       setLandlordUuid(null);
+      setUsername(null);
+      setFullName(null);
       localStorage.removeItem("landlordUuid");
       window.location.assign(ROUTES.LANDLORDPAGELOGIN);
     }
@@ -253,7 +322,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, landlordUuid, hasTotp, totpEnabled, requiresPasswordChange, login, verifyTotp, logout, changePassword, refreshMe }}
+      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, login, googleLogin, verifyTotp, logout, changePassword, refreshMe }}
     >
       {children}
     </AuthContext.Provider>

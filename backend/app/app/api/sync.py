@@ -2,13 +2,14 @@
 # POLICY: tenantId is the only identity key for tenant-related data.
 # tenantName is display-only and must never be used for joins, ownership, lookup, or mutation.
 from typing import Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from fastapi.responses import StreamingResponse, FileResponse
 from app.core.dependencies import config
 from app.models.tenant import Tenant
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
 import os
 import io
 import json
@@ -115,9 +116,9 @@ def _build_excel_workbook(tenants_list, receipts_list):
 
 
 @router.get(Routes.LANDLORDAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
-async def export_receipts_csv(landlordUuid: str, tenants_list: str = "all"):
-    tenants = load_tenants()
-    receipts = get_all_receipts()
+async def export_receipts_csv(landlordUuid: str, tenants_list: str = "all", principal=Depends(get_current_landlord_api_strict)):
+    tenants = load_tenants(landlord_id=principal.landlord_id)
+    receipts = get_all_receipts(landlord_id=principal.landlord_id)
 
     if tenants_list != "all":
         selected_ids = {int(x) for x in tenants_list.split(",") if x.isdigit()}
@@ -139,9 +140,9 @@ async def export_receipts_csv(landlordUuid: str, tenants_list: str = "all"):
     return response
 
 @router.get(Routes.LANDLORDAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
-async def export_full_zip(landlordUuid: str, tenants_list: str = "all"):
-    tenants = load_tenants()
-    receipts = get_all_receipts()
+async def export_full_zip(landlordUuid: str, tenants_list: str = "all", principal=Depends(get_current_landlord_api_strict)):
+    tenants = load_tenants(landlord_id=principal.landlord_id)
+    receipts = get_all_receipts(landlord_id=principal.landlord_id)
 
     if tenants_list != "all":
         selected_ids = {int(x) for x in tenants_list.split(",") if x.isdigit()}
@@ -217,9 +218,9 @@ async def download_excel_template(landlordUuid: str):
     return response
 
 @router.get(Routes.LANDLORDAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
-async def export_excel_data(landlordUuid: str, format: str = "xlsx", tenants_list: str = "all"):
-    tenants = load_tenants()
-    receipts = get_all_receipts()
+async def export_excel_data(landlordUuid: str, format: str = "xlsx", tenants_list: str = "all", principal=Depends(get_current_landlord_api_strict)):
+    tenants = load_tenants(landlord_id=principal.landlord_id)
+    receipts = get_all_receipts(landlord_id=principal.landlord_id)
 
     if tenants_list != "all":
         selected_ids = {int(x) for x in tenants_list.split(",") if x.isdigit()}
@@ -363,8 +364,9 @@ def _extract_numeric_tenant_id(tenant_id_str: str) -> int:
 
 
 def _get_next_available_tenant_id() -> int:
-    """Get the next available tenant ID number."""
-    tenants = load_tenants(include_archived=True)
+    """Get the next available tenant ID number (global ID space across all landlords)."""
+    from app.services.tenant_service import load_tenants as _load_all_tenants
+    tenants = _load_all_tenants(include_archived=True)
     if not tenants:
         return 1
     max_id = max(t.id for t in tenants)
@@ -392,15 +394,15 @@ def _remap_bill_no(original_bill_no: str, old_tenant_id_str: str, new_tenant_id:
     return original_bill_no
 
 
-def _detect_import_conflicts(parsed_data: dict) -> dict:
+def _detect_import_conflicts(parsed_data: dict, landlord_id=None) -> dict:
     """
     Detect tenant and receipt conflicts between import data and existing system data.
     
     Returns a dict mapping target_key -> conflict_info for each conflict.
     """
     from app.services.billing_service import get_all_receipts
-    sys_tenants = load_tenants(include_archived=True)
-    sys_receipts = get_all_receipts()
+    sys_tenants = load_tenants(include_archived=True, landlord_id=landlord_id)
+    sys_receipts = get_all_receipts(include_archived_tenants=True, landlord_id=landlord_id)
     
     sys_tenant_ids = {t.id for t in sys_tenants}
     sys_tenant_names = {t.name.lower(): t for t in sys_tenants}
@@ -551,7 +553,7 @@ def _detect_encrypted_pins(parsed_data: dict) -> dict:
 # ============================================================================
 
 @router.post(Routes.LANDLORDAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
-async def import_preview_data(landlordUuid: str, files: List[UploadFile] = File(...)):
+async def import_preview_data(landlordUuid: str, files: List[UploadFile] = File(...), principal=Depends(get_current_landlord_api_strict)):
     preview_data = {}
     try:
         for file in files:
@@ -572,8 +574,8 @@ async def import_preview_data(landlordUuid: str, files: List[UploadFile] = File(
         all_encrypted_pins = {}
         
         for filename, parsed_data in preview_data.items():
-            # Detect tenant ID conflicts
-            conflicts = _detect_import_conflicts(parsed_data)
+            # Detect tenant ID conflicts (scoped to this landlord)
+            conflicts = _detect_import_conflicts(parsed_data, landlord_id=principal.landlord_id)
             if conflicts:
                 all_conflicts[filename] = conflicts
             
@@ -674,6 +676,7 @@ async def import_execute_data(
     pinhandling: Optional[str] = Form("prompt"),
     pinresolutions: Optional[str] = Form(None),
     receiptstrategies: Optional[str] = Form(None), # JSON: { "filename::t_id": "SKIP" | "MERGE_RECEIPTS_ONLY" | "REPLACE_RECEIPTS", ... }
+    principal=Depends(get_current_landlord_api_strict),
 ):
     """
     Execute import with conflict resolution support inside a single transaction.
@@ -746,17 +749,19 @@ async def import_execute_data(
             except: pass
         raise HTTPException(status_code=400, detail=f"Failed to parse files: {str(e)}")
 
-    sys_tenants = load_tenants(include_archived=True)
+    sys_tenants = load_tenants(include_archived=True, landlord_id=principal.landlord_id)
     sys_tenant_ids = {t.id for t in sys_tenants}
     # ID-indexed for validation; NOT used for name-based ownership resolution.
     sys_tenant_by_id = {t.id: t for t in sys_tenants}
+    # Global ID space so CREATE_NEW never collides with another landlord's tenant.
+    _global_tenant_ids = {t.id for t in load_tenants(include_archived=True)}
 
-    # Detect conflicts across all files
+    # Detect conflicts across all files (scoped to this landlord)
     unresolved_conflicts = []
     unresolved_pins = []
 
     for filename, parsed_data in parsed_files_data.items():
-        conflicts = _detect_import_conflicts(parsed_data)
+        conflicts = _detect_import_conflicts(parsed_data, landlord_id=principal.landlord_id)
         encrypted_pins = _detect_encrypted_pins(parsed_data)
         
         for t_id, conflict_info in conflicts.items():
@@ -816,7 +821,7 @@ async def import_execute_data(
     # the authoritative source for UPDATE_EXISTING and MERGE_RECEIPTS_ONLY.
     existing_tenant_id_map: dict[str, int] = {}
     for filename, parsed_data in parsed_files_data.items():
-        conflicts = _detect_import_conflicts(parsed_data)
+        conflicts = _detect_import_conflicts(parsed_data, landlord_id=principal.landlord_id)
         for t_id, conflict_info in conflicts.items():
             target_key = f"{filename}::{t_id}"
             matches = conflict_info.get("matches", [])
@@ -835,9 +840,7 @@ async def import_execute_data(
     admin_username = "Admin"
     job_result = {"items": []}
 
-    from app.database.landlord_repository import get_landlord_by_uuid
-    _import_landlord_row = get_landlord_by_uuid(landlordUuid)
-    import_landlord_id = _import_landlord_row["id"] if _import_landlord_row else None
+    import_landlord_id = principal.landlord_id
 
     try:
         with get_conn() as conn:
@@ -881,9 +884,9 @@ async def import_execute_data(
                     is_new = False
 
                     if action == "CREATE_NEW":
-                        # Insert new tenant
+                        # Insert new tenant (global ID space, no cross-landlord collisions)
                         next_id = _get_next_available_tenant_id()
-                        while next_id in sys_tenant_ids:
+                        while next_id in _global_tenant_ids:
                             next_id += 1
                         tenantId = next_id
 
@@ -901,6 +904,7 @@ async def import_execute_data(
                             0, float(p.get("additionalPersonRate", 0) or 0), 0, float(p.get("tankWater", 0) or 0),
                             p.get("meterId", ""), viewToken, "", 0, import_landlord_id
                         ))
+                        _global_tenant_ids.add(tenantId)
                         sys_tenant_ids.add(tenantId)
                         is_new = True
 
@@ -995,7 +999,7 @@ async def import_execute_data(
                             r_date = _parse_excel_date(r.get("Date", ""))
                             r_month = _parse_month_date(r.get("Month", ""))
                             
-                            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+                            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ? AND tenantId = ?", (billNo, tenantId)).fetchone()
                             
                             if exists:
                                 if rec_strategy == "MERGE_RECEIPTS_ONLY":
@@ -1005,7 +1009,7 @@ async def import_execute_data(
                                             additional=?, water=?, tankWater=?, electricity=?, total=?, pdf=?,
                                             rate=?, status=?, additionalpersonrate=?,
                                             paymentstatus=?, maintenancecharge=?, maintenancedesc=?, previousarrears=?, amountreceived=?
-                                        WHERE billNo=?
+                                        WHERE billNo=? AND tenantId=?
                                     """, (
                                         r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
                                         float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
@@ -1013,7 +1017,7 @@ async def import_execute_data(
                                         float(r.get("Total", 0) or 0), "", float(r.get("Rate", 0) or 0), r.get("receiptStatus", "ACTIVE"), 
                                         float(r.get("additionalPersonRate", 0) or 0), r.get("paymentStatus", "PENDING"), 
                                         float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), 
-                                        float(r.get("amountReceived", 0) or 0), billNo
+                                        float(r.get("amountReceived", 0) or 0), billNo, tenantId
                                     ))
                                     imported_receipts += 1
                             else:
@@ -1092,15 +1096,15 @@ async def import_execute_data(
 
 
 @router.get(Routes.LANDLORDAPIBILLINGARCHIVEDATA)
-async def get_archive_data(landlordUuid: str):
-    tenants = load_tenants(include_archived=True)
+async def get_archive_data(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
+    tenants = load_tenants(include_archived=True, landlord_id=principal.landlord_id)
     archivedtenants = [
         tenant for tenant in tenants
         if (getattr(tenant, "status", "") or "").strip().lower() == "archived"
     ]
     archivedtenantids = {int(tenant.id) for tenant in archivedtenants}
 
-    receipts = get_all_receipts(include_archived_tenants=True)
+    receipts = get_all_receipts(include_archived_tenants=True, landlord_id=principal.landlord_id)
     archivedreceipts = [
         receipt for receipt in receipts
         if str(receipt.get("Status", "") or "").strip().upper() == "ARCHIVED"

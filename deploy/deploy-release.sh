@@ -119,6 +119,16 @@ frontend_missing() {
 }
 
 main() {
+  # ── Lock: prevent overlapping runs ─────────────────────────────────────
+  # The systemd timer fires every 2 min; an image build can take longer, so
+  # a second run would otherwise race the first on slot lifecycle + active.conf.
+  LOCK_FILE="${LOCK_FILE:-/tmp/rent-deploy-release.lock}"
+  exec 9>"$LOCK_FILE"
+  if ! flock -n 9; then
+    fail "another deploy-release.sh is already running (lock held on $LOCK_FILE)"
+    exit 1
+  fi
+
   # ── Preflight ───────────────────────────────────────────────────────────
   command -v docker >/dev/null || { fail "docker not found"; exit 1; }
   command -v curl >/dev/null || { fail "curl not found"; exit 1; }
@@ -186,6 +196,15 @@ main() {
   docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps "$NEXT"
   wait_health "$NEXT"
 
+  # ── Verify the inactive slot is running before flipping ────────────────
+  # Guards against the flip writing an upstream that points at a container
+  # that died during startup (nginx then returns 502 until the next deploy).
+  if [ "$(docker inspect -f '{{.State.Running}}' "$NEXT" 2>/dev/null)" != "true" ]; then
+    fail "$NEXT is not running — aborting before flipping traffic"
+    exit 1
+  fi
+  ok "$NEXT confirmed running"
+
   # ── Flip traffic ────────────────────────────────────────────────────────
   printf 'set $release_backend "%s:%s";\n' "$NEXT" "$NEXT_PORT" > "$ACTIVE_FILE"
   printf 'set $release_backend "%s:%s";\n' "$ACTIVE" "$ACTIVE_PORT" > "$INACTIVE_FILE"
@@ -196,7 +215,11 @@ main() {
 
   # ── Stop the old slot (kept as the rollback target) ─────────────────────
   log "stopping old slot $ACTIVE (still available for rollback via its image)"
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE" stop "$ACTIVE"
+  if ! docker compose --env-file "$ENV_FILE" -f "$COMPOSE" stop "$ACTIVE"; then
+    warn "failed to stop $ACTIVE — continuing (it will be retired on the next deploy)"
+  fi
+  sleep 2
+  smoke_test
 
   ok "release deploy complete — active: $NEXT on port $NEXT_PORT"
   echo ""
