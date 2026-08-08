@@ -26,13 +26,12 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
-from app.authentication.landlord.middleware import get_current_landlord_api
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
 from datetime import datetime
 
 @router.get(Routes.LANDLORDAPIPDFDOWNLOAD, name=Names.PDFDOWNLOAD)
-async def download_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord = Depends(get_current_landlord_api)):
-    billNo = billNo
-    receipt = get_receipt(tenantId, billNo)
+async def download_pdf(landlordUuid: str, tenantId: int, billNo: str, principal=Depends(get_current_landlord_api_strict)):
+    receipt = get_receipt(tenantId, billNo, landlord_id=principal.landlord_id)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
         
@@ -53,9 +52,8 @@ async def download_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord =
     return response
 
 @router.get(Routes.LANDLORDAPIPDFVIEW, name=Names.PDFVIEW)
-async def view_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord = Depends(get_current_landlord_api)):
-    billNo = billNo
-    receipt = get_receipt(tenantId, billNo)
+async def view_pdf(landlordUuid: str, tenantId: int, billNo: str, principal=Depends(get_current_landlord_api_strict)):
+    receipt = get_receipt(tenantId, billNo, landlord_id=principal.landlord_id)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
         

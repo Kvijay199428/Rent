@@ -1,26 +1,25 @@
 # // File: app\app\api\whatsapp.py
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from urllib.parse import quote
 
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from app.core.dependencies import config
 from app.core.runtime import public_app_url
-from app.services.tenant_service import load_tenants
+from app.services.tenant_service import load_tenants, get_tenant
 from app.services.billing_service import get_receipt
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
 import re
 
 router = APIRouter()
 
 @router.get(Routes.LANDLORDAPIWHATSAPPSENDSINGLE, name=Names.SENDWHATSAPPSINGLE)
-async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: int, billNo: str):
-    billNo = billNo
-    receipt = get_receipt(tenantId, billNo)
+async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: int, billNo: str, principal=Depends(get_current_landlord_api_strict)):
+    receipt = get_receipt(tenantId, billNo, landlord_id=principal.landlord_id)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
 
-    from app.services.tenant_service import get_tenant
-    tenant = get_tenant(tenantId)
+    tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not tenant or not tenant.phone:
         raise HTTPException(status_code=400, detail="Tenant phone number not found")
 

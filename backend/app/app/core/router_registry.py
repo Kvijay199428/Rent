@@ -37,11 +37,16 @@ PROTECTED_API_ROUTERS = [
     billing_api_router,
     tenants_api_router,
     settings_api_router,
-    backup_api_router,
     whatsapp_api_router,
     sync_api_router,
     pdf_api_router,
     dashboard_api_router,
+]
+
+# Backup router handles its own per-route auth: landlord auth for list/create/
+# delete/verify/download/metadata, platform-admin auth for restore.
+BACKUP_ROUTERS = [
+    backup_api_router,
 ]
 
 PUBLIC_API_ROUTERS = [
@@ -67,6 +72,10 @@ def register_all_routers(app: FastAPI):
     #    /landlord/{landlordUuid}/api/* paths)
     for router in PROTECTED_API_ROUTERS:
         app.include_router(router, dependencies=api_landlord_deps)
+
+    # 1b. Backup router — per-route auth (restore is platform-admin only)
+    for router in BACKUP_ROUTERS:
+        app.include_router(router)
 
     # 2. Admin auth routes
     for router in ADMIN_AUTH_ROUTERS:

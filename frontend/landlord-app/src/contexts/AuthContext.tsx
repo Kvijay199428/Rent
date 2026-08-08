@@ -21,6 +21,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   landlordUuid: string | null;
+  username: string | null;
+  fullName: string | null;
   hasTotp: boolean;
   totpEnabled: boolean;
   requiresPasswordChange: boolean;
@@ -54,6 +56,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [landlordUuid, setLandlordUuid] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
   const [hasTotp, setHasTotp] = useState(false);
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
@@ -66,6 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const uuid = data?.landlord?.landlordUuid ?? null;
       setIsAuthenticated(true);
       setLandlordUuid(uuid);
+      setUsername(data?.landlord?.username ?? null);
+      setFullName(data?.landlord?.fullName ?? null);
       setHasTotp(data?.landlord?.hasTotp ?? false);
       setTotpEnabled(data?.landlord?.totpEnabled ?? false);
       setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
@@ -73,6 +79,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       setIsAuthenticated(false);
       setLandlordUuid(null);
+      setUsername(null);
+      setFullName(null);
       setHasTotp(false);
       setTotpEnabled(false);
       setRequiresPasswordChange(false);
@@ -127,6 +135,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const uuid = data?.landlord?.landlordUuid ?? "";
           setIsAuthenticated(true);
           setLandlordUuid(uuid);
+          setUsername(data?.landlord?.username ?? null);
+          setFullName(data?.landlord?.fullName ?? null);
           localStorage.setItem("landlordUuid", uuid);
           return { status: "success", landlordUuid: uuid };
         }
@@ -173,6 +183,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const uuid = data?.landlord?.landlordUuid ?? "";
           setIsAuthenticated(true);
           setLandlordUuid(uuid);
+          setUsername(data?.landlord?.username ?? null);
+          setFullName(data?.landlord?.fullName ?? null);
           localStorage.setItem("landlordUuid", uuid);
           return { status: "success", landlordUuid: uuid };
         }
@@ -224,6 +236,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const uuid = data?.landlord?.landlordUuid ?? "";
         setIsAuthenticated(true);
         setLandlordUuid(uuid);
+        setUsername(data?.landlord?.username ?? null);
+        setFullName(data?.landlord?.fullName ?? null);
         localStorage.setItem("landlordUuid", uuid);
         return { status: "success", landlordUuid: uuid };
       } catch {
@@ -273,6 +287,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsAuthenticated(false);
       setLandlordUuid(null);
+      setUsername(null);
+      setFullName(null);
       localStorage.removeItem("landlordUuid");
       window.location.assign(ROUTES.LANDLORDPAGELOGIN);
     }
@@ -306,7 +322,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, landlordUuid, hasTotp, totpEnabled, requiresPasswordChange, login, googleLogin, verifyTotp, logout, changePassword, refreshMe }}
+      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, login, googleLogin, verifyTotp, logout, changePassword, refreshMe }}
     >
       {children}
     </AuthContext.Provider>

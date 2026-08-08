@@ -88,8 +88,11 @@ def resolve_payment_state(currentTotal, previousArrears=0.0, amountReceived=None
 #         """, (status, final_received, billNo))
 #         conn.commit()
 #     return status
-def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None):
+def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None, landlord_id=None):
     from app.core.db import get_conn
+    from app.services.tenant_service import get_tenant
+    if landlord_id is not None and not get_tenant(tenantId, landlord_id):
+        raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
         if not row:
@@ -192,40 +195,51 @@ def _row_to_dict(row):
         "amountReceived": _safe_float(row.get("amountreceived")),
     }
 
-def get_active_tenant_ids() -> set:
-    """Returns a set of tenant IDs that are NOT archived."""
+def get_active_tenant_ids(landlord_id=None) -> set:
+    """Returns a set of tenant IDs (optionally scoped to a landlord) that are NOT archived."""
     from app.services.tenant_service import load_tenants
-    tenants = load_tenants(include_archived=False)
+    tenants = load_tenants(include_archived=False, landlord_id=landlord_id)
     return {t.id for t in tenants}
 
-def get_all_receipts(include_archived_tenants: bool = False):
+def get_all_receipts(include_archived_tenants: bool = False, landlord_id=None):
+    clauses = []
+    params: list = []
+    if landlord_id is not None:
+        clauses.append("landlord_id = ?")
+        params.append(landlord_id)
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM receipts ORDER BY rowid DESC").fetchall()
+        rows = conn.execute(f"SELECT * FROM receipts{where} ORDER BY rowid DESC", tuple(params)).fetchall()
     
     receipts = [_row_to_dict(r) for r in rows]
     
     if not include_archived_tenants:
-        active_ids = get_active_tenant_ids()
+        active_ids = get_active_tenant_ids(landlord_id=landlord_id)
         receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) in active_ids]
     
     return receipts
 
-def get_receipts_for_tenant(tenant_id: int, include_archived: bool = False) -> list:
+def get_receipts_for_tenant(tenant_id: int, include_archived: bool = False, landlord_id=None) -> list:
     """Fetch all receipts for a single tenant by ID.
     
     Use this everywhere instead of name-based filtering. The relationship key is
     TenantId, not the mutable tenant name, so this is rename-safe.
     """
-    receipts = get_all_receipts(include_archived_tenants=True)
+    receipts = get_all_receipts(include_archived_tenants=True, landlord_id=landlord_id)
     result = [r for r in receipts if int(r.get("TenantId", 0) or 0) == int(tenant_id)]
     if not include_archived:
         result = [r for r in result if (r.get("Status") or "").upper() != "ARCHIVED"]
     return result
 
-def get_receipt(tenantId, billNo):
+def get_receipt(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        query = "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?"
+        params: list = [tenantId, billNo]
+        if landlord_id is not None:
+            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)"
+            params.append(landlord_id)
+        row = conn.execute(query, tuple(params)).fetchone()
     if row:
         return _row_to_dict(row)
     return None
@@ -289,7 +303,8 @@ def calculate_charges(current_reading, additional_persons, prev_reading, rent, w
     }
 
 def create_bill(tenantId, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
-                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING"):
+                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING",
+                landlord_id=None):
     from app.core.db import get_conn
     from datetime import datetime
     from app.services.tenant_service import get_tenant
@@ -297,7 +312,7 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
     from app.core.paths import RECEIPTS_DIR
     from app.services.pdf_service import generate_professional_pdf
     
-    tenant = get_tenant(tenantId)
+    tenant = get_tenant(tenantId, landlord_id)
     if not tenant:
         raise ValueError("Tenant not found")
     tenantName = tenant.name
@@ -402,7 +417,8 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
 
     return receipt_dict
 def update_bill(tenantId, billNo, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
-                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING"):
+                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING",
+                landlord_id=None):
     from app.core.db import get_conn
     from app.services.tenant_service import get_tenant
     from app.services.pdf_service import generate_professional_pdf
@@ -410,12 +426,17 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     from app.core.paths import RECEIPTS_DIR
     
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        query = "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?"
+        params: list = [tenantId, billNo]
+        if landlord_id is not None:
+            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)"
+            params.append(landlord_id)
+        row = conn.execute(query, tuple(params)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         old_receipt = dict(row)
 
-    tenant = get_tenant(tenantId)
+    tenant = get_tenant(tenantId, landlord_id)
     if not tenant:
         raise ValueError("Tenant not found")
     tenantName = tenant.name
@@ -498,9 +519,12 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         conn.commit()
 
     return updated_dict
-def archive_bill(tenantId, billNo):
+def archive_bill(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
     from datetime import datetime
+    from app.services.tenant_service import get_tenant
+    if landlord_id is not None and not get_tenant(tenantId, landlord_id):
+        raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute(
             "SELECT status FROM receipts WHERE tenantId = ? AND billNo = ?",
@@ -514,10 +538,13 @@ def archive_bill(tenantId, billNo):
             WHERE tenantId = ? AND billNo = ? AND status != 'ARCHIVED'
         """, (datetime.now().strftime("%Y-%m-%d"), tenantId, billNo))
         conn.commit()
-    return get_receipt(tenantId, billNo)
+    return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
-def restore_bill(tenantId, billNo):
+def restore_bill(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
+    from app.services.tenant_service import get_tenant
+    if landlord_id is not None and not get_tenant(tenantId, landlord_id):
+        raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute(
             "SELECT status, tenantId FROM receipts WHERE tenantId = ? AND billNo = ?",
@@ -531,11 +558,13 @@ def restore_bill(tenantId, billNo):
             WHERE tenantId = ? AND billNo = ? AND status != 'ACTIVE'
         """, (tenantId, billNo))
         conn.commit()
-    return get_receipt(tenantId, billNo)
+    return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
-def delete_bill(tenantId, billNo):
+def delete_bill(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
     from app.services.tenant_service import get_tenant
+    if landlord_id is not None and not get_tenant(tenantId, landlord_id):
+        raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute("SELECT status, tenantId FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
         if not row:
@@ -554,11 +583,11 @@ def delete_bill(tenantId, billNo):
         conn.commit()
 
 
-def get_dashboard_stats():
+def get_dashboard_stats(landlord_id=None):
     
     billing_conf = config.get("billing", {})
-    receipts = get_all_receipts(include_archived_tenants=False)
-    tenants = load_tenants(include_archived=False)
+    receipts = get_all_receipts(include_archived_tenants=False, landlord_id=landlord_id)
+    tenants = load_tenants(include_archived=False, landlord_id=landlord_id)
     
     next_bill = str(billing_conf.get("next_bill_number", 1)).zfill(3)
     

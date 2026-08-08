@@ -28,7 +28,9 @@ const menuItems = [
 
 export default function Sidebar() {
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, username, fullName } = useAuth();
+  const displayName = fullName || username || "Landlord User";
+  const avatarInitial = (displayName.trim()[0] || "A").toUpperCase();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isActive = (path: string) => {
@@ -122,9 +124,9 @@ export default function Sidebar() {
           <div className="border-t pt-3">
             <div className="flex items-center gap-2 mb-2 px-2">
               <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                A
+                {avatarInitial}
               </div>
-              <span className="text-sm text-muted-foreground font-medium">Landlord User</span>
+              <span className="text-sm text-muted-foreground font-medium">{displayName}</span>
             </div>
             <button
               onClick={logout}

@@ -26,7 +26,8 @@ async def _broadcast(channel: str, event: dict):
 
 from app.services.tenant_service import (
     load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
+    get_occupants, save_occupant, delete_occupant,
+    get_tenant, tenant_belongs_to_landlord
 )
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
@@ -34,41 +35,39 @@ from app.services.billing_service import (
     get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
 router = APIRouter()
 
 
 @router.get(Routes.LANDLORDAPITENANTSLIST, name=Names.APIGETTENANTS)
-async def api_get_tenants(landlordUuid: str):
-    return load_tenants(include_archived=False)
+async def api_get_tenants(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
+    return load_tenants(include_archived=False, landlord_id=principal.landlord_id)
 
 @router.get(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIGETTENANT)
-async def api_get_tenant(landlordUuid: str, tenantId: int):
-    tenants = load_tenants()
-    tenant = next((t for t in tenants if t.id == tenantId), None)
+async def api_get_tenant(landlordUuid: str, tenantId: int, principal=Depends(get_current_landlord_api_strict)):
+    tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
 
 @router.get(Routes.LANDLORDAPITENANTSRECEIPTS, name=Names.APIGETTENANTRECEIPTS)
-async def api_get_tenant_receipts(landlordUuid: str, tenantId: int):
+async def api_get_tenant_receipts(landlordUuid: str, tenantId: int, principal=Depends(get_current_landlord_api_strict)):
     # Use include_archived=True so admin can view receipts of archived tenants
-    tenants = load_tenants(include_archived=True)
-    tenant = next((t for t in tenants if t.id == tenantId), None)
+    tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     # ID-based lookup only — name is display-only and must never be used for ownership
-    receipts = get_all_receipts(include_archived_tenants=True)
+    receipts = get_all_receipts(include_archived_tenants=True, landlord_id=principal.landlord_id)
     tenant_receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) == tenantId]
     tenant_receipts.reverse()
     return tenant_receipts
 
 @router.post(Routes.LANDLORDAPITENANTSLIST, name=Names.APIADDTENANT)
-async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, background_tasks: BackgroundTasks):
+async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.authentication.common.utils import hash_pin, validate_tenantPin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
-    from app.authentication.landlord.middleware import extract_landlord_id
     from app.database.landlord_repository import create_landlord_audit_log
     from app.core.db import get_conn
     from datetime import datetime
@@ -84,13 +83,7 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     
     t.tenantPin = hashed_pin
     
-    from app.database.landlord_repository import get_landlord_by_uuid
-    landlord_id = extract_landlord_id(request)
-    if not landlord_id:
-        # Fall back to the landlord identified by the URL when the JWT cookie
-        # is unavailable, so the tenant is always owned by a landlord.
-        landlord_row = get_landlord_by_uuid(landlordUuid)
-        landlord_id = landlord_row["id"] if landlord_row else None
+    landlord_id = principal.landlord_id
     t.landlord_id = landlord_id
 
     tenantId = add_tenant(t)
@@ -118,15 +111,13 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     return {"status": "success", "tenant": response_tenant}
 
 @router.put(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIUPDATETENANT)
-async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, request: Request, background_tasks: BackgroundTasks):
-    from app.authentication.landlord.middleware import extract_landlord_id
+async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.database.landlord_repository import create_landlord_audit_log
 
     t.id = tenantId
     background_tasks.add_task(create_full_backup, tag="update_tenant")
     
-    existing = load_tenants()
-    existing_t = next((x for x in existing if x.id == tenantId), None)
+    existing_t = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not existing_t:
         raise HTTPException(status_code=404, detail="Tenant not found")
         
@@ -139,7 +130,7 @@ async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, request
     response_tenant = t.dict()
     response_tenant.pop("tenantPin", None)
 
-    landlord_id = extract_landlord_id(request)
+    landlord_id = principal.landlord_id
     if landlord_id:
         create_landlord_audit_log(
             landlord_id, "tenant_updated",
@@ -158,7 +149,7 @@ class ChangePinRequest(BaseModel):
     logout_all: bool = True
 
 @router.post(Routes.LANDLORDAPITENANTSCHANGEPIN, name=Names.CHANGETENANTPIN)
-async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
+async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.authentication.common.utils import hash_pin, validate_tenantPin, verify_pin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
     from app.authentication.tenant.sessions import revoke_all_tenant_sessions
@@ -167,6 +158,10 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
     from datetime import datetime
     
     validate_tenantPin(payload.pin)
+    
+    existing_t = get_tenant(tenantId, landlord_id=principal.landlord_id)
+    if not existing_t:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     
     # Prevent immediate reuse (last 5 PINs)
     with get_conn() as conn:
@@ -178,11 +173,6 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
     new_hash = hash_pin(payload.pin)
     encrypted_pin = encrypt_admin_view_pin(payload.pin)
     
-    existing = load_tenants()
-    existing_t = next((x for x in existing if x.id == tenantId), None)
-    if not existing_t:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-        
     existing_t.tenantPin = new_hash
     update_tenant(existing_t)
     
@@ -206,10 +196,14 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
 async def admin_reveal_tenantPin(
     landlordUuid: str,
     tenantId: int,  # CHANGED: tenantId → tenantId
+    principal=Depends(get_current_landlord_api_strict),
 ):
     from app.authentication.common.pin_vault import decrypt_admin_view_pin
     from app.core.db import get_conn
-    
+
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
     with get_conn() as conn:
         row = conn.execute(
             "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = ?",
@@ -236,13 +230,12 @@ class PortalAuthRequest(BaseModel):
 
 
 @router.post(Routes.LANDLORDAPITENANTSPORTALAUTH, name=Names.LANDLORDTENANTPORTALAUTH)
-async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: PortalAuthRequest, request: Request, background_tasks: BackgroundTasks):
+async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: PortalAuthRequest, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     """Assign or clear a tenant's portal username/password (username + password flow)."""
     from app.authentication.common.utils import hash_pin
     from app.authentication.tenant.sessions import revoke_all_tenant_sessions
     from app.database.auth_repository import log_audit
     from app.database.landlord_repository import create_landlord_audit_log
-    from app.authentication.landlord.middleware import extract_landlord_id
     from app.core.db import get_conn
     from datetime import datetime
 
@@ -250,7 +243,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
 
     with get_conn() as conn:
         existing = conn.execute(
-            "SELECT id, name FROM tenants WHERE id = ?", (tenantId,)
+            "SELECT id, name FROM tenants WHERE id = ? AND landlord_id = ?", (tenantId, principal.landlord_id)
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Tenant not found")
@@ -321,7 +314,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
     ip = request.client.host if request.client else "Unknown IP"
     log_audit(tenantId, "Portal Auth Configured", ip)
 
-    landlord_id = extract_landlord_id(request)
+    landlord_id = principal.landlord_id
     if landlord_id:
         create_landlord_audit_log(
             landlord_id, "tenant_portal_auth_configured",
@@ -340,13 +333,12 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
 
 
 @router.post(Routes.LANDLORDAPITENANTSQRKEY, name=Names.LANDLORDTENANTQRKEY)
-async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request: Request, background_tasks: BackgroundTasks):
+async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     """Regenerate a tenant's QR key (rotates the QR link; revokes all sessions)."""
     import uuid as _uuid
     from app.authentication.tenant.sessions import revoke_all_tenant_sessions
     from app.database.auth_repository import log_audit
     from app.database.landlord_repository import create_landlord_audit_log
-    from app.authentication.landlord.middleware import extract_landlord_id
     from app.core.db import get_conn
 
     background_tasks.add_task(create_full_backup, tag="regenerate_qr_key")
@@ -354,7 +346,7 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
     new_key = _uuid.uuid4().hex + _uuid.uuid4().hex
     with get_conn() as conn:
         existing = conn.execute(
-            "SELECT id, name FROM tenants WHERE id = ?", (tenantId,)
+            "SELECT id, name FROM tenants WHERE id = ? AND landlord_id = ?", (tenantId, principal.landlord_id)
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Tenant not found")
@@ -365,7 +357,7 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
     ip = request.client.host if request.client else "Unknown IP"
     log_audit(tenantId, "QR Key Regenerated", ip)
 
-    landlord_id = extract_landlord_id(request)
+    landlord_id = principal.landlord_id
     if landlord_id:
         create_landlord_audit_log(
             landlord_id, "tenant_qr_key_regenerated",
@@ -384,8 +376,8 @@ async def api_delete_tenant(
     request: Request,
     background_tasks: BackgroundTasks,
     action: str = "archive",
+    principal=Depends(get_current_landlord_api_strict),
 ):
-    from app.authentication.landlord.middleware import extract_landlord_id
     from app.database.landlord_repository import create_landlord_audit_log
 
     action = (action or "archive").strip().lower()
@@ -397,8 +389,7 @@ async def api_delete_tenant(
             permanently_delete_tenant_data,
         )
 
-        tenants = load_tenants(include_archived=True)
-        tenant = next((t for t in tenants if t.id == tenantId), None)
+        tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found.")
 
@@ -413,6 +404,7 @@ async def api_delete_tenant(
             snapshot = create_tenant_recovery_snapshot(
                 tenant_id=tenantId,
                 admin_id=None,  # admin principal not injected here; safe to omit
+                landlord_id=principal.landlord_id,
             )
             # Step 2: Permanently delete all live data
             permanently_delete_tenant_data(tenantId)
@@ -438,16 +430,15 @@ async def api_delete_tenant(
         raise HTTPException(status_code=400, detail="Invalid tenant action.")
 
     # Must include archived tenants so an already-archived tenant is not missed
-    tenants = load_tenants(include_archived=True)
-    tenant = next((t for t in tenants if t.id == tenantId), None)
+    tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found.")
 
     try:
         background_tasks.add_task(create_full_backup, tag=f"{action}_tenant")
-        result = delete_tenant(tenantId, action)
+        result = delete_tenant(tenantId, action, landlord_id=principal.landlord_id)
 
-        landlord_id = extract_landlord_id(request)
+        landlord_id = principal.landlord_id
         if landlord_id:
             create_landlord_audit_log(
                 landlord_id, f"tenant_{action}",
@@ -468,19 +459,19 @@ async def api_delete_tenant(
 # ── Tenant Recovery Snapshot Endpoints ───────────────────────────────────────
 
 @router.get(Routes.LANDLORDAPITENANTSNAPSHOTS, name=Names.APILISTRECOVERYSNAPSHOTS)
-async def api_list_recovery_snapshots(landlordUuid: str):
+async def api_list_recovery_snapshots(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
     """List all tenant recovery snapshots (runs expiry purge first)."""
     from app.services.tenant_recovery_service import get_tenant_recovery_snapshots
-    snapshots = get_tenant_recovery_snapshots()
+    snapshots = get_tenant_recovery_snapshots(landlord_id=principal.landlord_id)
     return {"status": "success", "snapshots": snapshots}
 
 
 @router.get(Routes.LANDLORDAPITENANTSNAPSHOT_PREVIEW, name=Names.APIRECOVERYSNAPSHOT_PREVIEW)
-async def api_recovery_snapshot_preview(landlordUuid: str, snapshotId: str):
+async def api_recovery_snapshot_preview(landlordUuid: str, snapshotId: str, principal=Depends(get_current_landlord_api_strict)):
     """Return a conflict preview for restoring a tenant recovery snapshot."""
     from app.services.tenant_recovery_service import get_snapshot_restore_preview
     try:
-        preview = get_snapshot_restore_preview(snapshotId)
+        preview = get_snapshot_restore_preview(snapshotId, landlord_id=principal.landlord_id)
         return {"status": "success", **preview}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -493,11 +484,11 @@ class RestoreSnapshotRequest(BaseModel):
 
 
 @router.post(Routes.LANDLORDAPITENANTSNAPSHOT_RESTORE, name=Names.APIRECOVERYSNAPSHOT_RESTORE)
-async def api_restore_recovery_snapshot(landlordUuid: str, snapshotId: str, payload: RestoreSnapshotRequest = RestoreSnapshotRequest()):
+async def api_restore_recovery_snapshot(landlordUuid: str, snapshotId: str, payload: RestoreSnapshotRequest = RestoreSnapshotRequest(), principal=Depends(get_current_landlord_api_strict)):
     """Restore a tenant from a recovery snapshot."""
     from app.services.tenant_recovery_service import restore_tenant_from_snapshot
     try:
-        result = restore_tenant_from_snapshot(snapshotId, force_new_id=payload.force_new_id)
+        result = restore_tenant_from_snapshot(snapshotId, force_new_id=payload.force_new_id, landlord_id=principal.landlord_id)
         return {"status": "success", **result}
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -510,17 +501,17 @@ async def api_restore_tenant(
     landlordUuid: str,
     tenantId: int,
     background_tasks: BackgroundTasks,
+    principal=Depends(get_current_landlord_api_strict),
 ):
     # Archived tenants must be visible for the existence check — this is why restore
     # cannot share the normal pre-check that excludes archived tenants.
-    tenants = load_tenants(include_archived=True)
-    tenant = next((t for t in tenants if t.id == tenantId), None)
+    tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found.")
 
     try:
         background_tasks.add_task(create_full_backup, tag="restore_tenant")
-        result = delete_tenant(tenantId, "restore")
+        result = delete_tenant(tenantId, "restore", landlord_id=principal.landlord_id)
         return {"status": "success", "action": "restore", "data": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -533,7 +524,9 @@ from app.core.paths import KYC_DIR
 import mimetypes
 
 @router.get(Routes.LANDLORDAPIOCCUPANTSLIST, name=Names.APIGETOCCUPANTS)
-async def admin_get_occupants(landlordUuid: str, tenantId: int):
+async def admin_get_occupants(landlordUuid: str, tenantId: int, principal=Depends(get_current_landlord_api_strict)):
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
     occupants = get_occupants(tenantId)
     return {"occupants": occupants}
 
@@ -550,11 +543,15 @@ async def admin_post_occupants(
     aadhaarcombined: Optional[UploadFile] = File(None),
     empfront: Optional[UploadFile] = File(None),
     empback: Optional[UploadFile] = File(None),
+    principal=Depends(get_current_landlord_api_strict),
 ):
     import uuid
     from app.core.paths import KYC_DIR
     import os
     import shutil
+
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
 
     # Validate Aadhaar: need combined OR both front+back
     has_combined = aadhaarcombined and aadhaarcombined.filename
@@ -616,13 +613,17 @@ async def admin_post_occupants(
     return {"status": "success", "occupantUuid": occ_uuid}
 
 @router.put(Routes.LANDLORDAPIOCCUPANTSMARKINACTIVE, name=Names.APIMARKOCCUPANTINACTIVE)
-async def admin_tenant_kyc_mark_inactive(landlordUuid: str, tenantId: int, occupantUuid: str):
+async def admin_tenant_kyc_mark_inactive(landlordUuid: str, tenantId: int, occupantUuid: str, principal=Depends(get_current_landlord_api_strict)):
     from app.services.tenant_service import update_occupant_status
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
     update_occupant_status(occupantUuid, "Inactive")
     return {"status": "success"}
 
 @router.delete(Routes.LANDLORDAPIOCCUPANTSDELETE, name=Names.APIDELETEOCCUPANT)
-async def admin_tenant_kyc_delete(landlordUuid: str, tenantId: int, occupantUuid: str):
+async def admin_tenant_kyc_delete(landlordUuid: str, tenantId: int, occupantUuid: str, principal=Depends(get_current_landlord_api_strict)):
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
     tenantId = tenantId
     occupantUuid = occupantUuid
     occupants = get_occupants(tenantId)
@@ -644,10 +645,15 @@ async def admin_tenant_kyc_delete(landlordUuid: str, tenantId: int, occupantUuid
     return {"status": "success"}
 
 @router.get(Routes.LANDLORDAPIOCCUPANTSGETFILE, name=Names.APIGETOCCUPANTFILE)
-async def admin_get_kyc_file(landlordUuid: str, tenantId: int, filename: str):
+async def admin_get_kyc_file(landlordUuid: str, tenantId: int, filename: str, principal=Depends(get_current_landlord_api_strict)):
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
+    if not safe_filename.startswith(f"{tenantId}_"):
+        raise HTTPException(status_code=404, detail="File not found")
 
     file_path = os.path.join(KYC_DIR, safe_filename)
     if not os.path.exists(file_path):

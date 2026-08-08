@@ -8,14 +8,17 @@ import uuid
 from app.models.tenant import Tenant
 from app.core.db import get_conn
 
-def load_tenants(include_archived: bool = False) -> List[Tenant]:
+def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = None) -> List[Tenant]:
+    clauses = []
+    params: list = []
+    if not include_archived:
+        clauses.append("status != 'Archived'")
+    if landlord_id is not None:
+        clauses.append("landlord_id = ?")
+        params.append(landlord_id)
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with get_conn() as conn:
-        if include_archived:
-            rows = conn.execute("SELECT * FROM tenants ORDER BY id").fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM tenants WHERE status != 'Archived' ORDER BY id"
-            ).fetchall()
+        rows = conn.execute(f"SELECT * FROM tenants{where} ORDER BY id", params).fetchall()
     tenants = []
     for row in rows:
         t = Tenant(
@@ -47,13 +50,18 @@ def load_tenants(include_archived: bool = False) -> List[Tenant]:
         tenants.append(t)
     return tenants
 
-def get_tenant(tenantId: int) -> Optional[Tenant]:
-    """Get a single tenant by ID. Returns None if not found."""
+def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Tenant]:
+    """Get a single tenant by ID. Optionally scoped to a landlord. Returns None if not found."""
     if tenantId is None:
         return None
+    clauses = ["id = ?"]
+    params: list = [tenantId]
+    if landlord_id is not None:
+        clauses.append("landlord_id = ?")
+        params.append(landlord_id)
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT * FROM tenants WHERE id = ?", (tenantId,)
+            f"SELECT * FROM tenants WHERE {' AND '.join(clauses)}", tuple(params)
         ).fetchone()
     if not row:
         return None
@@ -81,6 +89,18 @@ def get_tenant(tenantId: int) -> Optional[Tenant]:
         statusChangedAt=row["status_changed_at"] or None,
         landlord_id=row["landlord_id"],
     )
+
+def tenant_belongs_to_landlord(tenantId: int, landlord_id: Optional[int]) -> bool:
+    """True if the tenant exists and is owned by the given landlord."""
+    if tenantId is None or landlord_id is None:
+        return False
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM tenants WHERE id = ? AND landlord_id = ?",
+            (tenantId, landlord_id),
+        ).fetchone()
+    return row is not None
+
 
 def get_tenant_by_name(name: str) -> Optional[Tenant]:
     if not name:
@@ -266,7 +286,7 @@ def _receipt_row_to_dict(row) -> dict:
     }
 
 
-def delete_tenant(tenantId: int, action: str = "archive"):
+def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[int] = None):
     action = (action or "archive").strip().lower()
 
     with get_conn() as conn:
@@ -276,6 +296,9 @@ def delete_tenant(tenantId: int, action: str = "archive"):
         ).fetchone()
 
         if not tenant_row:
+            raise ValueError("Tenant not found.")
+
+        if landlord_id is not None and int(tenant_row["landlord_id"] or 0) != int(landlord_id):
             raise ValueError("Tenant not found.")
 
         if action in {"hard", "delete"}:
