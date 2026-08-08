@@ -58,15 +58,6 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (profile?.has_totp) {
-      fetch(`${API_BASE}/auth/totp-qr`, { credentials: "include" })
-        .then((r) => r.json())
-        .then((data) => { if (data.qr_code_base64) { setTotpQr(data.qr_code_base64); setTotpSecret(data.secret ?? null); } })
-        .catch(() => {});
-    }
-  }, [profile?.has_totp]);
-
-  useEffect(() => {
     fetch(`${API_BASE}/settings/audit`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => { if (d.retention_days) setRetentionDays(d.retention_days); })
@@ -135,6 +126,11 @@ export default function SettingsPage() {
 
   async function handleShowTotpQr() {
     setTotpErr(null);
+    if (totpQr) {
+      setTotpQr(null);
+      setTotpSecret(null);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/auth/totp-qr`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load QR");
@@ -335,7 +331,7 @@ export default function SettingsPage() {
                 background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
               }}
             >
-              Show TOTP QR
+              {totpQr ? "Hide TOTP QR" : "Show TOTP QR"}
             </button>
           )}
           <button

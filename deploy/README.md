@@ -61,6 +61,52 @@ openssl rand -hex 32        # JWT secrets
 openssl rand -base64 32     # tenantPin_VAULT_KEY
 ```
 
+## Google OAuth parity (audit)
+
+Google sign-in uses the **same Google OAuth client in every environment** — dev
+and release are intentionally identical so an audit of the Google config can be
+run against either. Verified `2026-08-08` by byte + sha256 comparison.
+
+| Variable                | `.env` | `.env.development` | `.env.release` |
+|-------------------------|--------|--------------------|----------------|
+| `GOOGLE_CLIENT_ID`      | same   | same               | same           |
+| `GOOGLE_CLIENT_SECRET`  | same   | same               | same           |
+| `VITE_GOOGLE_CLIENT_ID` | same   | same               | same           |
+
+Shared client ID:
+`682816703845-ek2up1l56iah950pohj1ol3h7ijlidmr.apps.googleusercontent.com`
+
+Notes for the audit:
+
+- **No `redirect_uri` / `auth_uri` in the repo.** The app uses Google Identity
+  Services (GSI) ID-token flow: the frontend
+  (`frontend/landlord-app/src/main.tsx` → `GoogleOAuthProvider`) obtains a
+  credential and `backend/app/app/services/google_oauth_service.py` verifies it
+  with `id_token.verify_oauth2_token(...)`. No redirect URI is used and the
+  client secret is not read by the backend.
+- **Redirect URIs / authorized JavaScript origins live in the Google Cloud
+  Console** for the OAuth client above, not in this repo. For the dev flow to
+  work end-to-end, the dev origin (ngrok URL) must be registered there.
+- **`VITE_GOOGLE_CLIENT_ID` is not a secret** and is committed in
+  `frontend/landlord-app/.env.example`; `GOOGLE_CLIENT_SECRET` is gitignored
+  and must never be committed.
+
+Reproduce the check (values are hashed only, never printed):
+
+```bash
+for k in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET VITE_GOOGLE_CLIENT_ID; do
+  for f in .env .env.development .env.release; do
+    printf "%-20s %-16s sha: %s\n" "$k" "$f" \
+      "$(grep -E "^$k=" "$f" | head -1 | cut -d= -f2- | sha256sum | cut -c1-12)"
+  done
+done
+```
+
+All three files must show the same sha per variable. The only Google-adjacent
+dev/release delta is non-OAuth: `VITE_API_BASE_URL` in `.env.development` is a
+placeholder (`https://CHANGE_ME.ngrok-free.app`) vs `https://api.vijaykrsha.online`
+in release — do not mistake this for a Google mismatch.
+
 ## One script for both environments — `deploy.py`
 
 `deploy.py` is the single entry point for dev and prod deploys, on your machine
