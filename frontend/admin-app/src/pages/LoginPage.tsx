@@ -42,11 +42,13 @@ export default function LoginPage() {
     try {
       const result = await login(username, password, rememberMe);
       if (result.requires_totp) {
-        setMethods(result.methods ?? ["totp"]);
-        if (!(result.methods ?? []).includes("telegram_otp")) {
-          setMethod("totp");
-        }
+        const m = result.methods ?? ["totp"];
+        setMethods(m);
+        setMethod(m.includes("totp") ? "totp" : "telegram");
         setTotpRequired(true);
+        if (m.length === 1 && m[0] === "telegram_otp") {
+          handleSendOtp();
+        }
       } else {
         navigate("/dashboard", { replace: true });
       }

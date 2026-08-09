@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import Layout from "../components/Layout";
 import { API_BASE } from "../lib/runtime";
 
@@ -157,7 +158,7 @@ export default function AuditLogsPage() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch {
-      alert("Export failed. Please try again.");
+      toast.error("Export failed. Please try again.");
     } finally {
       setExporting(false);
     }

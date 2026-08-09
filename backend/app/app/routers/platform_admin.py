@@ -190,14 +190,20 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
         conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
         conn.commit()
 
-    # TOTP gate: if TOTP is configured, require it before issuing tokens
-    if row["totp_secret"]:
+    # 2FA gate: require a second factor whenever TOTP is configured OR a
+    # Telegram OTP can be delivered (linked chat + configured bot). Telegram
+    # OTP is an obligation when available; TOTP remains a user-chosen
+    # alternative. Password-only login only for accounts with neither factor.
+    telegram_available = bool(get_admin_chat_id(row["id"])) and bot_configured()
+    if row["totp_secret"] or telegram_available:
         create_platform_admin_audit_log(
             row["id"], "login_password_ok",
             admin_username=row["username"], ip_address=ip, user_agent=ua,
         )
-        methods = ["totp"]
-        if get_admin_chat_id(row["id"]) and bot_configured():
+        methods = []
+        if row["totp_secret"]:
+            methods.append("totp")
+        if telegram_available:
             methods.append("telegram_otp")
         return {
             "status": "totp_required",
