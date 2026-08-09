@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { GoogleLogin } from '@react-oauth/google';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,6 +11,9 @@ import { toast } from 'sonner';
 import AuthLayout from '@/components/layout/AuthLayout';
 import { ROUTES } from '@/lib/routes';
 import { useAuth } from '@/contexts/AuthContext';
+import { Checkbox } from '@/components/ui/checkbox';
+import { PRIVACY_POLICY_VERSION } from '@/lib/privacy';
+import PrivacyPolicyModal from '@/components/privacy/PrivacyPolicyModal';
 
 type FieldStatus = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
@@ -35,12 +38,14 @@ export default function LandlordSignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
   const [usernameStatus, setUsernameStatus] = useState<FieldStatus>('idle');
   const [emailStatus, setEmailStatus] = useState<FieldStatus>('idle');
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
 
   const usernameTimer = useRef<ReturnType<typeof setTimeout>>();
   const emailTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -121,10 +126,21 @@ export default function LandlordSignupPage() {
     toast.success(`Username "${s}" is available`);
   };
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     setError('');
+    if (!privacyAccepted) {
+      setError('Please accept the PROPAURA Privacy Policy before continuing with Google.');
+      toast.error('Privacy Policy acceptance required', {
+        description: 'Tick the acceptance box above to enable Google Sign-Up.',
+      });
+      return;
+    }
     setGoogleLoading(true);
     try {
+      if (!credentialResponse.credential) {
+        setError('Google Sign-Up failed');
+        return;
+      }
       const result = await googleLogin(credentialResponse.credential, false);
       if (result.status === "failed") {
         setError(result.message || "Google Sign-Up failed");
@@ -161,13 +177,24 @@ export default function LandlordSignupPage() {
       setError('Password must be at least 8 characters.');
       return;
     }
+    if (!privacyAccepted) {
+      setError('You must accept the PROPAURA Privacy Policy to create an account.');
+      toast.error('Privacy Policy acceptance required', {
+        description: 'Please accept the PROPAURA Privacy Policy to continue.',
+      });
+      return;
+    }
 
     setLoading(true);
     try {
       const response = await fetch(ROUTES.LANDLORDAPIAUTHSIGNUP, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(signupData),
+        body: JSON.stringify({
+          ...signupData,
+          privacyAccepted,
+          privacyVersion: PRIVACY_POLICY_VERSION,
+        }),
       });
       const data = await response.json();
 
@@ -392,6 +419,28 @@ export default function LandlordSignupPage() {
               )}
             </div>
 
+            <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+              <Checkbox
+                checked={privacyAccepted}
+                onCheckedChange={(v) => setPrivacyAccepted(v === true)}
+                className="mt-0.5"
+                required
+              />
+              <span className="text-sm leading-relaxed">
+                I have read and agree to the{' '}
+                <button
+                  type="button"
+                  onClick={() => setPrivacyModalOpen(true)}
+                  className="text-primary underline underline-offset-2"
+                >
+                  PROPAURA Privacy Policy
+                </button>
+                . I consent to the processing of my personal data for landlord account creation and
+                rental-property management, and I accept the responsibility and liability provisions in the
+                Policy. I understand that my account cannot be created unless I accept this Policy.
+              </span>
+            </label>
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
@@ -407,9 +456,13 @@ export default function LandlordSignupPage() {
                 onError={() => setError("Google Sign-Up failed")}
                 size="large"
                 width={384}
-                disabled={googleLoading}
+                disabled={googleLoading || !privacyAccepted}
               />
             </div>
+
+            <p className="text-xs text-center text-muted-foreground">
+              By continuing with Google, you agree to the PROPAURA Privacy Policy.
+            </p>
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
@@ -420,6 +473,15 @@ export default function LandlordSignupPage() {
               ) : 'Sign Up'}
             </Button>
           </form>
+
+          <PrivacyPolicyModal
+            open={privacyModalOpen}
+            onOpenChange={setPrivacyModalOpen}
+            onAgree={() => {
+              setPrivacyAccepted(true);
+              setPrivacyModalOpen(false);
+            }}
+          />
         </CardContent>
         <CardFooter className="flex justify-center border-t p-4 mt-2">
           <p className="text-sm text-muted-foreground">

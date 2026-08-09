@@ -323,7 +323,12 @@ def init_db():
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             totp_secret TEXT,
-            totp_enabled INTEGER NOT NULL DEFAULT 0
+            totp_enabled INTEGER NOT NULL DEFAULT 0,
+            privacy_consented INTEGER NOT NULL DEFAULT 1,
+            privacy_version TEXT,
+            privacy_accepted_at TEXT,
+            privacy_accepted_ip TEXT,
+            privacy_accepted_user_agent TEXT
         );
 
         -- 15. LANDLORD SESSIONS
@@ -587,6 +592,44 @@ def init_db():
         if not _column_exists(conn, "landlord_accounts", "totp_enabled"):
             conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0")
             conn.commit()
+
+        # ─── Landlord privacy-policy consent columns ────────────────────────
+        # Existing accounts are grandfathered as consenting (default 1) so the
+        # upgrade does not lock out current landlords. New signups set this
+        # explicitly from the accepted Privacy Policy; Google-created accounts
+        # start at 0 until the consent step completes.
+        if not _column_exists(conn, "landlord_accounts", "privacy_consented"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_consented INTEGER NOT NULL DEFAULT 1")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "privacy_version"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_version TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "privacy_accepted_at"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_accepted_at TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "privacy_accepted_ip"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_accepted_ip TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "privacy_accepted_user_agent"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_accepted_user_agent TEXT")
+            conn.commit()
+
+        # ─── Landlord privacy-consent audit trail ──────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS landlord_privacy_consents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                landlord_id INTEGER NOT NULL,
+                privacy_version TEXT NOT NULL,
+                accepted INTEGER NOT NULL DEFAULT 1,
+                accepted_at TEXT NOT NULL,
+                accepted_ip TEXT,
+                accepted_user_agent TEXT,
+                FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_landlord_privacy_consents_landlord "
+                     "ON landlord_privacy_consents(landlord_id)")
+        conn.commit()
 
         # ─── Landlord password admin store (for platform admin reveal) ──
         conn.execute("""

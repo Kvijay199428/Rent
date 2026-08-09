@@ -51,6 +51,10 @@ class LandlordRoutes:
     LANDLORDAPIPASSWORDFORGOTVERIFY = "/landlord/api/forgot-password/verify"
     LANDLORDAPIPASSWORDFORGOTRESET = "/landlord/api/forgot-password/reset"
 
+    # Landlord API: Privacy policy (public consent metadata + consent recording)
+    LANDLORDAPIPRIVACYPOLICY = "/landlord/api/privacy-policy"
+    LANDLORDAPIAUTHPRIVACYCONSENT = "/landlord/api/auth/privacy-consent"
+
     # Landlord API: Dashboard
     LANDLORDAPIDASHBOARDSTATS = "/landlord/{landlordUuid}/api/dashboard"
 
@@ -146,6 +150,8 @@ class LandlordNames:
     LANDLORDLOGOUT = "landlordlogout"
     LANDLORDME = "landlordme"
     LANDLORDCHANGEPASSWORD = "landlordchangepassword"
+    LANDLORDPRIVACYPOLICY = "landlordprivacypolicy"
+    LANDLORDPRIVACYCONSENT = "landlordprivacyconsent"
 
     # Pages
     HOME = "home_page"

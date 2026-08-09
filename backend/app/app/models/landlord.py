@@ -15,6 +15,8 @@ class LandlordSignupRequest(BaseModel):
     username: str = Field(min_length=3, max_length=40)
     password: str = Field(min_length=8, max_length=128)
     confirmPassword: str = Field(min_length=8, max_length=128)
+    privacyAccepted: bool = False
+    privacyVersion: str = Field(default="", max_length=32)
 
 
 class LandlordLoginRequest(BaseModel):
@@ -33,6 +35,11 @@ class LandlordLoginWithTotpRequest(BaseModel):
 class LandlordGoogleRequest(BaseModel):
     credential: str
     rememberMe: bool = False
+
+
+class LandlordPrivacyConsentRequest(BaseModel):
+    accepted: bool = True
+    privacyVersion: str = Field(default="", max_length=32)
 
 
 class UsernameCheckResponse(BaseModel):

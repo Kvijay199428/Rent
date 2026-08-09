@@ -58,6 +58,11 @@ def create_landlord(
     username: str,
     password_hash: str,
     landlord_uuid: str,
+    privacy_consented: int = 1,
+    privacy_version: str | None = None,
+    privacy_accepted_at: str | None = None,
+    privacy_accepted_ip: str | None = None,
+    privacy_accepted_user_agent: str | None = None,
 ):
     """
     Insert a new landlord account and return the created row.
@@ -70,16 +75,58 @@ def create_landlord(
             """
             INSERT INTO landlord_accounts (
                 landlord_uuid, full_name, email, phone, username,
-                password_hash, status, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?)
+                password_hash, status, created_at, updated_at,
+                privacy_consented, privacy_version, privacy_accepted_at,
+                privacy_accepted_ip, privacy_accepted_user_agent
+            ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?,
+                      ?, ?, ?, ?, ?)
             """,
-            (landlord_uuid, full_name, email, phone, username, password_hash, now, now),
+            (
+                landlord_uuid, full_name, email, phone, username, password_hash,
+                now, now,
+                privacy_consented, privacy_version, privacy_accepted_at,
+                privacy_accepted_ip, privacy_accepted_user_agent,
+            ),
         )
         conn.commit()
         return conn.execute(
             "SELECT * FROM landlord_accounts WHERE id = ?",
             (cur.lastrowid,),
         ).fetchone()
+
+
+def record_privacy_consent(
+    landlord_id: int,
+    privacy_version: str,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+):
+    """
+    Mark a landlord as having accepted the current Privacy Policy.
+
+    Updates landlord_accounts consent fields and appends a row to
+    landlord_privacy_consents so acceptance is auditable.
+    """
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE landlord_accounts
+               SET privacy_consented = 1,
+                   privacy_version = ?,
+                   privacy_accepted_at = ?,
+                   privacy_accepted_ip = ?,
+                   privacy_accepted_user_agent = ?,
+                   updated_at = ?
+               WHERE id = ?""",
+            (privacy_version, now, ip_address, user_agent, now, landlord_id),
+        )
+        conn.execute(
+            """INSERT INTO landlord_privacy_consents
+               (landlord_id, privacy_version, accepted, accepted_at, accepted_ip, accepted_user_agent)
+               VALUES (?, ?, 1, ?, ?, ?)""",
+            (landlord_id, privacy_version, now, ip_address, user_agent),
+        )
+        conn.commit()
 
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -9,12 +9,14 @@ from app.authentication.common.utils import hash_pin
 from app.authentication.landlord.cookies import set_landlord_auth_cookies
 from app.authentication.landlord.jwt import create_access_token
 from app.authentication.landlord.sessions import create_landlord_session
+from app.core.db import get_conn
+from app.core.privacy import PRIVACY_POLICY_VERSION
 from app.database.landlord_repository import (
     create_landlord,
     create_landlord_audit_log,
     get_landlord_by_email,
+    record_privacy_consent,
 )
-from app.core.db import get_conn
 
 GOOGLE_CLIENT_ID: str | None = None
 
@@ -81,6 +83,7 @@ def google_login(credential: str, remember_me: bool, request, response):
             username=username,
             password_hash=placeholder_hash,
             landlord_uuid=landlord_uuid,
+            privacy_consented=1,
         )
 
         with get_conn() as conn:
@@ -98,6 +101,30 @@ def google_login(credential: str, remember_me: bool, request, response):
             "signup_via_google",
             ip_address=request.client.host if request.client else None,
             meta_json=json.dumps({"google_sub": google_sub, "email": email}),
+        )
+
+    # ── Privacy Policy acceptance ──
+    # Accepting via the Google button is an explicit affirmative action in the
+    # signup/sign-in flow. Record consent for brand-new accounts and heal any
+    # existing account that is still in a consent-pending state.
+    consent_ip = request.client.host if request.client else None
+    consent_ua = request.headers.get("User-Agent", "")
+    if created_new or not landlord["privacy_consented"]:
+        record_privacy_consent(
+            landlord["id"],
+            privacy_version=PRIVACY_POLICY_VERSION,
+            ip_address=consent_ip,
+            user_agent=consent_ua,
+        )
+        create_landlord_audit_log(
+            landlord["id"],
+            "privacy_policy_accepted",
+            ip_address=consent_ip,
+            meta_json=json.dumps({
+                "version": PRIVACY_POLICY_VERSION,
+                "user_agent": consent_ua,
+                "source": "google_signup" if created_new else "google_signin",
+            }),
         )
 
     session_id, refresh_token = create_landlord_session(

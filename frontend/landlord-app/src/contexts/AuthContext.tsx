@@ -26,6 +26,7 @@ interface AuthContextType {
   hasTotp: boolean;
   totpEnabled: boolean;
   requiresPasswordChange: boolean;
+  privacyConsented: boolean | null;
   login: (
     username: string,
     password: string,
@@ -61,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [hasTotp, setHasTotp] = useState(false);
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
+  const [privacyConsented, setPrivacyConsented] = useState<boolean | null>(null);
 
   const refreshMe = useCallback(async () => {
     try {
@@ -75,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setHasTotp(data?.landlord?.hasTotp ?? false);
       setTotpEnabled(data?.landlord?.totpEnabled ?? false);
       setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
+      setPrivacyConsented(data?.landlord?.privacyConsented ?? true);
       if (uuid) localStorage.setItem("landlordUuid", uuid);
     } catch {
       setIsAuthenticated(false);
@@ -84,6 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setHasTotp(false);
       setTotpEnabled(false);
       setRequiresPasswordChange(false);
+      setPrivacyConsented(null);
       localStorage.removeItem("landlordUuid");
     }
   }, []);
@@ -138,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUsername(data?.landlord?.username ?? null);
           setFullName(data?.landlord?.fullName ?? null);
           localStorage.setItem("landlordUuid", uuid);
+          await refreshMe();
           return { status: "success", landlordUuid: uuid };
         }
 
@@ -148,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    []
+    [refreshMe]
   );
 
   const googleLogin = useCallback(
@@ -186,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUsername(data?.landlord?.username ?? null);
           setFullName(data?.landlord?.fullName ?? null);
           localStorage.setItem("landlordUuid", uuid);
+          await refreshMe();
           return { status: "success", landlordUuid: uuid };
         }
 
@@ -199,7 +205,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    []
+    [refreshMe]
   );
 
   const verifyTotp = useCallback(
@@ -239,6 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUsername(data?.landlord?.username ?? null);
         setFullName(data?.landlord?.fullName ?? null);
         localStorage.setItem("landlordUuid", uuid);
+        await refreshMe();
         return { status: "success", landlordUuid: uuid };
       } catch {
         return false;
@@ -246,7 +253,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    []
+    [refreshMe]
   );
 
   const changePassword = useCallback(
@@ -299,13 +306,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useAuthSync(
     authChannel,
     useCallback(
-      (event) => {
+      async (event) => {
         if (
           event.type === "AUTH_STATE_CHANGED" ||
           event.type === "TOTP_STATE_CHANGED" ||
           event.type === "PASSWORD_RESET"
         ) {
-          refreshMe();
+          await refreshMe();
         }
       },
       [refreshMe]
@@ -322,7 +329,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, login, googleLogin, verifyTotp, logout, changePassword, refreshMe }}
+      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, privacyConsented, login, googleLogin, verifyTotp, logout, changePassword, refreshMe }}
     >
       {children}
     </AuthContext.Provider>

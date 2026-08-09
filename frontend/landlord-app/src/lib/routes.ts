@@ -244,6 +244,7 @@ export const ROUTES = {
     get LANDLORDPAGESIGNUP() { return page("landlord", "signup"); },
     get LANDLORDPAGEDASHBOARD() { return page("landlord", "dashboard"); },
     get LANDLORDPAGELOGOUT() { return page("landlord", "logout"); },
+    get LANDLORDPAGEPRIVACYPOLICY() { return page("landlord", "privacyPolicy"); },
 
     // Landlord API: Auth
     get LANDLORDAPIAUTHPUBLICKEY() { return api("landlord", "auth", "publicKey"); },
@@ -257,6 +258,8 @@ export const ROUTES = {
     get LANDLORDAPIAUTHLOGOUT() { return api("landlord", "auth", "logout"); },
     get LANDLORDAPIAUTHME() { return api("landlord", "auth", "me"); },
     get LANDLORDAPIAUTHCHANGEPASSWORD() { return api("landlord", "auth", "changePassword"); },
+    get LANDLORDAPIPRIVACYPOLICY() { return api("landlord", "auth", "privacyPolicy"); },
+    get LANDLORDAPIAUTHPRIVACYCONSENT() { return api("landlord", "auth", "privacyConsent"); },
 
     // Landlord API: Dashboard
     LANDLORDAPIDASHBOARDSTATS(landlordUuid: string) { return api("landlord", "dashboard", "stats", { landlordUuid }); },

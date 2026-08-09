@@ -17,6 +17,9 @@ interface Landlord {
   failed_attempts: number;
   locked_until: string | null;
   requires_password_change: boolean;
+  privacy_consented: boolean;
+  privacy_version: string | null;
+  privacy_accepted_at: string | null;
   tenant_count: number;
   receipt_count: number;
   kyc_count: number;
@@ -173,7 +176,7 @@ export default function LandlordsPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "#f9fafb" }}>
-                  {["ID", "Name", "Username", "Status", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
+                  {["ID", "Name", "Username", "Status", "Privacy", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
                     <th key={h} style={{ padding: "12px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb", fontSize: 13, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -181,7 +184,7 @@ export default function LandlordsPage() {
               <tbody>
                 {landlords.length === 0 && (
                   <tr>
-                    <td colSpan={11} style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>
+                    <td colSpan={12} style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>
                       No landlords found.
                     </td>
                   </tr>
@@ -200,6 +203,27 @@ export default function LandlordsPage() {
                     </td>
                     <td style={{ padding: "12px 12px" }}>
                       <span style={badgeStyle(l.status)}>{l.status}</span>
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      {l.privacy_consented ? (
+                        <span
+                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#dcfce7", color: "#16a34a", cursor: "help" }}
+                          title={[
+                            "Privacy Policy accepted",
+                            l.privacy_version ? `Version ${l.privacy_version}` : null,
+                            l.privacy_accepted_at ? `Accepted ${new Date(l.privacy_accepted_at).toLocaleString()}` : null,
+                          ].filter(Boolean).join(" · ")}
+                        >
+                          Accepted
+                        </span>
+                      ) : (
+                        <span
+                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#fef3c7", color: "#92400e", cursor: "help" }}
+                          title="Privacy Policy not yet accepted"
+                        >
+                          Pending
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: "12px 12px", fontSize: 13 }}>
                       {l.has_totp ? "✅" : "—"}
