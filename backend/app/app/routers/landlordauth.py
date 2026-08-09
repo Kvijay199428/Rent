@@ -14,6 +14,7 @@ Protected landlord TOTP management endpoints:
   POST /landlord/{landlordUuid}/api/totp/regenerate  — regenerate TOTP secret
 """
 import json
+import os
 import re
 import uuid
 from datetime import datetime
@@ -49,10 +50,23 @@ from app.database.landlord_repository import (
     is_landlord_locked_out,
     record_landlord_failed_attempt,
     reset_landlord_failed_attempts,
+    record_privacy_consent,
 )
-from app.models.landlord import LandlordGoogleRequest, LandlordLoginRequest, LandlordLoginWithTotpRequest, LandlordSignupRequest
+from app.models.landlord import (
+    LandlordGoogleRequest,
+    LandlordLoginRequest,
+    LandlordLoginWithTotpRequest,
+    LandlordPrivacyConsentRequest,
+    LandlordSignupRequest,
+)
 from app.core.config_service import config
 from app.core.db import get_conn
+from app.core.paths import STATIC_DIR
+from app.core.privacy import (
+    PRIVACY_CONSENT_REQUIRED_HEADER,
+    PRIVACY_POLICY_EFFECTIVE_DATE,
+    PRIVACY_POLICY_VERSION,
+)
 
 router = APIRouter(tags=["Landlord Authentication"])
 
@@ -146,14 +160,46 @@ async def check_email(email: str):
     return {"email": email_clean, "available": available, "error": None}
 
 
+@router.get(Routes.LANDLORDAPIPRIVACYPOLICY, name=Names.LANDLORDPRIVACYPOLICY)
+async def landlord_privacy_policy():
+    """Return the current Privacy Policy version, effective date and full text."""
+    content = ""
+    policy_path = os.path.join(STATIC_DIR, "privacy_policy_landlord.md")
+    try:
+        with open(policy_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        content = ""
+    return {
+        "version": PRIVACY_POLICY_VERSION,
+        "effectiveDate": PRIVACY_POLICY_EFFECTIVE_DATE,
+        "url": "/landlord/privacy-policy",
+        "content": content,
+    }
+
+
 @router.post(Routes.LANDLORDAPIAUTHSIGNUP, name=Names.LANDLORDSIGNUP)
 async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     """
     Create a new landlord account.
     Validates: username format, password match, uniqueness of username + email.
+    Account creation is BLOCKED unless the landlord has accepted the current
+    Privacy Policy (privacyAccepted + privacyVersion). Returns 400 otherwise.
     Returns: { status, landlord: { id, landlordUuid, username, fullName } }
     """
     username = normalize_username(payload.username)
+
+    # ── Privacy Policy consent is mandatory before account creation ──
+    if not payload.privacyAccepted:
+        raise HTTPException(
+            status_code=400,
+            detail="You must accept the PROPAURA Privacy Policy to create an account.",
+        )
+    if payload.privacyVersion != PRIVACY_POLICY_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="The Privacy Policy version has changed. Please review and accept the current policy.",
+        )
 
     # ── Input validation ──
     if len(username) < 3:
@@ -197,6 +243,8 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     # ── Create account ──
     landlord_uuid = str(uuid.uuid4())
     password_hash = hash_pin(payload.password)
+    consent_ip = request.client.host if request.client else None
+    consent_ua = request.headers.get("User-Agent", "")
 
     landlord = create_landlord(
         full_name=payload.fullName.strip(),
@@ -205,6 +253,19 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
         username=username,
         password_hash=password_hash,
         landlord_uuid=landlord_uuid,
+        privacy_consented=1,
+        privacy_version=payload.privacyVersion,
+        privacy_accepted_at=datetime.utcnow().isoformat(),
+        privacy_accepted_ip=consent_ip,
+        privacy_accepted_user_agent=consent_ua,
+    )
+
+    # Record the consent event in the auditable consent trail
+    record_privacy_consent(
+        landlord["id"],
+        privacy_version=payload.privacyVersion,
+        ip_address=consent_ip,
+        user_agent=consent_ua,
     )
 
     # Store encrypted password in admin vault (for platform admin reveal)
@@ -223,8 +284,14 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     create_landlord_audit_log(
         landlord["id"],
         "signup_success",
-        ip_address=request.client.host if request.client else None,
+        ip_address=consent_ip,
         meta_json=json.dumps({"username": username}),
+    )
+    create_landlord_audit_log(
+        landlord["id"],
+        "privacy_policy_accepted",
+        ip_address=consent_ip,
+        meta_json=json.dumps({"version": payload.privacyVersion, "user_agent": consent_ua}),
     )
 
     return {
@@ -236,6 +303,45 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
             "fullName": landlord["full_name"],
         },
     }
+
+
+@router.post(Routes.LANDLORDAPIAUTHPRIVACYCONSENT, name=Names.LANDLORDPRIVACYCONSENT)
+async def landlord_privacy_consent(
+    request: Request,
+    payload: LandlordPrivacyConsentRequest,
+    principal=Depends(get_current_landlord_api),
+):
+    """
+    Record Privacy Policy acceptance for an authenticated landlord.
+
+    Used for accounts created without an inline consent step (e.g. a brand-new
+    Google-created account), which are unusable until this consent is recorded.
+    """
+    if not payload.accepted:
+        raise HTTPException(status_code=400, detail="Privacy Policy acceptance is required.")
+    if payload.privacyVersion != PRIVACY_POLICY_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="The Privacy Policy version has changed. Please review and accept the current policy.",
+        )
+
+    consent_ip = request.client.host if request.client else None
+    consent_ua = request.headers.get("User-Agent", "")
+
+    record_privacy_consent(
+        principal.landlord_id,
+        privacy_version=payload.privacyVersion,
+        ip_address=consent_ip,
+        user_agent=consent_ua,
+    )
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "privacy_policy_accepted",
+        ip_address=consent_ip,
+        meta_json=json.dumps({"version": payload.privacyVersion, "user_agent": consent_ua}),
+    )
+
+    return {"status": "success", "message": "Privacy Policy accepted.", "version": PRIVACY_POLICY_VERSION}
 
 
 @router.post(Routes.LANDLORDAPIAUTHLOGIN, name=Names.LANDLORDLOGIN)
@@ -430,7 +536,8 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
     """
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT totp_secret, totp_enabled, requires_password_change FROM landlord_accounts WHERE id = ?",
+            "SELECT totp_secret, totp_enabled, requires_password_change, "
+            "privacy_consented, privacy_version FROM landlord_accounts WHERE id = ?",
             (principal.landlord_id,),
         ).fetchone()
 
@@ -445,6 +552,8 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "hasTotp": bool(row and row["totp_secret"]),
             "totpEnabled": bool(row and row["totp_enabled"]),
             "requiresPasswordChange": bool(row and row["requires_password_change"]),
+            "privacyConsented": bool(row and row["privacy_consented"]),
+            "privacyVersion": row["privacy_version"] if row else None,
         },
     }
 

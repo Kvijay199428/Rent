@@ -118,6 +118,10 @@ export default function LandlordDetailPage() {
                 ["Failed Attempts", l.failed_attempts ?? 0],
                 ["Locked Until", l.locked_until ? new Date(String(l.locked_until)).toLocaleString() : "—"],
                 ["PW Change Required", l.requires_password_change ? "Yes (forced)" : "No"],
+                ["Privacy Accepted", l.privacy_consented ? "Yes" : "Pending"],
+                ["Privacy Version", l.privacy_version ?? "—"],
+                ["Privacy Accepted At", l.privacy_accepted_at ? new Date(String(l.privacy_accepted_at)).toLocaleString() : "—"],
+                ["Privacy Accepted IP", l.privacy_accepted_ip ?? "—"],
               ].map(([label, value]) => (
                 <tr key={String(label)} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 140 }}>{String(label)}</td>

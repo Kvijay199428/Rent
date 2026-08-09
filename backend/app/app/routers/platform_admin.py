@@ -604,6 +604,7 @@ async def list_landlords(
             (la.totp_enabled = 1 AND la.totp_secret IS NOT NULL) as has_totp,
             la.failed_attempts, la.locked_until,
             la.requires_password_change,
+            la.privacy_consented, la.privacy_version, la.privacy_accepted_at,
             (SELECT COUNT(*) FROM tenants WHERE landlord_id = la.id) as tenant_count,
             (SELECT COUNT(*) FROM receipts WHERE landlord_id = la.id) as receipt_count,
             (SELECT COUNT(*) FROM occupants WHERE landlord_id = la.id) as kyc_count

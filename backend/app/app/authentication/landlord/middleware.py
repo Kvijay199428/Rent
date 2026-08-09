@@ -14,6 +14,7 @@ from fastapi import HTTPException, Request
 from app.authentication.common.principal import AuthPrincipal
 from app.authentication.landlord.jwt import decode_access_token
 from app.authentication.landlord.sessions import get_landlord_session_db
+from app.core.privacy import PRIVACY_CONSENT_REQUIRED_HEADER
 from app.database.landlord_repository import get_landlord_by_id
 
 
@@ -131,6 +132,25 @@ async def get_current_landlord_api(request: Request) -> AuthPrincipal:
         path_uuid = request.path_params.get("landlordUuid")
         if path_uuid and principal.landlord_uuid != path_uuid:
             raise HTTPException(status_code=403, detail="Forbidden: UUID mismatch")
+
+        # Privacy Policy consent gate. Accounts that have not accepted the
+        # Privacy Policy (e.g. brand-new Google-created accounts) may only
+        # reach the consent, change-password and identity endpoints until the
+        # consent step is completed.
+        path = request.url.path
+        consent_exempt = (
+            path.endswith("/api/auth/privacy-consent")
+            or path.endswith("/api/auth/change-password")
+            or path.endswith("/api/auth/me")
+        )
+        if not consent_exempt:
+            landlord = get_landlord_by_id(principal.landlord_id)
+            if landlord and not landlord["privacy_consented"]:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Privacy Policy acceptance is required to continue.",
+                    headers={PRIVACY_CONSENT_REQUIRED_HEADER: "1"},
+                )
 
         return principal
     except HTTPException:

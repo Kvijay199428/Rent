@@ -156,6 +156,7 @@
       "signup": "/landlord/signup",
       "dashboard": "/landlord/dashboard",
       "logout": "/landlord/logout",
+      "privacyPolicy": "/landlord/privacy-policy",
       "catchAll": "/landlord/*"
     },
     "api": {
@@ -170,7 +171,9 @@
         "refresh": "/landlord/api/auth/refresh",
         "logout": "/landlord/api/auth/logout",
         "me": "/landlord/api/auth/me",
-        "changePassword": "/landlord/api/auth/change-password"
+        "changePassword": "/landlord/api/auth/change-password",
+        "privacyPolicy": "/landlord/api/privacy-policy",
+        "privacyConsent": "/landlord/api/auth/privacy-consent"
       },
       "dashboard": {
         "stats": "/landlord/{landlordUuid}/api/dashboard"
