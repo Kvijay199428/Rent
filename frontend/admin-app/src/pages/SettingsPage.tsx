@@ -46,6 +46,13 @@ export default function SettingsPage() {
   const [showPwText, setShowPwText] = useState(false);
   const [showTotpSecret, setShowTotpSecret] = useState(false);
 
+  const [tgBotConfigured, setTgBotConfigured] = useState(false);
+  const [tgChatLinked, setTgChatLinked] = useState(false);
+  const [tgChatMasked, setTgChatMasked] = useState<string | null>(null);
+  const [tgBusy, setTgBusy] = useState(false);
+  const [tgMsg, setTgMsg] = useState<string | null>(null);
+  const [tgErr, setTgErr] = useState<string | null>(null);
+
   useEffect(() => {
     fetch(`${API_BASE}/settings/profile`, { credentials: "include" })
       .then((r) => r.json())
@@ -61,6 +68,19 @@ export default function SettingsPage() {
     fetch(`${API_BASE}/settings/audit`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => { if (d.retention_days) setRetentionDays(d.retention_days); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/settings/telegram/status`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) {
+          setTgBotConfigured(!!d.bot_configured);
+          setTgChatLinked(!!d.chat_linked);
+          setTgChatMasked(d.chat_id_masked ?? null);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -196,6 +216,31 @@ export default function SettingsPage() {
       setAuditErr(err instanceof Error ? err.message : "Save failed");
     } finally {
       setAuditSaving(false);
+    }
+  }
+
+  async function handleTgAction(action: "link" | "unlink" | "test") {
+    setTgBusy(true);
+    setTgMsg(null);
+    setTgErr(null);
+    try {
+      const res = await fetch(`${API_BASE}/settings/telegram/${action}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({ detail: "Operation failed" }));
+      if (!res.ok) {
+        throw new Error(data.detail ?? "Operation failed");
+      }
+      setTgMsg(data.message ?? "Done.");
+      if (action === "link") setTgChatMasked(data.chat_id_masked ?? null);
+      if (action === "unlink") setTgChatMasked(null);
+      setTgChatLinked(action !== "unlink");
+      setTgBotConfigured(true);
+    } catch (err: unknown) {
+      setTgErr(err instanceof Error ? err.message : "Operation failed");
+    } finally {
+      setTgBusy(false);
     }
   }
 
@@ -347,6 +392,82 @@ export default function SettingsPage() {
             {profile?.has_totp ? "Regenerate TOTP Secret" : "Set Up TOTP"}
           </button>
         </div>
+      </div>
+
+      {/* Telegram OTP */}
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: "28px 32px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
+      }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Telegram OTP Login</h2>
+        <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
+          Receive a one-time login code in Telegram as an alternative to your authenticator app.
+        </p>
+
+        {tgErr && <div style={errorStyle}>{tgErr}</div>}
+        {tgMsg && <div style={successStyle}>{tgMsg}</div>}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16, fontSize: 13 }}>
+          <div>
+            Bot configured:{" "}
+            <strong style={{ color: tgBotConfigured ? "#16a34a" : "#dc2626" }}>
+              {tgBotConfigured ? "Yes" : "No"}
+            </strong>
+            {!tgBotConfigured && " — add TELEGRAM_BOT_TOKEN to the backend .env and redeploy."}
+          </div>
+          <div>
+            Telegram chat linked:{" "}
+            <strong style={{ color: tgChatLinked ? "#16a34a" : "#6b7280" }}>
+              {tgChatLinked ? (tgChatMasked ? `Yes (${tgChatMasked})` : "Yes") : "No"}
+            </strong>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <button
+            onClick={() => handleTgAction("link")}
+            disabled={tgBusy || !tgBotConfigured}
+            style={{
+              padding: "10px 20px", borderRadius: 8, border: "1.5px solid #d1d5db",
+              background: tgBusy || !tgBotConfigured ? "#f3f4f6" : "#fff",
+              color: tgBusy || !tgBotConfigured ? "#9ca3af" : "#374151",
+              fontSize: 14, fontWeight: 600, cursor: tgBusy || !tgBotConfigured ? "not-allowed" : "pointer",
+            }}
+          >
+            {tgBusy ? "Working…" : "Link Telegram"}
+          </button>
+          {tgChatLinked && (
+            <>
+              <button
+                onClick={() => handleTgAction("test")}
+                disabled={tgBusy}
+                style={{
+                  padding: "10px 20px", borderRadius: 8, border: "1.5px solid #d1d5db",
+                  background: "#fff", fontSize: 14, fontWeight: 600, cursor: tgBusy ? "not-allowed" : "pointer",
+                }}
+              >
+                Send Test Message
+              </button>
+              <button
+                onClick={() => handleTgAction("unlink")}
+                disabled={tgBusy}
+                style={{
+                  padding: "10px 20px", borderRadius: 8, border: "1.5px solid #fca5a5",
+                  background: "#fef2f2", color: "#dc2626",
+                  fontSize: 14, fontWeight: 600, cursor: tgBusy ? "not-allowed" : "pointer",
+                }}
+              >
+                Unlink
+              </button>
+            </>
+          )}
+        </div>
+        {tgBotConfigured && !tgChatLinked && (
+          <p style={{ margin: "12px 0 0", fontSize: 12, color: "#9ca3af" }}>
+            Open <strong>@propauraBot</strong> on your Telegram, send{" "}
+            <strong>/start</strong>, then click <strong>Link Telegram</strong> above to capture your chat.
+          </p>
+        )}
       </div>
 
       {/* Password Confirmation Dialog */}

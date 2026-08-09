@@ -12,6 +12,7 @@ interface Admin {
 
 interface TOTPResult {
   requires_totp: boolean;
+  methods?: string[];
 }
 
 interface AuthContextValue {
@@ -19,6 +20,8 @@ interface AuthContextValue {
   loading: boolean;
   login: (username: string, password: string, rememberMe?: boolean) => Promise<TOTPResult>;
   loginTOTP: (totpToken: string) => Promise<void>;
+  loginOtpSend: () => Promise<{ status: string; message: string }>;
+  loginOtpVerify: (otp: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -51,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     if (data.status === "totp_required") {
       pendingCreds.current = { username, password, rememberMe };
-      return { requires_totp: true };
+      return { requires_totp: true, methods: data.methods ?? ["totp"] };
     }
     const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
     setAdmin(me);
@@ -76,6 +79,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "TOTP verification failed" }));
       throw new Error(err.detail ?? "TOTP verification failed");
+    }
+    const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
+    setAdmin(me);
+  }, []);
+
+  const loginOtpSend = useCallback(async () => {
+    const creds = pendingCreds.current;
+    if (!creds) throw new Error("No pending credentials. Please login again.");
+    const res = await fetch(`${API_BASE}/auth/login-otp-send`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: creds.username,
+        password: creds.password,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Failed to send code" }));
+      throw new Error(err.detail ?? "Failed to send code");
+    }
+    return await res.json();
+  }, []);
+
+  const loginOtpVerify = useCallback(async (otp: string) => {
+    const creds = pendingCreds.current;
+    if (!creds) throw new Error("No pending credentials. Please login again.");
+    const res = await fetch(`${API_BASE}/auth/login-otp-verify`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: creds.username,
+        password: creds.password,
+        otp,
+        remember_me: creds.rememberMe,
+      }),
+    });
+    pendingCreds.current = null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "OTP verification failed" }));
+      throw new Error(err.detail ?? "OTP verification failed");
     }
     const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
     setAdmin(me);
@@ -118,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ admin, loading, login, loginTOTP, logout }}>
+    <AuthContext.Provider value={{ admin, loading, login, loginTOTP, loginOtpSend, loginOtpVerify, logout }}>
       {children}
     </AuthContext.Provider>
   );

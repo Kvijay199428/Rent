@@ -69,6 +69,7 @@ def init_db():
             totp_secret TEXT,
             email TEXT,
             is_platform_admin INTEGER NOT NULL DEFAULT 0,
+            telegram_chat_id TEXT,
             created_at TEXT,
             updated_at TEXT
         );
@@ -562,6 +563,31 @@ def init_db():
                 "ALTER TABLE admins ADD COLUMN locked_until TEXT"
             )
             conn.commit()
+
+        # ─── Platform admin Telegram OTP columns ───────────────────────
+        # Linked Telegram chat_id used to deliver login OTPs. Captured via
+        # the Settings UI "Link Telegram" flow (admins.telegram_chat_id).
+        if not _column_exists(conn, "admins", "telegram_chat_id"):
+            conn.execute("ALTER TABLE admins ADD COLUMN telegram_chat_id TEXT")
+            conn.commit()
+
+        # ─── Platform admin login OTPs ─────────────────────────────────
+        # Single-use, expiring OTP codes for the Telegram 2FA flow.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS admin_login_otps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_id INTEGER NOT NULL,
+                otp_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                used INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_admin_login_otps_admin "
+                     "ON admin_login_otps(admin_id, used)")
+        conn.commit()
 
         # ─── Tenant audit logs: add meta_json column ──
         if not _column_exists(conn, "tenant_audit_logs", "meta_json"):

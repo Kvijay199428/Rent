@@ -52,6 +52,18 @@ from app.core.audit import (
     cleanup_old_audit_logs,
     get_audit_log_path,
 )
+from app.services.telegram_otp_service import (
+    bot_configured,
+    get_admin_chat_id,
+    set_admin_chat_id,
+    send_telegram_message,
+    fetch_latest_chat_id,
+    generate_otp,
+    store_otp,
+    verify_otp,
+    cooldown_remaining,
+    delete_pending_otp,
+)
 
 router = APIRouter(prefix="/admin", tags=["Platform Admin"])
 
@@ -184,10 +196,14 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
             row["id"], "login_password_ok",
             admin_username=row["username"], ip_address=ip, user_agent=ua,
         )
+        methods = ["totp"]
+        if get_admin_chat_id(row["id"]) and bot_configured():
+            methods.append("telegram_otp")
         return {
             "status": "totp_required",
-            "message": "TOTP verification required.",
+            "message": "Two-factor verification required.",
             "username": body.username,
+            "methods": methods,
         }
 
     session_id, access_token = _create_session_token(row["id"])
@@ -340,6 +356,223 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
         row["id"], "login_success",
         admin_username=row["username"], ip_address=ip, user_agent=ua,
         meta={"totp": True},
+    )
+    return {"status": "ok", "username": row["username"]}
+
+
+class OtpSendRequest(BaseModel):
+    username: str
+    password: str
+
+
+@router.post("/api/auth/login-otp-send")
+async def platform_login_otp_send(body: OtpSendRequest, request: Request):
+    """Password step + generate & deliver a Telegram OTP. No session is issued."""
+    ip = request.client.host if request.client else "Unknown"
+    ua = request.headers.get("User-Agent", "Unknown")
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until, telegram_chat_id FROM admins WHERE username = ?",
+            (body.username,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Brute-force check
+    if row["locked_until"]:
+        try:
+            locked_dt = datetime.fromisoformat(row["locked_until"])
+            if datetime.utcnow() < locked_dt:
+                remaining = int((locked_dt - datetime.utcnow()).total_seconds() / 60) + 1
+                create_platform_admin_audit_log(
+                    row["id"], "login_locked_out",
+                    admin_username=row["username"], ip_address=ip, user_agent=ua,
+                )
+                raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
+            else:
+                with get_conn() as conn:
+                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+                    conn.commit()
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    if not verify_pin(body.password, row["password_hash"]):
+        new_attempts = (row["failed_attempts"] or 0) + 1
+        locked_until_str = None
+        if new_attempts >= 5:
+            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                (new_attempts, locked_until_str, row["id"]),
+            )
+            conn.commit()
+        create_platform_admin_audit_log(
+            row["id"], "login_failed",
+            admin_username=row["username"], ip_address=ip, user_agent=ua,
+            meta={"attempts": new_attempts, "locked": bool(locked_until_str)},
+        )
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not row["is_platform_admin"]:
+        raise HTTPException(status_code=403, detail="Platform admin access required")
+
+    chat_id = (row["telegram_chat_id"] or "").strip() or None
+    if not chat_id or not bot_configured():
+        create_platform_admin_audit_log(
+            row["id"], "login_otp_unavailable",
+            admin_username=row["username"], ip_address=ip, user_agent=ua,
+        )
+        raise HTTPException(status_code=400, detail="Telegram OTP is not configured for this account.")
+
+    cooldown = cooldown_remaining(row["id"])
+    if cooldown > 0:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Please wait {cooldown}s before requesting a new code.",
+        )
+
+    otp = generate_otp()
+    store_otp(row["id"], otp)
+    delivered = send_telegram_message(
+        chat_id,
+        f"🔐 <b>{row['username']}</b> login code: <code>{otp}</code>\n\n"
+        "Valid for 5 minutes. Do not share this code with anyone.",
+    )
+    if not delivered:
+        delete_pending_otp(row["id"])
+        create_platform_admin_audit_log(
+            row["id"], "login_otp_send_failed",
+            admin_username=row["username"], ip_address=ip, user_agent=ua,
+        )
+        raise HTTPException(status_code=502, detail="Failed to send the code via Telegram. Please try again.")
+
+    create_platform_admin_audit_log(
+        row["id"], "login_otp_sent",
+        admin_username=row["username"], ip_address=ip, user_agent=ua,
+    )
+    return {"status": "otp_sent", "message": "Login code sent to your Telegram."}
+
+
+class OtpVerifyRequest(BaseModel):
+    username: str
+    password: str
+    otp: str
+    remember_me: bool = False
+
+
+@router.post("/api/auth/login-otp-verify")
+async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, response: Response):
+    """Verify the Telegram OTP and complete login (issues session + cookies)."""
+    ip = request.client.host if request.client else "Unknown"
+    ua = request.headers.get("User-Agent", "Unknown")
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until, telegram_chat_id FROM admins WHERE username = ?",
+            (body.username,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Brute-force check
+    if row["locked_until"]:
+        try:
+            locked_dt = datetime.fromisoformat(row["locked_until"])
+            if datetime.utcnow() < locked_dt:
+                remaining = int((locked_dt - datetime.utcnow()).total_seconds() / 60) + 1
+                create_platform_admin_audit_log(
+                    row["id"], "login_locked_out",
+                    admin_username=row["username"], ip_address=ip, user_agent=ua,
+                )
+                raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
+            else:
+                with get_conn() as conn:
+                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+                    conn.commit()
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    if not verify_pin(body.password, row["password_hash"]):
+        new_attempts = (row["failed_attempts"] or 0) + 1
+        locked_until_str = None
+        if new_attempts >= 5:
+            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                (new_attempts, locked_until_str, row["id"]),
+            )
+            conn.commit()
+        create_platform_admin_audit_log(
+            row["id"], "login_failed",
+            admin_username=row["username"], ip_address=ip, user_agent=ua,
+            meta={"attempts": new_attempts, "locked": bool(locked_until_str)},
+        )
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not row["is_platform_admin"]:
+        raise HTTPException(status_code=403, detail="Platform admin access required")
+
+    if not verify_otp(row["id"], body.otp):
+        new_attempts = (row["failed_attempts"] or 0) + 1
+        locked_until_str = None
+        if new_attempts >= 5:
+            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                (new_attempts, locked_until_str, row["id"]),
+            )
+            conn.commit()
+        create_platform_admin_audit_log(
+            row["id"], "login_otp_failed",
+            admin_username=row["username"], ip_address=ip, user_agent=ua,
+            meta={"attempts": new_attempts, "locked": bool(locked_until_str)},
+        )
+        raise HTTPException(status_code=401, detail="Invalid code. Please try again.")
+
+    # Reset failed attempts on success
+    with get_conn() as conn:
+        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+        conn.commit()
+
+    session_id, access_token = _create_session_token(row["id"])
+    refresh_token = _make_refresh_token()
+    refresh_hash = hash_pin(refresh_token)
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO admin_sessions
+            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now', ?), ?, 'Active')
+            """,
+            (
+                session_id,
+                row["id"],
+                refresh_hash,
+                "Platform Admin",
+                ua,
+                "Unknown",
+                ip,
+                "+180 days" if body.remember_me else "+30 days",
+                1 if body.remember_me else 0,
+            ),
+        )
+        conn.commit()
+
+    set_platform_auth_cookies(response, access_token, f"{session_id}.{refresh_token}", body.remember_me, request)
+
+    create_platform_admin_audit_log(
+        row["id"], "login_success",
+        admin_username=row["username"], ip_address=ip, user_agent=ua,
+        meta={"otp": True, "method": "telegram"},
     )
     return {"status": "ok", "username": row["username"]}
 
@@ -564,6 +797,78 @@ async def change_password(request: Request, body: ChangePasswordRequest):
         user_agent=request.headers.get("User-Agent"),
     )
     return {"status": "success", "message": "Password updated successfully"}
+
+
+# ─── Telegram OTP settings ───────────────────────────────────────────────────
+
+@router.get("/api/settings/telegram/status")
+async def telegram_status(request: Request):
+    admin = _get_platform_admin(request)
+    chat_id = get_admin_chat_id(admin["id"])
+    masked = None
+    if chat_id:
+        masked = f"…{chat_id[-4:]}" if len(chat_id) > 4 else "…" + chat_id
+    return {
+        "bot_configured": bot_configured(),
+        "chat_linked": bool(chat_id),
+        "chat_id_masked": masked,
+    }
+
+
+@router.post("/api/settings/telegram/link")
+async def telegram_link(request: Request):
+    admin = _get_platform_admin(request)
+    if not bot_configured():
+        raise HTTPException(status_code=400, detail="Telegram bot is not configured.")
+    candidate = fetch_latest_chat_id()
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail="No recent message from your Telegram. Open the bot, send /start, then try again.",
+        )
+    set_admin_chat_id(admin["id"], candidate["chat_id"])
+    create_platform_admin_audit_log(
+        admin["id"], "telegram_linked",
+        admin_username=admin["username"], ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+        meta={"chat_id_masked": f"…{candidate['chat_id'][-4:]}"},
+    )
+    return {
+        "status": "success",
+        "message": f"Linked to Telegram chat of {candidate.get('first_name') or 'user'}.",
+        "chat_id_masked": f"…{candidate['chat_id'][-4:]}",
+    }
+
+
+@router.post("/api/settings/telegram/unlink")
+async def telegram_unlink(request: Request):
+    admin = _get_platform_admin(request)
+    if not get_admin_chat_id(admin["id"]):
+        raise HTTPException(status_code=400, detail="No Telegram chat linked.")
+    set_admin_chat_id(admin["id"], None)
+    create_platform_admin_audit_log(
+        admin["id"], "telegram_unlinked",
+        admin_username=admin["username"], ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+    )
+    return {"status": "success", "message": "Telegram chat unlinked."}
+
+
+@router.post("/api/settings/telegram/test")
+async def telegram_test(request: Request):
+    admin = _get_platform_admin(request)
+    chat_id = get_admin_chat_id(admin["id"])
+    if not chat_id:
+        raise HTTPException(status_code=400, detail="No Telegram chat linked.")
+    if not bot_configured():
+        raise HTTPException(status_code=400, detail="Telegram bot is not configured.")
+    delivered = send_telegram_message(
+        chat_id,
+        "✅ This is a test message from your platform admin app. Telegram OTP delivery is working.",
+    )
+    if not delivered:
+        raise HTTPException(status_code=502, detail="Failed to deliver the test message.")
+    return {"status": "success", "message": "Test message sent to your Telegram."}
 
 
 # ─── Stats ────────────────────────────────────────────────────────────────────

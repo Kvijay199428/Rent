@@ -3,8 +3,10 @@ import { useNavigate } from "react-router";
 import { useAuth } from "../contexts/AuthContext";
 import AuthLayout from "../components/AuthLayout";
 
+type OtpMethod = "totp" | "telegram";
+
 export default function LoginPage() {
-  const { login, loginTOTP } = useAuth();
+  const { login, loginTOTP, loginOtpSend, loginOtpVerify } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -12,7 +14,26 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [totpRequired, setTotpRequired] = useState(false);
-  const [totpCode, setTotpCode] = useState("");
+  const [methods, setMethods] = useState<string[]>([]);
+  const [method, setMethod] = useState<OtpMethod>("totp");
+  const [code, setCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpMsg, setOtpMsg] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+
+  function useTelegram() {
+    return method === "telegram" && methods.includes("telegram_otp");
+  }
+
+  function resetSecondFactor() {
+    setTotpRequired(false);
+    setMethods([]);
+    setMethod("totp");
+    setCode("");
+    setOtpSent(false);
+    setOtpMsg(null);
+    setError(null);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -21,6 +42,10 @@ export default function LoginPage() {
     try {
       const result = await login(username, password, rememberMe);
       if (result.requires_totp) {
+        setMethods(result.methods ?? ["totp"]);
+        if (!(result.methods ?? []).includes("telegram_otp")) {
+          setMethod("totp");
+        }
         setTotpRequired(true);
       } else {
         navigate("/dashboard", { replace: true });
@@ -32,24 +57,43 @@ export default function LoginPage() {
     }
   }
 
-  async function handleTOTPSubmit(e: FormEvent) {
+  async function handleCodeSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      await loginTOTP(totpCode);
+      if (useTelegram()) {
+        await loginOtpVerify(code);
+      } else {
+        await loginTOTP(code);
+      }
       navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "TOTP verification failed");
+      setError(err instanceof Error ? err.message : "Verification failed");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleSendOtp() {
+    setError(null);
+    setSending(true);
+    setOtpMsg(null);
+    try {
+      await loginOtpSend();
+      setOtpSent(true);
+      setOtpMsg("Code sent to your Telegram. Check your chat and enter the code below.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to send code");
+    } finally {
+      setSending(false);
     }
   }
 
   return (
     <AuthLayout>
       <form
-        onSubmit={totpRequired ? handleTOTPSubmit : handleSubmit}
+        onSubmit={totpRequired ? handleCodeSubmit : handleSubmit}
         style={{
           background: "#fff", borderRadius: 16, padding: "40px 36px",
           width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
@@ -61,7 +105,7 @@ export default function LoginPage() {
             {totpRequired ? "Two-Factor Authentication" : "Platform Admin"}
           </h1>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: "#6b7280" }}>
-            {totpRequired ? "Enter your 6-digit authenticator code" : "Sign in to manage landlords"}
+            {totpRequired ? "Verify your identity to continue" : "Sign in to manage landlords"}
           </p>
         </div>
 
@@ -71,6 +115,15 @@ export default function LoginPage() {
             borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13,
           }}>
             {error}
+          </div>
+        )}
+
+        {otpMsg && (
+          <div style={{
+            background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8",
+            borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13,
+          }}>
+            {otpMsg}
           </div>
         )}
 
@@ -115,43 +168,117 @@ export default function LoginPage() {
             </label>
           </>
         ) : (
-          <label style={{ display: "block", marginBottom: 24 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-              Authenticator Code
-            </span>
-            <input
-              type="text"
-              value={totpCode}
-              onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              required
-              autoFocus
-              maxLength={6}
-              pattern="[0-9]{6}"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
-              placeholder="000000"
-            />
-          </label>
+          <>
+            {methods.length > 1 && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                <button
+                  type="button"
+                  onClick={() => setMethod("totp")}
+                  style={{
+                    flex: 1, padding: "9px 0", borderRadius: 8, border: "1.5px solid",
+                    borderColor: method === "totp" ? "#3b4a6b" : "#d1d5db",
+                    background: method === "totp" ? "#eef2f7" : "#fff",
+                    color: method === "totp" ? "#3b4a6b" : "#6b7280",
+                    fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  Authenticator
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMethod("telegram")}
+                  style={{
+                    flex: 1, padding: "9px 0", borderRadius: 8, border: "1.5px solid",
+                    borderColor: method === "telegram" ? "#3b4a6b" : "#d1d5db",
+                    background: method === "telegram" ? "#eef2f7" : "#fff",
+                    color: method === "telegram" ? "#3b4a6b" : "#6b7280",
+                    fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  Telegram OTP
+                </button>
+              </div>
+            )}
+
+            {useTelegram() ? (
+              <>
+                {!otpSent ? (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={sending}
+                    style={{
+                      width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+                      background: sending ? "#9ca3af" : "#3b4a6b", color: "#fff",
+                      fontSize: 15, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer",
+                      transition: "background 0.2s", marginBottom: 16,
+                    }}
+                  >
+                    {sending ? "Sending…" : "Send code via Telegram"}
+                  </button>
+                ) : (
+                  <label style={{ display: "block", marginBottom: 24 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                      Telegram Code
+                    </span>
+                    <input
+                      type="text"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      required
+                      autoFocus
+                      maxLength={6}
+                      pattern="[0-9]{6}"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
+                      placeholder="000000"
+                    />
+                  </label>
+                )}
+              </>
+            ) : (
+              <label style={{ display: "block", marginBottom: 24 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  Authenticator Code
+                </span>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  required
+                  autoFocus
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
+                  placeholder="000000"
+                />
+              </label>
+            )}
+          </>
         )}
 
-        <button
-          type="submit"
-          disabled={busy}
-          style={{
-            width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-            background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
-            fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
-            transition: "background 0.2s",
-          }}
-        >
-          {busy ? (totpRequired ? "Verifying…" : "Signing in…") : (totpRequired ? "Verify" : "Sign In")}
-        </button>
+        {!(totpRequired && useTelegram() && !otpSent) && (
+          <button
+            type="submit"
+            disabled={busy}
+            style={{
+              width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+              background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
+              fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
+              transition: "background 0.2s",
+            }}
+          >
+            {busy ? (totpRequired ? "Verifying…" : "Signing in…") : (totpRequired ? "Verify" : "Sign In")}
+          </button>
+        )}
 
         {totpRequired && (
           <button
             type="button"
-            onClick={() => { setTotpRequired(false); setTotpCode(""); setError(null); }}
+            onClick={resetSecondFactor}
             style={{
               width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
               background: "transparent", color: "#6b7280",

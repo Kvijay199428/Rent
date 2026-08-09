@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS admins (
     totp_secret TEXT,
     email TEXT,
     is_platform_admin INTEGER NOT NULL DEFAULT 0,
+    telegram_chat_id TEXT,
     created_at TEXT,
     updated_at TEXT
 );
@@ -57,6 +58,22 @@ CREATE TABLE IF NOT EXISTS admin_sessions (
     status TEXT DEFAULT 'Active',
     FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
 );
+
+-- ============================================================
+-- 3b. ADMIN LOGIN OTPS (Telegram 2FA)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS admin_login_otps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_id INTEGER NOT NULL,
+    otp_hash TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    used INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_admin_login_otps_admin
+    ON admin_login_otps(admin_id, used);
 
 -- ============================================================
 -- 4. TENANTS (Core Tenant Data with Security)
