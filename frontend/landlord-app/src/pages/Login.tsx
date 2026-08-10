@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { APP_BASE } from '@/lib/runtime';
 import { ROUTES } from '@/lib/routes';
 import AuthLayout from '@/components/layout/AuthLayout';
-import { BrandWave } from '@shared/loading/BrandWave';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -35,7 +35,8 @@ export default function Login() {
   };
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <div className="w-full max-w-sm">
         <div className="bg-card border rounded-xl shadow-lg p-6">
           {/* Logo */}
@@ -108,7 +109,7 @@ export default function Login() {
               className="w-full"
               disabled={isLoading}
             >
-              {isLoading ? <BrandWave size="sm" label="Logging in…" /> : 'Login to Dashboard'}
+              {'Login to Dashboard'}
             </Button>
           </form>
         </div>
@@ -117,6 +118,8 @@ export default function Login() {
           <span className="text-xs text-muted-foreground">PROPAURA v3.0.0</span>
         </div>
       </div>
-    </AuthLayout>
+      </AuthLayout>
+      {isLoading && <LoadingOverlay label="Logging in…" />}
+    </>
   );
 }

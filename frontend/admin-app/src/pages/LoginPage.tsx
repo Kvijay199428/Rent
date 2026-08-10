@@ -2,7 +2,7 @@ import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { useAuth, OtpCooldownError } from "../contexts/AuthContext";
 import AuthLayout from "../components/AuthLayout";
-import BrandWave from "@shared/loading/BrandWave";
+import LoadingOverlay from "@shared/loading/LoadingOverlay";
 
 type OtpMethod = "totp" | "telegram";
 
@@ -118,7 +118,8 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <form
         onSubmit={totpRequired ? handleCodeSubmit : handleSubmit}
         style={{
@@ -230,25 +231,19 @@ export default function LoginPage() {
             {useTelegram() ? (
               <>
                 {!otpSent ? (
-                  sending ? (
-                    <div style={{ padding: "14px 0", marginBottom: 16 }}>
-                      <BrandWave stacked label="Sending code…" />
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleSendOtp}
-                      disabled={sending}
-                      style={{
-                        width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-                        background: "#3b4a6b", color: "#fff",
-                        fontSize: 15, fontWeight: 700, cursor: "pointer",
-                        transition: "background 0.2s", marginBottom: 16,
-                      }}
-                    >
-                      Send code via Telegram
-                    </button>
-                  )
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={sending}
+                    style={{
+                      width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+                      background: "#3b4a6b", color: "#fff",
+                      fontSize: 15, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer",
+                      transition: "background 0.2s", marginBottom: 16,
+                    }}
+                  >
+                    Send code via Telegram
+                  </button>
                 ) : (
                   <>
                     <label style={{ display: "block", marginBottom: 16 }}>
@@ -269,11 +264,7 @@ export default function LoginPage() {
                         placeholder="000000"
                       />
                     </label>
-                    {sending ? (
-                      <div style={{ padding: "14px 0", marginBottom: 16 }}>
-                        <BrandWave stacked label="Sending code…" />
-                      </div>
-                    ) : cooldown > 0 ? (
+                    {cooldown > 0 ? (
                       <p style={{
                         margin: 0, textAlign: "center", fontSize: 13, color: "#6b7280", marginBottom: 16,
                       }}>
@@ -320,24 +311,18 @@ export default function LoginPage() {
         )}
 
         {!(totpRequired && useTelegram() && !otpSent) && (
-          busy ? (
-            <div style={{ padding: "14px 0", marginBottom: 16 }}>
-              <BrandWave stacked label={totpRequired ? "Verifying…" : "Signing in…"} />
-            </div>
-          ) : (
-            <button
-              type="submit"
-              disabled={busy}
-              style={{
-                width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-                background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
-                fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
-                transition: "background 0.2s",
-              }}
-            >
-              {totpRequired ? "Verify" : "Sign In"}
-            </button>
-          )
+          <button
+            type="submit"
+            disabled={busy}
+            style={{
+              width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+              background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
+              fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
+              transition: "background 0.2s",
+            }}
+          >
+            {totpRequired ? "Verify" : "Sign In"}
+          </button>
         )}
 
         {totpRequired && (
@@ -354,7 +339,10 @@ export default function LoginPage() {
           </button>
         )}
       </form>
-    </AuthLayout>
+      </AuthLayout>
+      {sending && <LoadingOverlay label="Sending code…" />}
+      {!sending && busy && <LoadingOverlay label={totpRequired ? "Verifying…" : "Signing in…"} />}
+    </>
   );
 }
 

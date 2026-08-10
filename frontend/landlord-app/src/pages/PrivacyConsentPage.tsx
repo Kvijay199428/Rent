@@ -10,6 +10,7 @@ import { ROUTES } from '@/lib/routes';
 import { useAuth } from '@/contexts/AuthContext';
 import MarkdownView from '@/components/privacy/MarkdownView';
 import { BrandWave } from '@shared/loading/BrandWave';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
 interface PolicyInfo {
   version: string;
@@ -88,7 +89,8 @@ export default function PrivacyConsentPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-8 px-4">
+    <>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-8 px-4">
       <div className="max-w-3xl mx-auto">
         <Card className="shadow-xl">
           <CardHeader className="space-y-1">
@@ -152,7 +154,7 @@ export default function PrivacyConsentPage() {
                   </label>
 
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? <BrandWave size="sm" label="Recording acceptance…" /> : 'Accept and Continue'}
+                    Accept and Continue
                   </Button>
 
                   <div className="flex items-center gap-2 justify-center text-xs text-muted-foreground">
@@ -165,6 +167,8 @@ export default function PrivacyConsentPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+      </div>
+      {loading && <LoadingOverlay label="Recording acceptance…" />}
+    </>
   );
 }

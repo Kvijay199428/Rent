@@ -10,7 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield, Eye, EyeOff, Copy, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { ROUTES } from '@/lib/routes';
 import AuthLayout from '@/components/layout/AuthLayout';
-import { BrandWave } from '@shared/loading/BrandWave';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
 interface SetupResponse {
   status: string;
@@ -110,7 +110,8 @@ export default function AdminSetupPage() {
   };
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -199,7 +200,7 @@ export default function AdminSetupPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? <BrandWave size="sm" label="Creating Account…" /> : 'Create Admin Account'}
+              Create Admin Account
             </Button>
           </form>
         </CardContent>
@@ -260,6 +261,8 @@ export default function AdminSetupPage() {
           )}
         </DialogContent>
       </Dialog>
-    </AuthLayout>
+      </AuthLayout>
+      {loading && <LoadingOverlay label="Creating Account…" />}
+    </>
   );
 }

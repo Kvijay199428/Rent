@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "@/components/AuthLayout";
-import { BrandWave } from "@shared/loading/BrandWave";
+import LoadingOverlay from "@shared/loading/LoadingOverlay";
 import { qrLoginByPin } from "@/lib/login-api";
 import type { QrTenantProfile } from "@/types";
 
@@ -40,7 +40,8 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
   };
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <Card className="w-full max-w-md rounded-3xl border shadow-xl">
         <CardContent className="p-8">
           <div className="text-center mb-6">
@@ -103,7 +104,7 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
               disabled={loading || pin.length !== 4}
               className="w-full h-12 rounded-2xl text-base"
             >
-              {loading ? <BrandWave size="sm" label="Unlocking…" /> : <>Unlock Portal <ArrowRight className="w-4 h-4 ml-2" /></>}
+              Unlock Portal <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </form>
 
@@ -127,6 +128,8 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
           </div>
         </CardContent>
       </Card>
-    </AuthLayout>
+      </AuthLayout>
+      {loading && <LoadingOverlay label="Unlocking…" />}
+    </>
   );
 }

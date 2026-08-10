@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, KeyRound, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
 import { ROUTES } from '@/lib/routes';
-import { BrandWave } from '@shared/loading/BrandWave';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
@@ -106,7 +106,8 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+    <>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -212,7 +213,7 @@ export default function ChangePasswordPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={loading || !!success}>
-                {loading ? <BrandWave size="sm" label="Updating…" /> : isGoogleSignup ? 'Set Password' : 'Update Password'}
+                {isGoogleSignup ? 'Set Password' : 'Update Password'}
               </Button>
             </form>
           )}
@@ -225,6 +226,8 @@ export default function ChangePasswordPage() {
         totp={totpData}
         hasExistingTotp={hasTotp}
       />
-    </div>
+      </div>
+      {loading && <LoadingOverlay label="Updating…" />}
+    </>
   );
 }

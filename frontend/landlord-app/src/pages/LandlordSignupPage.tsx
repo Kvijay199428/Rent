@@ -10,7 +10,7 @@ import { Eye, EyeOff, Shield, AlertTriangle, Check, X, Loader2 } from 'lucide-re
 import { toast } from 'sonner';
 import AuthLayout from '@/components/layout/AuthLayout';
 import { ROUTES } from '@/lib/routes';
-import { BrandWave } from '@shared/loading/BrandWave';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
 import { useAuth } from '@/contexts/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PRIVACY_POLICY_VERSION } from '@/lib/privacy';
@@ -246,7 +246,8 @@ export default function LandlordSignupPage() {
   const strengthLabel = (s: number) => s <= 1 ? 'Very weak' : s <= 2 ? 'Weak' : s <= 3 ? 'Fair' : s <= 4 ? 'Good' : 'Strong';
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -466,7 +467,7 @@ export default function LandlordSignupPage() {
             </p>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? <BrandWave size="sm" label="Creating Account…" /> : 'Sign Up'}
+              Sign Up
             </Button>
           </form>
 
@@ -485,6 +486,10 @@ export default function LandlordSignupPage() {
           </p>
         </CardFooter>
       </Card>
-    </AuthLayout>
+      </AuthLayout>
+      {(loading || googleLoading) && (
+        <LoadingOverlay label={googleLoading ? "Signing up…" : "Creating Account…"} />
+      )}
+    </>
   );
 }

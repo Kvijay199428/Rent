@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "@/components/AuthLayout";
-import { BrandWave } from "@shared/loading/BrandWave";
+import LoadingOverlay from "@shared/loading/LoadingOverlay";
 import {
   portalLogin,
   forgotTenantPassword,
@@ -133,7 +133,8 @@ export default function PortalLoginPage() {
   };
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <Card className="w-full max-w-md rounded-3xl border shadow-xl">
         <CardContent className="p-8">
           {view === "login" && (
@@ -212,7 +213,7 @@ export default function PortalLoginPage() {
                   disabled={loading || !username.trim() || !password}
                   className="w-full h-12 rounded-2xl text-base"
                 >
-                  {loading ? <BrandWave size="sm" label="Signing in…" /> : <>Sign In <ArrowRight className="w-4 h-4 ml-2" /></>}
+                  Sign In <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </form>
 
@@ -281,7 +282,7 @@ export default function PortalLoginPage() {
                   disabled={loading || !username.trim()}
                   className="w-full h-12 rounded-2xl text-base"
                 >
-                  {loading ? <BrandWave size="sm" label="Submitting…" /> : "Request Reset"}
+                  Request Reset
                 </Button>
 
                 <Button
@@ -368,7 +369,7 @@ export default function PortalLoginPage() {
                   disabled={loading || !password || newPassword.length < 8}
                   className="w-full h-12 rounded-2xl text-base"
                 >
-                  {loading ? <BrandWave size="sm" label="Updating…" /> : "Update Password"}
+                  Update Password
                 </Button>
               </form>
             </>
@@ -380,6 +381,12 @@ export default function PortalLoginPage() {
           </p>
         </CardContent>
       </Card>
-    </AuthLayout>
+      </AuthLayout>
+      {loading && (
+        <LoadingOverlay
+          label={view === "login" ? "Signing in…" : view === "forgot" ? "Submitting…" : "Updating…"}
+        />
+      )}
+    </>
   );
 }
