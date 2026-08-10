@@ -20,7 +20,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Loader2, Search, FileSpreadsheet, AlertCircle, Check, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Search, FileSpreadsheet, AlertCircle, Check, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { importExecute, type PreviewResponse } from './importService';
@@ -637,7 +638,7 @@ export default function ImportPreviewModal({
                             className="bg-primary hover:bg-primary/90"
                         >
                             {isExecuting ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <BrandWave size="sm" />
                             ) : (
                                 <Check className="mr-2 h-4 w-4" />
                             )}
@@ -738,7 +739,7 @@ export default function ImportPreviewModal({
                         Cancel
                     </Button>
                     <Button variant="destructive" onClick={executeImport} disabled={isExecuting}>
-                        {isExecuting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirm Import"}
+                        {isExecuting ? <BrandWave size="sm" /> : "Confirm Import"}
                     </Button>
                 </div>
             </DialogContent>

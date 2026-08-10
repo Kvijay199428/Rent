@@ -6,6 +6,7 @@ import { api } from "@/services/api";
 import { useToast } from "@/hooks/useToast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Shield, Search, ChevronLeft, ChevronRight, Filter, X } from "lucide-react";
+import { BrandWave } from '@shared/loading/BrandWave';
 
 const ACTION_COLORS: Record<string, { bg: string; fg: string }> = {
   "Login Success":            { bg: "bg-emerald-100 dark:bg-emerald-900/30", fg: "text-emerald-700 dark:text-emerald-400" },
@@ -206,7 +207,11 @@ export default function ActivityPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">Loading\u2026</td>
+                    <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
+                      <div className="flex items-center justify-center">
+                        <BrandWave size="sm" label="Loading…" />
+                      </div>
+                    </td>
                   </tr>
                 ) : logs.length === 0 ? (
                   <tr>

@@ -10,6 +10,7 @@ import { Eye, EyeOff, Shield, AlertTriangle, Check, X, Loader2 } from 'lucide-re
 import { toast } from 'sonner';
 import AuthLayout from '@/components/layout/AuthLayout';
 import { ROUTES } from '@/lib/routes';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { useAuth } from '@/contexts/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PRIVACY_POLICY_VERSION } from '@/lib/privacy';
@@ -465,12 +466,7 @@ export default function LandlordSignupPage() {
             </p>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating Account...
-                </>
-              ) : 'Sign Up'}
+              {loading ? <BrandWave size="sm" label="Creating Account…" /> : 'Sign Up'}
             </Button>
           </form>
 

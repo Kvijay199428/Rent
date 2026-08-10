@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import type { Receipt } from '@/types';
 import { Search, Receipt as ReceiptIcon, ChevronDown } from 'lucide-react';
 import ReceiptRow from '@/components/shared/ReceiptRow';
+import { BrandWave } from '@shared/loading/BrandWave';
 import PDFPreviewModal from '@/components/shared/PDFPreviewModal';
 import EditBillModal from '@/components/shared/EditBillModal';
 
@@ -78,7 +79,7 @@ export default function History() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BrandWave stacked label="Loading history…" />
       </div>
     );
   }

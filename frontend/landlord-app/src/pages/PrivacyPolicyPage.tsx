@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, FileText, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ROUTES } from '@/lib/routes';
 import MarkdownView from '@/components/privacy/MarkdownView';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 interface PolicyInfo {
   version: string;
@@ -60,7 +61,7 @@ export default function PrivacyPolicyPage() {
 
             {!policy && !error && (
               <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <BrandWave label="Loading policy…" />
               </div>
             )}
 

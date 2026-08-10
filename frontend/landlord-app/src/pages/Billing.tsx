@@ -14,6 +14,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Tenant } from '@/types';
 import { CheckCircle, FileText, Download, Clock, AlertCircle, Zap } from 'lucide-react';
@@ -197,7 +198,7 @@ export default function Billing() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BrandWave stacked label="Loading billing…" />
       </div>
     );
   }

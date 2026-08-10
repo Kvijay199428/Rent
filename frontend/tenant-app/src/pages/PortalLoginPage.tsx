@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "@/components/AuthLayout";
+import { BrandWave } from "@shared/loading/BrandWave";
 import {
   portalLogin,
   forgotTenantPassword,
@@ -211,8 +212,7 @@ export default function PortalLoginPage() {
                   disabled={loading || !username.trim() || !password}
                   className="w-full h-12 rounded-2xl text-base"
                 >
-                  {loading ? "Signing in…" : "Sign In"}
-                  {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
+                  {loading ? <BrandWave size="sm" label="Signing in…" /> : <>Sign In <ArrowRight className="w-4 h-4 ml-2" /></>}
                 </Button>
               </form>
 
@@ -281,7 +281,7 @@ export default function PortalLoginPage() {
                   disabled={loading || !username.trim()}
                   className="w-full h-12 rounded-2xl text-base"
                 >
-                  {loading ? "Submitting…" : "Request Reset"}
+                  {loading ? <BrandWave size="sm" label="Submitting…" /> : "Request Reset"}
                 </Button>
 
                 <Button
@@ -368,7 +368,7 @@ export default function PortalLoginPage() {
                   disabled={loading || !password || newPassword.length < 8}
                   className="w-full h-12 rounded-2xl text-base"
                 >
-                  {loading ? "Updating…" : "Update Password"}
+                  {loading ? <BrandWave size="sm" label="Updating…" /> : "Update Password"}
                 </Button>
               </form>
             </>

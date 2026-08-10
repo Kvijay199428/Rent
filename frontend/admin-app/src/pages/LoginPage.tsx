@@ -1,9 +1,18 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth, OtpCooldownError } from "../contexts/AuthContext";
 import AuthLayout from "../components/AuthLayout";
+import BrandWave from "@shared/loading/BrandWave";
 
 type OtpMethod = "totp" | "telegram";
+
+const COOLDOWN_SECONDS = 60;
+
+function formatCountdown(s: number) {
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
 
 export default function LoginPage() {
   const { login, loginTOTP, loginOtpSend, loginOtpVerify } = useAuth();
@@ -20,6 +29,13 @@ export default function LoginPage() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpMsg, setOtpMsg] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
 
   function useTelegram() {
     return method === "telegram" && methods.includes("telegram_otp");
@@ -32,6 +48,7 @@ export default function LoginPage() {
     setCode("");
     setOtpSent(false);
     setOtpMsg(null);
+    setCooldown(0);
     setError(null);
   }
 
@@ -82,11 +99,19 @@ export default function LoginPage() {
     setSending(true);
     setOtpMsg(null);
     try {
-      await loginOtpSend();
+      const res = await loginOtpSend();
       setOtpSent(true);
       setOtpMsg("Code sent to your Telegram. Check your chat and enter the code below.");
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to send code");
+      setCooldown(res.cooldown_seconds ?? COOLDOWN_SECONDS);
+    } catch (err) {
+      if (err instanceof OtpCooldownError) {
+        setOtpSent(true);
+        setOtpMsg(null);
+        setError(null);
+        setCooldown(err.cooldownSeconds);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to send code");
+      }
     } finally {
       setSending(false);
     }
@@ -205,38 +230,70 @@ export default function LoginPage() {
             {useTelegram() ? (
               <>
                 {!otpSent ? (
-                  <button
-                    type="button"
-                    onClick={handleSendOtp}
-                    disabled={sending}
-                    style={{
-                      width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-                      background: sending ? "#9ca3af" : "#3b4a6b", color: "#fff",
-                      fontSize: 15, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer",
-                      transition: "background 0.2s", marginBottom: 16,
-                    }}
-                  >
-                    {sending ? "Sending…" : "Send code via Telegram"}
-                  </button>
+                  sending ? (
+                    <div style={{ padding: "14px 0", marginBottom: 16 }}>
+                      <BrandWave stacked label="Sending code…" />
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={sending}
+                      style={{
+                        width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+                        background: "#3b4a6b", color: "#fff",
+                        fontSize: 15, fontWeight: 700, cursor: "pointer",
+                        transition: "background 0.2s", marginBottom: 16,
+                      }}
+                    >
+                      Send code via Telegram
+                    </button>
+                  )
                 ) : (
-                  <label style={{ display: "block", marginBottom: 24 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-                      Telegram Code
-                    </span>
-                    <input
-                      type="text"
-                      value={code}
-                      onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      required
-                      autoFocus
-                      maxLength={6}
-                      pattern="[0-9]{6}"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
-                      placeholder="000000"
-                    />
-                  </label>
+                  <>
+                    <label style={{ display: "block", marginBottom: 16 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                        Telegram Code
+                      </span>
+                      <input
+                        type="text"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        required
+                        autoFocus
+                        maxLength={6}
+                        pattern="[0-9]{6}"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
+                        placeholder="000000"
+                      />
+                    </label>
+                    {sending ? (
+                      <div style={{ padding: "14px 0", marginBottom: 16 }}>
+                        <BrandWave stacked label="Sending code…" />
+                      </div>
+                    ) : cooldown > 0 ? (
+                      <p style={{
+                        margin: 0, textAlign: "center", fontSize: 13, color: "#6b7280", marginBottom: 16,
+                      }}>
+                        Resend available in {formatCountdown(cooldown)}
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        style={{
+                          width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+                          background: "#3b4a6b", color: "#fff",
+                          fontSize: 15, fontWeight: 700, cursor: "pointer",
+                          transition: "background 0.2s", marginBottom: 16,
+                        }}
+                      >
+                        Resend OTP
+                      </button>
+                    )}
+                  </>
                 )}
               </>
             ) : (
@@ -263,18 +320,24 @@ export default function LoginPage() {
         )}
 
         {!(totpRequired && useTelegram() && !otpSent) && (
-          <button
-            type="submit"
-            disabled={busy}
-            style={{
-              width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-              background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
-              fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
-              transition: "background 0.2s",
-            }}
-          >
-            {busy ? (totpRequired ? "Verifying…" : "Signing in…") : (totpRequired ? "Verify" : "Sign In")}
-          </button>
+          busy ? (
+            <div style={{ padding: "14px 0", marginBottom: 16 }}>
+              <BrandWave stacked label={totpRequired ? "Verifying…" : "Signing in…"} />
+            </div>
+          ) : (
+            <button
+              type="submit"
+              disabled={busy}
+              style={{
+                width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+                background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
+                fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
+                transition: "background 0.2s",
+              }}
+            >
+              {totpRequired ? "Verify" : "Sign In"}
+            </button>
+          )
         )}
 
         {totpRequired && (

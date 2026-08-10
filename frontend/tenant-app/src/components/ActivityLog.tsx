@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { tenantApi } from "@/lib/api";
+import { BrandWave } from "@shared/loading/BrandWave";
 import { Shield } from "lucide-react";
 
 const ACTION_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -43,7 +44,7 @@ export default function ActivityLog() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+        <BrandWave stacked label="Loading…" />
       </div>
     );
   }

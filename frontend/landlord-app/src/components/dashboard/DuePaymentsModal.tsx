@@ -24,7 +24,8 @@ import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Receipt, Tenant } from '@/types';
 import PDFPreviewModal from '@/components/shared/PDFPreviewModal';
-import { AlertCircle, Eye, Loader2, Pencil, Search, User } from 'lucide-react';
+import { AlertCircle, Eye, Pencil, Search, User } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 type Props = {
   open: boolean;
@@ -302,7 +303,7 @@ export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Prop
                 <div className="p-3 space-y-3">
                   {loading ? (
                     <div className="flex items-center justify-center py-10">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      <BrandWave stacked label="Loading due payments…" />
                     </div>
                   ) : filteredGroups.length === 0 ? (
                     <div className="text-sm text-muted-foreground p-3">No due receipts found.</div>

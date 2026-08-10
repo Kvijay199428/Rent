@@ -20,7 +20,8 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Receipt, Tenant } from '@/types';
-import { Loader2, Gauge, User, Zap } from 'lucide-react';
+import { Gauge, User, Zap } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 import {
   Area,
   AreaChart,
@@ -147,7 +148,7 @@ export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId,
 
         {loading ? (
           <div className="flex items-center justify-center flex-1">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <BrandWave stacked label="Loading details…" />
           </div>
         ) : tenant ? (
           <div className="flex flex-col lg:flex-row flex-1 min-h-0">

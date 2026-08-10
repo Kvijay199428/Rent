@@ -3,7 +3,7 @@ import { Routes, Route, Navigate } from "react-router";
 import { TenantProvider } from "@/context/TenantContext";
 import { useTenant } from "@/context/TenantContext";
 import BroadcastBanner from "@/components/BroadcastBanner";
-import LoadingScreen from "@/components/LoadingScreen";
+import LoadingScreen from "@shared/loading/LoadingScreen";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ReceiptRoller } from "@/components/receipts";
 import PdfPreviewModal from "@/components/modals/PdfPreviewModal";

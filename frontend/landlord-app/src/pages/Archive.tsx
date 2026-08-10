@@ -5,11 +5,12 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Tenant, Receipt } from '@/types';
-import { Search, Archive as ArchiveIcon, Loader2 } from 'lucide-react';
+import { Search, Archive as ArchiveIcon } from 'lucide-react';
 import { ArchiveTenantCard } from '@/components/archive/ArchiveTenantCard';
 import PDFPreviewModal from '@/components/shared/PDFPreviewModal';
 import EditBillModal from '@/components/shared/EditBillModal';
 import ReceiptRow from '@/components/shared/ReceiptRow';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 export default function ARCHIVEPAGE() {
   const { landlordUuid } = useAuth();
@@ -106,7 +107,7 @@ export default function ARCHIVEPAGE() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <BrandWave stacked label="Loading archive…" />
       </div>
     );
   }

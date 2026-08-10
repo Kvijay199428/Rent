@@ -1,7 +1,7 @@
 import { Routes, Route, Navigate } from "react-router";
 import { useAuth, AuthProvider } from "./contexts/AuthContext";
 import BroadcastBanner from "./components/BroadcastBanner";
-import LoadingScreen from "./components/LoadingScreen";
+import LoadingScreen from "@shared/loading/LoadingScreen";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import LandlordsPage from "./pages/LandlordsPage";

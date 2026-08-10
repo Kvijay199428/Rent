@@ -4,11 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
-import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { ROUTES } from '@/lib/routes';
 import { useAuth } from '@/contexts/AuthContext';
 import MarkdownView from '@/components/privacy/MarkdownView';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 interface PolicyInfo {
   version: string;
@@ -113,7 +114,7 @@ export default function PrivacyConsentPage() {
 
             {!policy && !error && (
               <div className="flex items-center justify-center py-16">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <BrandWave label="Loading policy…" />
               </div>
             )}
 
@@ -151,14 +152,7 @@ export default function PrivacyConsentPage() {
                   </label>
 
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Recording acceptance...
-                      </>
-                    ) : (
-                      'Accept and Continue'
-                    )}
+                    {loading ? <BrandWave size="sm" label="Recording acceptance…" /> : 'Accept and Continue'}
                   </Button>
 
                   <div className="flex items-center gap-2 justify-center text-xs text-muted-foreground">

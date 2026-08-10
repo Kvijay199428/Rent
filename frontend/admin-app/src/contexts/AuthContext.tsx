@@ -15,12 +15,27 @@ interface TOTPResult {
   methods?: string[];
 }
 
+interface OtpSendResult {
+  status: string;
+  message: string;
+  cooldown_seconds?: number;
+}
+
+export class OtpCooldownError extends Error {
+  cooldownSeconds: number;
+
+  constructor(cooldownSeconds: number) {
+    super(`Please wait ${cooldownSeconds}s before requesting a new code.`);
+    this.cooldownSeconds = cooldownSeconds;
+  }
+}
+
 interface AuthContextValue {
   admin: Admin | null;
   loading: boolean;
   login: (username: string, password: string, rememberMe?: boolean) => Promise<TOTPResult>;
   loginTOTP: (totpToken: string) => Promise<void>;
-  loginOtpSend: () => Promise<{ status: string; message: string }>;
+  loginOtpSend: () => Promise<OtpSendResult>;
   loginOtpVerify: (otp: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -97,8 +112,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }),
     });
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Failed to send code" }));
-      throw new Error(err.detail ?? "Failed to send code");
+      const err = await res.json().catch(() => ({ detail: undefined }));
+      if (err?.detail && typeof err.detail === "object" && "cooldown_seconds" in err.detail) {
+        throw new OtpCooldownError(Number(err.detail.cooldown_seconds) || 0);
+      }
+      const message =
+        typeof err?.detail === "string" ? err.detail : (err?.message ?? "Failed to send code");
+      throw new Error(message);
     }
     return await res.json();
   }, []);

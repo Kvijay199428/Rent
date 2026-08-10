@@ -7,6 +7,7 @@ import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import { ROUTES } from '@/lib/routes';
 import type { Backup, TenantRecoverySnapshot, SnapshotRestorePreview } from '@/types';
+import { BrandWave } from '@shared/loading/BrandWave';
 import {
   Database,
   ShieldPlus,
@@ -121,7 +122,7 @@ function TenantRecoverySection() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-40">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <BrandWave stacked label="Loading backups…" />
       </div>
     );
   }
@@ -250,8 +251,7 @@ function TenantRecoverySection() {
 
           {previewLoading && (
             <div className="flex flex-col items-center py-8 gap-3">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Checking for conflicts...</p>
+              <BrandWave stacked label="Checking for conflicts…" />
             </div>
           )}
 
@@ -495,7 +495,7 @@ export default function Backups() {
       {activeFilter !== 'Deleted Tenants' && (
         loading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <BrandWave stacked label="Loading backups…" />
           </div>
         ) : filtered.length === 0 ? (
           <Card>

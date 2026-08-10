@@ -4,7 +4,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import { useAuth } from '@/contexts/AuthContext';
 import BroadcastBanner from '@/components/BroadcastBanner';
-import LoadingScreen from '@/components/LoadingScreen';
+import LoadingScreen from '@shared/loading/LoadingScreen';
 import { ROUTES } from '@/lib/routes';
 
 export default function MainLayout() {

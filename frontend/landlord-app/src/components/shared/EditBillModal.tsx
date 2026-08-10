@@ -19,6 +19,7 @@ import { api } from '@/services/api';
 import type { Tenant, Receipt } from '@/types';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 interface EditBillModalProps {
   billNo: string | null;
@@ -98,7 +99,9 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
         </DialogHeader>
 
         {loading ? (
-          <div className="py-8 text-center text-muted-foreground">Loading...</div>
+          <div className="py-8 text-center text-muted-foreground">
+            <BrandWave stacked label="Loading bill…" />
+          </div>
         ) : receipt ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

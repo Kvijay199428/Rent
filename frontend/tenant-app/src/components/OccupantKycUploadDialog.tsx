@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
 import { tenantApi } from "@/lib/api";
+import { BrandWave } from "@shared/loading/BrandWave";
 
 export interface OccupantKycUploadDialogProps {
   open: boolean;
@@ -151,8 +151,7 @@ export function OccupantKycUploadDialog({
           
           <div className="flex gap-2 pt-2">
             <Button type="submit" className="flex-1" disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Upload
+              {submitting ? <BrandWave size="sm" label="Uploading…" /> : "Upload"}
             </Button>
             <Button type="button" variant="outline" className="flex-1" disabled={submitting} onClick={() => onOpenChange(false)}>
               Cancel

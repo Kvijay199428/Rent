@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Shield, AlertTriangle, ArrowLeft, KeyRound } from 'lucide-react';
 import AuthLayout from '@/components/layout/AuthLayout';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 export default function LandlordLoginPage() {
   const navigate = useNavigate();
@@ -204,7 +205,7 @@ export default function LandlordLoginPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Please wait...' : needsTOTP ? 'Verify & Login' : 'Login'}
+              {loading ? <BrandWave size="sm" label="Please wait…" /> : needsTOTP ? 'Verify & Login' : 'Login'}
             </Button>
 
             {!needsTOTP && (

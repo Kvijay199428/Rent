@@ -21,7 +21,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import {
-    Loader2,
     Search,
     FileSpreadsheet,
     AlertCircle,
@@ -29,6 +28,7 @@ import {
     FileArchive,
     User,
 } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -326,7 +326,7 @@ export default function ExportPreviewModal({
                             <div className="p-2 space-y-1.5">
                                 {isLoading ? (
                                     <div className="flex items-center justify-center p-8">
-                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                        <BrandWave stacked label="Loading tenants…" />
                                     </div>
                                 ) : filteredTenants.length === 0 ? (
                                     <div className="text-sm text-muted-foreground p-3">
@@ -553,7 +553,7 @@ export default function ExportPreviewModal({
                             disabled={isExporting}
                         >
                             {isExporting ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <BrandWave size="sm" />
                             ) : (
                                 <FileText className="mr-2 h-4 w-4" />
                             )}
@@ -566,7 +566,7 @@ export default function ExportPreviewModal({
                             disabled={isExporting}
                         >
                             {isExporting ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <BrandWave size="sm" />
                             ) : (
                                 <FileSpreadsheet className="mr-2 h-4 w-4" />
                             )}
@@ -578,7 +578,7 @@ export default function ExportPreviewModal({
                             disabled={isExporting}
                         >
                             {isExporting ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <BrandWave size="sm" />
                             ) : (
                                 <FileArchive className="mr-2 h-4 w-4" />
                             )}

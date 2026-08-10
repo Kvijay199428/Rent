@@ -14,6 +14,7 @@ import {
   Shield, KeyRound, Copy, CheckCircle2, AlertTriangle, 
   RefreshCw, Eye, EyeOff, QrCode 
 } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
 
 interface TOTPData {
@@ -291,7 +292,7 @@ export default function SecuritySettingsPage() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <QrCode className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Loading TOTP configuration...</p>
+                  <BrandWave stacked label="Loading TOTP configuration…" />
                 </div>
               )}
             </CardContent>

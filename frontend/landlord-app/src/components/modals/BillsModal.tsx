@@ -11,7 +11,8 @@ import {
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, RefreshCw, Search, FileText, AlertCircle, Receipt } from 'lucide-react';
+import { RefreshCw, Search, FileText, AlertCircle, Receipt } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { cn } from '@/lib/utils';
 import ROUTES from '@/lib/routes';
 import { useAuth } from '@/contexts/AuthContext';
@@ -200,7 +201,7 @@ export default function BillsModal({
                             <div className="p-2 space-y-1.5">
                                 {loading ? (
                                     <div className="flex items-center justify-center py-10">
-                                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                        <BrandWave stacked label="Loading bills…" />
                                     </div>
                                 ) : filteredBills.length === 0 ? (
                                     <div className="text-sm text-muted-foreground p-3">
@@ -305,7 +306,7 @@ export default function BillsModal({
                                 <div className="flex-1 min-h-0 bg-neutral-300/70 relative">
                                     {iframeLoading && (
                                         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-                                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                            <BrandWave stacked label="Loading receipt…" />
                                         </div>
                                     )}
 

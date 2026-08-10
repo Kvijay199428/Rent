@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, KeyRound, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
 import { ROUTES } from '@/lib/routes';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
@@ -211,7 +212,7 @@ export default function ChangePasswordPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={loading || !!success}>
-                {loading ? 'Updating...' : isGoogleSignup ? 'Set Password' : 'Update Password'}
+                {loading ? <BrandWave size="sm" label="Updating…" /> : isGoogleSignup ? 'Set Password' : 'Update Password'}
               </Button>
             </form>
           )}

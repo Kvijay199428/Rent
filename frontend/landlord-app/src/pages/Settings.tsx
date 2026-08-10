@@ -13,7 +13,7 @@ import { ROUTES } from '@/lib/routes';
 import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-
+import { BrandWave } from '@shared/loading/BrandWave';
 import type { AppConfig } from '@/types';
 import ImportPreviewModal from '../components/modals/ImportPreviewModal';
 import ExportPreviewModal from '../components/modals/ExportPreviewModal';
@@ -236,7 +236,7 @@ export default function Settings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BrandWave stacked label="Loading settings…" />
       </div>
     );
   }

@@ -7,9 +7,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Download, Loader2, X } from "lucide-react";
+import { FileText, Download, X } from "lucide-react";
 import { toast } from "sonner";
 import { tenantApi } from "@/lib/api";
+import { BrandWave } from "@shared/loading/BrandWave";
 
 interface PdfPreviewModalProps {
   billNo: string;
@@ -133,8 +134,7 @@ export default function PdfPreviewModal({
         <div className="flex-1 min-h-0 bg-muted relative">
           {loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading PDF preview...</p>
+              <BrandWave stacked label="Loading PDF preview..." />
             </div>
           )}
 

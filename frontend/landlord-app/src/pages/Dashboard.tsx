@@ -6,6 +6,7 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { DashboardStats, Tenant } from '@/types';
+import { BrandWave } from '@shared/loading/BrandWave';
 import {
   TrendingUp,
   TrendingDown,
@@ -80,7 +81,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BrandWave stacked label="Loading dashboard…" />
       </div>
     );
   }

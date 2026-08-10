@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "@/components/AuthLayout";
+import { BrandWave } from "@shared/loading/BrandWave";
 import { qrLoginByPin } from "@/lib/login-api";
 import type { QrTenantProfile } from "@/types";
 
@@ -102,8 +103,7 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
               disabled={loading || pin.length !== 4}
               className="w-full h-12 rounded-2xl text-base"
             >
-              {loading ? "Unlocking…" : "Unlock Portal"}
-              {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
+              {loading ? <BrandWave size="sm" label="Unlocking…" /> : <>Unlock Portal <ArrowRight className="w-4 h-4 ml-2" /></>}
             </Button>
           </form>
 

@@ -63,6 +63,7 @@ from app.services.telegram_otp_service import (
     verify_otp,
     cooldown_remaining,
     delete_pending_otp,
+    OTP_RESEND_COOLDOWN_SECONDS,
 )
 
 router = APIRouter(prefix="/admin", tags=["Platform Admin"])
@@ -438,7 +439,10 @@ async def platform_login_otp_send(body: OtpSendRequest, request: Request):
     if cooldown > 0:
         raise HTTPException(
             status_code=429,
-            detail=f"Please wait {cooldown}s before requesting a new code.",
+            detail={
+                "message": f"Please wait {cooldown}s before requesting a new code.",
+                "cooldown_seconds": cooldown,
+            },
         )
 
     otp = generate_otp()
@@ -460,7 +464,11 @@ async def platform_login_otp_send(body: OtpSendRequest, request: Request):
         row["id"], "login_otp_sent",
         admin_username=row["username"], ip_address=ip, user_agent=ua,
     )
-    return {"status": "otp_sent", "message": "Login code sent to your Telegram."}
+    return {
+        "status": "otp_sent",
+        "message": "Login code sent to your Telegram.",
+        "cooldown_seconds": OTP_RESEND_COOLDOWN_SECONDS,
+    }
 
 
 class OtpVerifyRequest(BaseModel):

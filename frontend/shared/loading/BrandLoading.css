@@ -1,0 +1,83 @@
+/* PROPAURA brand loading — single source of truth for all frontend apps. */
+
+/* Full-screen splash overlay */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background: #0b1120;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.loading-screen.loading-fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* PROPAURA letter-wave wordmark */
+.loading-letters {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  line-height: 1;
+}
+
+.loading-letters span {
+  animation: letter-wave 1.8s ease-in-out infinite;
+}
+
+.loading-letters--lg {
+  font-size: 48px;
+}
+
+.loading-letters--md {
+  font-size: 16px;
+}
+
+.loading-letters--sm {
+  font-size: 13px;
+}
+
+@keyframes letter-wave {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: translateY(4px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* BrandWave composition */
+.brand-wave {
+  display: inline-flex;
+}
+
+.brand-wave--stacked {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-wave--row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-wave-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: #6b7280;
+}

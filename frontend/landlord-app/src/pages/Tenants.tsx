@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -476,7 +477,7 @@ export default function Tenants() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BrandWave stacked label="Loading tenants…" />
       </div>
     );
   }

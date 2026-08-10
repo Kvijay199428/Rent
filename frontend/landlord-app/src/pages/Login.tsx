@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Shield, User, KeyRound, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Shield, User, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { APP_BASE } from '@/lib/runtime';
 import { ROUTES } from '@/lib/routes';
 import AuthLayout from '@/components/layout/AuthLayout';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -107,7 +108,7 @@ export default function Login() {
               className="w-full"
               disabled={isLoading}
             >
-              {isLoading ? 'Logging in...' : 'Login to Dashboard'}
+              {isLoading ? <BrandWave size="sm" label="Logging in…" /> : 'Login to Dashboard'}
             </Button>
           </form>
         </div>

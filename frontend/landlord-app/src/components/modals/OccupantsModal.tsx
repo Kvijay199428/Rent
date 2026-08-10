@@ -28,12 +28,12 @@ import {
   Trash2,
   UserX,
   X,
-  Loader2,
   CalendarDays,
   Phone,
   MapPin,
   Clock,
 } from "lucide-react";
+import { BrandWave } from "@shared/loading/BrandWave";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Occupant, Tenant } from "@/types";
@@ -213,7 +213,7 @@ function UploadForm({
       </div>
       <div className="flex gap-2 pt-1">
         <Button type="submit" className="flex-1" disabled={submitting}>
-          {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {submitting && <BrandWave size="sm" />}
           Upload
         </Button>
         <Button type="button" variant="outline" className="flex-1" disabled={submitting} onClick={onCancel}>
@@ -339,7 +339,7 @@ export default function OccupantsModal({ tenant, open, onOpenChange }: Occupants
             </div>
             {loading ? (
               <div className="flex flex-1 items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <BrandWave size="sm" label="Loading…" />
               </div>
             ) : occupants.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
