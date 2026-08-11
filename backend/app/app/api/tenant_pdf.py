@@ -43,7 +43,8 @@ async def tenant_view_pdf(
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
     from app.services.pdf_service import generate_professional_pdf
-    landlord_conf = config.get("landlord", {})
+    from app.services.landlord_config_service import get_effective_landlord_config
+    landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
 
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
 
@@ -91,7 +92,8 @@ async def tenant_download_pdf(
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
     from app.services.pdf_service import generate_professional_pdf
-    landlord_conf = config.get("landlord", {})
+    from app.services.landlord_config_service import get_effective_landlord_config
+    landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
 
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
 

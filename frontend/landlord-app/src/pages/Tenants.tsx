@@ -18,7 +18,7 @@ import { API_BASE } from '@/services/base';
 import { getPublicAppUrl } from '@shared/api-config';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Tenant } from '@/types';
+import type { Tenant, Property } from '@/types';
 import BillsModal, { type TenantBill } from '@/components/modals/BillsModal';
 import OccupantsModal from '@/components/modals/OccupantsModal';
 import { exportExcel, downloadBlob } from '@/components/modals/ExportService';
@@ -307,6 +307,7 @@ function printHtmlInSameWindow(html: string) {
 export default function Tenants() {
   const { landlordUuid } = useAuth();
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -453,7 +454,12 @@ export default function Tenants() {
   };
 
   useEffect(() => {
-    if (landlordUuid) loadTenants();
+    if (!landlordUuid) return;
+    loadTenants();
+    api
+      .getProperties(landlordUuid)
+      .then(setProperties)
+      .catch(() => setProperties([]));
   }, [landlordUuid]);
 
   const filtered = tenants.filter(
@@ -508,6 +514,7 @@ export default function Tenants() {
                 <DialogTitle>Add New Tenant</DialogTitle>
               </DialogHeader>
               <TenantForm
+                properties={properties}
                 onSave={async (data) => {
                   try {
                     await api.addTenant(landlordUuid!, data as any);
@@ -581,6 +588,7 @@ export default function Tenants() {
           {editingTenant && (
             <TenantForm
               tenant={editingTenant}
+              properties={properties}
               onSave={async (data) => {
                 if (!editingTenant.id) return;
                 try {
@@ -1014,11 +1022,13 @@ function TenantCard({
 
 function TenantForm({
   tenant,
+  properties,
   onSave,
   onChangePin,
   onSavePortalAuth,
 }: {
   tenant?: Tenant | null;
+  properties?: Property[];
   onSave: (data: Record<string, unknown>) => void;
   onChangePin?: (pin: string) => Promise<void>;
   onSavePortalAuth?: (data: { tenantUsername?: string; temporaryPassword?: string; resetRequired?: boolean }) => Promise<void>;
@@ -1039,6 +1049,7 @@ function TenantForm({
     address: tenant?.address || '',
     roomNumber: tenant?.roomNumber || '',
     meterId: tenant?.meterId || '',
+    propertyId: tenant?.propertyId ?? (properties && properties.length === 1 ? (properties[0].id as number) : ''),
     rent: tenant?.rent || 8000,
     water: tenant?.water || 500,
     electricityRate: tenant?.electricityRate || 15,
@@ -1051,7 +1062,14 @@ function TenantForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(form);
+    const { propertyId, ...rest } = form;
+    onSave({
+      ...rest,
+      property_id:
+        propertyId === '' || propertyId === 'none' || propertyId === null || propertyId === undefined
+          ? null
+          : Number(propertyId),
+    });
   };
 
   const handleSavePortalAuth = async () => {
@@ -1099,6 +1117,28 @@ function TenantForm({
         <Label>Address</Label>
         <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
       </div>
+
+      {properties && properties.length > 0 && (
+        <div className="space-y-2">
+          <Label>Property</Label>
+          <Select
+            value={form.propertyId === '' || form.propertyId === undefined || form.propertyId === null ? 'none' : String(form.propertyId)}
+            onValueChange={(val) => setForm({ ...form, propertyId: val === 'none' ? '' : val })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select property" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No property</SelectItem>
+              {properties.map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.property_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">

@@ -16,13 +16,15 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { BrandWave } from '@shared/loading/BrandWave';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Tenant } from '@/types';
+import type { Tenant, Property } from '@/types';
 import { CheckCircle, FileText, Download, Clock, AlertCircle, Zap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function Billing() {
   const { landlordUuid } = useAuth();
   const navigate = useNavigate();
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState('');
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [months, setMonths] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState('');
@@ -54,8 +56,13 @@ export default function Billing() {
 
   useEffect(() => {
     if (!landlordUuid) return;
-    Promise.all([api.getTenants(landlordUuid), api.getBillingMonths(landlordUuid)])
-      .then(([t, m]) => {
+    Promise.all([
+      api.getProperties(landlordUuid).catch(() => []),
+      api.getTenants(landlordUuid),
+      api.getBillingMonths(landlordUuid),
+    ])
+      .then(([props, t, m]) => {
+        setProperties(props);
         setTenants(t.filter((x: Tenant) => x.status === 'Active'));
         setMonths(m.months);
         setCurrentMonth(m.currentMonth);
@@ -64,6 +71,23 @@ export default function Billing() {
       .catch(() => toast.error('Failed to load data'))
       .finally(() => setLoading(false));
   }, [landlordUuid]);
+
+  const visibleTenants =
+    properties.length > 0 && selectedPropertyId
+      ? tenants.filter(
+          (t) => t.propertyId !== null && t.propertyId !== undefined && String(t.propertyId) === selectedPropertyId
+        )
+      : tenants;
+
+  const handlePropertyChange = useCallback(
+    (propertyId: string) => {
+      setSelectedPropertyId(propertyId);
+      setSelectedTenantId('');
+      setGeneratedBill(null);
+      setShowSuccess(false);
+    },
+    []
+  );
 
   const handleTenantChange = useCallback(async (tenantId: string) => {
     setSelectedTenantId(tenantId);
@@ -217,21 +241,46 @@ export default function Billing() {
         </CardHeader>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Property */}
+            {properties.length > 0 && (
+              <div className="space-y-2">
+                <Label>Property</Label>
+                <Select value={selectedPropertyId} onValueChange={handlePropertyChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Property..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {properties.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.property_name}
+                        {p.address ? ` — ${p.address}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Tenant */}
             <div className="space-y-2">
               <Label>Tenant Name</Label>
               <Select value={selectedTenantId} onValueChange={handleTenantChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select Tenant..." />
+                  <SelectValue placeholder={visibleTenants.length ? "Select Tenant..." : "No tenants in this property"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {tenants.map((t) => (
+                  {visibleTenants.map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>
                       {t.name} {t.roomNumber ? `(Room ${t.roomNumber})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {properties.length > 0 && selectedPropertyId && visibleTenants.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No active tenants in this property yet. Add tenants from the Tenants page.
+                </p>
+              )}
             </div>
 
             {/* Billing Month */}

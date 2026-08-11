@@ -28,9 +28,18 @@ class LandlordRoutes:
     LANDLORDAPIAUTHME = "/landlord/api/auth/me"
     LANDLORDAPIAUTHCHANGEPASSWORD = "/landlord/api/auth/change-password"
 
-    # Landlord API: Setup
+    # Landlord API: Setup wizard (post-signup initial configuration)
     LANDLORDAPISETUPREQUIRED = "/landlord/api/setup/required"
     LANDLORDAPISETUPCREATE = "/landlord/api/setup/create"
+    LANDLORDAPISETUPSKIP = "/landlord/api/setup/skip"
+
+    # Landlord API: Properties (property-first billing)
+    LANDLORDAPIPROPERTIESLIST = "/landlord/{landlordUuid}/api/properties"
+    LANDLORDAPIPROPERTIESCREATE = "/landlord/{landlordUuid}/api/properties"
+    LANDLORDAPIPROPERTIESGET = "/landlord/{landlordUuid}/api/properties/{propertyId}"
+    LANDLORDAPIPROPERTIESUPDATE = "/landlord/{landlordUuid}/api/properties/{propertyId}"
+    LANDLORDAPIPROPERTIESDELETE = "/landlord/{landlordUuid}/api/properties/{propertyId}"
+    LANDLORDAPIPROPERTIESTENANTS = "/landlord/{landlordUuid}/api/properties/{propertyId}/tenants"
 
     # Landlord API: Auth (legacy equivalents, mostly obsolete but kept if referenced)
     LANDLORDAPIAUTHPUBLICKEY = "/landlord/api/auth/public-key"
@@ -226,6 +235,19 @@ class LandlordNames:
     APIMARKOCCUPANTINACTIVE = "api_mark_occupant_inactive"
     APIDELETEOCCUPANT = "api_delete_occupant"
     APIGETOCCUPANTFILE = "api_get_occupant_file"
+
+    # API - Setup wizard
+    LANDLORDSETUPREQUIRED = "landlord_setup_required"
+    LANDLORDSETUPCREATE = "landlord_setup_create"
+    LANDLORDSETUPSKIP = "landlord_setup_skip"
+
+    # API - Properties
+    APIGETPROPERTIES = "api_get_properties"
+    APICREATEPROPERTY = "api_create_property"
+    APIGETPROPERTY = "api_get_property"
+    APIUPDATEPROPERTY = "api_update_property"
+    APIDELETEPROPERTY = "api_delete_property"
+    APIGETPROPERTYTENANTS = "api_get_property_tenants"
 
     # Auth Names (from old ADMIN prefixed)
     LANDLORDLOGINPOST = "landlordloginpost"

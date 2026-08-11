@@ -390,7 +390,8 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
     
     try:
         from app.core.config_service import config
-        generate_professional_pdf(receipt_dict, config.get("landlord", {}), pdf_path)
+        from app.services.landlord_config_service import get_effective_landlord_config
+        generate_professional_pdf(receipt_dict, get_effective_landlord_config(tenant_landlord_id), pdf_path)
     except BaseException as e:
         print(f"Error generating PDF: {e}")
 
@@ -495,7 +496,8 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     
     try:
         from app.core.config_service import config
-        generate_professional_pdf(updated_dict, config.get("landlord", {}), pdf_path)
+        from app.services.landlord_config_service import get_effective_landlord_config
+        generate_professional_pdf(updated_dict, get_effective_landlord_config(tenant.landlord_id or landlord_id), pdf_path)
     except BaseException as e:
         print(f"Error generating PDF: {e}")
 

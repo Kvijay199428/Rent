@@ -24,6 +24,7 @@ export interface Tenant {
   qr_key?: string;
   tenantUsername?: string;
   arrears: number;
+  propertyId?: number | null;
 }
 
 export interface Receipt {
@@ -311,6 +312,18 @@ export interface LandlordConfig {
   signature_text: string;
   signature_image: string;
 }
+
+export interface Property {
+  id: number;
+  landlord_id?: number;
+  property_name: string;
+  address?: string;
+  sort_order?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type PropertyConfig = Partial<LandlordConfig>;
 
 export interface WhatsappConfig {
   enabled?: boolean;

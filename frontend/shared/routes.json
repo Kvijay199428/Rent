@@ -157,7 +157,8 @@
       "dashboard": "/landlord/dashboard",
       "logout": "/landlord/logout",
       "privacyPolicy": "/landlord/privacy-policy",
-      "catchAll": "/landlord/*"
+      "catchAll": "/landlord/*",
+      "setup": "/landlord/setup"
     },
     "api": {
       "auth": {
@@ -257,6 +258,19 @@
       "audit": {
         "logs": "/landlord/{landlordUuid}/api/audit-logs",
         "actions": "/landlord/{landlordUuid}/api/audit-logs/actions"
+      },
+      "setup": {
+        "required": "/landlord/api/setup/required",
+        "create": "/landlord/api/setup/create",
+        "skip": "/landlord/api/setup/skip"
+      },
+      "properties": {
+        "list": "/landlord/{landlordUuid}/api/properties",
+        "create": "/landlord/{landlordUuid}/api/properties",
+        "get": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "update": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "delete": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "tenants": "/landlord/{landlordUuid}/api/properties/{propertyId}/tenants"
       }
     }
   }

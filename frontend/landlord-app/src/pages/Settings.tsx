@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { BrandWave } from '@shared/loading/BrandWave';
-import type { AppConfig } from '@/types';
+import type { AppConfig, Property } from '@/types';
 import ImportPreviewModal from '../components/modals/ImportPreviewModal';
 import ExportPreviewModal from '../components/modals/ExportPreviewModal';
 import SchemaMismatchDialog, { type SchemaMismatchInfo } from '../components/modals/SchemaMismatchDialog';
@@ -36,6 +36,9 @@ import {
   HardDrive,
   Download,
   QrCode,
+  Building2,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 export default function Settings() {
@@ -54,6 +57,8 @@ export default function Settings() {
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrData, setQrData] = useState<{ secret: string, qr_code_base64: string } | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+  const [props, setProps] = useState<Property[]>([]);
+  const [propsSaving, setPropsSaving] = useState(false);
   const toast = useToast();
   const { theme, resolvedTheme, setTheme } = useTheme();
 
@@ -69,9 +74,73 @@ export default function Settings() {
     }
   };
 
+  const loadProperties = async () => {
+    if (!landlordUuid) return;
+    try {
+      setProps(await api.getProperties(landlordUuid));
+    } catch {
+      setProps([]);
+    }
+  };
+
   useEffect(() => {
-    if (landlordUuid) loadConfig();
+    if (landlordUuid) {
+      loadConfig();
+      loadProperties();
+    }
   }, [landlordUuid]);
+
+  const handlePropsAdd = () => {
+    setProps([...props, { property_name: '', address: '' } as Property]);
+  };
+
+  const handlePropsChange = (row: Property, patch: Partial<Property>) => {
+    setProps(props.map((x) => (x === row ? { ...x, ...patch } : x)));
+  };
+
+  const handlePropsSave = async () => {
+    if (!landlordUuid) return;
+    setPropsSaving(true);
+    try {
+      for (const p of props) {
+        if (!p.property_name.trim()) continue;
+        if (p.id) {
+          await api.updateProperty(landlordUuid, p.id, {
+            property_name: p.property_name,
+            address: p.address ?? '',
+          });
+        } else {
+          await api.createProperty(landlordUuid, {
+            property_name: p.property_name,
+            address: p.address ?? '',
+          });
+        }
+      }
+      await loadProperties();
+      toast.success('Properties saved');
+    } catch {
+      toast.error('Failed to save properties');
+    } finally {
+      setPropsSaving(false);
+    }
+  };
+
+  const handlePropsDelete = async (row: Property) => {
+    if (!landlordUuid) return;
+    if (row.id && !window.confirm(`Delete "${row.property_name || 'Unnamed'}"? Its tenants stay but lose their property assignment.`)) {
+      return;
+    }
+    setPropsSaving(true);
+    try {
+      if (row.id) await api.deleteProperty(landlordUuid, row.id);
+      setProps(props.filter((x) => x !== row));
+      toast.success('Property deleted');
+    } catch {
+      toast.error('Failed to delete property');
+    } finally {
+      setPropsSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (landlordUuid && totpEnabled) {
@@ -681,6 +750,65 @@ export default function Settings() {
                   <span className="text-xs text-muted-foreground uppercase font-semibold">Applied now</span>
                   <div className="font-medium capitalize">{resolvedTheme}</div>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Properties */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                Properties
+              </CardTitle>
+              <CardDescription>
+                Group tenants under properties. Tenants are assigned a property from the Tenants page, and billing filters by property.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {props.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No properties yet. Add your first property below.
+                </p>
+              )}
+              {props.map((p, idx) => (
+                <div key={p.id ?? `new-${idx}`} className="flex flex-col sm:flex-row gap-3 items-end rounded-md border p-3">
+                  <div className="flex-1 space-y-1.5">
+                    <Label className="text-xs">Property name</Label>
+                    <Input
+                      value={p.property_name}
+                      onChange={(e) => handlePropsChange(p, { property_name: e.target.value })}
+                      placeholder="e.g. Lakshmi Nivas"
+                    />
+                  </div>
+                  <div className="flex-[2] space-y-1.5">
+                    <Label className="text-xs">Address</Label>
+                    <Input
+                      value={p.address ?? ''}
+                      onChange={(e) => handlePropsChange(p, { address: e.target.value })}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handlePropsDelete(p)}
+                    disabled={propsSaving}
+                    aria-label="Delete property"
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex flex-wrap gap-3">
+                <Button variant="outline" size="sm" onClick={handlePropsAdd}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Property
+                </Button>
+                <Button size="sm" onClick={handlePropsSave} disabled={propsSaving}>
+                  <Save className="h-4 w-4 mr-1" />
+                  {propsSaving ? 'Saving…' : 'Save Properties'}
+                </Button>
               </div>
             </CardContent>
           </Card>

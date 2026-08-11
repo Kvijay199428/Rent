@@ -1,11 +1,17 @@
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional
 
 class Tenant(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: Optional[int] = None
 
     # Owning landlord (multi-tenancy)
     landlord_id: Optional[int] = None
+
+    # Property membership (property-first billing).
+    # Field name serializes as `propertyId`; `property_id` accepted on input.
+    propertyId: Optional[int] = Field(default=None, alias="property_id")
 
     # General Info
     name: str

@@ -668,6 +668,86 @@ def init_db():
         """)
         conn.commit()
 
+        # ─── Landlord properties (setup wizard + property-first billing) ──
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS landlord_properties (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                landlord_id INTEGER NOT NULL REFERENCES landlord_accounts(id) ON DELETE CASCADE,
+                property_name TEXT NOT NULL,
+                address TEXT NOT NULL DEFAULT '',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_landlord_properties_landlord "
+                     "ON landlord_properties(landlord_id, sort_order)")
+        conn.commit()
+
+        # ─── Landlord profile (per-landlord "landlord" config section) ──
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS landlord_profiles (
+                landlord_id INTEGER PRIMARY KEY REFERENCES landlord_accounts(id) ON DELETE CASCADE,
+                config_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+        # ─── Landlord setup-wizard columns ─────────────────────────────
+        if not _column_exists(conn, "landlord_accounts", "setup_completed"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN setup_completed INTEGER NOT NULL DEFAULT 0")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "setup_skipped"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN setup_skipped INTEGER NOT NULL DEFAULT 0")
+            conn.commit()
+
+        # ─── tenants.property_id (property membership) ────────────────
+        if not _column_exists(conn, "tenants", "property_id"):
+            conn.execute("ALTER TABLE tenants ADD COLUMN property_id INTEGER REFERENCES landlord_properties(id)")
+            conn.commit()
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenants_property_id ON tenants(property_id)")
+        conn.commit()
+
+        # ─── Landlord setup backfill (one-time) ───────────────────────
+        # Existing landlords keep working unchanged: each landlord that has
+        # tenants (or exists) gets a default "Property 1" and is marked as
+        # setup-complete so the wizard only appears for NEW signups.
+        backfilled = conn.execute(
+            "SELECT 1 FROM app_metadata WHERE key = 'landlord_setup_backfill_v1'"
+        ).fetchone()
+        if not backfilled:
+            from datetime import datetime as _dt
+            _now = _dt.utcnow().isoformat()
+            _landlords = conn.execute(
+                "SELECT id FROM landlord_accounts ORDER BY id"
+            ).fetchall()
+            for _row in _landlords:
+                _lid = _row["id"]
+                _existing = conn.execute(
+                    "SELECT 1 FROM landlord_properties WHERE landlord_id = ? LIMIT 1",
+                    (_lid,),
+                ).fetchone()
+                if not _existing:
+                    _cur = conn.execute(
+                        "INSERT INTO landlord_properties (landlord_id, property_name, address, sort_order, created_at, updated_at) "
+                        "VALUES (?, ?, '', 0, ?, ?)",
+                        (_lid, "Property 1", _now, _now),
+                    )
+                    _pid = _cur.lastrowid
+                    conn.execute(
+                        "UPDATE tenants SET property_id = ? WHERE landlord_id = ? AND property_id IS NULL",
+                        (_pid, _lid),
+                    )
+            conn.execute(
+                "UPDATE landlord_accounts SET setup_completed = 1, updated_at = ? WHERE setup_completed = 0",
+                (_now,),
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('landlord_setup_backfill_v1', 'done')"
+            )
+            conn.commit()
+
         # ─── Seed default platform admin ───────────────────────────────
         # Ensure at least one platform admin exists (admin/admin)
         from app.authentication.common.utils import hash_pin

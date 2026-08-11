@@ -156,6 +156,7 @@
       "signup": "/landlord/signup",
       "dashboard": "/landlord/dashboard",
       "logout": "/landlord/logout",
+      "setup": "/landlord/setup",
       "catchAll": "/landlord/*"
     },
     "api": {
@@ -241,6 +242,19 @@
       "settings": {
         "uploadSignature": "/landlord/{landlordUuid}/api/settings/upload-signature",
         "deleteSignature": "/landlord/{landlordUuid}/api/settings/delete-signature"
+      },
+      "setup": {
+        "required": "/landlord/api/setup/required",
+        "create": "/landlord/api/setup/create",
+        "skip": "/landlord/api/setup/skip"
+      },
+      "properties": {
+        "list": "/landlord/{landlordUuid}/api/properties",
+        "create": "/landlord/{landlordUuid}/api/properties",
+        "get": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "update": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "delete": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "tenants": "/landlord/{landlordUuid}/api/properties/{propertyId}/tenants"
       },
       "totp": {
         "qr": "/landlord/{landlordUuid}/api/totp/qr",

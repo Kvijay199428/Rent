@@ -40,6 +40,15 @@ from app.authentication.landlord.middleware import get_current_landlord_api_stri
 router = APIRouter()
 
 
+def _validate_property_ownership(landlord_id: int, property_id):
+    """Raise 400 if property_id is set but does not belong to this landlord."""
+    if not property_id:
+        return
+    from app.database.property_repository import get_property
+    if not get_property(landlord_id, int(property_id)):
+        raise HTTPException(status_code=400, detail="Property not found or does not belong to this landlord.")
+
+
 @router.get(Routes.LANDLORDAPITENANTSLIST, name=Names.APIGETTENANTS)
 async def api_get_tenants(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
     return load_tenants(include_archived=False, landlord_id=principal.landlord_id)
@@ -85,6 +94,7 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     
     landlord_id = principal.landlord_id
     t.landlord_id = landlord_id
+    _validate_property_ownership(landlord_id, t.propertyId)
 
     tenantId = add_tenant(t)
     t.id = tenantId
@@ -120,7 +130,9 @@ async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, request
     existing_t = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not existing_t:
         raise HTTPException(status_code=404, detail="Tenant not found")
-        
+
+    _validate_property_ownership(principal.landlord_id, t.propertyId)
+
     # The general update endpoint does NOT change the PIN.
     # We forcefully retain the existing PIN hash.
     t.tenantPin = existing_t.tenantPin

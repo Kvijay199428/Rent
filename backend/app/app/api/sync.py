@@ -154,8 +154,8 @@ async def export_full_zip(landlordUuid: str, tenants_list: str = "all", principa
     os.makedirs(BACKUPS_DIR, exist_ok=True)
 
     from app.services.pdf_service import generate_professional_pdf
-    from app.core.config_service import config
-    landlord_conf = config.get("landlord", {})
+    from app.services.landlord_config_service import get_effective_landlord_config
+    landlord_conf = get_effective_landlord_config(principal.landlord_id)
 
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         stream = io.StringIO()

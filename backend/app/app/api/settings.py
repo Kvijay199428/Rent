@@ -18,8 +18,9 @@ router = APIRouter(tags=["Settings"])
 
 @router.get(Routes.LANDLORDAPICONFIGGET, name=Names.APIGETCONFIG)
 async def api_get_config(landlordUuid: str, principal=Depends(get_current_landlord_api)):
+    from app.services.landlord_config_service import get_effective_landlord_config
     return {
-        "landlord": config.get("landlord", {}),
+        "landlord": get_effective_landlord_config(principal.landlord_id),
         "billing": config.get("billing", {}),
         "ui": config.get("ui", {}),
         "backup": config.get("backup", {}),
@@ -42,14 +43,20 @@ async def api_upload_signature(landlordUuid: str, file: UploadFile = File(...), 
         raise HTTPException(status_code=500, detail="Failed to process signature image")
 
     filename = os.path.basename(path)
-    config.save("landlord", {"signature_image": filename})
+    from app.services.landlord_config_service import get_effective_landlord_config, save_effective_landlord_config
+    eff = get_effective_landlord_config(principal.landlord_id)
+    eff["signature_image"] = filename
+    save_effective_landlord_config(principal.landlord_id, eff)
 
     return {"status": "success", "path": filename}
 
 @router.delete(Routes.LANDLORDAPISETTINGSDELETESIGNATURE, name=Names.APIDELETESIGNATURE)
 async def api_delete_signature(landlordUuid: str, principal=Depends(get_current_landlord_api)):
     delete_signature()
-    config.save("landlord", {"signature_image": ""})
+    from app.services.landlord_config_service import get_effective_landlord_config, save_effective_landlord_config
+    eff = get_effective_landlord_config(principal.landlord_id)
+    eff["signature_image"] = ""
+    save_effective_landlord_config(principal.landlord_id, eff)
     return {"status": "success"}
 
 class ConfigUpdateModel(BaseModel):
@@ -65,7 +72,8 @@ async def update_config(landlordUuid: str, data: ConfigUpdateModel, request: Req
 
     background_tasks.add_task(create_full_backup, tag="settings_change")
 
-    config.save("landlord", data.landlord)
+    from app.services.landlord_config_service import save_effective_landlord_config
+    save_effective_landlord_config(principal.landlord_id, data.landlord)
     config.save("billing", data.billing)
 
     if data.whatsapp:

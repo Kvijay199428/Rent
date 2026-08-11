@@ -46,6 +46,7 @@ def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = No
             tenantUsername=row["tenant_username"] or "",
             statusChangedAt=row["status_changed_at"] or None,
             landlord_id=row["landlord_id"],
+            property_id=row["property_id"],
         )
         tenants.append(t)
     return tenants
@@ -88,6 +89,7 @@ def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Ten
         tenantPin=row["tenantpin"],
         statusChangedAt=row["status_changed_at"] or None,
         landlord_id=row["landlord_id"],
+        property_id=row["property_id"],
     )
 
 def tenant_belongs_to_landlord(tenantId: int, landlord_id: Optional[int]) -> bool:
@@ -132,6 +134,7 @@ def get_tenant_by_name(name: str) -> Optional[Tenant]:
         tenantPin=row["tenantpin"],
         statusChangedAt=row["status_changed_at"] or None,
         landlord_id=row["landlord_id"],
+        property_id=row["property_id"],
     )
 
 def save_all_tenants(tenants_list: List[Tenant]):
@@ -157,14 +160,14 @@ def add_tenant(t: Tenant):
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
                 additionalpersoncharge, securitydeposit, defaulttankWatercharge,
-                meterid, viewToken, tenantpin, landlord_id, qr_key
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meterid, viewToken, tenantpin, landlord_id, qr_key, property_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
             t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id,
-            qr_key
+            qr_key, t.propertyId
         ))
         if t.id is None:
             t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -192,14 +195,14 @@ def update_tenant(t: Tenant):
                 name=?, company=?, phone=?, email=?, address=?, roomnumber=?, occupation=?,
                 notes=?, status=?, rent=?, water=?, electricityrate=?, previousmeter=?,
                 additionalpersoncharge=?, securitydeposit=?, defaulttankWatercharge=?,
-                meterid=?, viewToken=?, tenantpin=?, qr_key=?, status_changed_at=?
+                meterid=?, viewToken=?, tenantpin=?, qr_key=?, status_changed_at=?, property_id=?
             WHERE id=?
         ''', (
             t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
             t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, qr_key,
-            t.statusChangedAt, t.id
+            t.statusChangedAt, t.propertyId, t.id
         ))
         # Cascade identity/contact fields to all receipt rows for this tenant.
         # Only updates display-snapshot fields; historical billing values (rent, water,
@@ -246,6 +249,7 @@ def _tenant_row_to_dict(row) -> dict:
         "viewToken": row["viewToken"] or "",
         "arrears": 0,
         "statusChangedAt": row["status_changed_at"] or None,
+        "propertyId": row["property_id"] or None,
     }
 
 

@@ -21,12 +21,27 @@ import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import PrivacyConsentPage from './pages/PrivacyConsentPage';
 import Login from './pages/Login';
 import AdminSetupPage from './pages/AdminSetupPage';
+import SetupPage from './pages/SetupPage';
 import { APP_BASE } from './lib/runtime';
 
 function RequirePrivacyConsent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, privacyConsented } = useAuth();
   if (isAuthenticated && privacyConsented === false) {
     return <Navigate to="/privacy-consent" replace />;
+  }
+  return <>{children}</>;
+}
+
+function RequireSetup({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading, privacyConsented, setupCompleted, setupSkipped } = useAuth();
+  if (
+    isAuthenticated &&
+    !isLoading &&
+    privacyConsented !== false &&
+    !setupCompleted &&
+    !setupSkipped
+  ) {
+    return <Navigate to="/setup" replace />;
   }
   return <>{children}</>;
 }
@@ -50,30 +65,34 @@ function App() {
             
             {/* Protected Routes inside MainLayout — no UUID prefix */}
             <Route element={<MainLayout />}>
-              <Route path="/" element={<RequirePrivacyConsent><Dashboard /></RequirePrivacyConsent>} />
-              <Route path="/dashboard" element={<RequirePrivacyConsent><Dashboard /></RequirePrivacyConsent>} />
-              <Route path="/tenants" element={<RequirePrivacyConsent><Tenants /></RequirePrivacyConsent>} />
-              <Route path="/billing" element={<RequirePrivacyConsent><Billing /></RequirePrivacyConsent>} />
-              <Route path="/settings" element={<RequirePrivacyConsent><Settings /></RequirePrivacyConsent>} />
-              <Route path="/history" element={<RequirePrivacyConsent><History /></RequirePrivacyConsent>} />
-              <Route path="/backups" element={<RequirePrivacyConsent><Backups /></RequirePrivacyConsent>} />
-              <Route path="/archive" element={<RequirePrivacyConsent><Archive /></RequirePrivacyConsent>} />
-              <Route path="/security" element={<RequirePrivacyConsent><SecuritySettingsPage /></RequirePrivacyConsent>} />
-              <Route path="/activity" element={<RequirePrivacyConsent><ActivityPage /></RequirePrivacyConsent>} />
+              <Route path="/" element={<RequirePrivacyConsent><RequireSetup><Dashboard /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="/dashboard" element={<RequirePrivacyConsent><RequireSetup><Dashboard /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="/tenants" element={<RequirePrivacyConsent><RequireSetup><Tenants /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="/billing" element={<RequirePrivacyConsent><RequireSetup><Billing /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="/settings" element={<RequirePrivacyConsent><RequireSetup><Settings /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="/history" element={<RequirePrivacyConsent><RequireSetup><History /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="/backups" element={<RequirePrivacyConsent><RequireSetup><Backups /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="/archive" element={<RequirePrivacyConsent><RequireSetup><Archive /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="/security" element={<RequirePrivacyConsent><RequireSetup><SecuritySettingsPage /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="/activity" element={<RequirePrivacyConsent><RequireSetup><ActivityPage /></RequireSetup></RequirePrivacyConsent>} />
             </Route>
+
+            {/* Initial setup wizard — standalone (RequireSetup redirects here) */}
+            <Route path="/setup" element={<SetupPage />} />
+            <Route path="/:uuid/setup" element={<SetupPage />} />
 
             {/* Protected Routes with UUID prefix — for when basename doesn't include UUID */}
             <Route path="/:uuid" element={<MainLayout />}>
-              <Route index element={<RequirePrivacyConsent><Dashboard /></RequirePrivacyConsent>} />
-              <Route path="dashboard" element={<RequirePrivacyConsent><Dashboard /></RequirePrivacyConsent>} />
-              <Route path="tenants" element={<RequirePrivacyConsent><Tenants /></RequirePrivacyConsent>} />
-              <Route path="billing" element={<RequirePrivacyConsent><Billing /></RequirePrivacyConsent>} />
-              <Route path="settings" element={<RequirePrivacyConsent><Settings /></RequirePrivacyConsent>} />
-              <Route path="history" element={<RequirePrivacyConsent><History /></RequirePrivacyConsent>} />
-              <Route path="backups" element={<RequirePrivacyConsent><Backups /></RequirePrivacyConsent>} />
-              <Route path="archive" element={<RequirePrivacyConsent><Archive /></RequirePrivacyConsent>} />
-              <Route path="security" element={<RequirePrivacyConsent><SecuritySettingsPage /></RequirePrivacyConsent>} />
-              <Route path="activity" element={<RequirePrivacyConsent><ActivityPage /></RequirePrivacyConsent>} />
+              <Route index element={<RequirePrivacyConsent><RequireSetup><Dashboard /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="dashboard" element={<RequirePrivacyConsent><RequireSetup><Dashboard /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="tenants" element={<RequirePrivacyConsent><RequireSetup><Tenants /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="billing" element={<RequirePrivacyConsent><RequireSetup><Billing /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="settings" element={<RequirePrivacyConsent><RequireSetup><Settings /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="history" element={<RequirePrivacyConsent><RequireSetup><History /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="backups" element={<RequirePrivacyConsent><RequireSetup><Backups /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="archive" element={<RequirePrivacyConsent><RequireSetup><Archive /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="security" element={<RequirePrivacyConsent><RequireSetup><SecuritySettingsPage /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="activity" element={<RequirePrivacyConsent><RequireSetup><ActivityPage /></RequireSetup></RequirePrivacyConsent>} />
             </Route>
 
             {/* Fallback */}

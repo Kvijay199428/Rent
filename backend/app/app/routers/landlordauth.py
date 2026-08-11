@@ -537,7 +537,8 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
     with get_conn() as conn:
         row = conn.execute(
             "SELECT totp_secret, totp_enabled, requires_password_change, "
-            "privacy_consented, privacy_version FROM landlord_accounts WHERE id = ?",
+            "privacy_consented, privacy_version, setup_completed, setup_skipped "
+            "FROM landlord_accounts WHERE id = ?",
             (principal.landlord_id,),
         ).fetchone()
 
@@ -554,6 +555,8 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "requiresPasswordChange": bool(row and row["requires_password_change"]),
             "privacyConsented": bool(row and row["privacy_consented"]),
             "privacyVersion": row["privacy_version"] if row else None,
+            "setupCompleted": bool(row and row["setup_completed"]),
+            "setupSkipped": bool(row and row["setup_skipped"]),
         },
     }
 

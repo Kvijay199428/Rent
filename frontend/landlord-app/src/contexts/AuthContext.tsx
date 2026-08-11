@@ -27,6 +27,8 @@ interface AuthContextType {
   totpEnabled: boolean;
   requiresPasswordChange: boolean;
   privacyConsented: boolean | null;
+  setupCompleted: boolean;
+  setupSkipped: boolean;
   login: (
     username: string,
     password: string,
@@ -49,6 +51,7 @@ interface AuthContextType {
     confirmPassword: string
   ) => Promise<{ status: string; message?: string; next_step?: string; totp?: any }>;
   refreshMe: () => Promise<void>;
+  setSetupState: (completed: boolean, skipped: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,6 +66,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
   const [privacyConsented, setPrivacyConsented] = useState<boolean | null>(null);
+  const [setupCompleted, setSetupCompleted] = useState(false);
+  const [setupSkipped, setSetupSkipped] = useState(false);
+
+  const setSetupState = useCallback((completed: boolean, skipped: boolean) => {
+    setSetupCompleted(completed);
+    setSetupSkipped(skipped);
+  }, []);
 
   const refreshMe = useCallback(async () => {
     try {
@@ -78,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTotpEnabled(data?.landlord?.totpEnabled ?? false);
       setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
       setPrivacyConsented(data?.landlord?.privacyConsented ?? true);
+      setSetupCompleted(data?.landlord?.setupCompleted ?? false);
+      setSetupSkipped(data?.landlord?.setupSkipped ?? false);
       if (uuid) localStorage.setItem("landlordUuid", uuid);
     } catch {
       setIsAuthenticated(false);
@@ -88,6 +100,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTotpEnabled(false);
       setRequiresPasswordChange(false);
       setPrivacyConsented(null);
+      setSetupCompleted(false);
+      setSetupSkipped(false);
       localStorage.removeItem("landlordUuid");
     }
   }, []);
@@ -329,7 +343,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, privacyConsented, login, googleLogin, verifyTotp, logout, changePassword, refreshMe }}
+      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, privacyConsented, setupCompleted, setupSkipped, login, googleLogin, verifyTotp, logout, changePassword, refreshMe, setSetupState }}
     >
       {children}
     </AuthContext.Provider>

@@ -245,6 +245,20 @@ export const ROUTES = {
     get LANDLORDPAGEDASHBOARD() { return page("landlord", "dashboard"); },
     get LANDLORDPAGELOGOUT() { return page("landlord", "logout"); },
     get LANDLORDPAGEPRIVACYPOLICY() { return page("landlord", "privacyPolicy"); },
+    get LANDLORDPAGESETUP() { return page("landlord", "setup"); },
+
+    // Landlord API: Setup wizard
+    get LANDLORDAPISETUPREQUIRED() { return api("landlord", "setup", "required"); },
+    get LANDLORDAPISETUPCREATE() { return api("landlord", "setup", "create"); },
+    get LANDLORDAPISETUPSKIP() { return api("landlord", "setup", "skip"); },
+
+    // Landlord API: Properties
+    LANDLORDAPIPROPERTIESLIST(landlordUuid: string) { return api("landlord", "properties", "list", { landlordUuid }); },
+    LANDLORDAPIPROPERTIESCREATE(landlordUuid: string) { return api("landlord", "properties", "create", { landlordUuid }); },
+    LANDLORDAPIPROPERTIESGET(landlordUuid: string, propertyId: number) { return api("landlord", "properties", "get", { landlordUuid, propertyId }); },
+    LANDLORDAPIPROPERTIESUPDATE(landlordUuid: string, propertyId: number) { return api("landlord", "properties", "update", { landlordUuid, propertyId }); },
+    LANDLORDAPIPROPERTIESDELETE(landlordUuid: string, propertyId: number) { return api("landlord", "properties", "delete", { landlordUuid, propertyId }); },
+    LANDLORDAPIPROPERTIESTENANTS(landlordUuid: string, propertyId: number) { return api("landlord", "properties", "tenants", { landlordUuid, propertyId }); },
 
     // Landlord API: Auth
     get LANDLORDAPIAUTHPUBLICKEY() { return api("landlord", "auth", "publicKey"); },

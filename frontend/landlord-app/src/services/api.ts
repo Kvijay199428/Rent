@@ -1,4 +1,4 @@
-import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult } from "@/types";
+import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig } from "@/types";
 import { ROUTES } from "@/lib/routes";
 
 export type ArchiveDataResponse = {
@@ -491,5 +491,86 @@ export const api = {
     const res = await fetchWithAuth(ROUTES.LANDLORDAPIAUDITLOGSACTIONS(landlordUuid));
     if (!res.ok) throw new Error("Failed to fetch action types");
     return res.json();
+  },
+
+  // Setup wizard
+  getSetupRequired: async (): Promise<{ required: boolean; setupCompleted: boolean; setupSkipped: boolean; propertyCount: number }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPISETUPREQUIRED);
+    if (!res.ok) throw new Error("Failed to fetch setup status");
+    return res.json();
+  },
+
+  completeSetup: async (payload: { skip?: boolean; landlord?: Partial<PropertyConfig>; properties?: { property_name: string; address?: string }[] }): Promise<{ status: string; setupCompleted?: boolean; skipped?: boolean }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPISETUPCREATE, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to complete setup");
+    return data;
+  },
+
+  skipSetup: async (): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPISETUPSKIP, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to skip setup");
+    return data;
+  },
+
+  uploadSignature: async (landlordUuid: string, file: File): Promise<string> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid), {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Signature upload failed");
+    return data.path as string;
+  },
+
+  // Properties
+  getProperties: async (landlordUuid: string): Promise<Property[]> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROPERTIESLIST(landlordUuid));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to fetch properties");
+    return data.properties ?? [];
+  },
+
+  createProperty: async (landlordUuid: string, property: { property_name: string; address?: string }): Promise<{ status: string; property: Property }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROPERTIESCREATE(landlordUuid), {
+      method: "POST",
+      body: JSON.stringify(property),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to create property");
+    return data;
+  },
+
+  updateProperty: async (landlordUuid: string, propertyId: number, property: { property_name?: string; address?: string }): Promise<{ status: string; property: Property }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROPERTIESUPDATE(landlordUuid, propertyId), {
+      method: "PUT",
+      body: JSON.stringify(property),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to update property");
+    return data;
+  },
+
+  deleteProperty: async (landlordUuid: string, propertyId: number): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROPERTIESDELETE(landlordUuid, propertyId), {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to delete property");
+    return data;
+  },
+
+  getPropertyTenants: async (landlordUuid: string, propertyId: number): Promise<Tenant[]> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROPERTIESTENANTS(landlordUuid, propertyId));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to fetch property tenants");
+    return data.tenants ?? [];
   },
 };

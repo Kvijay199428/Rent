@@ -8,8 +8,10 @@ router = APIRouter()
 
 @router.get(Routes.LANDLORDPAGESETTINGS, name=Names.SETTINGSPAGE, response_class=HTMLResponse)
 async def settings_page(request: Request):
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.services.landlord_config_service import get_effective_landlord_config
     billing_conf = config.get("billing", {})
-    landlord_conf = config.get("landlord", {})
+    landlord_conf = get_effective_landlord_config(extract_landlord_id(request))
     ui_conf = config.get("ui", {})
     theme = getattr(request.state, "theme", "system")
     return templates.TemplateResponse(
