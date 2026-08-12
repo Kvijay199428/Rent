@@ -10,9 +10,10 @@ from datetime import datetime
 router = APIRouter()
 
 
-@router.get("/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view", include_in_schema=False)
+@router.get("/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/view", include_in_schema=False)
 @router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)
 async def tenant_view_pdf(
+    propertyId: int,
     tenantId: int,
     viewToken: str,
     billNo: str,
@@ -27,6 +28,8 @@ async def tenant_view_pdf(
     tenant = next((t for t in load_tenants(include_archived=True) if t.id == tenantId and getattr(t, "viewToken", None) == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid tenant link")
+    if int(getattr(tenant, "propertyId", 0) or 0) != int(propertyId or 0):
+        raise HTTPException(status_code=403, detail="Property mismatch")
 
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
@@ -59,9 +62,10 @@ async def tenant_view_pdf(
     return response
 
 
-@router.get("/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download", include_in_schema=False)
+@router.get("/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/download", include_in_schema=False)
 @router.get(TenantRoutes.TENANTAPIPDFDOWNLOAD, name=TenantNames.TENANTPDFDOWNLOAD)
 async def tenant_download_pdf(
+    propertyId: int,
     tenantId: int,
     viewToken: str,
     billNo: str,
@@ -76,6 +80,8 @@ async def tenant_download_pdf(
     tenant = next((t for t in load_tenants(include_archived=True) if t.id == tenantId and getattr(t, "viewToken", None) == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid tenant link")
+    if int(getattr(tenant, "propertyId", 0) or 0) != int(propertyId or 0):
+        raise HTTPException(status_code=403, detail="Property mismatch")
 
     receipt = get_receipt(tenantId, billNo)
     if not receipt:

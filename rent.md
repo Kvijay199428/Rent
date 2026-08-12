@@ -3,8 +3,8 @@
 Generated: 2025-07-29
 Script:   /root/rent/copy.py
 Source:   /root/rent
-Files:    302
-Size:     1620 KB
+Files:    315
+Size:     1777 KB
 Skipped:  0
 
 ---
@@ -21,6 +21,7 @@ Skipped:  0
 - backend/app/app/api/billing.py
 - backend/app/app/api/dashboard.py
 - backend/app/app/api/health.py
+- backend/app/app/api/landlord_setup.py
 - backend/app/app/api/pdf.py
 - backend/app/app/api/public.py
 - backend/app/app/api/settings.py
@@ -60,6 +61,7 @@ Skipped:  0
 - backend/app/app/core/db.py
 - backend/app/app/core/dependencies.py
 - backend/app/app/core/paths.py
+- backend/app/app/core/privacy.py
 - backend/app/app/core/route_builder.py
 - backend/app/app/core/router_registry.py
 - backend/app/app/core/routes_manifest.py
@@ -72,10 +74,12 @@ Skipped:  0
 - backend/app/app/database/auth_repository.py
 - backend/app/app/database/final_schema.py
 - backend/app/app/database/landlord_repository.py
+- backend/app/app/database/property_repository.py
 - backend/app/app/encryption.py
 - backend/app/app/main.py
 - backend/app/app/models/auth.py
 - backend/app/app/models/landlord.py
+- backend/app/app/models/property.py
 - backend/app/app/models/receipt.py
 - backend/app/app/models/tenant.py
 - backend/app/app/pages/__init__.py
@@ -99,8 +103,10 @@ Skipped:  0
 - backend/app/app/services/backup_service.py
 - backend/app/app/services/billing_service.py
 - backend/app/app/services/google_oauth_service.py
+- backend/app/app/services/landlord_config_service.py
 - backend/app/app/services/pdf_service.py
 - backend/app/app/services/signature_service.py
+- backend/app/app/services/telegram_otp_service.py
 - backend/app/app/services/tenant_recovery_service.py
 - backend/app/app/services/tenant_service.py
 - backend/app/config/domain.json
@@ -120,7 +126,6 @@ Skipped:  0
 - frontend/admin-app/src/components/BroadcastBanner.tsx
 - frontend/admin-app/src/components/ErrorBoundary.tsx
 - frontend/admin-app/src/components/Layout.tsx
-- frontend/admin-app/src/components/LoadingScreen.tsx
 - frontend/admin-app/src/contexts/AuthContext.tsx
 - frontend/admin-app/src/hooks/useAuthSync.ts
 - frontend/admin-app/src/hooks/useHealthStream.ts
@@ -157,7 +162,6 @@ Skipped:  0
 - frontend/landlord-app/package.json
 - frontend/landlord-app/src/components/BroadcastBanner.tsx
 - frontend/landlord-app/src/components/ErrorBoundary.tsx
-- frontend/landlord-app/src/components/LoadingScreen.tsx
 - frontend/landlord-app/src/components/archive/ArchiveTenantCard.tsx
 - frontend/landlord-app/src/components/dashboard/DuePaymentsModal.tsx
 - frontend/landlord-app/src/components/dashboard/MeterReadingDetailsModal.tsx
@@ -174,6 +178,8 @@ Skipped:  0
 - frontend/landlord-app/src/components/modals/SchemaMismatchDialog.tsx
 - frontend/landlord-app/src/components/modals/TotpSetupModal.tsx
 - frontend/landlord-app/src/components/modals/importService.ts
+- frontend/landlord-app/src/components/privacy/MarkdownView.tsx
+- frontend/landlord-app/src/components/privacy/PrivacyPolicyModal.tsx
 - frontend/landlord-app/src/components/shared/EditBillModal.tsx
 - frontend/landlord-app/src/components/shared/PDFPreviewModal.tsx
 - frontend/landlord-app/src/components/shared/ReceiptRow.tsx
@@ -238,6 +244,7 @@ Skipped:  0
 - frontend/landlord-app/src/hooks/useSync.ts
 - frontend/landlord-app/src/hooks/useToast.ts
 - frontend/landlord-app/src/lib/encryption.ts
+- frontend/landlord-app/src/lib/privacy.ts
 - frontend/landlord-app/src/lib/routes.ts
 - frontend/landlord-app/src/lib/runtime.ts
 - frontend/landlord-app/src/lib/utils.ts
@@ -253,8 +260,11 @@ Skipped:  0
 - frontend/landlord-app/src/pages/LandlordLoginPage.tsx
 - frontend/landlord-app/src/pages/LandlordSignupPage.tsx
 - frontend/landlord-app/src/pages/Login.tsx
+- frontend/landlord-app/src/pages/PrivacyConsentPage.tsx
+- frontend/landlord-app/src/pages/PrivacyPolicyPage.tsx
 - frontend/landlord-app/src/pages/SecuritySettingsPage.tsx
 - frontend/landlord-app/src/pages/Settings.tsx
+- frontend/landlord-app/src/pages/SetupPage.tsx
 - frontend/landlord-app/src/pages/Tenants.tsx
 - frontend/landlord-app/src/services/api.ts
 - frontend/landlord-app/src/services/base.ts
@@ -265,13 +275,16 @@ Skipped:  0
 - frontend/landlord-app/vite.config.ts
 - frontend/package.json
 - frontend/shared/api-config.ts
+- frontend/shared/loading/BrandLoading.css
+- frontend/shared/loading/BrandWave.tsx
+- frontend/shared/loading/LoadingOverlay.tsx
+- frontend/shared/loading/LoadingScreen.tsx
 - frontend/tenant-app/package.json
 - frontend/tenant-app/src/components/ActivityLog.tsx
 - frontend/tenant-app/src/components/ArchiveReceiptCard.tsx
 - frontend/tenant-app/src/components/AuthLayout.tsx
 - frontend/tenant-app/src/components/BroadcastBanner.tsx
 - frontend/tenant-app/src/components/ErrorBoundary.tsx
-- frontend/tenant-app/src/components/LoadingScreen.tsx
 - frontend/tenant-app/src/components/OccupantCard.tsx
 - frontend/tenant-app/src/components/OccupantDocumentViewer.tsx
 - frontend/tenant-app/src/components/OccupantKycUploadDialog.tsx
@@ -322,6 +335,7 @@ Skipped:  0
 # === Backend (backend/.env) ===
 RENT_STORAGE_DIR=/code/storage
 JWT_SECRET=changeme
+TELEGRAM_BOT_TOKEN=changeme
 
 # === Gateway (gateway/.env) ===
 CLOUDFLARE_TUNNEL_TOKEN=changeme
@@ -508,26 +522,28 @@ from app.services.billing_service import (
     get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import (
-    create_full_backup, get_all_backups, create_backup,
-    delete_backup, verify_backup_integrity, restore_backup
+    create_backup,
+    delete_backup, verify_backup_integrity, restore_backup,
+    get_backups_for_landlord, get_backup_by_id, backup_owned_by
 )
 from app.core.paths import BACKUPS_DIR
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
+from app.authentication.admin.middleware import get_current_admin_api
 router = APIRouter()
 
 
 @router.get(Routes.LANDLORDAPIBACKUPSLIST, name=Names.APIGETBACKUPS)
-async def api_get_backups(landlordUuid: str):
-    return get_all_backups()
+async def api_get_backups(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
+    return get_backups_for_landlord(principal.landlord_id)
 
 @router.post(Routes.LANDLORDAPIBACKUPSCREATEMANUAL, name=Names.APICREATEMANUALBACKUP)
-async def api_create_manual_backup(landlordUuid: str, request: Request, background_tasks: BackgroundTasks):
-    from app.authentication.landlord.middleware import extract_landlord_id
+async def api_create_manual_backup(landlordUuid: str, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.database.landlord_repository import create_landlord_audit_log
 
     try:
-        metadata = create_backup(type_="Manual", subtype="manual")
+        metadata = create_backup(type_="Manual", subtype="manual", landlord_id=principal.landlord_id)
 
-        landlord_id = extract_landlord_id(request)
+        landlord_id = principal.landlord_id
         if landlord_id:
             create_landlord_audit_log(
                 landlord_id, "backup_created",
@@ -540,13 +556,17 @@ async def api_create_manual_backup(landlordUuid: str, request: Request, backgrou
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete(Routes.LANDLORDAPIBACKUPSDELETE, name=Names.APIDELETEBACKUP)
-async def api_delete_backup(landlordUuid: str, backupId: str):
+async def api_delete_backup(landlordUuid: str, backupId: str, principal=Depends(get_current_landlord_api_strict)):
+    if not backup_owned_by(backupId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Backup not found")
     if delete_backup(backupId):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Backup not found")
 
 @router.get(Routes.LANDLORDAPIBACKUPSVERIFY, name=Names.APIVERIFYBACKUP)
-async def api_verify_backup(landlordUuid: str, backupId: str):
+async def api_verify_backup(landlordUuid: str, backupId: str, principal=Depends(get_current_landlord_api_strict)):
+    if not backup_owned_by(backupId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Backup not found")
     try:
         verify_backup_integrity(backupId)
         return {"status": "success", "message": "Backup is fully intact and verified."}
@@ -554,32 +574,21 @@ async def api_verify_backup(landlordUuid: str, backupId: str):
         return {"status": "error", "message": str(e)}
 
 @router.post(Routes.LANDLORDAPIBACKUPSRESTORE, name=Names.APIRESTOREBACKUP)
-async def api_restore_backup(landlordUuid: str, backupId: str, request: Request):
-    from app.authentication.landlord.middleware import extract_landlord_id
-    from app.database.landlord_repository import create_landlord_audit_log
-
+async def api_restore_backup(landlordUuid: str, backupId: str, request: Request, admin=Depends(get_current_admin_api)):
+    # RESTORE IS PLATFORM-ADMIN ONLY. Landlord tokens cannot pass
+    # get_current_admin_api, so a landlord can never replace the whole DB.
     try:
         restore_backup(backupId)
-
-        landlord_id = extract_landlord_id(request)
-        if landlord_id:
-            create_landlord_audit_log(
-                landlord_id, "backup_restored",
-                ip_address=request.client.host if request.client else None,
-                meta_json=json.dumps({"backup_id": backupId}),
-            )
-
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.get(Routes.LANDLORDAPIBACKUPSDOWNLOAD, name=Names.APIDOWNLOADBACKUP)
-async def api_download_backup(landlordUuid: str, backupId: str):
-    registry = get_all_backups()
-    backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
-    if not backup_meta:
+async def api_download_backup(landlordUuid: str, backupId: str, principal=Depends(get_current_landlord_api_strict)):
+    backup_meta = get_backup_by_id(backupId)
+    if not backup_meta or not backup_owned_by(backupId, principal.landlord_id):
         raise HTTPException(status_code=404, detail="Backup not found")
-        
+
     abs_path = os.path.join(BACKUPS_DIR, backup_meta["path"])
     if not os.path.exists(abs_path):
         raise HTTPException(status_code=404, detail="Backup file missing")
@@ -587,10 +596,9 @@ async def api_download_backup(landlordUuid: str, backupId: str):
     return FileResponse(abs_path, media_type='application/zip', filename=backup_meta["filename"])
 
 @router.get(Routes.LANDLORDAPIBACKUPSMETADATA, name=Names.APIDOWNLOADMETADATA)
-async def api_download_metadata(landlordUuid: str, backupId: str):
-    registry = get_all_backups()
-    backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
-    if not backup_meta:
+async def api_download_metadata(landlordUuid: str, backupId: str, principal=Depends(get_current_landlord_api_strict)):
+    backup_meta = get_backup_by_id(backupId)
+    if not backup_meta or not backup_owned_by(backupId, principal.landlord_id):
         raise HTTPException(status_code=404, detail="Backup not found")
         
     return backup_meta
@@ -622,7 +630,8 @@ async def _broadcast(channel: str, event: dict):
 
 from app.services.tenant_service import (
     load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
+    get_occupants, save_occupant, delete_occupant,
+    get_tenant, tenant_belongs_to_landlord
 )
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
@@ -630,15 +639,14 @@ from app.services.billing_service import (
     get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
 router = APIRouter()
 
 
-def _require_active_tenant(tenantId: int):
-    """Block bill operations for tenants that are not Active."""
-    tenant = None
-    tenants = load_tenants(include_archived=True)
-    tenant = next((t for t in tenants if t.id == tenantId), None)
+def _require_active_tenant(tenantId: int, landlord_id=None):
+    """Block bill operations for tenants that are not Active or not owned by the landlord."""
+    tenant = get_tenant(tenantId, landlord_id=landlord_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found.")
     if (tenant.status or "").strip().lower() != "active":
@@ -649,8 +657,8 @@ def _require_active_tenant(tenantId: int):
 
 
 @router.get(Routes.LANDLORDAPIBILLINGFILTER, name=Names.APIFILTERBILLS)
-async def api_filter_bills(landlordUuid: str, status: str = "active"):
-    receipts = get_all_receipts(include_archived_tenants=False)
+async def api_filter_bills(landlordUuid: str, status: str = "active", principal=Depends(get_current_landlord_api_strict)):
+    receipts = get_all_receipts(include_archived_tenants=False, landlord_id=principal.landlord_id)
     if status == "pending":
         filtered = [
             r for r in receipts
@@ -710,18 +718,17 @@ async def api_billing_preview(
     )
 
 @router.get(Routes.LANDLORDAPIBILLINGGET, name=Names.APIGETSINGLEBILL)
-async def api_get_single_bill(landlordUuid: str, tenantId: int, billNo: str):
-    receipt = get_receipt(tenantId, billNo)
+async def api_get_single_bill(landlordUuid: str, tenantId: int, billNo: str, principal=Depends(get_current_landlord_api_strict)):
+    receipt = get_receipt(tenantId, billNo, landlord_id=principal.landlord_id)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
     return receipt
 
 @router.post(Routes.LANDLORDAPIBILLINGCREATE, name=Names.APICREATEBILL)
-async def api_create_bill(landlordUuid: str, tenantId: int, bill_req: BillRequest, http_request: Request, background_tasks: BackgroundTasks):
-    from app.authentication.landlord.middleware import extract_landlord_id
+async def api_create_bill(landlordUuid: str, tenantId: int, bill_req: BillRequest, http_request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.database.landlord_repository import create_landlord_audit_log
 
-    _require_active_tenant(tenantId)
+    _require_active_tenant(tenantId, landlord_id=principal.landlord_id)
     try:
         data = create_bill(
             tenantId,
@@ -733,11 +740,12 @@ async def api_create_bill(landlordUuid: str, tenantId: int, bill_req: BillReques
             bill_req.maintenancedesc,
             bill_req.previousarrears,
             bill_req.amountreceived,
-            bill_req.paymentstatus
+            bill_req.paymentstatus,
+            landlord_id=principal.landlord_id
         )
-        background_tasks.add_task(create_full_backup, tag="create_bill")
+        background_tasks.add_task(create_full_backup, tag="create_bill", landlord_id=principal.landlord_id)
 
-        landlord_id = extract_landlord_id(http_request)
+        landlord_id = principal.landlord_id
         if landlord_id:
             create_landlord_audit_log(
                 landlord_id, "bill_created",
@@ -756,11 +764,10 @@ async def api_create_bill(landlordUuid: str, tenantId: int, bill_req: BillReques
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.put(Routes.LANDLORDAPIBILLINGUPDATE, name=Names.APIUPDATEBILL)
-async def api_update_bill(landlordUuid: str, tenantId: int, billNo: str, bill_req: BillRequest, http_request: Request, background_tasks: BackgroundTasks):
-    from app.authentication.landlord.middleware import extract_landlord_id
+async def api_update_bill(landlordUuid: str, tenantId: int, billNo: str, bill_req: BillRequest, http_request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.database.landlord_repository import create_landlord_audit_log
 
-    _require_active_tenant(tenantId)
+    _require_active_tenant(tenantId, landlord_id=principal.landlord_id)
     try:
         data = update_bill(
             tenantId,
@@ -773,11 +780,12 @@ async def api_update_bill(landlordUuid: str, tenantId: int, billNo: str, bill_re
             bill_req.maintenancedesc or "",
             bill_req.previousarrears or 0.0,
             bill_req.amountreceived,
-            (bill_req.paymentstatus or "PENDING").upper()
+            (bill_req.paymentstatus or "PENDING").upper(),
+            landlord_id=principal.landlord_id
         )
-        background_tasks.add_task(create_full_backup, tag="edit_bill")
+        background_tasks.add_task(create_full_backup, tag="edit_bill", landlord_id=principal.landlord_id)
 
-        landlord_id = extract_landlord_id(http_request)
+        landlord_id = principal.landlord_id
         if landlord_id:
             create_landlord_audit_log(
                 landlord_id, "bill_updated",
@@ -796,7 +804,7 @@ async def api_update_bill(landlordUuid: str, tenantId: int, billNo: str, bill_re
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post(Routes.LANDLORDAPIBILLINGUPDATEPAYMENT, name=Names.APIUPDATEPAYMENT)
-async def api_update_payment(landlordUuid: str, tenantId: int, billNo: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks):
+async def api_update_payment(landlordUuid: str, tenantId: int, billNo: str, data: PaymentStatusUpdate, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     try:
         status = (data.paymentstatus or "").strip().upper()
         if status not in {"PAID", "PENDING", "PARTIAL", "ADVANCE"}:
@@ -806,8 +814,8 @@ async def api_update_payment(landlordUuid: str, tenantId: int, billNo: str, data
         if amount is not None and amount < 0:
             raise HTTPException(status_code=400, detail="Amount received cannot be negative.")
 
-        update_paymentStatus(tenantId, billNo, status, amount)
-        background_tasks.add_task(create_full_backup, tag="paymentStatus")
+        update_paymentStatus(tenantId, billNo, status, amount, landlord_id=principal.landlord_id)
+        background_tasks.add_task(create_full_backup, tag="paymentStatus", landlord_id=principal.landlord_id)
         return {"status": "success"}
     except HTTPException:
         raise
@@ -815,33 +823,32 @@ async def api_update_payment(landlordUuid: str, tenantId: int, billNo: str, data
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post(Routes.LANDLORDAPIBILLINGARCHIVE, name=Names.APIARCHIVEBILL)
-async def api_archive_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks):
+async def api_archive_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     try:
-        archive_bill(tenantId, billNo)
-        background_tasks.add_task(create_full_backup, tag="archive_bill")
+        archive_bill(tenantId, billNo, landlord_id=principal.landlord_id)
+        background_tasks.add_task(create_full_backup, tag="archive_bill", landlord_id=principal.landlord_id)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.post(Routes.LANDLORDAPIBILLINGRESTORE, name=Names.APIRESTOREBILL)
-async def api_restore_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks):
+async def api_restore_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     try:
-        restore_bill(tenantId, billNo)
-        background_tasks.add_task(create_full_backup, tag="restore_bill")
+        restore_bill(tenantId, billNo, landlord_id=principal.landlord_id)
+        background_tasks.add_task(create_full_backup, tag="restore_bill", landlord_id=principal.landlord_id)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 @router.delete(Routes.LANDLORDAPIBILLINGDELETE, name=Names.APIDELETEBILL)
-async def api_delete_bill(landlordUuid: str, tenantId: int, billNo: str, request: Request, background_tasks: BackgroundTasks):
-    from app.authentication.landlord.middleware import extract_landlord_id
+async def api_delete_bill(landlordUuid: str, tenantId: int, billNo: str, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.database.landlord_repository import create_landlord_audit_log
 
     try:
-        delete_bill(tenantId, billNo)
-        background_tasks.add_task(create_full_backup, tag="delete_bill")
+        delete_bill(tenantId, billNo, landlord_id=principal.landlord_id)
+        background_tasks.add_task(create_full_backup, tag="delete_bill", landlord_id=principal.landlord_id)
 
-        landlord_id = extract_landlord_id(request)
+        landlord_id = principal.landlord_id
         if landlord_id:
             create_landlord_audit_log(
                 landlord_id, "bill_deleted",
@@ -859,17 +866,18 @@ async def api_delete_bill(landlordUuid: str, tenantId: int, billNo: str, request
 
 ```python
 # File: app\app\api\dashboard.py
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.services.billing_service import get_dashboard_stats
 
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
 router = APIRouter(tags=["Dashboard API"])
 
 @router.get(Routes.LANDLORDAPIDASHBOARDSTATS, name="api_dashboard_stats")
-async def dashboard_api(landlordUuid: str):
+async def dashboard_api(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
     """Returns dashboard statistics as JSON."""
-    stats = get_dashboard_stats()
+    stats = get_dashboard_stats(landlord_id=principal.landlord_id)
     return {"stats": stats}
 ```
 
@@ -905,6 +913,202 @@ async def health_check():
 
 ```
 
+### `backend/app/app/api/landlord_setup.py`
+
+```python
+"""
+app/api/landlord_setup.py
+
+Landlord initial-setup wizard + property management endpoints.
+
+GET  /landlord/api/setup/required                → setup gate status
+POST /landlord/api/setup/create                  → complete wizard (profile + properties)
+POST /landlord/api/setup/skip                    → "Complete Later" (setup_skipped)
+GET/POST  /landlord/{landlordUuid}/api/properties            → list / create
+PUT/DELETE /landlord/{landlordUuid}/api/properties/{id}       → update / delete
+GET  /landlord/{landlordUuid}/api/properties/{id}/tenants     → property's tenants
+"""
+import json
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
+from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
+from app.database.landlord_repository import create_landlord_audit_log
+from app.database.property_repository import (
+    count_properties,
+    create_property,
+    delete_property,
+    get_property,
+    get_setup_flags,
+    list_properties,
+    mark_setup_complete,
+    mark_setup_skipped,
+    tenants_for_property,
+    update_property,
+)
+from app.models.property import (
+    PropertyCreateRequest,
+    PropertyUpdateRequest,
+    LandlordSetupCompleteRequest,
+)
+from app.services.landlord_config_service import save_effective_landlord_config
+
+router = APIRouter(tags=["Landlord Setup"])
+
+
+@router.get(Routes.LANDLORDAPISETUPREQUIRED, name=Names.LANDLORDSETUPREQUIRED)
+async def setup_required(principal=Depends(get_current_landlord_api_strict)):
+    """Return whether the landlord still needs to complete initial setup."""
+    flags = get_setup_flags(principal.landlord_id)
+    return {
+        "status": "success",
+        "required": not flags["setupCompleted"],
+        "setupCompleted": flags["setupCompleted"],
+        "setupSkipped": flags["setupSkipped"],
+        "propertyCount": count_properties(principal.landlord_id),
+    }
+
+
+@router.post(Routes.LANDLORDAPISETUPCREATE, name=Names.LANDLORDSETUPCREATE)
+async def setup_create(
+    request: Request,
+    payload: LandlordSetupCompleteRequest,
+    principal=Depends(get_current_landlord_api_strict),
+):
+    """Complete the initial-setup wizard: optional landlord profile, property list,
+    or explicit skip ("Complete Later")."""
+    if payload.skip:
+        mark_setup_skipped(principal.landlord_id)
+        create_landlord_audit_log(
+            principal.landlord_id,
+            "setup_skipped",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({}),
+        )
+        return {"status": "success", "skipped": True, "setupCompleted": False}
+
+    if payload.properties:
+        for prop in payload.properties:
+            create_property(
+                principal.landlord_id,
+                prop.property_name.strip(),
+                (prop.address or "").strip(),
+            )
+
+    if payload.landlord:
+        save_effective_landlord_config(principal.landlord_id, dict(payload.landlord))
+
+    mark_setup_complete(principal.landlord_id)
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "setup_completed",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"properties_created": len(payload.properties)}),
+    )
+    return {
+        "status": "success",
+        "setupCompleted": True,
+        "properties": list_properties(principal.landlord_id),
+    }
+
+
+@router.post(Routes.LANDLORDAPISETUPSKIP, name=Names.LANDLORDSETUPSKIP)
+async def setup_skip(request: Request, principal=Depends(get_current_landlord_api_strict)):
+    """Mark setup as skipped ("Complete Later")."""
+    mark_setup_skipped(principal.landlord_id)
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "setup_skipped",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"source": "setup_page"}),
+    )
+    return {"status": "success", "skipped": True, "setupCompleted": False}
+
+
+# ─── Properties ──────────────────────────────────────────────────────────────
+
+@router.get(Routes.LANDLORDAPIPROPERTIESLIST, name=Names.APIGETPROPERTIES)
+async def api_list_properties(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
+    return {"status": "success", "properties": list_properties(principal.landlord_id)}
+
+
+@router.post(Routes.LANDLORDAPIPROPERTIESCREATE, name=Names.APICREATEPROPERTY)
+async def api_create_property(
+    landlordUuid: str,
+    request: Request,
+    payload: PropertyCreateRequest,
+    principal=Depends(get_current_landlord_api_strict),
+):
+    name = payload.property_name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Property name is required.")
+    prop = create_property(principal.landlord_id, name, (payload.address or "").strip())
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "property_created",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"property_id": prop["id"], "property_name": prop["property_name"]}),
+    )
+    return {"status": "success", "property": prop}
+
+
+@router.put(Routes.LANDLORDAPIPROPERTIESUPDATE, name=Names.APIUPDATEPROPERTY)
+async def api_update_property(
+    landlordUuid: str,
+    propertyId: int,
+    request: Request,
+    payload: PropertyUpdateRequest,
+    principal=Depends(get_current_landlord_api_strict),
+):
+    if payload.property_name is not None and not payload.property_name.strip():
+        raise HTTPException(status_code=400, detail="Property name cannot be empty.")
+    updated = update_property(
+        principal.landlord_id,
+        propertyId,
+        property_name=payload.property_name.strip() if payload.property_name is not None else None,
+        address=payload.address,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Property not found.")
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "property_updated",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"property_id": propertyId}),
+    )
+    return {"status": "success", "property": updated}
+
+
+@router.delete(Routes.LANDLORDAPIPROPERTIESDELETE, name=Names.APIDELETEPROPERTY)
+async def api_delete_property(
+    landlordUuid: str,
+    propertyId: int,
+    request: Request,
+    principal=Depends(get_current_landlord_api_strict),
+):
+    if not delete_property(principal.landlord_id, propertyId):
+        raise HTTPException(status_code=404, detail="Property not found.")
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "property_deleted",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"property_id": propertyId}),
+    )
+    return {"status": "success"}
+
+
+@router.get(Routes.LANDLORDAPIPROPERTIESTENANTS, name=Names.APIGETPROPERTYTENANTS)
+async def api_property_tenants(
+    landlordUuid: str,
+    propertyId: int,
+    principal=Depends(get_current_landlord_api_strict),
+):
+    if not get_property(principal.landlord_id, propertyId):
+        raise HTTPException(status_code=404, detail="Property not found.")
+    return {"status": "success", "tenants": tenants_for_property(principal.landlord_id, propertyId)}
+```
+
 ### `backend/app/app/api/pdf.py`
 
 ```python
@@ -936,13 +1140,12 @@ from app.services.backup_service import create_full_backup
 router = APIRouter()
 
 
-from app.authentication.landlord.middleware import get_current_landlord_api
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
 from datetime import datetime
 
 @router.get(Routes.LANDLORDAPIPDFDOWNLOAD, name=Names.PDFDOWNLOAD)
-async def download_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord = Depends(get_current_landlord_api)):
-    billNo = billNo
-    receipt = get_receipt(tenantId, billNo)
+async def download_pdf(landlordUuid: str, tenantId: int, billNo: str, principal=Depends(get_current_landlord_api_strict)):
+    receipt = get_receipt(tenantId, billNo, landlord_id=principal.landlord_id)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
         
@@ -954,7 +1157,8 @@ async def download_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord =
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
     from app.services.pdf_service import generate_professional_pdf
-    landlord_conf = config.get("landlord", {})
+    from app.services.landlord_config_service import get_effective_landlord_config
+    landlord_conf = get_effective_landlord_config(principal.landlord_id)
     
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
     
@@ -963,9 +1167,8 @@ async def download_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord =
     return response
 
 @router.get(Routes.LANDLORDAPIPDFVIEW, name=Names.PDFVIEW)
-async def view_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord = Depends(get_current_landlord_api)):
-    billNo = billNo
-    receipt = get_receipt(tenantId, billNo)
+async def view_pdf(landlordUuid: str, tenantId: int, billNo: str, principal=Depends(get_current_landlord_api_strict)):
+    receipt = get_receipt(tenantId, billNo, landlord_id=principal.landlord_id)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
         
@@ -977,7 +1180,8 @@ async def view_pdf(landlordUuid: str, tenantId: int, billNo: str, landlord = Dep
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
     from app.services.pdf_service import generate_professional_pdf
-    landlord_conf = config.get("landlord", {})
+    from app.services.landlord_config_service import get_effective_landlord_config
+    landlord_conf = get_effective_landlord_config(principal.landlord_id)
     
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
 
@@ -1028,16 +1232,36 @@ router = APIRouter()
 
 
 from app.authentication.tenant.middleware import get_current_tenant
-from app.routers.auth import _verify_tenant_viewToken
+
+
+def _property_belongs_to_tenant(tenant, propertyId: int) -> bool:
+    """Property-first scoping: the URL propertyId must match the tenant's own property."""
+    return int(getattr(tenant, "propertyId", 0) or 0) == int(propertyId or 0)
+
+
+def _resolve_tenant_property_id(tenant_id: int, landlord_id):
+    """Fallback for tenants without property_id (pre-backfill edge): returns the
+    landlord's first property so a canonical /t/{propertyId}/ URL can still be built."""
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM landlord_properties WHERE landlord_id = ? ORDER BY sort_order, id LIMIT 1",
+            (landlord_id,),
+        ).fetchone()
+        if row:
+            return row["id"]
+    return None
 
 # Legacy route (no landlordUuid prefix)
 @router.get(TenantRoutes.TENANTAPIPROFILEGET, name=TenantNames.TENANTPROFILEGET)
-async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Request):
+async def public_tenant_profile_json(propertyId: int, tenantId: int, viewToken: str, request: Request):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
-        
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
+
     unlocked = False
     token = request.cookies.get("access_token")
     if token:
@@ -1056,6 +1280,7 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
         "id": tenant.id,
         "name": getattr(tenant, "name", ""),
         "viewToken": viewToken,
+        "propertyId": getattr(tenant, "propertyId", None),
         "unlocked": unlocked,
         "readOnly": tenant.status != "Active",
         "phone": getattr(tenant, "phone", ""),
@@ -1074,6 +1299,7 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
                 "id": tenant.id,
                 "name": getattr(tenant, "name", ""),
                 "viewToken": viewToken,
+                "propertyId": getattr(tenant, "propertyId", None),
                 "unlocked": unlocked,
                 "readOnly": tenant.status != "Active",
             }
@@ -1109,11 +1335,56 @@ class EncryptedLoginRequest(BaseModel):
     nonce: str      # Base64-encoded nonce
 
 @router.post(TenantRoutes.TENANTAPIAUTHLOGIN, name=TenantNames.TENANTLOGIN)
-async def public_tenant_login(tenantId: int, viewToken: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
+async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
+    from datetime import datetime, timedelta
+    from app.core.db import get_conn
+    from app.authentication.common.utils import verify_pin, constant_time_eq
+    from app.authentication.tenant.sessions import create_tenant_session
+    from app.authentication.tenant.jwt import create_access_token
+    from app.authentication.tenant.cookies import set_tenant_auth_cookies
+    from app.database.auth_repository import log_audit
+
+    ip = request.client.host if request.client else "Unknown IP"
+
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
+
+    # Brute-force lockout (5 failed PIN/QR attempts -> 15 minute lock).
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT failed_attempts, locked_until FROM tenants WHERE id = ?",
+            (tenant.id,),
+        ).fetchone()
+
+    if row and row["locked_until"]:
+        try:
+            locked_dt = datetime.fromisoformat(row["locked_until"])
+            if datetime.utcnow() < locked_dt:
+                log_audit(tenant.id, "Login Blocked - Too Many Failed PIN Attempts", ip)
+                raise HTTPException(
+                    status_code=429,
+                    detail="Too many failed attempts. Account locked for 15 minutes.",
+                )
+        except ValueError:
+            pass
+
+    def _record_failed_attempt(detail: str):
+        failed_attempts = (row["failed_attempts"] or 0) + 1 if row else 1
+        locked_until_str = None
+        if failed_attempts >= 5:
+            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE tenants SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                (failed_attempts, locked_until_str, tenant.id),
+            )
+            conn.commit()
+        log_audit(tenant.id, detail, ip)
+        return locked_until_str
 
     from app.encryption import decrypt_payload
     try:
@@ -1127,23 +1398,28 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
     # binds each QR login to the specific printed QR (invalidateable by rotation).
     if qr_key:
         stored_key = (getattr(tenant, "qr_key", "") or "").strip()
-        from app.authentication.common.utils import constant_time_eq
         if not stored_key or not constant_time_eq(qr_key, stored_key):
+            _record_failed_attempt("Login Failed - Wrong QR Key")
             raise HTTPException(status_code=401, detail="Invalid QR link")
 
-    if getattr(tenant, "tenantPin", None) != pin:
-        from app.authentication.common.utils import verify_pin
-        if not verify_pin(pin, getattr(tenant, "tenantPin", "")):
-            raise HTTPException(status_code=401, detail="Invalid PIN")
+    if not verify_pin(pin, getattr(tenant, "tenantPin", "")):
+        _record_failed_attempt("Login Failed - Wrong PIN")
+        raise HTTPException(status_code=401, detail="Invalid PIN")
 
-    from app.authentication.tenant.sessions import create_tenant_session
-    from app.authentication.tenant.jwt import create_access_token
-    from app.authentication.tenant.cookies import set_tenant_auth_cookies
+    # Reset attempts on success
+    if (row and row["failed_attempts"]) or (row and row["locked_until"]):
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE tenants SET failed_attempts = 0, locked_until = NULL WHERE id = ?",
+                (tenant.id,),
+            )
+            conn.commit()
 
     session_id, refresh_token = create_tenant_session(tenant.id, request, remember_me=True)
     access_token = create_access_token(tenant.id, session_id)
     
     set_tenant_auth_cookies(response, access_token, refresh_token, True, request)
+    log_audit(tenant.id, "Login Success", ip)
     
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
@@ -1195,7 +1471,7 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name, landlord_id, viewToken, password_hash, "
+            "SELECT id, name, landlord_id, viewToken, password_hash, property_id, "
             "password_failed_attempts, password_locked_until, password_reset_required "
             "FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
             (username,),
@@ -1256,6 +1532,7 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
     landlord_uuid = landlord["landlord_uuid"]
     view_token = row["viewToken"]
     tenant_id = row["id"]
+    property_id = row["property_id"] or _resolve_tenant_property_id(tenant_id, row["landlord_id"])
 
     session_id, refresh_token = create_tenant_session(tenant_id, request, remember_me)
     access_token = create_access_token(tenant_id, session_id)
@@ -1263,7 +1540,7 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
     cookie_val = f"{session_id}:{refresh_token}"
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
     rootpath = (request.scope.get("root_path") or "").rstrip("/")
-    cookie_path = f"{rootpath}/{landlord_uuid}/t/{tenant_id}/{view_token}"
+    cookie_path = f"{rootpath}/{landlord_uuid}/t/{property_id}/{tenant_id}/{view_token}"
 
     response.set_cookie(
         key="access_token", value=access_token,
@@ -1284,9 +1561,10 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
             "id": tenant_id,
             "name": row["name"],
             "landlord_uuid": landlord_uuid,
+            "property_id": property_id,
             "view_token": view_token,
         },
-        "redirect_url": f"{rootpath}/{landlord_uuid}/t/{tenant_id}/{view_token}",
+        "redirect_url": f"{rootpath}/{landlord_uuid}/t/{property_id}/{tenant_id}/{view_token}",
         "reset_required": bool(row["password_reset_required"]),
     }
 
@@ -1472,7 +1750,7 @@ async def global_tenant_change_password(request: Request, response: Response, lo
 
 
 @router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)
-async def tenant_view_pdf(tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
+async def tenant_view_pdf(propertyId: int, tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
@@ -1482,9 +1760,12 @@ async def tenant_view_pdf(tenantId: int, viewToken: str, billNo: str, principal 
     tenant = next((t for t in tenants if t.id == principal.id), None)
     if not tenant or int(receipt.get("TenantId", 0) or 0) != tenant.id:
         raise HTTPException(status_code=403, detail="Access denied")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
         
     from app.services.pdf_service import generate_professional_pdf
-    landlord_conf = config.get("landlord", {})
+    from app.services.landlord_config_service import get_effective_landlord_config
+    landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
     
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
     
@@ -1494,7 +1775,7 @@ async def tenant_view_pdf(tenantId: int, viewToken: str, billNo: str, principal 
     return response
 
 @router.get(TenantRoutes.TENANTAPIPDFDOWNLOAD, name=TenantNames.TENANTPDFDOWNLOAD)
-async def tenant_download_pdf(tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
+async def tenant_download_pdf(propertyId: int, tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
@@ -1504,6 +1785,8 @@ async def tenant_download_pdf(tenantId: int, viewToken: str, billNo: str, princi
     tenant = next((t for t in tenants if t.id == principal.id), None)
     if not tenant or int(receipt.get("TenantId", 0) or 0) != tenant.id:
         raise HTTPException(status_code=403, detail="Access denied")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
         
     tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
@@ -1513,7 +1796,8 @@ async def tenant_download_pdf(tenantId: int, viewToken: str, billNo: str, princi
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
     from app.services.pdf_service import generate_professional_pdf
-    landlord_conf = config.get("landlord", {})
+    from app.services.landlord_config_service import get_effective_landlord_config
+    landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
     
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
     
@@ -1523,6 +1807,7 @@ async def tenant_download_pdf(tenantId: int, viewToken: str, billNo: str, princi
 
 @router.post(TenantRoutes.TENANTAPIKYCUPLOAD, name=TenantNames.TENANTKYCUPLOAD)
 async def public_tenant_kyc_upload(
+    propertyId: int,
     tenantId: int,
     viewToken: str,
     name: str = Form(...),
@@ -1540,6 +1825,8 @@ async def public_tenant_kyc_upload(
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
 
     if tenant.status != "Active":
         raise HTTPException(status_code=403, detail="KYC uploads are not allowed for inactive tenants.")
@@ -1617,11 +1904,13 @@ async def public_tenant_kyc_upload(
     return {"status": "success", "message": "KYC uploaded successfully"}
 
 @router.put(TenantRoutes.TENANTAPIKYCMARKINACTIVE, name=TenantNames.TENANTKYCMARKINACTIVE)
-async def public_tenant_kyc_mark_inactive(tenantId: int, viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
+async def public_tenant_kyc_mark_inactive(propertyId: int, tenantId: int, viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid link.")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
 
     if tenant.status != "Active":
         raise HTTPException(status_code=403, detail="KYC modifications are not allowed for inactive tenants.")
@@ -1631,11 +1920,13 @@ async def public_tenant_kyc_mark_inactive(tenantId: int, viewToken: str, occupan
     return {"status": "success"}
 
 @router.delete(TenantRoutes.TENANTAPIKYCDELETE, name=TenantNames.TENANTKYCDELETE)
-async def public_tenant_kyc_delete(tenantId: int, viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
+async def public_tenant_kyc_delete(propertyId: int, tenantId: int, viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
 
     if tenant.status != "Active":
         raise HTTPException(status_code=403, detail="KYC deletions are not allowed for inactive tenants.")
@@ -1659,17 +1950,22 @@ async def public_tenant_kyc_delete(tenantId: int, viewToken: str, occupantUuid: 
     return {"status": "success"}
 
 @router.get(TenantRoutes.TENANTAPIKYCGETFILE, name=TenantNames.TENANTKYCGETFILE)
-async def tenant_public_get_kyc_file(tenantId: int, viewToken: str, filename: str, principal = Depends(get_current_tenant)):
+async def tenant_public_get_kyc_file(propertyId: int, tenantId: int, viewToken: str, filename: str, principal = Depends(get_current_tenant)):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
+    if not safe_filename.startswith(f"{principal.id}_"):
+        raise HTTPException(status_code=403, detail="Forbidden: Cannot access this file")
+    
+    tenants = load_tenants()
+    tenant = next((t for t in tenants if t.id == principal.id), None)
+    if not tenant or not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
+
     file_path = os.path.join(KYC_DIR, safe_filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
-        
-    if not safe_filename.startswith(f"{principal.id}_"):
-        raise HTTPException(status_code=403, detail="Forbidden: Cannot access this file")
     
     mime_type, _ = mimetypes.guess_type(file_path)
     if not mime_type:
@@ -1685,6 +1981,7 @@ async def tenant_public_get_kyc_file(tenantId: int, viewToken: str, filename: st
 
 @router.get(TenantRoutes.TENANTAPIAUDITLOGS, name=TenantNames.TENANTAUDITLOGS)
 async def tenant_audit_logs(
+    propertyId: int,
     tenantId: int,
     viewToken: str,
     request: Request,
@@ -1696,8 +1993,9 @@ async def tenant_audit_logs(
     limit: int = 50,
     offset: int = 0,
 ):
-    """Return audit logs for this tenant."""
-    _verify_tenant_viewToken(request, viewToken)
+    """Return audit logs for this tenant (scoped to property/tenant/viewToken URL)."""
+    from app.routers.auth import _tenant_viewtoken_guard
+    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId)
 
     from app.core.db import get_conn as _get_conn
     import json as _json
@@ -1789,8 +2087,9 @@ router = APIRouter(tags=["Settings"])
 
 @router.get(Routes.LANDLORDAPICONFIGGET, name=Names.APIGETCONFIG)
 async def api_get_config(landlordUuid: str, principal=Depends(get_current_landlord_api)):
+    from app.services.landlord_config_service import get_effective_landlord_config
     return {
-        "landlord": config.get("landlord", {}),
+        "landlord": get_effective_landlord_config(principal.landlord_id),
         "billing": config.get("billing", {}),
         "ui": config.get("ui", {}),
         "backup": config.get("backup", {}),
@@ -1813,14 +2112,20 @@ async def api_upload_signature(landlordUuid: str, file: UploadFile = File(...), 
         raise HTTPException(status_code=500, detail="Failed to process signature image")
 
     filename = os.path.basename(path)
-    config.save("landlord", {"signature_image": filename})
+    from app.services.landlord_config_service import get_effective_landlord_config, save_effective_landlord_config
+    eff = get_effective_landlord_config(principal.landlord_id)
+    eff["signature_image"] = filename
+    save_effective_landlord_config(principal.landlord_id, eff)
 
     return {"status": "success", "path": filename}
 
 @router.delete(Routes.LANDLORDAPISETTINGSDELETESIGNATURE, name=Names.APIDELETESIGNATURE)
 async def api_delete_signature(landlordUuid: str, principal=Depends(get_current_landlord_api)):
     delete_signature()
-    config.save("landlord", {"signature_image": ""})
+    from app.services.landlord_config_service import get_effective_landlord_config, save_effective_landlord_config
+    eff = get_effective_landlord_config(principal.landlord_id)
+    eff["signature_image"] = ""
+    save_effective_landlord_config(principal.landlord_id, eff)
     return {"status": "success"}
 
 class ConfigUpdateModel(BaseModel):
@@ -1834,9 +2139,10 @@ class ConfigUpdateModel(BaseModel):
 async def update_config(landlordUuid: str, data: ConfigUpdateModel, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api)):
     from app.database.landlord_repository import create_landlord_audit_log
 
-    background_tasks.add_task(create_full_backup, tag="settings_change")
+    background_tasks.add_task(create_full_backup, tag="settings_change", landlord_id=principal.landlord_id)
 
-    config.save("landlord", data.landlord)
+    from app.services.landlord_config_service import save_effective_landlord_config
+    save_effective_landlord_config(principal.landlord_id, data.landlord)
     config.save("billing", data.billing)
 
     if data.whatsapp:
@@ -1905,13 +2211,14 @@ async def update_theme(landlordUuid: str, data: dict, principal=Depends(get_curr
 # POLICY: tenantId is the only identity key for tenant-related data.
 # tenantName is display-only and must never be used for joins, ownership, lookup, or mutation.
 from typing import Optional
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
 
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from fastapi.responses import StreamingResponse, FileResponse
 from app.core.dependencies import config
 from app.models.tenant import Tenant
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
 import os
 import io
 import json
@@ -2018,9 +2325,9 @@ def _build_excel_workbook(tenants_list, receipts_list):
 
 
 @router.get(Routes.LANDLORDAPISYNCEXPORTCSV, name=Names.EXPORTRECEIPTSCSV)
-async def export_receipts_csv(landlordUuid: str, tenants_list: str = "all"):
-    tenants = load_tenants()
-    receipts = get_all_receipts()
+async def export_receipts_csv(landlordUuid: str, tenants_list: str = "all", principal=Depends(get_current_landlord_api_strict)):
+    tenants = load_tenants(landlord_id=principal.landlord_id)
+    receipts = get_all_receipts(landlord_id=principal.landlord_id)
 
     if tenants_list != "all":
         selected_ids = {int(x) for x in tenants_list.split(",") if x.isdigit()}
@@ -2042,9 +2349,9 @@ async def export_receipts_csv(landlordUuid: str, tenants_list: str = "all"):
     return response
 
 @router.get(Routes.LANDLORDAPISYNCEXPORTZIP, name=Names.EXPORTFULLZIP)
-async def export_full_zip(landlordUuid: str, tenants_list: str = "all"):
-    tenants = load_tenants()
-    receipts = get_all_receipts()
+async def export_full_zip(landlordUuid: str, tenants_list: str = "all", principal=Depends(get_current_landlord_api_strict)):
+    tenants = load_tenants(landlord_id=principal.landlord_id)
+    receipts = get_all_receipts(landlord_id=principal.landlord_id)
 
     if tenants_list != "all":
         selected_ids = {int(x) for x in tenants_list.split(",") if x.isdigit()}
@@ -2056,8 +2363,8 @@ async def export_full_zip(landlordUuid: str, tenants_list: str = "all"):
     os.makedirs(BACKUPS_DIR, exist_ok=True)
 
     from app.services.pdf_service import generate_professional_pdf
-    from app.core.config_service import config
-    landlord_conf = config.get("landlord", {})
+    from app.services.landlord_config_service import get_effective_landlord_config
+    landlord_conf = get_effective_landlord_config(principal.landlord_id)
 
     with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         stream = io.StringIO()
@@ -2120,9 +2427,9 @@ async def download_excel_template(landlordUuid: str):
     return response
 
 @router.get(Routes.LANDLORDAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
-async def export_excel_data(landlordUuid: str, format: str = "xlsx", tenants_list: str = "all"):
-    tenants = load_tenants()
-    receipts = get_all_receipts()
+async def export_excel_data(landlordUuid: str, format: str = "xlsx", tenants_list: str = "all", principal=Depends(get_current_landlord_api_strict)):
+    tenants = load_tenants(landlord_id=principal.landlord_id)
+    receipts = get_all_receipts(landlord_id=principal.landlord_id)
 
     if tenants_list != "all":
         selected_ids = {int(x) for x in tenants_list.split(",") if x.isdigit()}
@@ -2266,8 +2573,9 @@ def _extract_numeric_tenant_id(tenant_id_str: str) -> int:
 
 
 def _get_next_available_tenant_id() -> int:
-    """Get the next available tenant ID number."""
-    tenants = load_tenants(include_archived=True)
+    """Get the next available tenant ID number (global ID space across all landlords)."""
+    from app.services.tenant_service import load_tenants as _load_all_tenants
+    tenants = _load_all_tenants(include_archived=True)
     if not tenants:
         return 1
     max_id = max(t.id for t in tenants)
@@ -2295,15 +2603,15 @@ def _remap_bill_no(original_bill_no: str, old_tenant_id_str: str, new_tenant_id:
     return original_bill_no
 
 
-def _detect_import_conflicts(parsed_data: dict) -> dict:
+def _detect_import_conflicts(parsed_data: dict, landlord_id=None) -> dict:
     """
     Detect tenant and receipt conflicts between import data and existing system data.
     
     Returns a dict mapping target_key -> conflict_info for each conflict.
     """
     from app.services.billing_service import get_all_receipts
-    sys_tenants = load_tenants(include_archived=True)
-    sys_receipts = get_all_receipts()
+    sys_tenants = load_tenants(include_archived=True, landlord_id=landlord_id)
+    sys_receipts = get_all_receipts(include_archived_tenants=True, landlord_id=landlord_id)
     
     sys_tenant_ids = {t.id for t in sys_tenants}
     sys_tenant_names = {t.name.lower(): t for t in sys_tenants}
@@ -2454,7 +2762,7 @@ def _detect_encrypted_pins(parsed_data: dict) -> dict:
 # ============================================================================
 
 @router.post(Routes.LANDLORDAPISYNCIMPORTPREVIEW, name=Names.IMPORTPREVIEWDATA)
-async def import_preview_data(landlordUuid: str, files: List[UploadFile] = File(...)):
+async def import_preview_data(landlordUuid: str, files: List[UploadFile] = File(...), principal=Depends(get_current_landlord_api_strict)):
     preview_data = {}
     try:
         for file in files:
@@ -2475,8 +2783,8 @@ async def import_preview_data(landlordUuid: str, files: List[UploadFile] = File(
         all_encrypted_pins = {}
         
         for filename, parsed_data in preview_data.items():
-            # Detect tenant ID conflicts
-            conflicts = _detect_import_conflicts(parsed_data)
+            # Detect tenant ID conflicts (scoped to this landlord)
+            conflicts = _detect_import_conflicts(parsed_data, landlord_id=principal.landlord_id)
             if conflicts:
                 all_conflicts[filename] = conflicts
             
@@ -2577,6 +2885,7 @@ async def import_execute_data(
     pinhandling: Optional[str] = Form("prompt"),
     pinresolutions: Optional[str] = Form(None),
     receiptstrategies: Optional[str] = Form(None), # JSON: { "filename::t_id": "SKIP" | "MERGE_RECEIPTS_ONLY" | "REPLACE_RECEIPTS", ... }
+    principal=Depends(get_current_landlord_api_strict),
 ):
     """
     Execute import with conflict resolution support inside a single transaction.
@@ -2649,17 +2958,19 @@ async def import_execute_data(
             except: pass
         raise HTTPException(status_code=400, detail=f"Failed to parse files: {str(e)}")
 
-    sys_tenants = load_tenants(include_archived=True)
+    sys_tenants = load_tenants(include_archived=True, landlord_id=principal.landlord_id)
     sys_tenant_ids = {t.id for t in sys_tenants}
     # ID-indexed for validation; NOT used for name-based ownership resolution.
     sys_tenant_by_id = {t.id: t for t in sys_tenants}
+    # Global ID space so CREATE_NEW never collides with another landlord's tenant.
+    _global_tenant_ids = {t.id for t in load_tenants(include_archived=True)}
 
-    # Detect conflicts across all files
+    # Detect conflicts across all files (scoped to this landlord)
     unresolved_conflicts = []
     unresolved_pins = []
 
     for filename, parsed_data in parsed_files_data.items():
-        conflicts = _detect_import_conflicts(parsed_data)
+        conflicts = _detect_import_conflicts(parsed_data, landlord_id=principal.landlord_id)
         encrypted_pins = _detect_encrypted_pins(parsed_data)
         
         for t_id, conflict_info in conflicts.items():
@@ -2719,7 +3030,7 @@ async def import_execute_data(
     # the authoritative source for UPDATE_EXISTING and MERGE_RECEIPTS_ONLY.
     existing_tenant_id_map: dict[str, int] = {}
     for filename, parsed_data in parsed_files_data.items():
-        conflicts = _detect_import_conflicts(parsed_data)
+        conflicts = _detect_import_conflicts(parsed_data, landlord_id=principal.landlord_id)
         for t_id, conflict_info in conflicts.items():
             target_key = f"{filename}::{t_id}"
             matches = conflict_info.get("matches", [])
@@ -2728,7 +3039,7 @@ async def import_execute_data(
                 existing_tenant_id_map[target_key] = matches[0]["existingTenantId"]
 
     # Schedule backup BEFORE processing
-    background_tasks.add_task(create_full_backup, tag="pre_import_excel")
+    background_tasks.add_task(create_full_backup, tag="pre_import_excel", landlord_id=principal.landlord_id)
 
     imported_tenants = []
     imported_receipts = 0
@@ -2738,9 +3049,7 @@ async def import_execute_data(
     admin_username = "Admin"
     job_result = {"items": []}
 
-    from app.database.landlord_repository import get_landlord_by_uuid
-    _import_landlord_row = get_landlord_by_uuid(landlordUuid)
-    import_landlord_id = _import_landlord_row["id"] if _import_landlord_row else None
+    import_landlord_id = principal.landlord_id
 
     try:
         with get_conn() as conn:
@@ -2784,9 +3093,9 @@ async def import_execute_data(
                     is_new = False
 
                     if action == "CREATE_NEW":
-                        # Insert new tenant
+                        # Insert new tenant (global ID space, no cross-landlord collisions)
                         next_id = _get_next_available_tenant_id()
-                        while next_id in sys_tenant_ids:
+                        while next_id in _global_tenant_ids:
                             next_id += 1
                         tenantId = next_id
 
@@ -2804,6 +3113,7 @@ async def import_execute_data(
                             0, float(p.get("additionalPersonRate", 0) or 0), 0, float(p.get("tankWater", 0) or 0),
                             p.get("meterId", ""), viewToken, "", 0, import_landlord_id
                         ))
+                        _global_tenant_ids.add(tenantId)
                         sys_tenant_ids.add(tenantId)
                         is_new = True
 
@@ -2898,7 +3208,7 @@ async def import_execute_data(
                             r_date = _parse_excel_date(r.get("Date", ""))
                             r_month = _parse_month_date(r.get("Month", ""))
                             
-                            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+                            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ? AND tenantId = ?", (billNo, tenantId)).fetchone()
                             
                             if exists:
                                 if rec_strategy == "MERGE_RECEIPTS_ONLY":
@@ -2908,7 +3218,7 @@ async def import_execute_data(
                                             additional=?, water=?, tankWater=?, electricity=?, total=?, pdf=?,
                                             rate=?, status=?, additionalpersonrate=?,
                                             paymentstatus=?, maintenancecharge=?, maintenancedesc=?, previousarrears=?, amountreceived=?
-                                        WHERE billNo=?
+                                        WHERE billNo=? AND tenantId=?
                                     """, (
                                         r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
                                         float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
@@ -2916,7 +3226,7 @@ async def import_execute_data(
                                         float(r.get("Total", 0) or 0), "", float(r.get("Rate", 0) or 0), r.get("receiptStatus", "ACTIVE"), 
                                         float(r.get("additionalPersonRate", 0) or 0), r.get("paymentStatus", "PENDING"), 
                                         float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), 
-                                        float(r.get("amountReceived", 0) or 0), billNo
+                                        float(r.get("amountReceived", 0) or 0), billNo, tenantId
                                     ))
                                     imported_receipts += 1
                             else:
@@ -2995,15 +3305,15 @@ async def import_execute_data(
 
 
 @router.get(Routes.LANDLORDAPIBILLINGARCHIVEDATA)
-async def get_archive_data(landlordUuid: str):
-    tenants = load_tenants(include_archived=True)
+async def get_archive_data(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
+    tenants = load_tenants(include_archived=True, landlord_id=principal.landlord_id)
     archivedtenants = [
         tenant for tenant in tenants
         if (getattr(tenant, "status", "") or "").strip().lower() == "archived"
     ]
     archivedtenantids = {int(tenant.id) for tenant in archivedtenants}
 
-    receipts = get_all_receipts(include_archived_tenants=True)
+    receipts = get_all_receipts(include_archived_tenants=True, landlord_id=principal.landlord_id)
     archivedreceipts = [
         receipt for receipt in receipts
         if str(receipt.get("Status", "") or "").strip().upper() == "ARCHIVED"
@@ -3513,7 +3823,7 @@ if __name__ == "__main__":
 #     sys_receipts = get_all_receipts()
 
 #     # Schedule backup BEFORE processing (non-blocking)
-#     background_tasks.add_task(create_full_backup, tag="pre_import_excel")
+#     background_tasks.add_task(create_full_backup, tag="pre_import_excel", landlord_id=principal.landlord_id)
 
 #     # Track results for reporting
 #     imported_tenants = []
@@ -3950,9 +4260,10 @@ from datetime import datetime
 router = APIRouter()
 
 
-@router.get("/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view", include_in_schema=False)
+@router.get("/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/view", include_in_schema=False)
 @router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)
 async def tenant_view_pdf(
+    propertyId: int,
     tenantId: int,
     viewToken: str,
     billNo: str,
@@ -3967,6 +4278,8 @@ async def tenant_view_pdf(
     tenant = next((t for t in load_tenants(include_archived=True) if t.id == tenantId and getattr(t, "viewToken", None) == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid tenant link")
+    if int(getattr(tenant, "propertyId", 0) or 0) != int(propertyId or 0):
+        raise HTTPException(status_code=403, detail="Property mismatch")
 
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
@@ -3983,7 +4296,8 @@ async def tenant_view_pdf(
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
     from app.services.pdf_service import generate_professional_pdf
-    landlord_conf = config.get("landlord", {})
+    from app.services.landlord_config_service import get_effective_landlord_config
+    landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
 
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
 
@@ -3998,9 +4312,10 @@ async def tenant_view_pdf(
     return response
 
 
-@router.get("/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download", include_in_schema=False)
+@router.get("/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/download", include_in_schema=False)
 @router.get(TenantRoutes.TENANTAPIPDFDOWNLOAD, name=TenantNames.TENANTPDFDOWNLOAD)
 async def tenant_download_pdf(
+    propertyId: int,
     tenantId: int,
     viewToken: str,
     billNo: str,
@@ -4015,6 +4330,8 @@ async def tenant_download_pdf(
     tenant = next((t for t in load_tenants(include_archived=True) if t.id == tenantId and getattr(t, "viewToken", None) == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid tenant link")
+    if int(getattr(tenant, "propertyId", 0) or 0) != int(propertyId or 0):
+        raise HTTPException(status_code=403, detail="Property mismatch")
 
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
@@ -4031,7 +4348,8 @@ async def tenant_download_pdf(
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
     from app.services.pdf_service import generate_professional_pdf
-    landlord_conf = config.get("landlord", {})
+    from app.services.landlord_config_service import get_effective_landlord_config
+    landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
 
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
 
@@ -4074,7 +4392,8 @@ async def _broadcast(channel: str, event: dict):
 
 from app.services.tenant_service import (
     load_tenants, add_tenant, update_tenant, delete_tenant,
-    get_occupants, save_occupant, delete_occupant
+    get_occupants, save_occupant, delete_occupant,
+    get_tenant, tenant_belongs_to_landlord
 )
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
@@ -4082,46 +4401,53 @@ from app.services.billing_service import (
     get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
 router = APIRouter()
 
 
+def _validate_property_ownership(landlord_id: int, property_id):
+    """Raise 400 if property_id is set but does not belong to this landlord."""
+    if not property_id:
+        return
+    from app.database.property_repository import get_property
+    if not get_property(landlord_id, int(property_id)):
+        raise HTTPException(status_code=400, detail="Property not found or does not belong to this landlord.")
+
+
 @router.get(Routes.LANDLORDAPITENANTSLIST, name=Names.APIGETTENANTS)
-async def api_get_tenants(landlordUuid: str):
-    return load_tenants(include_archived=False)
+async def api_get_tenants(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
+    return load_tenants(include_archived=False, landlord_id=principal.landlord_id)
 
 @router.get(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIGETTENANT)
-async def api_get_tenant(landlordUuid: str, tenantId: int):
-    tenants = load_tenants()
-    tenant = next((t for t in tenants if t.id == tenantId), None)
+async def api_get_tenant(landlordUuid: str, tenantId: int, principal=Depends(get_current_landlord_api_strict)):
+    tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
     return tenant
 
 @router.get(Routes.LANDLORDAPITENANTSRECEIPTS, name=Names.APIGETTENANTRECEIPTS)
-async def api_get_tenant_receipts(landlordUuid: str, tenantId: int):
+async def api_get_tenant_receipts(landlordUuid: str, tenantId: int, principal=Depends(get_current_landlord_api_strict)):
     # Use include_archived=True so admin can view receipts of archived tenants
-    tenants = load_tenants(include_archived=True)
-    tenant = next((t for t in tenants if t.id == tenantId), None)
+    tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     # ID-based lookup only — name is display-only and must never be used for ownership
-    receipts = get_all_receipts(include_archived_tenants=True)
+    receipts = get_all_receipts(include_archived_tenants=True, landlord_id=principal.landlord_id)
     tenant_receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) == tenantId]
     tenant_receipts.reverse()
     return tenant_receipts
 
 @router.post(Routes.LANDLORDAPITENANTSLIST, name=Names.APIADDTENANT)
-async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, background_tasks: BackgroundTasks):
+async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.authentication.common.utils import hash_pin, validate_tenantPin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
-    from app.authentication.landlord.middleware import extract_landlord_id
     from app.database.landlord_repository import create_landlord_audit_log
     from app.core.db import get_conn
     from datetime import datetime
     
-    background_tasks.add_task(create_full_backup, tag="add_tenant")
+    background_tasks.add_task(create_full_backup, tag="add_tenant", landlord_id=principal.landlord_id)
     
     # Strictly validate 4-digit PIN on creation
     validate_tenantPin(t.tenantPin)
@@ -4132,14 +4458,9 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     
     t.tenantPin = hashed_pin
     
-    from app.database.landlord_repository import get_landlord_by_uuid
-    landlord_id = extract_landlord_id(request)
-    if not landlord_id:
-        # Fall back to the landlord identified by the URL when the JWT cookie
-        # is unavailable, so the tenant is always owned by a landlord.
-        landlord_row = get_landlord_by_uuid(landlordUuid)
-        landlord_id = landlord_row["id"] if landlord_row else None
+    landlord_id = principal.landlord_id
     t.landlord_id = landlord_id
+    _validate_property_ownership(landlord_id, t.propertyId)
 
     tenantId = add_tenant(t)
     t.id = tenantId
@@ -4166,18 +4487,18 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     return {"status": "success", "tenant": response_tenant}
 
 @router.put(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIUPDATETENANT)
-async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, request: Request, background_tasks: BackgroundTasks):
-    from app.authentication.landlord.middleware import extract_landlord_id
+async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.database.landlord_repository import create_landlord_audit_log
 
     t.id = tenantId
-    background_tasks.add_task(create_full_backup, tag="update_tenant")
+    background_tasks.add_task(create_full_backup, tag="update_tenant", landlord_id=principal.landlord_id)
     
-    existing = load_tenants()
-    existing_t = next((x for x in existing if x.id == tenantId), None)
+    existing_t = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not existing_t:
         raise HTTPException(status_code=404, detail="Tenant not found")
-        
+
+    _validate_property_ownership(principal.landlord_id, t.propertyId)
+
     # The general update endpoint does NOT change the PIN.
     # We forcefully retain the existing PIN hash.
     t.tenantPin = existing_t.tenantPin
@@ -4187,7 +4508,7 @@ async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, request
     response_tenant = t.dict()
     response_tenant.pop("tenantPin", None)
 
-    landlord_id = extract_landlord_id(request)
+    landlord_id = principal.landlord_id
     if landlord_id:
         create_landlord_audit_log(
             landlord_id, "tenant_updated",
@@ -4206,7 +4527,7 @@ class ChangePinRequest(BaseModel):
     logout_all: bool = True
 
 @router.post(Routes.LANDLORDAPITENANTSCHANGEPIN, name=Names.CHANGETENANTPIN)
-async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks):
+async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: ChangePinRequest, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.authentication.common.utils import hash_pin, validate_tenantPin, verify_pin
     from app.authentication.common.pin_vault import encrypt_admin_view_pin
     from app.authentication.tenant.sessions import revoke_all_tenant_sessions
@@ -4215,6 +4536,10 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
     from datetime import datetime
     
     validate_tenantPin(payload.pin)
+    
+    existing_t = get_tenant(tenantId, landlord_id=principal.landlord_id)
+    if not existing_t:
+        raise HTTPException(status_code=404, detail="Tenant not found")
     
     # Prevent immediate reuse (last 5 PINs)
     with get_conn() as conn:
@@ -4226,11 +4551,6 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
     new_hash = hash_pin(payload.pin)
     encrypted_pin = encrypt_admin_view_pin(payload.pin)
     
-    existing = load_tenants()
-    existing_t = next((x for x in existing if x.id == tenantId), None)
-    if not existing_t:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-        
     existing_t.tenantPin = new_hash
     update_tenant(existing_t)
     
@@ -4246,7 +4566,7 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
     ip = request.client.host if request.client else "Unknown IP"
     log_audit(tenantId, "Tenant PIN Changed", ip)
     
-    background_tasks.add_task(create_full_backup, tag="change_pin")
+    background_tasks.add_task(create_full_backup, tag="change_pin", landlord_id=principal.landlord_id)
     
     return {"status": "success", "message": "PIN changed successfully."}
 
@@ -4254,10 +4574,14 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
 async def admin_reveal_tenantPin(
     landlordUuid: str,
     tenantId: int,  # CHANGED: tenantId → tenantId
+    principal=Depends(get_current_landlord_api_strict),
 ):
     from app.authentication.common.pin_vault import decrypt_admin_view_pin
     from app.core.db import get_conn
-    
+
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
     with get_conn() as conn:
         row = conn.execute(
             "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = ?",
@@ -4284,21 +4608,20 @@ class PortalAuthRequest(BaseModel):
 
 
 @router.post(Routes.LANDLORDAPITENANTSPORTALAUTH, name=Names.LANDLORDTENANTPORTALAUTH)
-async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: PortalAuthRequest, request: Request, background_tasks: BackgroundTasks):
+async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: PortalAuthRequest, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     """Assign or clear a tenant's portal username/password (username + password flow)."""
     from app.authentication.common.utils import hash_pin
     from app.authentication.tenant.sessions import revoke_all_tenant_sessions
     from app.database.auth_repository import log_audit
     from app.database.landlord_repository import create_landlord_audit_log
-    from app.authentication.landlord.middleware import extract_landlord_id
     from app.core.db import get_conn
     from datetime import datetime
 
-    background_tasks.add_task(create_full_backup, tag="portal_auth")
+    background_tasks.add_task(create_full_backup, tag="portal_auth", landlord_id=principal.landlord_id)
 
     with get_conn() as conn:
         existing = conn.execute(
-            "SELECT id, name FROM tenants WHERE id = ?", (tenantId,)
+            "SELECT id, name FROM tenants WHERE id = ? AND landlord_id = ?", (tenantId, principal.landlord_id)
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Tenant not found")
@@ -4369,7 +4692,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
     ip = request.client.host if request.client else "Unknown IP"
     log_audit(tenantId, "Portal Auth Configured", ip)
 
-    landlord_id = extract_landlord_id(request)
+    landlord_id = principal.landlord_id
     if landlord_id:
         create_landlord_audit_log(
             landlord_id, "tenant_portal_auth_configured",
@@ -4388,21 +4711,20 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
 
 
 @router.post(Routes.LANDLORDAPITENANTSQRKEY, name=Names.LANDLORDTENANTQRKEY)
-async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request: Request, background_tasks: BackgroundTasks):
+async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     """Regenerate a tenant's QR key (rotates the QR link; revokes all sessions)."""
     import uuid as _uuid
     from app.authentication.tenant.sessions import revoke_all_tenant_sessions
     from app.database.auth_repository import log_audit
     from app.database.landlord_repository import create_landlord_audit_log
-    from app.authentication.landlord.middleware import extract_landlord_id
     from app.core.db import get_conn
 
-    background_tasks.add_task(create_full_backup, tag="regenerate_qr_key")
+    background_tasks.add_task(create_full_backup, tag="regenerate_qr_key", landlord_id=principal.landlord_id)
 
     new_key = _uuid.uuid4().hex + _uuid.uuid4().hex
     with get_conn() as conn:
         existing = conn.execute(
-            "SELECT id, name FROM tenants WHERE id = ?", (tenantId,)
+            "SELECT id, name FROM tenants WHERE id = ? AND landlord_id = ?", (tenantId, principal.landlord_id)
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Tenant not found")
@@ -4413,7 +4735,7 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
     ip = request.client.host if request.client else "Unknown IP"
     log_audit(tenantId, "QR Key Regenerated", ip)
 
-    landlord_id = extract_landlord_id(request)
+    landlord_id = principal.landlord_id
     if landlord_id:
         create_landlord_audit_log(
             landlord_id, "tenant_qr_key_regenerated",
@@ -4432,8 +4754,8 @@ async def api_delete_tenant(
     request: Request,
     background_tasks: BackgroundTasks,
     action: str = "archive",
+    principal=Depends(get_current_landlord_api_strict),
 ):
-    from app.authentication.landlord.middleware import extract_landlord_id
     from app.database.landlord_repository import create_landlord_audit_log
 
     action = (action or "archive").strip().lower()
@@ -4445,8 +4767,7 @@ async def api_delete_tenant(
             permanently_delete_tenant_data,
         )
 
-        tenants = load_tenants(include_archived=True)
-        tenant = next((t for t in tenants if t.id == tenantId), None)
+        tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found.")
 
@@ -4461,6 +4782,7 @@ async def api_delete_tenant(
             snapshot = create_tenant_recovery_snapshot(
                 tenant_id=tenantId,
                 admin_id=None,  # admin principal not injected here; safe to omit
+                landlord_id=principal.landlord_id,
             )
             # Step 2: Permanently delete all live data
             permanently_delete_tenant_data(tenantId)
@@ -4486,16 +4808,15 @@ async def api_delete_tenant(
         raise HTTPException(status_code=400, detail="Invalid tenant action.")
 
     # Must include archived tenants so an already-archived tenant is not missed
-    tenants = load_tenants(include_archived=True)
-    tenant = next((t for t in tenants if t.id == tenantId), None)
+    tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found.")
 
     try:
-        background_tasks.add_task(create_full_backup, tag=f"{action}_tenant")
-        result = delete_tenant(tenantId, action)
+        background_tasks.add_task(create_full_backup, tag=f"{action}_tenant", landlord_id=principal.landlord_id)
+        result = delete_tenant(tenantId, action, landlord_id=principal.landlord_id)
 
-        landlord_id = extract_landlord_id(request)
+        landlord_id = principal.landlord_id
         if landlord_id:
             create_landlord_audit_log(
                 landlord_id, f"tenant_{action}",
@@ -4516,19 +4837,19 @@ async def api_delete_tenant(
 # ── Tenant Recovery Snapshot Endpoints ───────────────────────────────────────
 
 @router.get(Routes.LANDLORDAPITENANTSNAPSHOTS, name=Names.APILISTRECOVERYSNAPSHOTS)
-async def api_list_recovery_snapshots(landlordUuid: str):
+async def api_list_recovery_snapshots(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
     """List all tenant recovery snapshots (runs expiry purge first)."""
     from app.services.tenant_recovery_service import get_tenant_recovery_snapshots
-    snapshots = get_tenant_recovery_snapshots()
+    snapshots = get_tenant_recovery_snapshots(landlord_id=principal.landlord_id)
     return {"status": "success", "snapshots": snapshots}
 
 
 @router.get(Routes.LANDLORDAPITENANTSNAPSHOT_PREVIEW, name=Names.APIRECOVERYSNAPSHOT_PREVIEW)
-async def api_recovery_snapshot_preview(landlordUuid: str, snapshotId: str):
+async def api_recovery_snapshot_preview(landlordUuid: str, snapshotId: str, principal=Depends(get_current_landlord_api_strict)):
     """Return a conflict preview for restoring a tenant recovery snapshot."""
     from app.services.tenant_recovery_service import get_snapshot_restore_preview
     try:
-        preview = get_snapshot_restore_preview(snapshotId)
+        preview = get_snapshot_restore_preview(snapshotId, landlord_id=principal.landlord_id)
         return {"status": "success", **preview}
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -4541,11 +4862,11 @@ class RestoreSnapshotRequest(BaseModel):
 
 
 @router.post(Routes.LANDLORDAPITENANTSNAPSHOT_RESTORE, name=Names.APIRECOVERYSNAPSHOT_RESTORE)
-async def api_restore_recovery_snapshot(landlordUuid: str, snapshotId: str, payload: RestoreSnapshotRequest = RestoreSnapshotRequest()):
+async def api_restore_recovery_snapshot(landlordUuid: str, snapshotId: str, payload: RestoreSnapshotRequest = RestoreSnapshotRequest(), principal=Depends(get_current_landlord_api_strict)):
     """Restore a tenant from a recovery snapshot."""
     from app.services.tenant_recovery_service import restore_tenant_from_snapshot
     try:
-        result = restore_tenant_from_snapshot(snapshotId, force_new_id=payload.force_new_id)
+        result = restore_tenant_from_snapshot(snapshotId, force_new_id=payload.force_new_id, landlord_id=principal.landlord_id)
         return {"status": "success", **result}
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
@@ -4558,17 +4879,17 @@ async def api_restore_tenant(
     landlordUuid: str,
     tenantId: int,
     background_tasks: BackgroundTasks,
+    principal=Depends(get_current_landlord_api_strict),
 ):
     # Archived tenants must be visible for the existence check — this is why restore
     # cannot share the normal pre-check that excludes archived tenants.
-    tenants = load_tenants(include_archived=True)
-    tenant = next((t for t in tenants if t.id == tenantId), None)
+    tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found.")
 
     try:
-        background_tasks.add_task(create_full_backup, tag="restore_tenant")
-        result = delete_tenant(tenantId, "restore")
+        background_tasks.add_task(create_full_backup, tag="restore_tenant", landlord_id=principal.landlord_id)
+        result = delete_tenant(tenantId, "restore", landlord_id=principal.landlord_id)
         return {"status": "success", "action": "restore", "data": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -4581,7 +4902,9 @@ from app.core.paths import KYC_DIR
 import mimetypes
 
 @router.get(Routes.LANDLORDAPIOCCUPANTSLIST, name=Names.APIGETOCCUPANTS)
-async def admin_get_occupants(landlordUuid: str, tenantId: int):
+async def admin_get_occupants(landlordUuid: str, tenantId: int, principal=Depends(get_current_landlord_api_strict)):
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
     occupants = get_occupants(tenantId)
     return {"occupants": occupants}
 
@@ -4598,11 +4921,15 @@ async def admin_post_occupants(
     aadhaarcombined: Optional[UploadFile] = File(None),
     empfront: Optional[UploadFile] = File(None),
     empback: Optional[UploadFile] = File(None),
+    principal=Depends(get_current_landlord_api_strict),
 ):
     import uuid
     from app.core.paths import KYC_DIR
     import os
     import shutil
+
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
 
     # Validate Aadhaar: need combined OR both front+back
     has_combined = aadhaarcombined and aadhaarcombined.filename
@@ -4664,13 +4991,17 @@ async def admin_post_occupants(
     return {"status": "success", "occupantUuid": occ_uuid}
 
 @router.put(Routes.LANDLORDAPIOCCUPANTSMARKINACTIVE, name=Names.APIMARKOCCUPANTINACTIVE)
-async def admin_tenant_kyc_mark_inactive(landlordUuid: str, tenantId: int, occupantUuid: str):
+async def admin_tenant_kyc_mark_inactive(landlordUuid: str, tenantId: int, occupantUuid: str, principal=Depends(get_current_landlord_api_strict)):
     from app.services.tenant_service import update_occupant_status
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
     update_occupant_status(occupantUuid, "Inactive")
     return {"status": "success"}
 
 @router.delete(Routes.LANDLORDAPIOCCUPANTSDELETE, name=Names.APIDELETEOCCUPANT)
-async def admin_tenant_kyc_delete(landlordUuid: str, tenantId: int, occupantUuid: str):
+async def admin_tenant_kyc_delete(landlordUuid: str, tenantId: int, occupantUuid: str, principal=Depends(get_current_landlord_api_strict)):
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
     tenantId = tenantId
     occupantUuid = occupantUuid
     occupants = get_occupants(tenantId)
@@ -4692,10 +5023,15 @@ async def admin_tenant_kyc_delete(landlordUuid: str, tenantId: int, occupantUuid
     return {"status": "success"}
 
 @router.get(Routes.LANDLORDAPIOCCUPANTSGETFILE, name=Names.APIGETOCCUPANTFILE)
-async def admin_get_kyc_file(landlordUuid: str, tenantId: int, filename: str):
+async def admin_get_kyc_file(landlordUuid: str, tenantId: int, filename: str, principal=Depends(get_current_landlord_api_strict)):
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
+    if not safe_filename.startswith(f"{tenantId}_"):
+        raise HTTPException(status_code=404, detail="File not found")
 
     file_path = os.path.join(KYC_DIR, safe_filename)
     if not os.path.exists(file_path):
@@ -4716,28 +5052,27 @@ async def admin_get_kyc_file(landlordUuid: str, tenantId: int, filename: str):
 
 ```python
 # // File: app\app\api\whatsapp.py
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 from urllib.parse import quote
 
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 
 from app.core.dependencies import config
 from app.core.runtime import public_app_url
-from app.services.tenant_service import load_tenants
+from app.services.tenant_service import load_tenants, get_tenant
 from app.services.billing_service import get_receipt
+from app.authentication.landlord.middleware import get_current_landlord_api_strict
 import re
 
 router = APIRouter()
 
 @router.get(Routes.LANDLORDAPIWHATSAPPSENDSINGLE, name=Names.SENDWHATSAPPSINGLE)
-async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: int, billNo: str):
-    billNo = billNo
-    receipt = get_receipt(tenantId, billNo)
+async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: int, billNo: str, principal=Depends(get_current_landlord_api_strict)):
+    receipt = get_receipt(tenantId, billNo, landlord_id=principal.landlord_id)
     if not receipt:
         raise HTTPException(status_code=404, detail="Bill not found")
 
-    from app.services.tenant_service import get_tenant
-    tenant = get_tenant(tenantId)
+    tenant = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not tenant or not tenant.phone:
         raise HTTPException(status_code=400, detail="Tenant phone number not found")
 
@@ -4770,7 +5105,7 @@ async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: in
     if not landlordUuid:
         raise HTTPException(status_code=400, detail="Missing landlord context in request")
         
-    link = f"{public_app_url()}/rent/{landlordUuid}/t/{tenant.id}/{token}"
+    link = f"{public_app_url()}/rent/{landlordUuid}/t/{getattr(tenant, 'propertyId', 0) or 0}/{tenant.id}/{token}"
     grandTotal = float(receipt.get("Total", 0)) + float(receipt.get("previousArrears", 0))
 
     tenant_portal_pin = "(Unavailable)"
@@ -4865,7 +5200,18 @@ def clear_admin_auth_cookies(response: Response, request: Request = None):
 from jose import jwt
 from datetime import datetime, timedelta
 
-ADMIN_JWT_SECRET = os.environ.get("ADMIN_JWT_SECRET", "REPLACE_WITH_ADMIN_SECURE_RANDOM_KEY")
+
+def _require_secret(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(
+            f"{name} environment variable is required and must not be empty. "
+            "Refusing to start with a fallback/guessable signing secret."
+        )
+    return value
+
+
+ADMIN_JWT_SECRET = _require_secret("ADMIN_JWT_SECRET")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 
@@ -5079,19 +5425,36 @@ async def get_admin_or_tenant(request: Request) -> AuthPrincipal:
 ﻿import os
 from cryptography.fernet import Fernet
 
-# Use environment variable or fallback to a generated default for dev
-# In production, this should be set via environment variable!
-PIN_VAULT_KEY_STR = os.environ.get("tenantPin_VAULT_KEY", "UzZ9Uu5iAC5M1VBUBwiOHInTdRrlwmuCY01OQq7ZHCg=")
-PIN_VAULT_KEY = PIN_VAULT_KEY_STR.encode("utf-8")
 
-fernet = Fernet(PIN_VAULT_KEY)
+def _require_env(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(
+            f"{name} environment variable is required and must not be empty. "
+            "Refusing to start with a fallback/guessable vault key."
+        )
+    return value
+
+
+# No hardcoded fallback: the Fernet key MUST come from the environment so a
+# leaked database (e.g. a backup) cannot be decrypted with a public constant.
+PIN_VAULT_KEY_STR = _require_env("tenantPin_VAULT_KEY")
+try:
+    PIN_VAULT_KEY = PIN_VAULT_KEY_STR.encode("utf-8")
+    fernet = Fernet(PIN_VAULT_KEY)
+except Exception as exc:
+    raise RuntimeError(
+        "tenantPin_VAULT_KEY is not a valid Fernet key "
+        "(expected urlsafe base64 of exactly 32 bytes). Refusing to start."
+    ) from exc
+
 
 def encrypt_admin_view_pin(pin: str) -> str:
     return fernet.encrypt(pin.encode("utf-8")).decode("utf-8")
 
+
 def decrypt_admin_view_pin(ciphertext: str) -> str:
     return fernet.decrypt(ciphertext.encode("utf-8")).decode("utf-8")
-
 ```
 
 ### `backend/app/app/authentication/common/principal.py`
@@ -5288,9 +5651,18 @@ from datetime import datetime, timedelta
 
 from jose import jwt
 
-LANDLORD_JWT_SECRET = os.environ.get(
-    "LANDLORD_JWT_SECRET", "REPLACE_WITH_LANDLORD_SECURE_RANDOM_KEY"
-)
+
+def _require_secret(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(
+            f"{name} environment variable is required and must not be empty. "
+            "Refusing to start with a fallback/guessable signing secret."
+        )
+    return value
+
+
+LANDLORD_JWT_SECRET = _require_secret("LANDLORD_JWT_SECRET")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 
@@ -5340,6 +5712,7 @@ from fastapi import HTTPException, Request
 from app.authentication.common.principal import AuthPrincipal
 from app.authentication.landlord.jwt import decode_access_token
 from app.authentication.landlord.sessions import get_landlord_session_db
+from app.core.privacy import PRIVACY_CONSENT_REQUIRED_HEADER
 from app.database.landlord_repository import get_landlord_by_id
 
 
@@ -5457,6 +5830,25 @@ async def get_current_landlord_api(request: Request) -> AuthPrincipal:
         path_uuid = request.path_params.get("landlordUuid")
         if path_uuid and principal.landlord_uuid != path_uuid:
             raise HTTPException(status_code=403, detail="Forbidden: UUID mismatch")
+
+        # Privacy Policy consent gate. Accounts that have not accepted the
+        # Privacy Policy (e.g. brand-new Google-created accounts) may only
+        # reach the consent, change-password and identity endpoints until the
+        # consent step is completed.
+        path = request.url.path
+        consent_exempt = (
+            path.endswith("/api/auth/privacy-consent")
+            or path.endswith("/api/auth/change-password")
+            or path.endswith("/api/auth/me")
+        )
+        if not consent_exempt:
+            landlord = get_landlord_by_id(principal.landlord_id)
+            if landlord and not landlord["privacy_consented"]:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Privacy Policy acceptance is required to continue.",
+                    headers={PRIVACY_CONSENT_REQUIRED_HEADER: "1"},
+                )
 
         return principal
     except HTTPException:
@@ -5694,9 +6086,18 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 
-PLATFORM_JWT_SECRET = os.environ.get(
-    "PLATFORM_JWT_SECRET", "REPLACE_WITH_PLATFORM_SECURE_RANDOM_KEY"
-)
+
+def _require_secret(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(
+            f"{name} environment variable is required and must not be empty. "
+            "Refusing to start with a fallback/guessable signing secret."
+        )
+    return value
+
+
+PLATFORM_JWT_SECRET = _require_secret("PLATFORM_JWT_SECRET")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -5748,12 +6149,13 @@ def _tenant_cookie_paths(request: Request | None):
 
     params = request.path_params or {}
     landlordUuid = params.get("landlordUuid")
+    property_id = params.get("propertyId")
     tenant_id = params.get("tenantId")
     view_token = params.get("viewToken")
 
-    # Canonical: /{landlordUuid}/t/{tenantId}/{viewToken}
-    if landlordUuid and tenant_id and view_token:
-        base = f"{rootpath}/{landlordUuid}/t/{tenant_id}/{view_token}".rstrip("/")
+    # Canonical: /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}
+    if landlordUuid and property_id and tenant_id and view_token:
+        base = f"{rootpath}/{landlordUuid}/t/{property_id}/{tenant_id}/{view_token}".rstrip("/")
         return base, f"{base}/api/auth"
     access_path = rootpath if rootpath else "/"
     refresh_path = f"{rootpath}/api/auth" if rootpath else "/api/auth"
@@ -5808,7 +6210,18 @@ def clear_tenant_auth_cookies(response: Response, request: Request = None):
 from jose import jwt
 from datetime import datetime, timedelta
 
-TENANT_JWT_SECRET = os.environ.get("TENANT_JWT_SECRET", "REPLACE_WITH_TENANT_SECURE_RANDOM_KEY")
+
+def _require_secret(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(
+            f"{name} environment variable is required and must not be empty. "
+            "Refusing to start with a fallback/guessable signing secret."
+        )
+    return value
+
+
+TENANT_JWT_SECRET = _require_secret("TENANT_JWT_SECRET")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 
@@ -5860,9 +6273,14 @@ def _is_browser_navigation(request: Request) -> bool:
 
 
 def _tenant_redirect_url(request: Request) -> str:
-    viewToken = request.path_params.get("viewToken")
-    if viewToken:
-        return str(request.url_for("public_tenant_profile_get", viewToken=viewToken))
+    params = request.path_params or {}
+    root = (request.scope.get("root_path") or "").rstrip("/")
+    landlordUuid = params.get("landlordUuid")
+    property_id = params.get("propertyId")
+    tenant_id = params.get("tenantId")
+    view_token = params.get("viewToken")
+    if landlordUuid and property_id and tenant_id and view_token:
+        return f"{root}/{landlordUuid}/t/{property_id}/{tenant_id}/{view_token}"
 
     referer = request.headers.get("referer")
     if referer:
@@ -6538,6 +6956,7 @@ def init_db():
             totp_secret TEXT,
             email TEXT,
             is_platform_admin INTEGER NOT NULL DEFAULT 0,
+            telegram_chat_id TEXT,
             created_at TEXT,
             updated_at TEXT
         );
@@ -6792,7 +7211,12 @@ def init_db():
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             totp_secret TEXT,
-            totp_enabled INTEGER NOT NULL DEFAULT 0
+            totp_enabled INTEGER NOT NULL DEFAULT 0,
+            privacy_consented INTEGER NOT NULL DEFAULT 1,
+            privacy_version TEXT,
+            privacy_accepted_at TEXT,
+            privacy_accepted_ip TEXT,
+            privacy_accepted_user_agent TEXT
         );
 
         -- 15. LANDLORD SESSIONS
@@ -7027,6 +7451,31 @@ def init_db():
             )
             conn.commit()
 
+        # ─── Platform admin Telegram OTP columns ───────────────────────
+        # Linked Telegram chat_id used to deliver login OTPs. Captured via
+        # the Settings UI "Link Telegram" flow (admins.telegram_chat_id).
+        if not _column_exists(conn, "admins", "telegram_chat_id"):
+            conn.execute("ALTER TABLE admins ADD COLUMN telegram_chat_id TEXT")
+            conn.commit()
+
+        # ─── Platform admin login OTPs ─────────────────────────────────
+        # Single-use, expiring OTP codes for the Telegram 2FA flow.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS admin_login_otps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_id INTEGER NOT NULL,
+                otp_hash TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                attempts INTEGER NOT NULL DEFAULT 0,
+                used INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_admin_login_otps_admin "
+                     "ON admin_login_otps(admin_id, used)")
+        conn.commit()
+
         # ─── Tenant audit logs: add meta_json column ──
         if not _column_exists(conn, "tenant_audit_logs", "meta_json"):
             conn.execute("ALTER TABLE tenant_audit_logs ADD COLUMN meta_json TEXT")
@@ -7057,6 +7506,44 @@ def init_db():
             conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0")
             conn.commit()
 
+        # ─── Landlord privacy-policy consent columns ────────────────────────
+        # Existing accounts are grandfathered as consenting (default 1) so the
+        # upgrade does not lock out current landlords. New signups set this
+        # explicitly from the accepted Privacy Policy; Google-created accounts
+        # start at 0 until the consent step completes.
+        if not _column_exists(conn, "landlord_accounts", "privacy_consented"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_consented INTEGER NOT NULL DEFAULT 1")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "privacy_version"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_version TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "privacy_accepted_at"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_accepted_at TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "privacy_accepted_ip"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_accepted_ip TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "privacy_accepted_user_agent"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_accepted_user_agent TEXT")
+            conn.commit()
+
+        # ─── Landlord privacy-consent audit trail ──────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS landlord_privacy_consents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                landlord_id INTEGER NOT NULL,
+                privacy_version TEXT NOT NULL,
+                accepted INTEGER NOT NULL DEFAULT 1,
+                accepted_at TEXT NOT NULL,
+                accepted_ip TEXT,
+                accepted_user_agent TEXT,
+                FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_landlord_privacy_consents_landlord "
+                     "ON landlord_privacy_consents(landlord_id)")
+        conn.commit()
+
         # ─── Landlord password admin store (for platform admin reveal) ──
         conn.execute("""
             CREATE TABLE IF NOT EXISTS landlord_password_admin_store (
@@ -7067,6 +7554,112 @@ def init_db():
             )
         """)
         conn.commit()
+
+        # ─── Landlord properties (setup wizard + property-first billing) ──
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS landlord_properties (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                landlord_id INTEGER NOT NULL REFERENCES landlord_accounts(id) ON DELETE CASCADE,
+                property_name TEXT NOT NULL,
+                address TEXT NOT NULL DEFAULT '',
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_landlord_properties_landlord "
+                     "ON landlord_properties(landlord_id, sort_order)")
+        conn.commit()
+
+        # ─── Landlord profile (per-landlord "landlord" config section) ──
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS landlord_profiles (
+                landlord_id INTEGER PRIMARY KEY REFERENCES landlord_accounts(id) ON DELETE CASCADE,
+                config_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+
+        # ─── Landlord setup-wizard columns ─────────────────────────────
+        if not _column_exists(conn, "landlord_accounts", "setup_completed"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN setup_completed INTEGER NOT NULL DEFAULT 0")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "setup_skipped"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN setup_skipped INTEGER NOT NULL DEFAULT 0")
+            conn.commit()
+
+        # ─── tenants.property_id (property membership) ────────────────
+        if not _column_exists(conn, "tenants", "property_id"):
+            conn.execute("ALTER TABLE tenants ADD COLUMN property_id INTEGER REFERENCES landlord_properties(id)")
+            conn.commit()
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenants_property_id ON tenants(property_id)")
+        conn.commit()
+
+        # ─── Landlord setup backfill (one-time) ───────────────────────
+        # Existing landlords keep working unchanged: each landlord that has
+        # tenants (or exists) gets a default "Property 1" and is marked as
+        # setup-complete so the wizard only appears for NEW signups.
+        backfilled = conn.execute(
+            "SELECT 1 FROM app_metadata WHERE key = 'landlord_setup_backfill_v1'"
+        ).fetchone()
+        if not backfilled:
+            from datetime import datetime as _dt
+            _now = _dt.utcnow().isoformat()
+            _landlords = conn.execute(
+                "SELECT id FROM landlord_accounts ORDER BY id"
+            ).fetchall()
+            for _row in _landlords:
+                _lid = _row["id"]
+                _existing = conn.execute(
+                    "SELECT 1 FROM landlord_properties WHERE landlord_id = ? LIMIT 1",
+                    (_lid,),
+                ).fetchone()
+                if not _existing:
+                    _cur = conn.execute(
+                        "INSERT INTO landlord_properties (landlord_id, property_name, address, sort_order, created_at, updated_at) "
+                        "VALUES (?, ?, '', 0, ?, ?)",
+                        (_lid, "Property 1", _now, _now),
+                    )
+                    _pid = _cur.lastrowid
+                    conn.execute(
+                        "UPDATE tenants SET property_id = ? WHERE landlord_id = ? AND property_id IS NULL",
+                        (_pid, _lid),
+                    )
+            conn.execute(
+                "UPDATE landlord_accounts SET setup_completed = 1, updated_at = ? WHERE setup_completed = 0",
+                (_now,),
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('landlord_setup_backfill_v1', 'done')"
+            )
+            conn.commit()
+
+        # ─── tenants.property_id backfill v2 ───────────────────────────
+        # v1 only assigned a property to tenants of landlords that had no
+        # property yet. Tenants of landlords who already had one (setup
+        # wizard, earlier data) were left NULL, which would 403 the
+        # property-scoped portal deep link. Assign the landlord's first
+        # property to every tenant still missing one.
+        prop_filled = conn.execute(
+            "SELECT 1 FROM app_metadata WHERE key = 'tenant_property_id_backfill_v2'"
+        ).fetchone()
+        if not prop_filled:
+            conn.execute(
+                """
+                UPDATE tenants
+                SET property_id = (
+                    SELECT lp.id FROM landlord_properties lp
+                    WHERE lp.landlord_id = tenants.landlord_id
+                    ORDER BY lp.sort_order, lp.id LIMIT 1
+                )
+                WHERE property_id IS NULL AND landlord_id IS NOT NULL
+                """
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('tenant_property_id_backfill_v2', 'done')"
+            )
+            conn.commit()
 
         # ─── Seed default platform admin ───────────────────────────────
         # Ensure at least one platform admin exists (admin/admin)
@@ -7166,6 +7759,27 @@ def ensure_storage_dirs():
 
 ```
 
+### `backend/app/app/core/privacy.py`
+
+```python
+"""
+app/core/privacy.py
+
+Single source of truth for the PROPAURA landlord privacy-policy version and
+effective date. Backend signup/consent validation uses these constants so the
+accepted version recorded for each landlord always matches the published policy
+(see PRIVACY_POLICY_LANDLORD.md in the repository root).
+"""
+
+PRIVACY_POLICY_VERSION = "1.0"
+PRIVACY_POLICY_EFFECTIVE_DATE = "2026-08-28"
+
+# Header name used when a landlord account exists but privacy consent is still
+# pending (e.g. a brand-new Google-created account). The landlord frontend uses
+# this to route the user to the consent step.
+PRIVACY_CONSENT_REQUIRED_HEADER = "X-Privacy-Consent-Required"
+```
+
 ### `backend/app/app/core/route_builder.py`
 
 ```python
@@ -7222,6 +7836,7 @@ from app.api.sync_ws import router as sync_ws_router
 from app.api.public import router as public_api_router
 from app.api.health import router as health_api_router
 from app.api.dashboard import router as dashboard_api_router
+from app.api.landlord_setup import router as landlord_setup_router
 from app.routers.auth import router as auth_api_router
 from app.routers.admin_auth import router as admin_auth_router
 from app.api.tenant_pdf import router as tenant_pdf_api_router
@@ -7245,11 +7860,17 @@ PROTECTED_API_ROUTERS = [
     billing_api_router,
     tenants_api_router,
     settings_api_router,
-    backup_api_router,
     whatsapp_api_router,
     sync_api_router,
     pdf_api_router,
     dashboard_api_router,
+    landlord_setup_router,
+]
+
+# Backup router handles its own per-route auth: landlord auth for list/create/
+# delete/verify/download/metadata, platform-admin auth for restore.
+BACKUP_ROUTERS = [
+    backup_api_router,
 ]
 
 PUBLIC_API_ROUTERS = [
@@ -7275,6 +7896,10 @@ def register_all_routers(app: FastAPI):
     #    /landlord/{landlordUuid}/api/* paths)
     for router in PROTECTED_API_ROUTERS:
         app.include_router(router, dependencies=api_landlord_deps)
+
+    # 1b. Backup router — per-route auth (restore is platform-admin only)
+    for router in BACKUP_ROUTERS:
+        app.include_router(router)
 
     # 2. Admin auth routes
     for router in ADMIN_AUTH_ROUTERS:
@@ -7395,9 +8020,18 @@ class LandlordRoutes:
     LANDLORDAPIAUTHME = "/landlord/api/auth/me"
     LANDLORDAPIAUTHCHANGEPASSWORD = "/landlord/api/auth/change-password"
 
-    # Landlord API: Setup
+    # Landlord API: Setup wizard (post-signup initial configuration)
     LANDLORDAPISETUPREQUIRED = "/landlord/api/setup/required"
     LANDLORDAPISETUPCREATE = "/landlord/api/setup/create"
+    LANDLORDAPISETUPSKIP = "/landlord/api/setup/skip"
+
+    # Landlord API: Properties (property-first billing)
+    LANDLORDAPIPROPERTIESLIST = "/landlord/{landlordUuid}/api/properties"
+    LANDLORDAPIPROPERTIESCREATE = "/landlord/{landlordUuid}/api/properties"
+    LANDLORDAPIPROPERTIESGET = "/landlord/{landlordUuid}/api/properties/{propertyId}"
+    LANDLORDAPIPROPERTIESUPDATE = "/landlord/{landlordUuid}/api/properties/{propertyId}"
+    LANDLORDAPIPROPERTIESDELETE = "/landlord/{landlordUuid}/api/properties/{propertyId}"
+    LANDLORDAPIPROPERTIESTENANTS = "/landlord/{landlordUuid}/api/properties/{propertyId}/tenants"
 
     # Landlord API: Auth (legacy equivalents, mostly obsolete but kept if referenced)
     LANDLORDAPIAUTHPUBLICKEY = "/landlord/api/auth/public-key"
@@ -7417,6 +8051,10 @@ class LandlordRoutes:
     # Landlord API: Password
     LANDLORDAPIPASSWORDFORGOTVERIFY = "/landlord/api/forgot-password/verify"
     LANDLORDAPIPASSWORDFORGOTRESET = "/landlord/api/forgot-password/reset"
+
+    # Landlord API: Privacy policy (public consent metadata + consent recording)
+    LANDLORDAPIPRIVACYPOLICY = "/landlord/api/privacy-policy"
+    LANDLORDAPIAUTHPRIVACYCONSENT = "/landlord/api/auth/privacy-consent"
 
     # Landlord API: Dashboard
     LANDLORDAPIDASHBOARDSTATS = "/landlord/{landlordUuid}/api/dashboard"
@@ -7513,6 +8151,8 @@ class LandlordNames:
     LANDLORDLOGOUT = "landlordlogout"
     LANDLORDME = "landlordme"
     LANDLORDCHANGEPASSWORD = "landlordchangepassword"
+    LANDLORDPRIVACYPOLICY = "landlordprivacypolicy"
+    LANDLORDPRIVACYCONSENT = "landlordprivacyconsent"
 
     # Pages
     HOME = "home_page"
@@ -7587,6 +8227,19 @@ class LandlordNames:
     APIMARKOCCUPANTINACTIVE = "api_mark_occupant_inactive"
     APIDELETEOCCUPANT = "api_delete_occupant"
     APIGETOCCUPANTFILE = "api_get_occupant_file"
+
+    # API - Setup wizard
+    LANDLORDSETUPREQUIRED = "landlord_setup_required"
+    LANDLORDSETUPCREATE = "landlord_setup_create"
+    LANDLORDSETUPSKIP = "landlord_setup_skip"
+
+    # API - Properties
+    APIGETPROPERTIES = "api_get_properties"
+    APICREATEPROPERTY = "api_create_property"
+    APIGETPROPERTY = "api_get_property"
+    APIUPDATEPROPERTY = "api_update_property"
+    APIDELETEPROPERTY = "api_delete_property"
+    APIGETPROPERTYTENANTS = "api_get_property_tenants"
 
     # Auth Names (from old ADMIN prefixed)
     LANDLORDLOGINPOST = "landlordloginpost"
@@ -7702,30 +8355,32 @@ class PlatformAdminNames:
 # app/app/core/routes_manifest_tenant.py
 
 class TenantRoutes:
-    TENANTPAGEROOT = "/{landlordUuid}/t/{tenantId}/{viewToken}"
+    # Canonical tenant portal URL: /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}
+    # The propertyId scopes the tenant link to a specific property (property-first billing).
+    TENANTPAGEROOT = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}"
 
-    # Tenant API: Auth — paths follow /{landlordUuid}/t/{tenantId}/{viewToken}/api/...
-    TENANTAPIAUTHPUBLICKEY = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/public-key"
-    TENANTAPIAUTHLOGIN = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/login"
-    TENANTAPIAUTHREFRESH = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/refresh"
-    TENANTAPIAUTHLOGOUT = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout"
-    TENANTAPIAUTHLOGOUTALL = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout-all"
+    # Tenant API: Auth — paths follow /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/...
+    TENANTAPIAUTHPUBLICKEY = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/public-key"
+    TENANTAPIAUTHLOGIN = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/login"
+    TENANTAPIAUTHREFRESH = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/refresh"
+    TENANTAPIAUTHLOGOUT = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout"
+    TENANTAPIAUTHLOGOUTALL = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout-all"
 
     # Tenant API: Profile
-    TENANTAPIPROFILEGET = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/profile"
+    TENANTAPIPROFILEGET = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/profile"
 
     # Tenant API: KYC
-    TENANTAPIKYCUPLOAD = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc"
-    TENANTAPIKYCMARKINACTIVE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive"
-    TENANTAPIKYCDELETE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}"
-    TENANTAPIKYCGETFILE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/file/{filename}"
+    TENANTAPIKYCUPLOAD = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc"
+    TENANTAPIKYCMARKINACTIVE = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive"
+    TENANTAPIKYCDELETE = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}"
+    TENANTAPIKYCGETFILE = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/file/{filename}"
 
     # Tenant API: PDF
-    TENANTAPIPDFVIEW = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view"
-    TENANTAPIPDFDOWNLOAD = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
+    TENANTAPIPDFVIEW = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/view"
+    TENANTAPIPDFDOWNLOAD = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
 
     # Tenant API: Audit Logs
-    TENANTAPIAUDITLOGS = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/audit-logs"
+    TENANTAPIAUDITLOGS = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/audit-logs"
 
 
 
@@ -7813,10 +8468,42 @@ from app.core.api_guard import APIGuardedStaticFiles
 from app.core.runtime import serve_frontend
 
 
+def _validate_required_secret(name: str, min_len: int = 32) -> None:
+    """Fail closed unless every signing/vault secret is present and strong."""
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"{name} environment variable is required (fail-closed).")
+    if len(value) < min_len:
+        raise RuntimeError(
+            f"{name} is too short ({len(value)} chars); minimum {min_len} chars."
+        )
+
+
+def validate_secrets() -> None:
+    for secret in [
+        "LANDLORD_JWT_SECRET",
+        "TENANT_JWT_SECRET",
+        "PLATFORM_JWT_SECRET",
+        "ADMIN_JWT_SECRET",
+    ]:
+        _validate_required_secret(secret)
+
+    from cryptography.fernet import Fernet
+
+    vault_key = os.environ.get("tenantPin_VAULT_KEY")
+    if not vault_key:
+        raise RuntimeError("tenantPin_VAULT_KEY environment variable is required (fail-closed).")
+    try:
+        Fernet(vault_key.encode("utf-8"))
+    except Exception as exc:
+        raise RuntimeError("tenantPin_VAULT_KEY is not a valid Fernet key.") from exc
+
+
 class StartupManager:
     @staticmethod
     def initialize(app: FastAPI):
         try:
+            validate_secrets()
             StartupManager.initialize_storage()
             StartupManager.initialize_config()
             init_db()
@@ -8174,9 +8861,28 @@ def init_production_db():
         totp_secret TEXT,
         email TEXT,
         is_platform_admin INTEGER NOT NULL DEFAULT 0,
+        telegram_chat_id TEXT,
         created_at TEXT,
         updated_at TEXT
     );
+    """)
+
+    # ============================================================
+    # 3b. ADMIN LOGIN OTPS (Telegram 2FA)
+    # ============================================================
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS admin_login_otps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        admin_id INTEGER NOT NULL,
+        otp_hash TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        attempts INTEGER NOT NULL DEFAULT 0,
+        used INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+    );
+    CREATE INDEX IF NOT EXISTS idx_admin_login_otps_admin
+        ON admin_login_otps(admin_id, used);
     """)
 
     # ============================================================
@@ -8495,6 +9201,11 @@ def create_landlord(
     username: str,
     password_hash: str,
     landlord_uuid: str,
+    privacy_consented: int = 1,
+    privacy_version: str | None = None,
+    privacy_accepted_at: str | None = None,
+    privacy_accepted_ip: str | None = None,
+    privacy_accepted_user_agent: str | None = None,
 ):
     """
     Insert a new landlord account and return the created row.
@@ -8507,16 +9218,58 @@ def create_landlord(
             """
             INSERT INTO landlord_accounts (
                 landlord_uuid, full_name, email, phone, username,
-                password_hash, status, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?)
+                password_hash, status, created_at, updated_at,
+                privacy_consented, privacy_version, privacy_accepted_at,
+                privacy_accepted_ip, privacy_accepted_user_agent
+            ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?,
+                      ?, ?, ?, ?, ?)
             """,
-            (landlord_uuid, full_name, email, phone, username, password_hash, now, now),
+            (
+                landlord_uuid, full_name, email, phone, username, password_hash,
+                now, now,
+                privacy_consented, privacy_version, privacy_accepted_at,
+                privacy_accepted_ip, privacy_accepted_user_agent,
+            ),
         )
         conn.commit()
         return conn.execute(
             "SELECT * FROM landlord_accounts WHERE id = ?",
             (cur.lastrowid,),
         ).fetchone()
+
+
+def record_privacy_consent(
+    landlord_id: int,
+    privacy_version: str,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+):
+    """
+    Mark a landlord as having accepted the current Privacy Policy.
+
+    Updates landlord_accounts consent fields and appends a row to
+    landlord_privacy_consents so acceptance is auditable.
+    """
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE landlord_accounts
+               SET privacy_consented = 1,
+                   privacy_version = ?,
+                   privacy_accepted_at = ?,
+                   privacy_accepted_ip = ?,
+                   privacy_accepted_user_agent = ?,
+                   updated_at = ?
+               WHERE id = ?""",
+            (privacy_version, now, ip_address, user_agent, now, landlord_id),
+        )
+        conn.execute(
+            """INSERT INTO landlord_privacy_consents
+               (landlord_id, privacy_version, accepted, accepted_at, accepted_ip, accepted_user_agent)
+               VALUES (?, ?, 1, ?, ?, ?)""",
+            (landlord_id, privacy_version, now, ip_address, user_agent),
+        )
+        conn.commit()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -8661,6 +9414,195 @@ def reset_landlord_failed_attempts(landlord_id: int):
         conn.execute(
             "UPDATE landlord_accounts SET failed_attempts = 0, locked_until = NULL, updated_at = ? WHERE id = ?",
             (now, landlord_id),
+        )
+        conn.commit()
+```
+
+### `backend/app/app/database/property_repository.py`
+
+```python
+"""
+app/database/property_repository.py
+
+Pure SQL helpers for landlord_properties, landlord_profiles, and the
+landlord setup-wizard flags. No business logic here — callers validate.
+"""
+import json
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from app.core.db import get_conn
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Properties
+# ──────────────────────────────────────────────────────────────────────────────
+
+def list_properties(landlord_id: int) -> List[dict]:
+    """Return all properties for a landlord, ordered by sort_order then id."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM landlord_properties WHERE landlord_id = ? ORDER BY sort_order, id",
+            (landlord_id,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_properties(landlord_id: int) -> int:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM landlord_properties WHERE landlord_id = ?",
+            (landlord_id,),
+        ).fetchone()
+    return int(row["c"] or 0)
+
+
+def get_property(landlord_id: int, property_id: int) -> Optional[dict]:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM landlord_properties WHERE id = ? AND landlord_id = ?",
+            (property_id, landlord_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def next_property_sort_order(landlord_id: int) -> int:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) AS m FROM landlord_properties WHERE landlord_id = ?",
+            (landlord_id,),
+        ).fetchone()
+    return int(row["m"] if row["m"] is not None else -1) + 1
+
+
+def create_property(landlord_id: int, property_name: str, address: str = "") -> dict:
+    now = datetime.utcnow().isoformat()
+    sort_order = next_property_sort_order(landlord_id)
+    with get_conn() as conn:
+        cur = conn.execute(
+            "INSERT INTO landlord_properties (landlord_id, property_name, address, sort_order, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (landlord_id, property_name, address, sort_order, now, now),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM landlord_properties WHERE id = ?",
+            (cur.lastrowid,),
+        ).fetchone()
+    return dict(row)
+
+
+def update_property(landlord_id: int, property_id: int, property_name: Optional[str] = None, address: Optional[str] = None) -> Optional[dict]:
+    existing = get_property(landlord_id, property_id)
+    if not existing:
+        return None
+    now = datetime.utcnow().isoformat()
+    new_name = property_name if property_name is not None else existing["property_name"]
+    new_address = address if address is not None else existing["address"]
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE landlord_properties SET property_name = ?, address = ?, updated_at = ? WHERE id = ? AND landlord_id = ?",
+            (new_name, new_address, now, property_id, landlord_id),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM landlord_properties WHERE id = ?",
+            (property_id,),
+        ).fetchone()
+    return dict(row)
+
+
+def delete_property(landlord_id: int, property_id: int) -> bool:
+    """Delete a property; its tenants are unassigned (property_id -> NULL)."""
+    existing = get_property(landlord_id, property_id)
+    if not existing:
+        return False
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE tenants SET property_id = NULL WHERE landlord_id = ? AND property_id = ?",
+            (landlord_id, property_id),
+        )
+        conn.execute(
+            "DELETE FROM landlord_properties WHERE id = ? AND landlord_id = ?",
+            (property_id, landlord_id),
+        )
+        conn.commit()
+    return True
+
+
+def tenants_for_property(landlord_id: int, property_id: int) -> List[dict]:
+    """Return non-archived tenants belonging to a property."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM tenants WHERE landlord_id = ? AND property_id = ? AND status != 'Archived' ORDER BY name",
+            (landlord_id, property_id),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Setup wizard flags
+# ──────────────────────────────────────────────────────────────────────────────
+
+def get_setup_flags(landlord_id: int) -> dict:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT setup_completed, setup_skipped FROM landlord_accounts WHERE id = ?",
+            (landlord_id,),
+        ).fetchone()
+    return {
+        "setupCompleted": bool(row and row["setup_completed"]),
+        "setupSkipped": bool(row and row["setup_skipped"]),
+    }
+
+
+def mark_setup_complete(landlord_id: int) -> None:
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE landlord_accounts SET setup_completed = 1, setup_skipped = 0, updated_at = ? WHERE id = ?",
+            (now, landlord_id),
+        )
+        conn.commit()
+
+
+def mark_setup_skipped(landlord_id: int) -> None:
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE landlord_accounts SET setup_completed = 0, setup_skipped = 1, updated_at = ? WHERE id = ?",
+            (now, landlord_id),
+        )
+        conn.commit()
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Per-landlord "landlord" config section (Settings + PDF source)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def get_landlord_profile(landlord_id: int) -> Dict[str, Any]:
+    """Return the per-landlord profile dict (stored JSON), or {} if none."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT config_json FROM landlord_profiles WHERE landlord_id = ?",
+            (landlord_id,),
+        ).fetchone()
+    if not row or not row["config_json"]:
+        return {}
+    try:
+        return json.loads(row["config_json"])
+    except json.JSONDecodeError:
+        return {}
+
+
+def save_landlord_profile(landlord_id: int, section: Dict[str, Any]) -> None:
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO landlord_profiles (landlord_id, config_json, updated_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(landlord_id) DO UPDATE SET config_json = ?, updated_at = ?""",
+            (landlord_id, json.dumps(section, ensure_ascii=False), now, json.dumps(section, ensure_ascii=False), now),
         )
         conn.commit()
 ```
@@ -8871,6 +9813,8 @@ class LandlordSignupRequest(BaseModel):
     username: str = Field(min_length=3, max_length=40)
     password: str = Field(min_length=8, max_length=128)
     confirmPassword: str = Field(min_length=8, max_length=128)
+    privacyAccepted: bool = False
+    privacyVersion: str = Field(default="", max_length=32)
 
 
 class LandlordLoginRequest(BaseModel):
@@ -8891,11 +9835,71 @@ class LandlordGoogleRequest(BaseModel):
     rememberMe: bool = False
 
 
+class LandlordPrivacyConsentRequest(BaseModel):
+    accepted: bool = True
+    privacyVersion: str = Field(default="", max_length=32)
+
+
 class UsernameCheckResponse(BaseModel):
     username: str
     available: bool
     suggestions: List[str] = []
 
+```
+
+### `backend/app/app/models/property.py`
+
+```python
+"""
+app/models/property.py
+
+Pydantic request / response models for the landlord property entity
+(initial setup wizard + property-first billing).
+"""
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
+
+class Property(BaseModel):
+    id: Optional[int] = None
+    landlord_id: Optional[int] = None
+    property_name: str = Field(min_length=1, max_length=120)
+    address: Optional[str] = ""
+    sort_order: Optional[int] = 0
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class PropertyCreateRequest(BaseModel):
+    property_name: str = Field(min_length=1, max_length=120)
+    address: Optional[str] = ""
+
+
+class PropertyUpdateRequest(BaseModel):
+    property_name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    address: Optional[str] = None
+
+
+class PropertyResponse(BaseModel):
+    properties: List[Property]
+    total: int
+
+
+class LandlordSetupStatus(BaseModel):
+    required: bool
+    setupCompleted: bool = False
+    setupSkipped: bool = False
+    propertyCount: int = 0
+    landlord: Optional[dict] = None
+
+
+class LandlordSetupCompleteRequest(BaseModel):
+    skip: bool = False
+    propertyName: Optional[str] = None
+    address: Optional[str] = ""
+    properties: List[PropertyCreateRequest] = []
+    landlord: Optional[dict] = None
 ```
 
 ### `backend/app/app/models/receipt.py`
@@ -8988,14 +9992,20 @@ class PaymentStatusUpdate(BaseModel):
 ### `backend/app/app/models/tenant.py`
 
 ```python
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional
 
 class Tenant(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: Optional[int] = None
 
     # Owning landlord (multi-tenancy)
     landlord_id: Optional[int] = None
+
+    # Property membership (property-first billing).
+    # Field name serializes as `propertyId`; `property_id` accepted on input.
+    propertyId: Optional[int] = Field(default=None, alias="property_id")
 
     # General Info
     name: str
@@ -9352,11 +10362,11 @@ _app_prefix("t", TENANT_DIST)
 _app_prefix("tenant", TENANT_DIST)
 
 
-# ─── Tenant portal deep links /rent/{landlordUuid}/t/{tenantId}/{viewToken} ──
+# ─── Tenant portal deep links /rent/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken} ──
 
-@router.get("/rent/{landlordUuid}/t/{tenantId}/{viewToken}", include_in_schema=False)
-@router.get("/rent/{landlordUuid}/t/{tenantId}/{viewToken}/{path:path}", include_in_schema=False)
-async def tenant_deep_link(request: Request, landlordUuid: str, tenantId: str, viewToken: str, path: str = ""):
+@router.get("/rent/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}", include_in_schema=False)
+@router.get("/rent/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/{path:path}", include_in_schema=False)
+async def tenant_deep_link(request: Request, landlordUuid: str, propertyId: str, tenantId: str, viewToken: str, path: str = ""):
     return _spa_index(TENANT_DIST, request, path)
 
 
@@ -9476,8 +10486,10 @@ router = APIRouter()
 
 @router.get(Routes.LANDLORDPAGESETTINGS, name=Names.SETTINGSPAGE, response_class=HTMLResponse)
 async def settings_page(request: Request):
+    from app.authentication.landlord.middleware import extract_landlord_id
+    from app.services.landlord_config_service import get_effective_landlord_config
     billing_conf = config.get("billing", {})
-    landlord_conf = config.get("landlord", {})
+    landlord_conf = get_effective_landlord_config(extract_landlord_id(request))
     ui_conf = config.get("ui", {})
     theme = getattr(request.state, "theme", "system")
     return templates.TemplateResponse(
@@ -9569,8 +10581,8 @@ async def serve_tenant_app_login(request: Request, path: str = ""):
     return FileResponse("frontend/tenant-app/dist/index.html")
 
 
-@router.get("/{landlordUuid}/t/{tenantId}/{viewToken}/assets/{asset_path:path}", include_in_schema=False)
-async def serve_tenant_assets(request: Request, landlordUuid: str, tenantId: int, viewToken: str, asset_path: str):
+@router.get("/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/assets/{asset_path:path}", include_in_schema=False)
+async def serve_tenant_assets(request: Request, landlordUuid: str, propertyId: int, tenantId: int, viewToken: str, asset_path: str):
     check_api_host(request)
     safe = os.path.normpath(asset_path).lstrip("/")
     if safe.startswith(".."):
@@ -9581,9 +10593,9 @@ async def serve_tenant_assets(request: Request, landlordUuid: str, tenantId: int
     raise HTTPException(status_code=404, detail="Asset not found")
 
 
-@router.get("/{landlordUuid}/t/{tenantId}/{viewToken}", name="serve_tenant_app", include_in_schema=False)
-@router.get("/{landlordUuid}/t/{tenantId}/{viewToken}/{path:path}", name="serve_tenant_app_path", include_in_schema=False)
-async def serve_tenant_app(request: Request, landlordUuid: str, tenantId: int, viewToken: str, path: str = ""):
+@router.get("/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}", name="serve_tenant_app", include_in_schema=False)
+@router.get("/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/{path:path}", name="serve_tenant_app_path", include_in_schema=False)
+async def serve_tenant_app(request: Request, landlordUuid: str, propertyId: int, tenantId: int, viewToken: str, path: str = ""):
     check_api_host(request)
     if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
         raise HTTPException(status_code=404, detail="API route not found")
@@ -9814,105 +10826,47 @@ from app.core.routes_manifest_tenant import TenantRoutes, TenantNames
 router = APIRouter(tags=["Authentication"])
 
 
-def _verify_tenant_viewToken(request: Request, viewToken: str) -> None:
-    """
-    Validates that the viewToken in the URL path matches the tenant 
-    identity from the JWT cookie. Prevents cross-tenant session attacks.
-    """
+def _tenant_viewtoken_guard(request: Request, tenantId: int, viewToken: str, propertyId: int):
+    """Resolve the tenant whose viewToken matches, verify the requested
+    property, and confirm the JWT-cookie identity binds to it. Raises on any
+    mismatch so the URL scoping (property → tenant → viewToken → session)
+    cannot be crossed."""
     token = request.cookies.get("access_token")
     if not token:
         raise HTTPException(status_code=401, detail="Access token missing")
-    
+
     from app.authentication.tenant.jwt import decode_access_token
     try:
         payload = decode_access_token(token)
-        tenantId = int(payload.get("tenantId") or payload.get("sub"))
-        
-        # Look up tenant's viewToken from database
-        tenants = load_tenants()
-        tenant = next((t for t in tenants if t.id == tenantId), None)
-        if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant not found")
-        
-        if getattr(tenant, "viewToken", "") != viewToken:
-            raise HTTPException(status_code=403, detail="View token mismatch")
-            
-    except HTTPException:
-        raise
+        cookie_tenant_id = int(payload.get("tenantId") or payload.get("sub"))
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid access token")
 
-
-@router.post("/t/{tenantId}/{viewToken}/api/auth/login", include_in_schema=False)
-@router.post(TenantRoutes.TENANTAPIAUTHLOGIN)
-async def auth_login(tenantId: int, viewToken: str, request: Request, response: Response, payload: LoginRequest):
-    """Unchanged - login already receives viewToken via path"""
-    ip = request.client.host if request.client else "Unknown IP"
-    
-    with get_conn() as conn:
-        tenant = conn.execute(
-            "SELECT id, tenantpin, failed_attempts, locked_until FROM tenants WHERE viewToken = ?", 
-            (payload.viewToken,)
-        ).fetchone()
-        
+    tenants = load_tenants(include_archived=True)
+    tenant = next((t for t in tenants if t.id == tenantId), None)
     if not tenant:
-        raise HTTPException(status_code=404, detail="Invalid profile link.")
-        
-    from datetime import datetime, timedelta
-    if tenant["locked_until"]:
-        locked_until = datetime.fromisoformat(tenant["locked_until"])
-        if datetime.utcnow() < locked_until:
-            raise HTTPException(status_code=429, detail="Too many failed attempts. Account locked for 15 minutes.")
-        
-    if not verify_pin(payload.pin, tenant["tenantpin"]):
-        log_audit(tenant["id"], "Login Failed - Wrong PIN", ip)
-        
-        failed_attempts = tenant["failed_attempts"] + 1
-        locked_until_str = None
-        if failed_attempts >= 5:
-            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
-            
-        with get_conn() as conn:
-            conn.execute(
-                "UPDATE tenants SET failed_attempts = ?, locked_until = ? WHERE id = ?", 
-                (failed_attempts, locked_until_str, tenant["id"])
-            )
-            conn.commit()
-            
-        raise HTTPException(status_code=401, detail="Incorrect PIN.")
-        
-    # Reset attempts on success
-    if tenant["failed_attempts"] > 0:
-        with get_conn() as conn:
-            conn.execute(
-                "UPDATE tenants SET failed_attempts = 0, locked_until = NULL WHERE id = ?", 
-                (tenant["id"],)
-            )
-            conn.commit()
-        
-    # Generate Session & Tokens
-    session_id, refresh_token = create_tenant_session(tenant["id"], request, payload.remember_me)
-    access_token = create_access_token(tenant["id"], session_id)
-    
-    # Format cookie value correctly for rotation
-    cookie_val = f"{session_id}:{refresh_token}"
-    set_tenant_auth_cookies(response, access_token, cookie_val, payload.remember_me, request)
-    log_audit(tenant["id"], "Login Success", ip)
-    
-    return {"status": "success", "message": "Logged in successfully"}
+        raise HTTPException(status_code=404, detail="Tenant not found")
+    if getattr(tenant, "viewToken", "") != viewToken:
+        raise HTTPException(status_code=403, detail="View token mismatch")
+    if int(getattr(tenant, "propertyId", 0) or 0) != int(propertyId or 0):
+        raise HTTPException(status_code=403, detail="Property mismatch")
+    if cookie_tenant_id != tenantId:
+        raise HTTPException(status_code=403, detail="Tenant identity mismatch")
+    return tenant
 
 
-@router.post("/t/{tenantId}/{viewToken}/api/auth/refresh", include_in_schema=False)
+@router.post("/t/{propertyId}/{tenantId}/{viewToken}/api/auth/refresh", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHREFRESH)
 async def auth_refresh(
+    propertyId: int = Path(...),
     tenantId: int = Path(...),
     viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None, 
     response: Response = None
 ):
     """Tenant Refresh Token Rotation Flow — now requires viewToken in path"""
-    # Security: Validate URL viewToken matches cookie JWT identity
-    _verify_tenant_viewToken(request, viewToken)
+    # Security: Validate URL property/tenant/viewToken matches cookie JWT identity
+    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId)
     
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -9947,17 +10901,18 @@ async def auth_refresh(
     return {"status": "success", "message": "Tokens refreshed silently"}
 
 
-@router.post("/t/{tenantId}/{viewToken}/api/auth/logout", include_in_schema=False)
+@router.post("/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHLOGOUT)
 async def auth_logout(
+    propertyId: int = Path(...),
     tenantId: int = Path(...),
     viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None, 
     response: Response = None
 ):
     """Tenant logout — now requires viewToken in path"""
-    # Security: Validate URL viewToken matches cookie JWT identity
-    _verify_tenant_viewToken(request, viewToken)
+    # Security: Validate URL property/tenant/viewToken matches cookie JWT identity
+    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId)
     
     token = request.cookies.get("access_token")
     if token:
@@ -9973,17 +10928,18 @@ async def auth_logout(
     return {"status": "success"}
 
 
-@router.post("/t/{tenantId}/{viewToken}/api/auth/logout-all", include_in_schema=False)
+@router.post("/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout-all", include_in_schema=False)
 @router.post(TenantRoutes.TENANTAPIAUTHLOGOUTALL)
 async def auth_logout_all(
+    propertyId: int = Path(...),
     tenantId: int = Path(...),
     viewToken: str = Path(..., description="Tenant view token from URL"),
     request: Request = None,
     principal = Depends(get_current_tenant)
 ):
     """Logout all devices — now requires viewToken in path"""
-    # Security: Validate URL viewToken matches cookie JWT identity
-    _verify_tenant_viewToken(request, viewToken)
+    # Security: Validate URL property/tenant/viewToken matches cookie JWT identity
+    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId)
     
     revoke_all_tenant_sessions(principal.id)
 
@@ -10356,6 +11312,7 @@ Protected landlord TOTP management endpoints:
   POST /landlord/{landlordUuid}/api/totp/regenerate  — regenerate TOTP secret
 """
 import json
+import os
 import re
 import uuid
 from datetime import datetime
@@ -10391,10 +11348,23 @@ from app.database.landlord_repository import (
     is_landlord_locked_out,
     record_landlord_failed_attempt,
     reset_landlord_failed_attempts,
+    record_privacy_consent,
 )
-from app.models.landlord import LandlordGoogleRequest, LandlordLoginRequest, LandlordLoginWithTotpRequest, LandlordSignupRequest
+from app.models.landlord import (
+    LandlordGoogleRequest,
+    LandlordLoginRequest,
+    LandlordLoginWithTotpRequest,
+    LandlordPrivacyConsentRequest,
+    LandlordSignupRequest,
+)
 from app.core.config_service import config
 from app.core.db import get_conn
+from app.core.paths import STATIC_DIR
+from app.core.privacy import (
+    PRIVACY_CONSENT_REQUIRED_HEADER,
+    PRIVACY_POLICY_EFFECTIVE_DATE,
+    PRIVACY_POLICY_VERSION,
+)
 
 router = APIRouter(tags=["Landlord Authentication"])
 
@@ -10488,14 +11458,46 @@ async def check_email(email: str):
     return {"email": email_clean, "available": available, "error": None}
 
 
+@router.get(Routes.LANDLORDAPIPRIVACYPOLICY, name=Names.LANDLORDPRIVACYPOLICY)
+async def landlord_privacy_policy():
+    """Return the current Privacy Policy version, effective date and full text."""
+    content = ""
+    policy_path = os.path.join(STATIC_DIR, "privacy_policy_landlord.md")
+    try:
+        with open(policy_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        content = ""
+    return {
+        "version": PRIVACY_POLICY_VERSION,
+        "effectiveDate": PRIVACY_POLICY_EFFECTIVE_DATE,
+        "url": "/landlord/privacy-policy",
+        "content": content,
+    }
+
+
 @router.post(Routes.LANDLORDAPIAUTHSIGNUP, name=Names.LANDLORDSIGNUP)
 async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     """
     Create a new landlord account.
     Validates: username format, password match, uniqueness of username + email.
+    Account creation is BLOCKED unless the landlord has accepted the current
+    Privacy Policy (privacyAccepted + privacyVersion). Returns 400 otherwise.
     Returns: { status, landlord: { id, landlordUuid, username, fullName } }
     """
     username = normalize_username(payload.username)
+
+    # ── Privacy Policy consent is mandatory before account creation ──
+    if not payload.privacyAccepted:
+        raise HTTPException(
+            status_code=400,
+            detail="You must accept the PROPAURA Privacy Policy to create an account.",
+        )
+    if payload.privacyVersion != PRIVACY_POLICY_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="The Privacy Policy version has changed. Please review and accept the current policy.",
+        )
 
     # ── Input validation ──
     if len(username) < 3:
@@ -10539,6 +11541,8 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     # ── Create account ──
     landlord_uuid = str(uuid.uuid4())
     password_hash = hash_pin(payload.password)
+    consent_ip = request.client.host if request.client else None
+    consent_ua = request.headers.get("User-Agent", "")
 
     landlord = create_landlord(
         full_name=payload.fullName.strip(),
@@ -10547,6 +11551,19 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
         username=username,
         password_hash=password_hash,
         landlord_uuid=landlord_uuid,
+        privacy_consented=1,
+        privacy_version=payload.privacyVersion,
+        privacy_accepted_at=datetime.utcnow().isoformat(),
+        privacy_accepted_ip=consent_ip,
+        privacy_accepted_user_agent=consent_ua,
+    )
+
+    # Record the consent event in the auditable consent trail
+    record_privacy_consent(
+        landlord["id"],
+        privacy_version=payload.privacyVersion,
+        ip_address=consent_ip,
+        user_agent=consent_ua,
     )
 
     # Store encrypted password in admin vault (for platform admin reveal)
@@ -10565,8 +11582,14 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     create_landlord_audit_log(
         landlord["id"],
         "signup_success",
-        ip_address=request.client.host if request.client else None,
+        ip_address=consent_ip,
         meta_json=json.dumps({"username": username}),
+    )
+    create_landlord_audit_log(
+        landlord["id"],
+        "privacy_policy_accepted",
+        ip_address=consent_ip,
+        meta_json=json.dumps({"version": payload.privacyVersion, "user_agent": consent_ua}),
     )
 
     return {
@@ -10578,6 +11601,45 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
             "fullName": landlord["full_name"],
         },
     }
+
+
+@router.post(Routes.LANDLORDAPIAUTHPRIVACYCONSENT, name=Names.LANDLORDPRIVACYCONSENT)
+async def landlord_privacy_consent(
+    request: Request,
+    payload: LandlordPrivacyConsentRequest,
+    principal=Depends(get_current_landlord_api),
+):
+    """
+    Record Privacy Policy acceptance for an authenticated landlord.
+
+    Used for accounts created without an inline consent step (e.g. a brand-new
+    Google-created account), which are unusable until this consent is recorded.
+    """
+    if not payload.accepted:
+        raise HTTPException(status_code=400, detail="Privacy Policy acceptance is required.")
+    if payload.privacyVersion != PRIVACY_POLICY_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="The Privacy Policy version has changed. Please review and accept the current policy.",
+        )
+
+    consent_ip = request.client.host if request.client else None
+    consent_ua = request.headers.get("User-Agent", "")
+
+    record_privacy_consent(
+        principal.landlord_id,
+        privacy_version=payload.privacyVersion,
+        ip_address=consent_ip,
+        user_agent=consent_ua,
+    )
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "privacy_policy_accepted",
+        ip_address=consent_ip,
+        meta_json=json.dumps({"version": payload.privacyVersion, "user_agent": consent_ua}),
+    )
+
+    return {"status": "success", "message": "Privacy Policy accepted.", "version": PRIVACY_POLICY_VERSION}
 
 
 @router.post(Routes.LANDLORDAPIAUTHLOGIN, name=Names.LANDLORDLOGIN)
@@ -10772,7 +11834,9 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
     """
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT totp_secret, totp_enabled, requires_password_change FROM landlord_accounts WHERE id = ?",
+            "SELECT totp_secret, totp_enabled, requires_password_change, "
+            "privacy_consented, privacy_version, setup_completed, setup_skipped "
+            "FROM landlord_accounts WHERE id = ?",
             (principal.landlord_id,),
         ).fetchone()
 
@@ -10787,6 +11851,10 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "hasTotp": bool(row and row["totp_secret"]),
             "totpEnabled": bool(row and row["totp_enabled"]),
             "requiresPasswordChange": bool(row and row["requires_password_change"]),
+            "privacyConsented": bool(row and row["privacy_consented"]),
+            "privacyVersion": row["privacy_version"] if row else None,
+            "setupCompleted": bool(row and row["setup_completed"]),
+            "setupSkipped": bool(row and row["setup_skipped"]),
         },
     }
 
@@ -11372,6 +12440,19 @@ from app.core.audit import (
     cleanup_old_audit_logs,
     get_audit_log_path,
 )
+from app.services.telegram_otp_service import (
+    bot_configured,
+    get_admin_chat_id,
+    set_admin_chat_id,
+    send_telegram_message,
+    fetch_latest_chat_id,
+    generate_otp,
+    store_otp,
+    verify_otp,
+    cooldown_remaining,
+    delete_pending_otp,
+    OTP_RESEND_COOLDOWN_SECONDS,
+)
 
 router = APIRouter(prefix="/admin", tags=["Platform Admin"])
 
@@ -11498,16 +12579,26 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
         conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
         conn.commit()
 
-    # TOTP gate: if TOTP is configured, require it before issuing tokens
-    if row["totp_secret"]:
+    # 2FA gate: require a second factor whenever TOTP is configured OR a
+    # Telegram OTP can be delivered (linked chat + configured bot). Telegram
+    # OTP is an obligation when available; TOTP remains a user-chosen
+    # alternative. Password-only login only for accounts with neither factor.
+    telegram_available = bool(get_admin_chat_id(row["id"])) and bot_configured()
+    if row["totp_secret"] or telegram_available:
         create_platform_admin_audit_log(
             row["id"], "login_password_ok",
             admin_username=row["username"], ip_address=ip, user_agent=ua,
         )
+        methods = []
+        if row["totp_secret"]:
+            methods.append("totp")
+        if telegram_available:
+            methods.append("telegram_otp")
         return {
             "status": "totp_required",
-            "message": "TOTP verification required.",
+            "message": "Two-factor verification required.",
             "username": body.username,
+            "methods": methods,
         }
 
     session_id, access_token = _create_session_token(row["id"])
@@ -11660,6 +12751,230 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
         row["id"], "login_success",
         admin_username=row["username"], ip_address=ip, user_agent=ua,
         meta={"totp": True},
+    )
+    return {"status": "ok", "username": row["username"]}
+
+
+class OtpSendRequest(BaseModel):
+    username: str
+    password: str
+
+
+@router.post("/api/auth/login-otp-send")
+async def platform_login_otp_send(body: OtpSendRequest, request: Request):
+    """Password step + generate & deliver a Telegram OTP. No session is issued."""
+    ip = request.client.host if request.client else "Unknown"
+    ua = request.headers.get("User-Agent", "Unknown")
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until, telegram_chat_id FROM admins WHERE username = ?",
+            (body.username,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Brute-force check
+    if row["locked_until"]:
+        try:
+            locked_dt = datetime.fromisoformat(row["locked_until"])
+            if datetime.utcnow() < locked_dt:
+                remaining = int((locked_dt - datetime.utcnow()).total_seconds() / 60) + 1
+                create_platform_admin_audit_log(
+                    row["id"], "login_locked_out",
+                    admin_username=row["username"], ip_address=ip, user_agent=ua,
+                )
+                raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
+            else:
+                with get_conn() as conn:
+                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+                    conn.commit()
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    if not verify_pin(body.password, row["password_hash"]):
+        new_attempts = (row["failed_attempts"] or 0) + 1
+        locked_until_str = None
+        if new_attempts >= 5:
+            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                (new_attempts, locked_until_str, row["id"]),
+            )
+            conn.commit()
+        create_platform_admin_audit_log(
+            row["id"], "login_failed",
+            admin_username=row["username"], ip_address=ip, user_agent=ua,
+            meta={"attempts": new_attempts, "locked": bool(locked_until_str)},
+        )
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not row["is_platform_admin"]:
+        raise HTTPException(status_code=403, detail="Platform admin access required")
+
+    chat_id = (row["telegram_chat_id"] or "").strip() or None
+    if not chat_id or not bot_configured():
+        create_platform_admin_audit_log(
+            row["id"], "login_otp_unavailable",
+            admin_username=row["username"], ip_address=ip, user_agent=ua,
+        )
+        raise HTTPException(status_code=400, detail="Telegram OTP is not configured for this account.")
+
+    cooldown = cooldown_remaining(row["id"])
+    if cooldown > 0:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "message": f"Please wait {cooldown}s before requesting a new code.",
+                "cooldown_seconds": cooldown,
+            },
+        )
+
+    otp = generate_otp()
+    store_otp(row["id"], otp)
+    delivered = send_telegram_message(
+        chat_id,
+        f"🔐 <b>{row['username']}</b> login code: <code>{otp}</code>\n\n"
+        "Valid for 5 minutes. Do not share this code with anyone.",
+    )
+    if not delivered:
+        delete_pending_otp(row["id"])
+        create_platform_admin_audit_log(
+            row["id"], "login_otp_send_failed",
+            admin_username=row["username"], ip_address=ip, user_agent=ua,
+        )
+        raise HTTPException(status_code=502, detail="Failed to send the code via Telegram. Please try again.")
+
+    create_platform_admin_audit_log(
+        row["id"], "login_otp_sent",
+        admin_username=row["username"], ip_address=ip, user_agent=ua,
+    )
+    return {
+        "status": "otp_sent",
+        "message": "Login code sent to your Telegram.",
+        "cooldown_seconds": OTP_RESEND_COOLDOWN_SECONDS,
+    }
+
+
+class OtpVerifyRequest(BaseModel):
+    username: str
+    password: str
+    otp: str
+    remember_me: bool = False
+
+
+@router.post("/api/auth/login-otp-verify")
+async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, response: Response):
+    """Verify the Telegram OTP and complete login (issues session + cookies)."""
+    ip = request.client.host if request.client else "Unknown"
+    ua = request.headers.get("User-Agent", "Unknown")
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until, telegram_chat_id FROM admins WHERE username = ?",
+            (body.username,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # Brute-force check
+    if row["locked_until"]:
+        try:
+            locked_dt = datetime.fromisoformat(row["locked_until"])
+            if datetime.utcnow() < locked_dt:
+                remaining = int((locked_dt - datetime.utcnow()).total_seconds() / 60) + 1
+                create_platform_admin_audit_log(
+                    row["id"], "login_locked_out",
+                    admin_username=row["username"], ip_address=ip, user_agent=ua,
+                )
+                raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
+            else:
+                with get_conn() as conn:
+                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+                    conn.commit()
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
+    if not verify_pin(body.password, row["password_hash"]):
+        new_attempts = (row["failed_attempts"] or 0) + 1
+        locked_until_str = None
+        if new_attempts >= 5:
+            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                (new_attempts, locked_until_str, row["id"]),
+            )
+            conn.commit()
+        create_platform_admin_audit_log(
+            row["id"], "login_failed",
+            admin_username=row["username"], ip_address=ip, user_agent=ua,
+            meta={"attempts": new_attempts, "locked": bool(locked_until_str)},
+        )
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not row["is_platform_admin"]:
+        raise HTTPException(status_code=403, detail="Platform admin access required")
+
+    if not verify_otp(row["id"], body.otp):
+        new_attempts = (row["failed_attempts"] or 0) + 1
+        locked_until_str = None
+        if new_attempts >= 5:
+            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                (new_attempts, locked_until_str, row["id"]),
+            )
+            conn.commit()
+        create_platform_admin_audit_log(
+            row["id"], "login_otp_failed",
+            admin_username=row["username"], ip_address=ip, user_agent=ua,
+            meta={"attempts": new_attempts, "locked": bool(locked_until_str)},
+        )
+        raise HTTPException(status_code=401, detail="Invalid code. Please try again.")
+
+    # Reset failed attempts on success
+    with get_conn() as conn:
+        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+        conn.commit()
+
+    session_id, access_token = _create_session_token(row["id"])
+    refresh_token = _make_refresh_token()
+    refresh_hash = hash_pin(refresh_token)
+
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO admin_sessions
+            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now', ?), ?, 'Active')
+            """,
+            (
+                session_id,
+                row["id"],
+                refresh_hash,
+                "Platform Admin",
+                ua,
+                "Unknown",
+                ip,
+                "+180 days" if body.remember_me else "+30 days",
+                1 if body.remember_me else 0,
+            ),
+        )
+        conn.commit()
+
+    set_platform_auth_cookies(response, access_token, f"{session_id}.{refresh_token}", body.remember_me, request)
+
+    create_platform_admin_audit_log(
+        row["id"], "login_success",
+        admin_username=row["username"], ip_address=ip, user_agent=ua,
+        meta={"otp": True, "method": "telegram"},
     )
     return {"status": "ok", "username": row["username"]}
 
@@ -11886,6 +13201,78 @@ async def change_password(request: Request, body: ChangePasswordRequest):
     return {"status": "success", "message": "Password updated successfully"}
 
 
+# ─── Telegram OTP settings ───────────────────────────────────────────────────
+
+@router.get("/api/settings/telegram/status")
+async def telegram_status(request: Request):
+    admin = _get_platform_admin(request)
+    chat_id = get_admin_chat_id(admin["id"])
+    masked = None
+    if chat_id:
+        masked = f"…{chat_id[-4:]}" if len(chat_id) > 4 else "…" + chat_id
+    return {
+        "bot_configured": bot_configured(),
+        "chat_linked": bool(chat_id),
+        "chat_id_masked": masked,
+    }
+
+
+@router.post("/api/settings/telegram/link")
+async def telegram_link(request: Request):
+    admin = _get_platform_admin(request)
+    if not bot_configured():
+        raise HTTPException(status_code=400, detail="Telegram bot is not configured.")
+    candidate = fetch_latest_chat_id()
+    if not candidate:
+        raise HTTPException(
+            status_code=404,
+            detail="No recent message from your Telegram. Open the bot, send /start, then try again.",
+        )
+    set_admin_chat_id(admin["id"], candidate["chat_id"])
+    create_platform_admin_audit_log(
+        admin["id"], "telegram_linked",
+        admin_username=admin["username"], ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+        meta={"chat_id_masked": f"…{candidate['chat_id'][-4:]}"},
+    )
+    return {
+        "status": "success",
+        "message": f"Linked to Telegram chat of {candidate.get('first_name') or 'user'}.",
+        "chat_id_masked": f"…{candidate['chat_id'][-4:]}",
+    }
+
+
+@router.post("/api/settings/telegram/unlink")
+async def telegram_unlink(request: Request):
+    admin = _get_platform_admin(request)
+    if not get_admin_chat_id(admin["id"]):
+        raise HTTPException(status_code=400, detail="No Telegram chat linked.")
+    set_admin_chat_id(admin["id"], None)
+    create_platform_admin_audit_log(
+        admin["id"], "telegram_unlinked",
+        admin_username=admin["username"], ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("User-Agent"),
+    )
+    return {"status": "success", "message": "Telegram chat unlinked."}
+
+
+@router.post("/api/settings/telegram/test")
+async def telegram_test(request: Request):
+    admin = _get_platform_admin(request)
+    chat_id = get_admin_chat_id(admin["id"])
+    if not chat_id:
+        raise HTTPException(status_code=400, detail="No Telegram chat linked.")
+    if not bot_configured():
+        raise HTTPException(status_code=400, detail="Telegram bot is not configured.")
+    delivered = send_telegram_message(
+        chat_id,
+        "✅ This is a test message from your platform admin app. Telegram OTP delivery is working.",
+    )
+    if not delivered:
+        raise HTTPException(status_code=502, detail="Failed to deliver the test message.")
+    return {"status": "success", "message": "Test message sent to your Telegram."}
+
+
 # ─── Stats ────────────────────────────────────────────────────────────────────
 
 @router.get("/api/stats")
@@ -11924,6 +13311,7 @@ async def list_landlords(
             (la.totp_enabled = 1 AND la.totp_secret IS NOT NULL) as has_totp,
             la.failed_attempts, la.locked_until,
             la.requires_password_change,
+            la.privacy_consented, la.privacy_version, la.privacy_accepted_at,
             (SELECT COUNT(*) FROM tenants WHERE landlord_id = la.id) as tenant_count,
             (SELECT COUNT(*) FROM receipts WHERE landlord_id = la.id) as receipt_count,
             (SELECT COUNT(*) FROM occupants WHERE landlord_id = la.id) as kyc_count
@@ -12974,7 +14362,7 @@ def create_metadata(backupId, backup_type, timestamp_str):
     schema_conf = config.get("schema", {})
     ui_conf = config.get("ui", {})
     r_count, arc_count, t_count, it_count, p_count = get_db_stats()
-    
+
     # Get tenant snapshot for restore point identification
     tenant_snapshot = []
     try:
@@ -12992,7 +14380,7 @@ def create_metadata(backupId, backup_type, timestamp_str):
         ]
     except Exception:
         pass
-    
+
     metadata = {
         "id": backupId,
         "type": backup_type,
@@ -13020,10 +14408,79 @@ def create_metadata(backupId, backup_type, timestamp_str):
     }
     return metadata
 
-def create_backup(type_="Manual", subtype="manual", tag=""):
+def _stage_landlord_export(landlord_id: int, temp_dir: str):
+    """Stage a per-landlord export (NO global DB, NO other landlords, NO
+    PIN/password vaults). Writes data/tenants.json, data/receipts.json,
+    data/occupants.json, config/landlord_config.json, receipts/*.pdf and
+    signature/*.png."""
+    import shutil as _shutil
+
+    from app.core.db import get_conn
+    from app.services.landlord_config_service import get_effective_landlord_config
+
+    data_dir = os.path.join(temp_dir, "data")
+    config_dir = os.path.join(temp_dir, "config")
+    receipts_zip_dir = os.path.join(temp_dir, "receipts")
+    signature_dir = os.path.join(temp_dir, "signature")
+    os.makedirs(data_dir, exist_ok=True)
+    os.makedirs(config_dir, exist_ok=True)
+    os.makedirs(receipts_zip_dir, exist_ok=True)
+    os.makedirs(signature_dir, exist_ok=True)
+
+    with get_conn() as conn:
+        tenants = [dict(r) for r in conn.execute(
+            "SELECT * FROM tenants WHERE landlord_id = ?", (landlord_id,)
+        ).fetchall()]
+        receipts = [dict(r) for r in conn.execute(
+            "SELECT * FROM receipts WHERE landlord_id = ?", (landlord_id,)
+        ).fetchall()]
+        occupants = [dict(r) for r in conn.execute(
+            "SELECT * FROM occupants WHERE landlord_id = ?", (landlord_id,)
+        ).fetchall()]
+
+    with open(os.path.join(data_dir, "tenants.json"), "w", encoding="utf-8") as f:
+        json.dump(tenants, f, indent=4, default=str)
+    with open(os.path.join(data_dir, "receipts.json"), "w", encoding="utf-8") as f:
+        json.dump(receipts, f, indent=4, default=str)
+    with open(os.path.join(data_dir, "occupants.json"), "w", encoding="utf-8") as f:
+        json.dump(occupants, f, indent=4, default=str)
+
+    try:
+        landlord_conf = get_effective_landlord_config(landlord_id)
+        with open(os.path.join(config_dir, "landlord_config.json"), "w", encoding="utf-8") as f:
+            json.dump(landlord_conf, f, indent=4, default=str)
+    except Exception:
+        pass
+
+    pdf_names = set()
+    for r in receipts:
+        pdf = (r.get("pdf") or "").strip()
+        if pdf:
+            pdf_names.add(os.path.basename(pdf))
+    for pdf in sorted(pdf_names):
+        src = os.path.join(RECEIPTS_DIR, pdf)
+        if os.path.exists(src):
+            _shutil.copy2(src, os.path.join(receipts_zip_dir, pdf))
+
+    signature_file = os.path.join(UPLOADS_DIR, f"{landlord_id}_signature_flattened.png")
+    if os.path.exists(signature_file):
+        _shutil.copy2(signature_file, os.path.join(signature_dir, "signature_flattened.png"))
+
+    return {
+        "tenant_count": len(tenants),
+        "receipt_count": len(receipts),
+        "occupant_count": len(occupants),
+        "pdf_count": len(pdf_names),
+    }
+
+
+def create_backup(type_="Manual", subtype="manual", tag="", landlord_id=None):
     """
     type_: 'Manual', 'Automatic', 'Restore Point', 'Emergency'
     subtype: 'manual', 'daily', 'weekly', 'monthly', 'before_edit', etc.
+    landlord_id: when set, produces a per-landlord export (no global DB, no
+    PIN/password vaults, no other landlords). When None, produces the full
+    system backup (platform-admin scope).
     """
     start_time = datetime.now()
     timestamp = start_time.strftime("%Y%m%d_%H%M%S")
@@ -13052,10 +14509,14 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
     os.makedirs(temp_dir, exist_ok=True)
     
     try:
-        # Copy dirs mapping real paths to internal zip structure
-        for real_path, legacy_name in DIR_MAPPING.items():
-            if os.path.exists(real_path):
-                shutil.copytree(real_path, os.path.join(temp_dir, legacy_name))
+        if landlord_id is not None:
+            counts = _stage_landlord_export(landlord_id, temp_dir)
+        else:
+            # Full system backup — includes the complete DB (platform-admin scope)
+            for real_path, legacy_name in DIR_MAPPING.items():
+                if os.path.exists(real_path):
+                    shutil.copytree(real_path, os.path.join(temp_dir, legacy_name))
+            counts = None
                 
         # Generate manifest & metadata
         manifest = create_manifest(backupId, type_, timestamp_iso)
@@ -13063,6 +14524,25 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
             json.dump(manifest, f, indent=4)
             
         metadata = create_metadata(backupId, type_, timestamp_iso)
+        metadata["scope"] = "landlord" if landlord_id is not None else "system"
+        if landlord_id is not None:
+            metadata["landlord_id"] = landlord_id
+            metadata["created_by"] = f"Landlord {landlord_id}"
+            metadata["tenant_count"] = counts["tenant_count"]
+            metadata["receipt_count"] = counts["receipt_count"]
+            metadata["inactive_tenant_count"] = 0
+            metadata["archived_receipt_count"] = 0
+            metadata["pdf_count"] = counts["pdf_count"]
+            metadata["tenant_snapshot"] = [
+                {
+                    "id": t.get("id"),
+                    "name": t.get("name"),
+                    "status": t.get("status"),
+                    "phone": t.get("phone"),
+                    "roomNumber": t.get("roomnumber") or t.get("roomNumber"),
+                }
+                for t in _landlord_tenants(landlord_id)
+            ]
         if tag:
             metadata["notes"] = tag
             
@@ -13100,13 +14580,23 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-def create_full_backup(tag="auto"):
+
+def _landlord_tenants(landlord_id: int) -> list:
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT id, name, status, phone, roomnumber FROM tenants WHERE landlord_id = ?",
+            (landlord_id,),
+        ).fetchall()]
+
+
+def create_full_backup(tag="auto", landlord_id=None):
     if tag == "auto" or not tag:
-        return create_backup(type_="Automatic", subtype="daily")
+        return create_backup(type_="Automatic", subtype="daily", landlord_id=landlord_id)
     elif tag.startswith("settings_change"):
-        return create_backup(type_="Restore Point", subtype="before_settings", tag="Settings Change")
+        return create_backup(type_="Restore Point", subtype="before_settings", tag="Settings Change", landlord_id=landlord_id)
     elif tag.startswith("restore_bill"):
-        return create_backup(type_="Restore Point", subtype="before_restore", tag="Receipt Restore")
+        return create_backup(type_="Restore Point", subtype="before_restore", tag="Receipt Restore", landlord_id=landlord_id)
     elif tag.startswith("add_tenant") or tag.startswith("update_tenant") or tag.startswith("delete_tenant"):
         return None
     else:
@@ -13114,6 +14604,23 @@ def create_full_backup(tag="auto"):
 
 def get_all_backups():
     return load_registry()
+
+def get_backup_by_id(backupId):
+    registry = load_registry()
+    return next((b for b in registry["backups"] if b["id"] == backupId), None)
+
+def get_backups_for_landlord(landlord_id):
+    """Only backups scoped to this landlord (global/system backups are
+    platform-admin-only and never visible to a landlord)."""
+    registry = load_registry()
+    return {
+        "version": registry.get("version", 1),
+        "backups": [b for b in registry["backups"] if b.get("landlord_id") == landlord_id],
+    }
+
+def backup_owned_by(backupId, landlord_id) -> bool:
+    meta = get_backup_by_id(backupId)
+    return bool(meta and meta.get("scope") == "landlord" and meta.get("landlord_id") == landlord_id)
 
 def verify_backup_integrity(backupId):
     registry = load_registry()
@@ -13130,6 +14637,21 @@ def verify_backup_integrity(backupId):
         raise Exception("Backup ZIP checksum mismatch (corrupted)")
         
     return True
+
+def delete_backup(backupId):
+    registry = load_registry()
+    for i, b in enumerate(registry["backups"]):
+        if b["id"] == backupId:
+            abs_path = os.path.join(BACKUP_DIR, b["path"])
+            if os.path.exists(abs_path):
+                try:
+                    os.remove(abs_path)
+                except:
+                    pass
+            registry["backups"].pop(i)
+            save_registry(registry)
+            return True
+    return False
 
 def restore_backup(backupId):
     start_time = datetime.now()
@@ -13176,21 +14698,6 @@ def restore_backup(backupId):
         duration = int((datetime.now() - start_time).total_seconds() * 1000)
         _log("Restore", "Full", "Failed", duration, {"error": str(e), "backupId": backupId})
         raise e
-
-def delete_backup(backupId):
-    registry = load_registry()
-    for i, b in enumerate(registry["backups"]):
-        if b["id"] == backupId:
-            abs_path = os.path.join(BACKUP_DIR, b["path"])
-            if os.path.exists(abs_path):
-                try:
-                    os.remove(abs_path)
-                except:
-                    pass
-            registry["backups"].pop(i)
-            save_registry(registry)
-            return True
-    return False
 
 ```
 
@@ -13287,8 +14794,11 @@ def resolve_payment_state(currentTotal, previousArrears=0.0, amountReceived=None
 #         """, (status, final_received, billNo))
 #         conn.commit()
 #     return status
-def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None):
+def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None, landlord_id=None):
     from app.core.db import get_conn
+    from app.services.tenant_service import get_tenant
+    if landlord_id is not None and not get_tenant(tenantId, landlord_id):
+        raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
         if not row:
@@ -13391,40 +14901,51 @@ def _row_to_dict(row):
         "amountReceived": _safe_float(row.get("amountreceived")),
     }
 
-def get_active_tenant_ids() -> set:
-    """Returns a set of tenant IDs that are NOT archived."""
+def get_active_tenant_ids(landlord_id=None) -> set:
+    """Returns a set of tenant IDs (optionally scoped to a landlord) that are NOT archived."""
     from app.services.tenant_service import load_tenants
-    tenants = load_tenants(include_archived=False)
+    tenants = load_tenants(include_archived=False, landlord_id=landlord_id)
     return {t.id for t in tenants}
 
-def get_all_receipts(include_archived_tenants: bool = False):
+def get_all_receipts(include_archived_tenants: bool = False, landlord_id=None):
+    clauses = []
+    params: list = []
+    if landlord_id is not None:
+        clauses.append("landlord_id = ?")
+        params.append(landlord_id)
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM receipts ORDER BY rowid DESC").fetchall()
+        rows = conn.execute(f"SELECT * FROM receipts{where} ORDER BY rowid DESC", tuple(params)).fetchall()
     
     receipts = [_row_to_dict(r) for r in rows]
     
     if not include_archived_tenants:
-        active_ids = get_active_tenant_ids()
+        active_ids = get_active_tenant_ids(landlord_id=landlord_id)
         receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) in active_ids]
     
     return receipts
 
-def get_receipts_for_tenant(tenant_id: int, include_archived: bool = False) -> list:
+def get_receipts_for_tenant(tenant_id: int, include_archived: bool = False, landlord_id=None) -> list:
     """Fetch all receipts for a single tenant by ID.
     
     Use this everywhere instead of name-based filtering. The relationship key is
     TenantId, not the mutable tenant name, so this is rename-safe.
     """
-    receipts = get_all_receipts(include_archived_tenants=True)
+    receipts = get_all_receipts(include_archived_tenants=True, landlord_id=landlord_id)
     result = [r for r in receipts if int(r.get("TenantId", 0) or 0) == int(tenant_id)]
     if not include_archived:
         result = [r for r in result if (r.get("Status") or "").upper() != "ARCHIVED"]
     return result
 
-def get_receipt(tenantId, billNo):
+def get_receipt(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        query = "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?"
+        params: list = [tenantId, billNo]
+        if landlord_id is not None:
+            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)"
+            params.append(landlord_id)
+        row = conn.execute(query, tuple(params)).fetchone()
     if row:
         return _row_to_dict(row)
     return None
@@ -13488,7 +15009,8 @@ def calculate_charges(current_reading, additional_persons, prev_reading, rent, w
     }
 
 def create_bill(tenantId, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
-                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING"):
+                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING",
+                landlord_id=None):
     from app.core.db import get_conn
     from datetime import datetime
     from app.services.tenant_service import get_tenant
@@ -13496,7 +15018,7 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
     from app.core.paths import RECEIPTS_DIR
     from app.services.pdf_service import generate_professional_pdf
     
-    tenant = get_tenant(tenantId)
+    tenant = get_tenant(tenantId, landlord_id)
     if not tenant:
         raise ValueError("Tenant not found")
     tenantName = tenant.name
@@ -13574,7 +15096,8 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
     
     try:
         from app.core.config_service import config
-        generate_professional_pdf(receipt_dict, config.get("landlord", {}), pdf_path)
+        from app.services.landlord_config_service import get_effective_landlord_config
+        generate_professional_pdf(receipt_dict, get_effective_landlord_config(tenant_landlord_id), pdf_path)
     except BaseException as e:
         print(f"Error generating PDF: {e}")
 
@@ -13601,7 +15124,8 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
 
     return receipt_dict
 def update_bill(tenantId, billNo, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
-                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING"):
+                MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING",
+                landlord_id=None):
     from app.core.db import get_conn
     from app.services.tenant_service import get_tenant
     from app.services.pdf_service import generate_professional_pdf
@@ -13609,12 +15133,17 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     from app.core.paths import RECEIPTS_DIR
     
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        query = "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?"
+        params: list = [tenantId, billNo]
+        if landlord_id is not None:
+            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)"
+            params.append(landlord_id)
+        row = conn.execute(query, tuple(params)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
         old_receipt = dict(row)
 
-    tenant = get_tenant(tenantId)
+    tenant = get_tenant(tenantId, landlord_id)
     if not tenant:
         raise ValueError("Tenant not found")
     tenantName = tenant.name
@@ -13673,7 +15202,8 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     
     try:
         from app.core.config_service import config
-        generate_professional_pdf(updated_dict, config.get("landlord", {}), pdf_path)
+        from app.services.landlord_config_service import get_effective_landlord_config
+        generate_professional_pdf(updated_dict, get_effective_landlord_config(tenant.landlord_id or landlord_id), pdf_path)
     except BaseException as e:
         print(f"Error generating PDF: {e}")
 
@@ -13697,9 +15227,12 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         conn.commit()
 
     return updated_dict
-def archive_bill(tenantId, billNo):
+def archive_bill(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
     from datetime import datetime
+    from app.services.tenant_service import get_tenant
+    if landlord_id is not None and not get_tenant(tenantId, landlord_id):
+        raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute(
             "SELECT status FROM receipts WHERE tenantId = ? AND billNo = ?",
@@ -13713,10 +15246,13 @@ def archive_bill(tenantId, billNo):
             WHERE tenantId = ? AND billNo = ? AND status != 'ARCHIVED'
         """, (datetime.now().strftime("%Y-%m-%d"), tenantId, billNo))
         conn.commit()
-    return get_receipt(tenantId, billNo)
+    return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
-def restore_bill(tenantId, billNo):
+def restore_bill(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
+    from app.services.tenant_service import get_tenant
+    if landlord_id is not None and not get_tenant(tenantId, landlord_id):
+        raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute(
             "SELECT status, tenantId FROM receipts WHERE tenantId = ? AND billNo = ?",
@@ -13730,11 +15266,13 @@ def restore_bill(tenantId, billNo):
             WHERE tenantId = ? AND billNo = ? AND status != 'ACTIVE'
         """, (tenantId, billNo))
         conn.commit()
-    return get_receipt(tenantId, billNo)
+    return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
-def delete_bill(tenantId, billNo):
+def delete_bill(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
     from app.services.tenant_service import get_tenant
+    if landlord_id is not None and not get_tenant(tenantId, landlord_id):
+        raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute("SELECT status, tenantId FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
         if not row:
@@ -13753,11 +15291,11 @@ def delete_bill(tenantId, billNo):
         conn.commit()
 
 
-def get_dashboard_stats():
+def get_dashboard_stats(landlord_id=None):
     
     billing_conf = config.get("billing", {})
-    receipts = get_all_receipts(include_archived_tenants=False)
-    tenants = load_tenants(include_archived=False)
+    receipts = get_all_receipts(include_archived_tenants=False, landlord_id=landlord_id)
+    tenants = load_tenants(include_archived=False, landlord_id=landlord_id)
     
     next_bill = str(billing_conf.get("next_bill_number", 1)).zfill(3)
     
@@ -14035,12 +15573,14 @@ from app.authentication.common.utils import hash_pin
 from app.authentication.landlord.cookies import set_landlord_auth_cookies
 from app.authentication.landlord.jwt import create_access_token
 from app.authentication.landlord.sessions import create_landlord_session
+from app.core.db import get_conn
+from app.core.privacy import PRIVACY_POLICY_VERSION
 from app.database.landlord_repository import (
     create_landlord,
     create_landlord_audit_log,
     get_landlord_by_email,
+    record_privacy_consent,
 )
-from app.core.db import get_conn
 
 GOOGLE_CLIENT_ID: str | None = None
 
@@ -14107,6 +15647,7 @@ def google_login(credential: str, remember_me: bool, request, response):
             username=username,
             password_hash=placeholder_hash,
             landlord_uuid=landlord_uuid,
+            privacy_consented=1,
         )
 
         with get_conn() as conn:
@@ -14126,6 +15667,30 @@ def google_login(credential: str, remember_me: bool, request, response):
             meta_json=json.dumps({"google_sub": google_sub, "email": email}),
         )
 
+    # ── Privacy Policy acceptance ──
+    # Accepting via the Google button is an explicit affirmative action in the
+    # signup/sign-in flow. Record consent for brand-new accounts and heal any
+    # existing account that is still in a consent-pending state.
+    consent_ip = request.client.host if request.client else None
+    consent_ua = request.headers.get("User-Agent", "")
+    if created_new or not landlord["privacy_consented"]:
+        record_privacy_consent(
+            landlord["id"],
+            privacy_version=PRIVACY_POLICY_VERSION,
+            ip_address=consent_ip,
+            user_agent=consent_ua,
+        )
+        create_landlord_audit_log(
+            landlord["id"],
+            "privacy_policy_accepted",
+            ip_address=consent_ip,
+            meta_json=json.dumps({
+                "version": PRIVACY_POLICY_VERSION,
+                "user_agent": consent_ua,
+                "source": "google_signup" if created_new else "google_signin",
+            }),
+        )
+
     session_id, refresh_token = create_landlord_session(
         landlord["id"], request, remember_me
     )
@@ -14133,7 +15698,7 @@ def google_login(credential: str, remember_me: bool, request, response):
     cookie_value = f"{session_id}:{refresh_token}"
     set_landlord_auth_cookies(response, access_token, cookie_value, remember_me, request)
 
-    if created_new or landlord.get("requires_password_change"):
+    if created_new or bool(landlord["requires_password_change"]):
         return {
             "status": "password_change_required",
             "message": "You must set a password before continuing.",
@@ -14162,6 +15727,40 @@ def _unique_username(base: str, max_length: int = 40) -> str:
         if not username_exists(candidate):
             return candidate
     return f"{base[:20]}{uuid.uuid4().hex[:8]}"
+```
+
+### `backend/app/app/services/landlord_config_service.py`
+
+```python
+"""
+app/services/landlord_config_service.py
+
+Effective per-landlord configuration resolution for the "landlord" config
+section (used by the Settings page and the PDF generator).
+
+Precedence: per-landlord profile (landlord_profiles) overrides the global
+landlord.json defaults. Landlords that never touched Settings keep the
+global section via the fallback — so existing behaviour and PDF layout
+are unchanged.
+"""
+from typing import Any, Dict
+
+from app.core.config_service import config
+from app.database.property_repository import get_landlord_profile, save_landlord_profile
+
+
+def get_effective_landlord_config(landlord_id: int) -> Dict[str, Any]:
+    """Global landlord section merged with the per-landlord profile."""
+    global_section = dict(config.get("landlord", {}) or {})
+    profile = get_landlord_profile(landlord_id) or {}
+    global_section.update(profile)
+    return global_section
+
+
+def save_effective_landlord_config(landlord_id: int, section: Dict[str, Any]) -> None:
+    """Persist the per-landlord override of the landlord section."""
+    save_landlord_profile(landlord_id, dict(section or {}))
+    config.reload("landlord")
 ```
 
 ### `backend/app/app/services/pdf_service.py`
@@ -14832,6 +16431,296 @@ def delete_signature():
 
 ```
 
+### `backend/app/app/services/telegram_otp_service.py`
+
+```python
+"""
+app/services/telegram_otp_service.py
+Telegram OTP delivery + verification for platform admin login.
+
+Flow:
+  1. Admin submits username+password at login.
+  2. Frontend offers "Telegram OTP" as a second factor.
+  3. login-otp-send -> generate 6-digit code, store hashed (single-use, TTL,
+     max attempts, resend cooldown), deliver via the Telegram bot.
+  4. login-otp-verify -> constant-time compare, invalidate on success/failure,
+     then the caller issues the session.
+
+The bot token is read from the TELEGRAM_BOT_TOKEN env var only. The recipient
+chat id is stored per-admin in admins.telegram_chat_id (captured through the
+Settings UI "Link Telegram" flow).
+"""
+from __future__ import annotations
+
+import os
+import secrets
+from datetime import datetime, timedelta
+
+import requests
+
+from app.core.db import get_conn
+from app.authentication.common.utils import hash_pin, verify_pin, constant_time_eq
+
+TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
+
+# OTP policy
+OTP_DIGITS = 6
+OTP_TTL_SECONDS = 300          # 5 minutes
+OTP_MAX_ATTEMPTS = 5           # attempts before the code is invalidated
+OTP_RESEND_COOLDOWN_SECONDS = 60
+OTP_MAX_PENDING_PER_ADMIN = 3  # cap on unconsumed codes per admin
+
+
+def get_bot_token() -> str | None:
+    """Return the Telegram bot token from env, or None if not configured."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
+    return token or None
+
+
+def bot_configured() -> bool:
+    return get_bot_token() is not None
+
+
+def get_admin_chat_id(admin_id: int) -> str | None:
+    """Return the linked Telegram chat_id for an admin, or None."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT telegram_chat_id FROM admins WHERE id = ?", (admin_id,)
+        ).fetchone()
+    if not row:
+        return None
+    return (row["telegram_chat_id"] or "").strip() or None
+
+
+def set_admin_chat_id(admin_id: int, chat_id: str | None) -> None:
+    """Persist the linked Telegram chat_id for an admin (None clears it)."""
+    if chat_id is None:
+        value = None
+    else:
+        value = str(chat_id).strip() or None
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE admins SET telegram_chat_id = ?, updated_at = ? WHERE id = ?",
+            (value, datetime.utcnow().isoformat(), admin_id),
+        )
+        conn.commit()
+
+
+def _telegram_request(method: str, **params) -> dict | None:
+    """Low-level Telegram Bot API call. Returns JSON payload or None on failure."""
+    token = get_bot_token()
+    if not token:
+        return None
+    try:
+        resp = requests.post(
+            TELEGRAM_API.format(token=token, method=method),
+            json=params,
+            timeout=10,
+        )
+        data = resp.json()
+        if not data.get("ok"):
+            return None
+        return data
+    except Exception:
+        return None
+
+
+def send_telegram_message(chat_id: str, text: str) -> bool:
+    """Send a message to a chat via the bot. Never raises."""
+    if not bot_configured() or not chat_id:
+        return False
+    data = _telegram_request(
+        "sendMessage", chat_id=chat_id, text=text, parse_mode="HTML"
+    )
+    return data is not None
+
+
+def fetch_latest_chat_id() -> dict | None:
+    """
+    Poll getUpdates and return the newest private-chat chat that messaged the
+    bot. Consumes updates (offsets) so each message is only captured once.
+    Returns {chat_id, first_name, username} or None if nothing to link.
+    """
+    if not bot_configured():
+        return None
+    try:
+        resp = requests.get(
+            TELEGRAM_API.format(token=get_bot_token(), method="getUpdates"),
+            params={"timeout": 0},
+            timeout=10,
+        )
+        data = resp.json()
+        if not data.get("ok"):
+            return None
+        result = data.get("result", [])
+    except Exception:
+        return None
+
+    candidate = None
+    last_update_id = 0
+    for update in result:
+        update_id = update.get("update_id", 0)
+        last_update_id = max(last_update_id, update_id)
+        message = update.get("message") or update.get("edited_message") or {}
+        chat = message.get("chat") or {}
+        if not chat.get("id"):
+            continue
+        # Only link private chats; ignore groups/channels.
+        if chat.get("type") in (None, "private"):
+            candidate = {
+                "chat_id": str(chat.get("id")),
+                "first_name": message.get("from", {}).get("first_name", ""),
+                "username": message.get("from", {}).get("username", ""),
+            }
+            # Keep scanning; candidate ends as the newest update.
+    if candidate is None:
+        return None
+
+    # Consume all processed updates so they are not re-linked next time.
+    if last_update_id:
+        _telegram_request("getUpdates", offset=last_update_id + 1)
+    return candidate
+
+
+# ─── OTP generation / storage ─────────────────────────────────────────────────
+
+def generate_otp() -> str:
+    """Generate a cryptographically random 6-digit code."""
+    return f"{secrets.randbelow(10 ** OTP_DIGITS):0{OTP_DIGITS}d}"
+
+
+def store_otp(admin_id: int, otp: str) -> None:
+    """Store a hashed, expiring OTP for an admin. Prunes stale/used codes first."""
+    now = datetime.utcnow()
+    with get_conn() as conn:
+        # Prune consumed, expired, or over-attempted codes for this admin.
+        conn.execute(
+            """
+            DELETE FROM admin_login_otps
+            WHERE admin_id = ?
+              AND (used = 1 OR attempts >= ? OR expires_at < ?)
+            """,
+            (admin_id, OTP_MAX_ATTEMPTS, now.isoformat()),
+        )
+        # Keep the pending cap by dropping the oldest unconsumed codes.
+        pending = conn.execute(
+            """
+            SELECT id FROM admin_login_otps
+            WHERE admin_id = ? AND used = 0 AND expires_at >= ?
+            ORDER BY created_at DESC
+            """,
+            (admin_id, now.isoformat()),
+        ).fetchall()
+        overflow = len(pending) - (OTP_MAX_PENDING_PER_ADMIN - 1)
+        if overflow > 0:
+            drop_ids = [row["id"] for row in pending[overflow:]]
+            placeholders = ",".join("?" * len(drop_ids))
+            conn.execute(
+                f"DELETE FROM admin_login_otps WHERE id IN ({placeholders})",
+                drop_ids,
+            )
+
+        conn.execute(
+            """
+            INSERT INTO admin_login_otps
+                (admin_id, otp_hash, expires_at, attempts, used, created_at)
+            VALUES (?, ?, ?, 0, 0, ?)
+            """,
+            (
+                admin_id,
+                hash_pin(otp),
+                (now + timedelta(seconds=OTP_TTL_SECONDS)).isoformat(),
+                now.isoformat(),
+            ),
+        )
+        conn.commit()
+
+
+def delete_pending_otp(admin_id: int) -> None:
+    """Remove the newest unconsumed OTP for an admin (e.g. when delivery fails)."""
+    now = datetime.utcnow()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            DELETE FROM admin_login_otps
+            WHERE id IN (
+                SELECT id FROM admin_login_otps
+                WHERE admin_id = ? AND used = 0 AND expires_at >= ?
+                ORDER BY created_at DESC LIMIT 1
+            )
+            """,
+            (admin_id, now.isoformat()),
+        )
+        conn.commit()
+
+
+def cooldown_remaining(admin_id: int) -> int:
+    """Seconds until the admin may request a new code, or 0 if allowed."""
+    now = datetime.utcnow()
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT created_at FROM admin_login_otps
+            WHERE admin_id = ? AND used = 0 AND expires_at >= ?
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (admin_id, now.isoformat()),
+        ).fetchone()
+    if not row:
+        return 0
+    created = datetime.fromisoformat(row["created_at"])
+    remaining = OTP_RESEND_COOLDOWN_SECONDS - int((now - created).total_seconds())
+    return max(remaining, 0)
+
+
+def verify_otp(admin_id: int, otp: str) -> bool:
+    """
+    Verify an OTP. Single-use and attempt-limited: on success the code is
+    invalidated; on failure attempts are incremented and the code is
+    invalidated once the attempt cap is reached.
+    """
+    if not otp:
+        return False
+    now = datetime.utcnow()
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT id, otp_hash, attempts, expires_at FROM admin_login_otps
+            WHERE admin_id = ? AND used = 0
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (admin_id,),
+        ).fetchone()
+        if not row:
+            return False
+
+        # Expired or exhausted codes are treated as invalid.
+        if row["expires_at"] < now.isoformat() or row["attempts"] >= OTP_MAX_ATTEMPTS:
+            conn.execute(
+                "DELETE FROM admin_login_otps WHERE id = ?", (row["id"],)
+            )
+            conn.commit()
+            return False
+
+        if constant_time_eq(str(otp), "") or not verify_pin(str(otp), row["otp_hash"]):
+            new_attempts = row["attempts"] + 1
+            conn.execute(
+                "UPDATE admin_login_otps SET attempts = ? WHERE id = ?",
+                (new_attempts, row["id"]),
+            )
+            if new_attempts >= OTP_MAX_ATTEMPTS:
+                conn.execute("DELETE FROM admin_login_otps WHERE id = ?", (row["id"],))
+            conn.commit()
+            return False
+
+        # Success: single-use invalidation.
+        conn.execute(
+            "UPDATE admin_login_otps SET used = 1 WHERE id = ?", (row["id"],)
+        )
+        conn.commit()
+        return True
+```
+
 ### `backend/app/app/services/tenant_recovery_service.py`
 
 ```python
@@ -14925,6 +16814,7 @@ def _init_snapshots_table():
                 id TEXT PRIMARY KEY,
                 tenant_id INTEGER NOT NULL,
                 tenant_name TEXT NOT NULL,
+                landlord_id INTEGER,
                 created_at TEXT NOT NULL,
                 expires_at TEXT NOT NULL,
                 deleted_by INTEGER,
@@ -14937,13 +16827,19 @@ def _init_snapshots_table():
             );
             CREATE INDEX IF NOT EXISTS idx_tenant_recovery_expiry
                 ON tenant_recovery_snapshots(expires_at, status);
+            CREATE INDEX IF NOT EXISTS idx_tenant_recovery_landlord
+                ON tenant_recovery_snapshots(landlord_id, status);
         """)
-        conn.commit()
+        try:
+            conn.execute("ALTER TABLE tenant_recovery_snapshots ADD COLUMN landlord_id INTEGER")
+            conn.commit()
+        except Exception:
+            pass
 
 
 # ── Snapshot creation ─────────────────────────────────────────────────────────
 
-def create_tenant_recovery_snapshot(tenant_id: int, admin_id: Optional[int] = None) -> dict:
+def create_tenant_recovery_snapshot(tenant_id: int, admin_id: Optional[int] = None, landlord_id: Optional[int] = None) -> dict:
     """
     Synchronously create a recovery snapshot for an archived tenant BEFORE deletion.
 
@@ -14971,6 +16867,9 @@ def create_tenant_recovery_snapshot(tenant_id: int, admin_id: Optional[int] = No
         ).fetchone()
         if not tenant_row:
             raise ValueError(f"Tenant {tenant_id} not found in database.")
+
+        if landlord_id is None:
+            landlord_id = tenant_row["landlord_id"] if tenant_row.keys() and "landlord_id" in tenant_row.keys() else None
 
         receipt_rows = conn.execute(
             "SELECT * FROM receipts WHERE tenantId = ?", (tenant_id,)
@@ -15085,14 +16984,15 @@ def create_tenant_recovery_snapshot(tenant_id: int, admin_id: Optional[int] = No
             conn.execute(
                 """
                 INSERT INTO tenant_recovery_snapshots
-                    (id, tenant_id, tenant_name, created_at, expires_at, deleted_by,
+                    (id, tenant_id, tenant_name, landlord_id, created_at, expires_at, deleted_by,
                      status, archive_path, sha256, metadata_json)
-                VALUES (?, ?, ?, ?, ?, ?, 'AVAILABLE', ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', ?, ?, ?)
                 """,
                 (
                     snapshot_id,
                     tenant_id,
                     tenant_name,
+                    landlord_id,
                     now.isoformat(),
                     expires_at.isoformat(),
                     admin_id,
@@ -15208,23 +17108,27 @@ def permanently_delete_tenant_data(tenant_id: int) -> dict:
 
 # ── Snapshot listing ──────────────────────────────────────────────────────────
 
-def get_tenant_recovery_snapshots() -> list:
+def get_tenant_recovery_snapshots(landlord_id: Optional[int] = None) -> list:
     """
     Return all tenant recovery snapshots, running expiry purge first.
+    Optionally scoped to a single landlord.
     """
     _init_snapshots_table()
     purge_expired_tenant_recovery_snapshots()  # Always purge before listing
 
     with get_conn() as conn:
-        rows = conn.execute(
-            """
-            SELECT id, tenant_id, tenant_name, created_at, expires_at,
+        query = """
+            SELECT id, tenant_id, tenant_name, landlord_id, created_at, expires_at,
                    deleted_by, status, archive_path, sha256, metadata_json,
                    restored_at, purged_at
             FROM tenant_recovery_snapshots
-            ORDER BY created_at DESC
-            """
-        ).fetchall()
+        """
+        params: list = []
+        if landlord_id is not None:
+            query += " WHERE landlord_id = ?"
+            params.append(landlord_id)
+        query += " ORDER BY created_at DESC"
+        rows = conn.execute(query, tuple(params)).fetchall()
 
     snapshots = []
     now_iso = datetime.utcnow().isoformat()
@@ -15263,7 +17167,7 @@ def get_tenant_recovery_snapshots() -> list:
 
 # ── Restore preview (conflict detection) ─────────────────────────────────────
 
-def get_snapshot_restore_preview(snapshot_id: str) -> dict:
+def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = None) -> dict:
     """
     Inspect a snapshot and return a conflict report before allowing restore.
 
@@ -15286,6 +17190,9 @@ def get_snapshot_restore_preview(snapshot_id: str) -> dict:
         raise ValueError(f"Snapshot {snapshot_id} not found.")
 
     snap = dict(snap_row)
+
+    if landlord_id is not None and (snap.get("landlord_id") or 0) != int(landlord_id):
+        raise ValueError(f"Snapshot {snapshot_id} not found.")
 
     if snap["status"] != "AVAILABLE":
         return {
@@ -15340,10 +17247,15 @@ def get_snapshot_restore_preview(snapshot_id: str) -> dict:
     options = ["cancel"]
 
     with get_conn() as conn:
-        # 1. Check if original tenant ID already exists in live DB
-        existing_tenant = conn.execute(
-            "SELECT id, name, status FROM tenants WHERE id = ?", (orig_id,)
-        ).fetchone()
+        # 1. Check if original tenant ID already exists in live DB (within this landlord)
+        if landlord_id is not None:
+            existing_tenant = conn.execute(
+                "SELECT id, name, status FROM tenants WHERE id = ? AND landlord_id = ?", (orig_id, landlord_id)
+            ).fetchone()
+        else:
+            existing_tenant = conn.execute(
+                "SELECT id, name, status FROM tenants WHERE id = ?", (orig_id,)
+            ).fetchone()
         if existing_tenant:
             conflicts["tenantId"] = orig_id
             conflicts["existingTenantName"] = existing_tenant["name"]
@@ -15353,10 +17265,16 @@ def get_snapshot_restore_preview(snapshot_id: str) -> dict:
         # 2. Check room number occupancy
         room = tenant_profile.get("roomnumber") or ""
         if room:
-            occupied = conn.execute(
-                "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(?) AND status NOT IN ('Archived', 'Inactive')",
-                (room,),
-            ).fetchone()
+            if landlord_id is not None:
+                occupied = conn.execute(
+                    "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(?) AND landlord_id = ? AND status NOT IN ('Archived', 'Inactive')",
+                    (room, landlord_id),
+                ).fetchone()
+            else:
+                occupied = conn.execute(
+                    "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(?) AND status NOT IN ('Archived', 'Inactive')",
+                    (room,),
+                ).fetchone()
             if occupied:
                 conflicts["roomNumber"] = room
                 conflicts["roomOccupiedBy"] = occupied["name"]
@@ -15365,17 +17283,27 @@ def get_snapshot_restore_preview(snapshot_id: str) -> dict:
         phone = tenant_profile.get("phone") or ""
         email = tenant_profile.get("email") or ""
         if phone:
-            phone_conflict = conn.execute(
-                "SELECT id, name FROM tenants WHERE phone = ? AND id != ?", (phone, orig_id)
-            ).fetchone()
+            if landlord_id is not None:
+                phone_conflict = conn.execute(
+                    "SELECT id, name FROM tenants WHERE phone = ? AND id != ? AND landlord_id = ?", (phone, orig_id, landlord_id)
+                ).fetchone()
+            else:
+                phone_conflict = conn.execute(
+                    "SELECT id, name FROM tenants WHERE phone = ? AND id != ?", (phone, orig_id)
+                ).fetchone()
             if phone_conflict:
                 conflicts["phone"] = phone
                 conflicts["phoneConflictTenant"] = phone_conflict["name"]
 
         if email:
-            email_conflict = conn.execute(
-                "SELECT id, name FROM tenants WHERE email = ? AND id != ?", (email, orig_id)
-            ).fetchone()
+            if landlord_id is not None:
+                email_conflict = conn.execute(
+                    "SELECT id, name FROM tenants WHERE email = ? AND id != ? AND landlord_id = ?", (email, orig_id, landlord_id)
+                ).fetchone()
+            else:
+                email_conflict = conn.execute(
+                    "SELECT id, name FROM tenants WHERE email = ? AND id != ?", (email, orig_id)
+                ).fetchone()
             if email_conflict:
                 conflicts["email"] = email
                 conflicts["emailConflictTenant"] = email_conflict["name"]
@@ -15385,9 +17313,14 @@ def get_snapshot_restore_preview(snapshot_id: str) -> dict:
         for r in receipts:
             bill_no = r.get("billNo") or ""
             if bill_no:
-                exists = conn.execute(
-                    "SELECT 1 FROM receipts WHERE billNo = ?", (bill_no,)
-                ).fetchone()
+                if landlord_id is not None:
+                    exists = conn.execute(
+                        "SELECT 1 FROM receipts WHERE billNo = ? AND landlord_id = ?", (bill_no, landlord_id)
+                    ).fetchone()
+                else:
+                    exists = conn.execute(
+                        "SELECT 1 FROM receipts WHERE billNo = ?", (bill_no,)
+                    ).fetchone()
                 if exists:
                     bill_conflicts.append(bill_no)
         if bill_conflicts:
@@ -15431,7 +17364,7 @@ def get_snapshot_restore_preview(snapshot_id: str) -> dict:
 
 # ── Restore execution ─────────────────────────────────────────────────────────
 
-def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -> dict:
+def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, landlord_id: Optional[int] = None) -> dict:
     """
     Restore a tenant from a recovery snapshot.
 
@@ -15452,6 +17385,9 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
         raise ValueError(f"Snapshot {snapshot_id} not found.")
 
     snap = dict(snap_row)
+
+    if landlord_id is not None and (snap.get("landlord_id") or 0) != int(landlord_id):
+        raise ValueError(f"Snapshot {snapshot_id} not found.")
 
     if snap["status"] != "AVAILABLE":
         raise ValueError(f"Snapshot is {snap['status']} and cannot be restored.")
@@ -15493,9 +17429,14 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
 
     with get_conn() as conn:
         # Check if original ID is free or if we need a new one
-        id_taken = conn.execute(
-            "SELECT 1 FROM tenants WHERE id = ?", (orig_id,)
-        ).fetchone()
+        if landlord_id is not None:
+            id_taken = conn.execute(
+                "SELECT 1 FROM tenants WHERE id = ? AND landlord_id = ?", (orig_id, landlord_id)
+            ).fetchone()
+        else:
+            id_taken = conn.execute(
+                "SELECT 1 FROM tenants WHERE id = ?", (orig_id,)
+            ).fetchone()
 
         if id_taken and not force_new_id:
             raise ValueError(
@@ -15510,6 +17451,9 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
             new_tenant_id = max_id + 1
         else:
             new_tenant_id = orig_id
+
+        # Tenant is always restored under the acting landlord
+        restore_landlord_id = landlord_id if landlord_id is not None else tenant_profile.get("landlord_id")
 
         # Restore tenant row
         t = tenant_profile
@@ -15550,7 +17494,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                 t.get("tenantpin", ""),
                 0,
                 None,
-                t.get("landlord_id"),
+                restore_landlord_id,
                 qr_key,
             ),
         )
@@ -15562,9 +17506,14 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
             bill_no = r.get("billNo", "")
             if not bill_no:
                 continue
-            existing_bill = conn.execute(
-                "SELECT 1 FROM receipts WHERE billNo = ?", (bill_no,)
-            ).fetchone()
+            if restore_landlord_id is not None:
+                existing_bill = conn.execute(
+                    "SELECT 1 FROM receipts WHERE billNo = ? AND landlord_id = ?", (bill_no, restore_landlord_id)
+                ).fetchone()
+            else:
+                existing_bill = conn.execute(
+                    "SELECT 1 FROM receipts WHERE billNo = ?", (bill_no,)
+                ).fetchone()
             if existing_bill:
                 skipped_receipts += 1
                 continue  # Never overwrite live receipts
@@ -15617,7 +17566,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False) -
                     r.get("maintenancedesc", ""),
                     float(r.get("previousarrears", 0)),
                     float(r.get("amountreceived", 0)),
-                    t.get("landlord_id"),
+                    restore_landlord_id,
                 ),
             )
             restored_receipts += 1
@@ -15768,14 +17717,17 @@ import uuid
 from app.models.tenant import Tenant
 from app.core.db import get_conn
 
-def load_tenants(include_archived: bool = False) -> List[Tenant]:
+def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = None) -> List[Tenant]:
+    clauses = []
+    params: list = []
+    if not include_archived:
+        clauses.append("status != 'Archived'")
+    if landlord_id is not None:
+        clauses.append("landlord_id = ?")
+        params.append(landlord_id)
+    where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with get_conn() as conn:
-        if include_archived:
-            rows = conn.execute("SELECT * FROM tenants ORDER BY id").fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM tenants WHERE status != 'Archived' ORDER BY id"
-            ).fetchall()
+        rows = conn.execute(f"SELECT * FROM tenants{where} ORDER BY id", params).fetchall()
     tenants = []
     for row in rows:
         t = Tenant(
@@ -15803,17 +17755,23 @@ def load_tenants(include_archived: bool = False) -> List[Tenant]:
             tenantUsername=row["tenant_username"] or "",
             statusChangedAt=row["status_changed_at"] or None,
             landlord_id=row["landlord_id"],
+            property_id=row["property_id"],
         )
         tenants.append(t)
     return tenants
 
-def get_tenant(tenantId: int) -> Optional[Tenant]:
-    """Get a single tenant by ID. Returns None if not found."""
+def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Tenant]:
+    """Get a single tenant by ID. Optionally scoped to a landlord. Returns None if not found."""
     if tenantId is None:
         return None
+    clauses = ["id = ?"]
+    params: list = [tenantId]
+    if landlord_id is not None:
+        clauses.append("landlord_id = ?")
+        params.append(landlord_id)
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT * FROM tenants WHERE id = ?", (tenantId,)
+            f"SELECT * FROM tenants WHERE {' AND '.join(clauses)}", tuple(params)
         ).fetchone()
     if not row:
         return None
@@ -15840,7 +17798,20 @@ def get_tenant(tenantId: int) -> Optional[Tenant]:
         tenantPin=row["tenantpin"],
         statusChangedAt=row["status_changed_at"] or None,
         landlord_id=row["landlord_id"],
+        property_id=row["property_id"],
     )
+
+def tenant_belongs_to_landlord(tenantId: int, landlord_id: Optional[int]) -> bool:
+    """True if the tenant exists and is owned by the given landlord."""
+    if tenantId is None or landlord_id is None:
+        return False
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM tenants WHERE id = ? AND landlord_id = ?",
+            (tenantId, landlord_id),
+        ).fetchone()
+    return row is not None
+
 
 def get_tenant_by_name(name: str) -> Optional[Tenant]:
     if not name:
@@ -15872,6 +17843,7 @@ def get_tenant_by_name(name: str) -> Optional[Tenant]:
         tenantPin=row["tenantpin"],
         statusChangedAt=row["status_changed_at"] or None,
         landlord_id=row["landlord_id"],
+        property_id=row["property_id"],
     )
 
 def save_all_tenants(tenants_list: List[Tenant]):
@@ -15897,14 +17869,14 @@ def add_tenant(t: Tenant):
                 id, name, company, phone, email, address, roomnumber, occupation,
                 notes, status, rent, water, electricityrate, previousmeter,
                 additionalpersoncharge, securitydeposit, defaulttankWatercharge,
-                meterid, viewToken, tenantpin, landlord_id, qr_key
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meterid, viewToken, tenantpin, landlord_id, qr_key, property_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
             t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id,
-            qr_key
+            qr_key, t.propertyId
         ))
         if t.id is None:
             t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -15932,14 +17904,14 @@ def update_tenant(t: Tenant):
                 name=?, company=?, phone=?, email=?, address=?, roomnumber=?, occupation=?,
                 notes=?, status=?, rent=?, water=?, electricityrate=?, previousmeter=?,
                 additionalpersoncharge=?, securitydeposit=?, defaulttankWatercharge=?,
-                meterid=?, viewToken=?, tenantpin=?, qr_key=?, status_changed_at=?
+                meterid=?, viewToken=?, tenantpin=?, qr_key=?, status_changed_at=?, property_id=?
             WHERE id=?
         ''', (
             t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
             t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
             t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, qr_key,
-            t.statusChangedAt, t.id
+            t.statusChangedAt, t.propertyId, t.id
         ))
         # Cascade identity/contact fields to all receipt rows for this tenant.
         # Only updates display-snapshot fields; historical billing values (rent, water,
@@ -15986,6 +17958,7 @@ def _tenant_row_to_dict(row) -> dict:
         "viewToken": row["viewToken"] or "",
         "arrears": 0,
         "statusChangedAt": row["status_changed_at"] or None,
+        "propertyId": row["property_id"] or None,
     }
 
 
@@ -16026,7 +17999,7 @@ def _receipt_row_to_dict(row) -> dict:
     }
 
 
-def delete_tenant(tenantId: int, action: str = "archive"):
+def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[int] = None):
     action = (action or "archive").strip().lower()
 
     with get_conn() as conn:
@@ -16036,6 +18009,9 @@ def delete_tenant(tenantId: int, action: str = "archive"):
         ).fetchone()
 
         if not tenant_row:
+            raise ValueError("Tenant not found.")
+
+        if landlord_id is not None and int(tenant_row["landlord_id"] or 0) != int(landlord_id):
             raise ValueError("Tenant not found.")
 
         if action in {"hard", "delete"}:
@@ -16588,32 +18564,32 @@ requests>=2.32.0
   },
   "tenant": {
     "pages": {
-      "root": "/{landlordUuid}/t/{tenantId}/{viewToken}",
+      "root": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}",
       "catchAll": "/*"
     },
     "api": {
       "auth": {
-        "publicKey": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/public-key",
-        "login": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/login",
-        "refresh": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/refresh",
-        "logout": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout",
-        "logoutAll": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout-all"
+        "publicKey": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/public-key",
+        "login": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/login",
+        "refresh": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/refresh",
+        "logout": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout",
+        "logoutAll": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout-all"
       },
       "profile": {
-        "get": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/profile"
+        "get": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/profile"
       },
       "kyc": {
-        "upload": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc",
-        "markInactive": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive",
-        "delete": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
-        "getFile": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/file/{filename}"
+        "upload": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc",
+        "markInactive": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive",
+        "delete": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
+        "getFile": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/file/{filename}"
       },
       "audit": {
-        "logs": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/audit-logs"
+        "logs": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/audit-logs"
       },
       "pdf": {
-        "view": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
-        "download": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
+        "view": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
+        "download": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
       }
     }
   },
@@ -16624,6 +18600,7 @@ requests>=2.32.0
       "signup": "/landlord/signup",
       "dashboard": "/landlord/dashboard",
       "logout": "/landlord/logout",
+      "setup": "/landlord/setup",
       "catchAll": "/landlord/*"
     },
     "api": {
@@ -16709,6 +18686,19 @@ requests>=2.32.0
       "settings": {
         "uploadSignature": "/landlord/{landlordUuid}/api/settings/upload-signature",
         "deleteSignature": "/landlord/{landlordUuid}/api/settings/delete-signature"
+      },
+      "setup": {
+        "required": "/landlord/api/setup/required",
+        "create": "/landlord/api/setup/create",
+        "skip": "/landlord/api/setup/skip"
+      },
+      "properties": {
+        "list": "/landlord/{landlordUuid}/api/properties",
+        "create": "/landlord/{landlordUuid}/api/properties",
+        "get": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "update": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "delete": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "tenants": "/landlord/{landlordUuid}/api/properties/{propertyId}/tenants"
       },
       "totp": {
         "qr": "/landlord/{landlordUuid}/api/totp/qr",
@@ -17200,8 +19190,8 @@ http {
             proxy_set_header X-Forwarded-Proto $scheme;
         }
 
-        # Tenant API: /rent/{uuid}/t/{id}/{token}/api/* → /{uuid}/t/{id}/{token}/api/*
-        location ~ ^/rent/[^/]+/t/[^/]+/[^/]+/api/ {
+        # Tenant API: /rent/{uuid}/t/{property}/{id}/{token}/api/* → /{uuid}/t/{property}/{id}/{token}/api/*
+        location ~ ^/rent/[^/]+/t/[^/]+/[^/]+/[^/]+/api/ {
             rewrite ^/rent/(.*)$ /$1 break;
             proxy_pass http://rent-backend:28001;
             proxy_http_version 1.1;
@@ -17256,7 +19246,8 @@ http {
   "dependencies": {
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-router": "^8.3.0"
+    "react-router": "^8.3.0",
+    "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
@@ -17644,42 +19635,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 }
 ```
 
-### `frontend/admin-app/src/components/LoadingScreen.tsx`
-
-```typescript
-import { useState, useEffect } from "react";
-import "./LoadingScreen.css";
-
-interface LoadingScreenProps {
-  isLoading: boolean;
-}
-
-export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
-  const [visible, setVisible] = useState(true);
-  const [fading, setFading] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading && visible) {
-      setFading(true);
-      const timer = setTimeout(() => setVisible(false), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading, visible]);
-
-  if (!visible) return null;
-
-  return (
-    <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
-      <div className="loading-brand">
-        <span className="loading-prop">PROP</span>
-        <span className="loading-aura">AURA</span>
-      </div>
-      <div className="loading-spinner" />
-    </div>
-  );
-}
-```
-
 ### `frontend/admin-app/src/contexts/AuthContext.tsx`
 
 ```typescript
@@ -17697,6 +19652,22 @@ interface Admin {
 
 interface TOTPResult {
   requires_totp: boolean;
+  methods?: string[];
+}
+
+interface OtpSendResult {
+  status: string;
+  message: string;
+  cooldown_seconds?: number;
+}
+
+export class OtpCooldownError extends Error {
+  cooldownSeconds: number;
+
+  constructor(cooldownSeconds: number) {
+    super(`Please wait ${cooldownSeconds}s before requesting a new code.`);
+    this.cooldownSeconds = cooldownSeconds;
+  }
 }
 
 interface AuthContextValue {
@@ -17704,6 +19675,8 @@ interface AuthContextValue {
   loading: boolean;
   login: (username: string, password: string, rememberMe?: boolean) => Promise<TOTPResult>;
   loginTOTP: (totpToken: string) => Promise<void>;
+  loginOtpSend: () => Promise<OtpSendResult>;
+  loginOtpVerify: (otp: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -17736,7 +19709,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await res.json();
     if (data.status === "totp_required") {
       pendingCreds.current = { username, password, rememberMe };
-      return { requires_totp: true };
+      return { requires_totp: true, methods: data.methods ?? ["totp"] };
     }
     const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
     setAdmin(me);
@@ -17761,6 +19734,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "TOTP verification failed" }));
       throw new Error(err.detail ?? "TOTP verification failed");
+    }
+    const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
+    setAdmin(me);
+  }, []);
+
+  const loginOtpSend = useCallback(async () => {
+    const creds = pendingCreds.current;
+    if (!creds) throw new Error("No pending credentials. Please login again.");
+    const res = await fetch(`${API_BASE}/auth/login-otp-send`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: creds.username,
+        password: creds.password,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: undefined }));
+      if (err?.detail && typeof err.detail === "object" && "cooldown_seconds" in err.detail) {
+        throw new OtpCooldownError(Number(err.detail.cooldown_seconds) || 0);
+      }
+      const message =
+        typeof err?.detail === "string" ? err.detail : (err?.message ?? "Failed to send code");
+      throw new Error(message);
+    }
+    return await res.json();
+  }, []);
+
+  const loginOtpVerify = useCallback(async (otp: string) => {
+    const creds = pendingCreds.current;
+    if (!creds) throw new Error("No pending credentials. Please login again.");
+    const res = await fetch(`${API_BASE}/auth/login-otp-verify`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: creds.username,
+        password: creds.password,
+        otp,
+        remember_me: creds.rememberMe,
+      }),
+    });
+    pendingCreds.current = null;
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "OTP verification failed" }));
+      throw new Error(err.detail ?? "OTP verification failed");
     }
     const me = await fetch(`${API_BASE}/auth/me`, { credentials: "include" }).then((r) => r.json());
     setAdmin(me);
@@ -17803,7 +19823,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ admin, loading, login, loginTOTP, logout }}>
+    <AuthContext.Provider value={{ admin, loading, login, loginTOTP, loginOtpSend, loginOtpVerify, logout }}>
       {children}
     </AuthContext.Provider>
   );
@@ -18022,6 +20042,7 @@ export const API_BASE = getApiBaseUrl() + "/rent/admin/api";
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import Layout from "../components/Layout";
 import { API_BASE } from "../lib/runtime";
 
@@ -18180,7 +20201,7 @@ export default function AuditLogsPage() {
       a.remove();
       URL.revokeObjectURL(url);
     } catch {
-      alert("Export failed. Please try again.");
+      toast.error("Export failed. Please try again.");
     } finally {
       setExporting(false);
     }
@@ -19071,6 +21092,10 @@ export default function LandlordDetailPage() {
                 ["Failed Attempts", l.failed_attempts ?? 0],
                 ["Locked Until", l.locked_until ? new Date(String(l.locked_until)).toLocaleString() : "—"],
                 ["PW Change Required", l.requires_password_change ? "Yes (forced)" : "No"],
+                ["Privacy Accepted", l.privacy_consented ? "Yes" : "Pending"],
+                ["Privacy Version", l.privacy_version ?? "—"],
+                ["Privacy Accepted At", l.privacy_accepted_at ? new Date(String(l.privacy_accepted_at)).toLocaleString() : "—"],
+                ["Privacy Accepted IP", l.privacy_accepted_ip ?? "—"],
               ].map(([label, value]) => (
                 <tr key={String(label)} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 140 }}>{String(label)}</td>
@@ -19130,6 +21155,9 @@ interface Landlord {
   failed_attempts: number;
   locked_until: string | null;
   requires_password_change: boolean;
+  privacy_consented: boolean;
+  privacy_version: string | null;
+  privacy_accepted_at: string | null;
   tenant_count: number;
   receipt_count: number;
   kyc_count: number;
@@ -19286,7 +21314,7 @@ export default function LandlordsPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "#f9fafb" }}>
-                  {["ID", "Name", "Username", "Status", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
+                  {["ID", "Name", "Username", "Status", "Privacy", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
                     <th key={h} style={{ padding: "12px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb", fontSize: 13, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -19294,7 +21322,7 @@ export default function LandlordsPage() {
               <tbody>
                 {landlords.length === 0 && (
                   <tr>
-                    <td colSpan={11} style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>
+                    <td colSpan={12} style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>
                       No landlords found.
                     </td>
                   </tr>
@@ -19313,6 +21341,27 @@ export default function LandlordsPage() {
                     </td>
                     <td style={{ padding: "12px 12px" }}>
                       <span style={badgeStyle(l.status)}>{l.status}</span>
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      {l.privacy_consented ? (
+                        <span
+                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#dcfce7", color: "#16a34a", cursor: "help" }}
+                          title={[
+                            "Privacy Policy accepted",
+                            l.privacy_version ? `Version ${l.privacy_version}` : null,
+                            l.privacy_accepted_at ? `Accepted ${new Date(l.privacy_accepted_at).toLocaleString()}` : null,
+                          ].filter(Boolean).join(" · ")}
+                        >
+                          Accepted
+                        </span>
+                      ) : (
+                        <span
+                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#fef3c7", color: "#92400e", cursor: "help" }}
+                          title="Privacy Policy not yet accepted"
+                        >
+                          Pending
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: "12px 12px", fontSize: 13 }}>
                       {l.has_totp ? "✅" : "—"}
@@ -19529,13 +21578,24 @@ export default function LandlordsPage() {
 ### `frontend/admin-app/src/pages/LoginPage.tsx`
 
 ```typescript
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth, OtpCooldownError } from "../contexts/AuthContext";
 import AuthLayout from "../components/AuthLayout";
+import LoadingOverlay from "@shared/loading/LoadingOverlay";
+
+type OtpMethod = "totp" | "telegram";
+
+const COOLDOWN_SECONDS = 60;
+
+function formatCountdown(s: number) {
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+}
 
 export default function LoginPage() {
-  const { login, loginTOTP } = useAuth();
+  const { login, loginTOTP, loginOtpSend, loginOtpVerify } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -19543,7 +21603,34 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [totpRequired, setTotpRequired] = useState(false);
-  const [totpCode, setTotpCode] = useState("");
+  const [methods, setMethods] = useState<string[]>([]);
+  const [method, setMethod] = useState<OtpMethod>("totp");
+  const [code, setCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpMsg, setOtpMsg] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  function useTelegram() {
+    return method === "telegram" && methods.includes("telegram_otp");
+  }
+
+  function resetSecondFactor() {
+    setTotpRequired(false);
+    setMethods([]);
+    setMethod("totp");
+    setCode("");
+    setOtpSent(false);
+    setOtpMsg(null);
+    setCooldown(0);
+    setError(null);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -19552,7 +21639,13 @@ export default function LoginPage() {
     try {
       const result = await login(username, password, rememberMe);
       if (result.requires_totp) {
+        const m = result.methods ?? ["totp"];
+        setMethods(m);
+        setMethod(m.includes("totp") ? "totp" : "telegram");
         setTotpRequired(true);
+        if (m.length === 1 && m[0] === "telegram_otp") {
+          handleSendOtp();
+        }
       } else {
         navigate("/dashboard", { replace: true });
       }
@@ -19563,24 +21656,52 @@ export default function LoginPage() {
     }
   }
 
-  async function handleTOTPSubmit(e: FormEvent) {
+  async function handleCodeSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      await loginTOTP(totpCode);
+      if (useTelegram()) {
+        await loginOtpVerify(code);
+      } else {
+        await loginTOTP(code);
+      }
       navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "TOTP verification failed");
+      setError(err instanceof Error ? err.message : "Verification failed");
     } finally {
       setBusy(false);
     }
   }
 
+  async function handleSendOtp() {
+    setError(null);
+    setSending(true);
+    setOtpMsg(null);
+    try {
+      const res = await loginOtpSend();
+      setOtpSent(true);
+      setOtpMsg("Code sent to your Telegram. Check your chat and enter the code below.");
+      setCooldown(res.cooldown_seconds ?? COOLDOWN_SECONDS);
+    } catch (err) {
+      if (err instanceof OtpCooldownError) {
+        setOtpSent(true);
+        setOtpMsg(null);
+        setError(null);
+        setCooldown(err.cooldownSeconds);
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to send code");
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <form
-        onSubmit={totpRequired ? handleTOTPSubmit : handleSubmit}
+        onSubmit={totpRequired ? handleCodeSubmit : handleSubmit}
         style={{
           background: "#fff", borderRadius: 16, padding: "40px 36px",
           width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
@@ -19592,7 +21713,7 @@ export default function LoginPage() {
             {totpRequired ? "Two-Factor Authentication" : "Platform Admin"}
           </h1>
           <p style={{ margin: "6px 0 0", fontSize: 13, color: "#6b7280" }}>
-            {totpRequired ? "Enter your 6-digit authenticator code" : "Sign in to manage landlords"}
+            {totpRequired ? "Verify your identity to continue" : "Sign in to manage landlords"}
           </p>
         </div>
 
@@ -19602,6 +21723,15 @@ export default function LoginPage() {
             borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13,
           }}>
             {error}
+          </div>
+        )}
+
+        {otpMsg && (
+          <div style={{
+            background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8",
+            borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13,
+          }}>
+            {otpMsg}
           </div>
         )}
 
@@ -19646,43 +21776,139 @@ export default function LoginPage() {
             </label>
           </>
         ) : (
-          <label style={{ display: "block", marginBottom: 24 }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
-              Authenticator Code
-            </span>
-            <input
-              type="text"
-              value={totpCode}
-              onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              required
-              autoFocus
-              maxLength={6}
-              pattern="[0-9]{6}"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
-              placeholder="000000"
-            />
-          </label>
+          <>
+            {methods.length > 1 && (
+              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+                <button
+                  type="button"
+                  onClick={() => setMethod("totp")}
+                  style={{
+                    flex: 1, padding: "9px 0", borderRadius: 8, border: "1.5px solid",
+                    borderColor: method === "totp" ? "#3b4a6b" : "#d1d5db",
+                    background: method === "totp" ? "#eef2f7" : "#fff",
+                    color: method === "totp" ? "#3b4a6b" : "#6b7280",
+                    fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  Authenticator
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMethod("telegram")}
+                  style={{
+                    flex: 1, padding: "9px 0", borderRadius: 8, border: "1.5px solid",
+                    borderColor: method === "telegram" ? "#3b4a6b" : "#d1d5db",
+                    background: method === "telegram" ? "#eef2f7" : "#fff",
+                    color: method === "telegram" ? "#3b4a6b" : "#6b7280",
+                    fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  Telegram OTP
+                </button>
+              </div>
+            )}
+
+            {useTelegram() ? (
+              <>
+                {!otpSent ? (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={sending}
+                    style={{
+                      width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+                      background: "#3b4a6b", color: "#fff",
+                      fontSize: 15, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer",
+                      transition: "background 0.2s", marginBottom: 16,
+                    }}
+                  >
+                    Send code via Telegram
+                  </button>
+                ) : (
+                  <>
+                    <label style={{ display: "block", marginBottom: 16 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                        Telegram Code
+                      </span>
+                      <input
+                        type="text"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        required
+                        autoFocus
+                        maxLength={6}
+                        pattern="[0-9]{6}"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
+                        placeholder="000000"
+                      />
+                    </label>
+                    {cooldown > 0 ? (
+                      <p style={{
+                        margin: 0, textAlign: "center", fontSize: 13, color: "#6b7280", marginBottom: 16,
+                      }}>
+                        Resend available in {formatCountdown(cooldown)}
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        style={{
+                          width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+                          background: "#3b4a6b", color: "#fff",
+                          fontSize: 15, fontWeight: 700, cursor: "pointer",
+                          transition: "background 0.2s", marginBottom: 16,
+                        }}
+                      >
+                        Resend OTP
+                      </button>
+                    )}
+                  </>
+                )}
+              </>
+            ) : (
+              <label style={{ display: "block", marginBottom: 24 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                  Authenticator Code
+                </span>
+                <input
+                  type="text"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  required
+                  autoFocus
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
+                  placeholder="000000"
+                />
+              </label>
+            )}
+          </>
         )}
 
-        <button
-          type="submit"
-          disabled={busy}
-          style={{
-            width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-            background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
-            fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
-            transition: "background 0.2s",
-          }}
-        >
-          {busy ? (totpRequired ? "Verifying…" : "Signing in…") : (totpRequired ? "Verify" : "Sign In")}
-        </button>
+        {!(totpRequired && useTelegram() && !otpSent) && (
+          <button
+            type="submit"
+            disabled={busy}
+            style={{
+              width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
+              background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
+              fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
+              transition: "background 0.2s",
+            }}
+          >
+            {totpRequired ? "Verify" : "Sign In"}
+          </button>
+        )}
 
         {totpRequired && (
           <button
             type="button"
-            onClick={() => { setTotpRequired(false); setTotpCode(""); setError(null); }}
+            onClick={resetSecondFactor}
             style={{
               width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
               background: "transparent", color: "#6b7280",
@@ -19693,7 +21919,10 @@ export default function LoginPage() {
           </button>
         )}
       </form>
-    </AuthLayout>
+      </AuthLayout>
+      {sending && <LoadingOverlay label="Sending code…" />}
+      {!sending && busy && <LoadingOverlay label={totpRequired ? "Verifying…" : "Signing in…"} />}
+    </>
   );
 }
 
@@ -19756,6 +21985,13 @@ export default function SettingsPage() {
   const [showPwText, setShowPwText] = useState(false);
   const [showTotpSecret, setShowTotpSecret] = useState(false);
 
+  const [tgBotConfigured, setTgBotConfigured] = useState(false);
+  const [tgChatLinked, setTgChatLinked] = useState(false);
+  const [tgChatMasked, setTgChatMasked] = useState<string | null>(null);
+  const [tgBusy, setTgBusy] = useState(false);
+  const [tgMsg, setTgMsg] = useState<string | null>(null);
+  const [tgErr, setTgErr] = useState<string | null>(null);
+
   useEffect(() => {
     fetch(`${API_BASE}/settings/profile`, { credentials: "include" })
       .then((r) => r.json())
@@ -19768,18 +22004,22 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (profile?.has_totp) {
-      fetch(`${API_BASE}/auth/totp-qr`, { credentials: "include" })
-        .then((r) => r.json())
-        .then((data) => { if (data.qr_code_base64) { setTotpQr(data.qr_code_base64); setTotpSecret(data.secret ?? null); } })
-        .catch(() => {});
-    }
-  }, [profile?.has_totp]);
-
-  useEffect(() => {
     fetch(`${API_BASE}/settings/audit`, { credentials: "include" })
       .then((r) => r.json())
       .then((d) => { if (d.retention_days) setRetentionDays(d.retention_days); })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/settings/telegram/status`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (d) {
+          setTgBotConfigured(!!d.bot_configured);
+          setTgChatLinked(!!d.chat_linked);
+          setTgChatMasked(d.chat_id_masked ?? null);
+        }
+      })
       .catch(() => {});
   }, []);
 
@@ -19845,6 +22085,11 @@ export default function SettingsPage() {
 
   async function handleShowTotpQr() {
     setTotpErr(null);
+    if (totpQr) {
+      setTotpQr(null);
+      setTotpSecret(null);
+      return;
+    }
     try {
       const res = await fetch(`${API_BASE}/auth/totp-qr`, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load QR");
@@ -19910,6 +22155,31 @@ export default function SettingsPage() {
       setAuditErr(err instanceof Error ? err.message : "Save failed");
     } finally {
       setAuditSaving(false);
+    }
+  }
+
+  async function handleTgAction(action: "link" | "unlink" | "test") {
+    setTgBusy(true);
+    setTgMsg(null);
+    setTgErr(null);
+    try {
+      const res = await fetch(`${API_BASE}/settings/telegram/${action}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({ detail: "Operation failed" }));
+      if (!res.ok) {
+        throw new Error(data.detail ?? "Operation failed");
+      }
+      setTgMsg(data.message ?? "Done.");
+      if (action === "link") setTgChatMasked(data.chat_id_masked ?? null);
+      if (action === "unlink") setTgChatMasked(null);
+      setTgChatLinked(action !== "unlink");
+      setTgBotConfigured(true);
+    } catch (err: unknown) {
+      setTgErr(err instanceof Error ? err.message : "Operation failed");
+    } finally {
+      setTgBusy(false);
     }
   }
 
@@ -20045,7 +22315,7 @@ export default function SettingsPage() {
                 background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
               }}
             >
-              Show TOTP QR
+              {totpQr ? "Hide TOTP QR" : "Show TOTP QR"}
             </button>
           )}
           <button
@@ -20061,6 +22331,82 @@ export default function SettingsPage() {
             {profile?.has_totp ? "Regenerate TOTP Secret" : "Set Up TOTP"}
           </button>
         </div>
+      </div>
+
+      {/* Telegram OTP */}
+      <div style={{
+        background: "#fff", borderRadius: 14, padding: "28px 32px",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
+      }}>
+        <h2 style={{ margin: "0 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Telegram OTP Login</h2>
+        <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
+          Receive a one-time login code in Telegram as an alternative to your authenticator app.
+        </p>
+
+        {tgErr && <div style={errorStyle}>{tgErr}</div>}
+        {tgMsg && <div style={successStyle}>{tgMsg}</div>}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16, fontSize: 13 }}>
+          <div>
+            Bot configured:{" "}
+            <strong style={{ color: tgBotConfigured ? "#16a34a" : "#dc2626" }}>
+              {tgBotConfigured ? "Yes" : "No"}
+            </strong>
+            {!tgBotConfigured && " — add TELEGRAM_BOT_TOKEN to the backend .env and redeploy."}
+          </div>
+          <div>
+            Telegram chat linked:{" "}
+            <strong style={{ color: tgChatLinked ? "#16a34a" : "#6b7280" }}>
+              {tgChatLinked ? (tgChatMasked ? `Yes (${tgChatMasked})` : "Yes") : "No"}
+            </strong>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <button
+            onClick={() => handleTgAction("link")}
+            disabled={tgBusy || !tgBotConfigured}
+            style={{
+              padding: "10px 20px", borderRadius: 8, border: "1.5px solid #d1d5db",
+              background: tgBusy || !tgBotConfigured ? "#f3f4f6" : "#fff",
+              color: tgBusy || !tgBotConfigured ? "#9ca3af" : "#374151",
+              fontSize: 14, fontWeight: 600, cursor: tgBusy || !tgBotConfigured ? "not-allowed" : "pointer",
+            }}
+          >
+            {tgBusy ? "Working…" : "Link Telegram"}
+          </button>
+          {tgChatLinked && (
+            <>
+              <button
+                onClick={() => handleTgAction("test")}
+                disabled={tgBusy}
+                style={{
+                  padding: "10px 20px", borderRadius: 8, border: "1.5px solid #d1d5db",
+                  background: "#fff", fontSize: 14, fontWeight: 600, cursor: tgBusy ? "not-allowed" : "pointer",
+                }}
+              >
+                Send Test Message
+              </button>
+              <button
+                onClick={() => handleTgAction("unlink")}
+                disabled={tgBusy}
+                style={{
+                  padding: "10px 20px", borderRadius: 8, border: "1.5px solid #fca5a5",
+                  background: "#fef2f2", color: "#dc2626",
+                  fontSize: 14, fontWeight: 600, cursor: tgBusy ? "not-allowed" : "pointer",
+                }}
+              >
+                Unlink
+              </button>
+            </>
+          )}
+        </div>
+        {tgBotConfigured && !tgChatLinked && (
+          <p style={{ margin: "12px 0 0", fontSize: 12, color: "#9ca3af" }}>
+            Open <strong>@propauraBot</strong> on your Telegram, send{" "}
+            <strong>/start</strong>, then click <strong>Link Telegram</strong> above to capture your chat.
+          </p>
+        )}
       </div>
 
       {/* Password Confirmation Dialog */}
@@ -20269,7 +22615,11 @@ const dialogStyle: React.CSSProperties = {
     "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
-      "@shared/*": ["../shared/*"]
+      "@shared/*": ["../shared/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*"]
     }
   },
   "include": ["src"],
@@ -20308,6 +22658,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "../shared"),
+      react: path.resolve(__dirname, "node_modules/react"),
+      "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
     },
   },
   build: {
@@ -20413,7 +22765,8 @@ cat build-output/_redirects
   },
   "dependencies": {
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
@@ -21634,42 +23987,6 @@ export default class ErrorBoundary extends Component<Props, State> {
 }
 ```
 
-### `frontend/landlord-app/src/components/LoadingScreen.tsx`
-
-```typescript
-import { useState, useEffect } from "react";
-import "./LoadingScreen.css";
-
-interface LoadingScreenProps {
-  isLoading: boolean;
-}
-
-export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
-  const [visible, setVisible] = useState(true);
-  const [fading, setFading] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading && visible) {
-      setFading(true);
-      const timer = setTimeout(() => setVisible(false), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading, visible]);
-
-  if (!visible) return null;
-
-  return (
-    <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
-      <div className="loading-brand">
-        <span className="loading-prop">PROP</span>
-        <span className="loading-aura">AURA</span>
-      </div>
-      <div className="loading-spinner" />
-    </div>
-  );
-}
-```
-
 ### `frontend/landlord-app/src/components/archive/ArchiveTenantCard.tsx`
 
 ```typescript
@@ -22024,7 +24341,8 @@ import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Receipt, Tenant } from '@/types';
 import PDFPreviewModal from '@/components/shared/PDFPreviewModal';
-import { AlertCircle, Eye, Loader2, Pencil, Search, User } from 'lucide-react';
+import { AlertCircle, Eye, Pencil, Search, User } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 type Props = {
   open: boolean;
@@ -22302,7 +24620,7 @@ export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Prop
                 <div className="p-3 space-y-3">
                   {loading ? (
                     <div className="flex items-center justify-center py-10">
-                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      <BrandWave stacked label="Loading due payments…" />
                     </div>
                   ) : filteredGroups.length === 0 ? (
                     <div className="text-sm text-muted-foreground p-3">No due receipts found.</div>
@@ -22489,7 +24807,8 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Receipt, Tenant } from '@/types';
-import { Loader2, Gauge, User, Zap } from 'lucide-react';
+import { Gauge, User, Zap } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 import {
   Area,
   AreaChart,
@@ -22616,7 +24935,7 @@ export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId,
 
         {loading ? (
           <div className="flex items-center justify-center flex-1">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <BrandWave stacked label="Loading details…" />
           </div>
         ) : tenant ? (
           <div className="flex flex-col lg:flex-row flex-1 min-h-0">
@@ -22905,7 +25224,7 @@ import Sidebar from './Sidebar';
 import Header from './Header';
 import { useAuth } from '@/contexts/AuthContext';
 import BroadcastBanner from '@/components/BroadcastBanner';
-import LoadingScreen from '@/components/LoadingScreen';
+import LoadingScreen from '@shared/loading/LoadingScreen';
 import { ROUTES } from '@/lib/routes';
 
 export default function MainLayout() {
@@ -22968,7 +25287,9 @@ const menuItems = [
 
 export default function Sidebar() {
   const location = useLocation();
-  const { logout } = useAuth();
+  const { logout, username, fullName } = useAuth();
+  const displayName = fullName || username || "Landlord User";
+  const avatarInitial = (displayName.trim()[0] || "A").toUpperCase();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const isActive = (path: string) => {
@@ -23062,9 +25383,9 @@ export default function Sidebar() {
           <div className="border-t pt-3">
             <div className="flex items-center gap-2 mb-2 px-2">
               <div className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">
-                A
+                {avatarInitial}
               </div>
-              <span className="text-sm text-muted-foreground font-medium">Landlord User</span>
+              <span className="text-sm text-muted-foreground font-medium">{displayName}</span>
             </div>
             <button
               onClick={logout}
@@ -23099,7 +25420,8 @@ import {
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, RefreshCw, Search, FileText, AlertCircle, Receipt } from 'lucide-react';
+import { RefreshCw, Search, FileText, AlertCircle, Receipt } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { cn } from '@/lib/utils';
 import ROUTES from '@/lib/routes';
 import { useAuth } from '@/contexts/AuthContext';
@@ -23288,7 +25610,7 @@ export default function BillsModal({
                             <div className="p-2 space-y-1.5">
                                 {loading ? (
                                     <div className="flex items-center justify-center py-10">
-                                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                        <BrandWave stacked label="Loading bills…" />
                                     </div>
                                 ) : filteredBills.length === 0 ? (
                                     <div className="text-sm text-muted-foreground p-3">
@@ -23393,7 +25715,7 @@ export default function BillsModal({
                                 <div className="flex-1 min-h-0 bg-neutral-300/70 relative">
                                     {iframeLoading && (
                                         <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 backdrop-blur-sm">
-                                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                                            <BrandWave stacked label="Loading receipt…" />
                                         </div>
                                     )}
 
@@ -23773,7 +26095,6 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import {
-    Loader2,
     Search,
     FileSpreadsheet,
     AlertCircle,
@@ -23781,6 +26102,7 @@ import {
     FileArchive,
     User,
 } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -24078,7 +26400,7 @@ export default function ExportPreviewModal({
                             <div className="p-2 space-y-1.5">
                                 {isLoading ? (
                                     <div className="flex items-center justify-center p-8">
-                                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                                        <BrandWave stacked label="Loading tenants…" />
                                     </div>
                                 ) : filteredTenants.length === 0 ? (
                                     <div className="text-sm text-muted-foreground p-3">
@@ -24305,7 +26627,7 @@ export default function ExportPreviewModal({
                             disabled={isExporting}
                         >
                             {isExporting ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <BrandWave size="sm" />
                             ) : (
                                 <FileText className="mr-2 h-4 w-4" />
                             )}
@@ -24318,7 +26640,7 @@ export default function ExportPreviewModal({
                             disabled={isExporting}
                         >
                             {isExporting ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <BrandWave size="sm" />
                             ) : (
                                 <FileSpreadsheet className="mr-2 h-4 w-4" />
                             )}
@@ -24330,7 +26652,7 @@ export default function ExportPreviewModal({
                             disabled={isExporting}
                         >
                             {isExporting ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <BrandWave size="sm" />
                             ) : (
                                 <FileArchive className="mr-2 h-4 w-4" />
                             )}
@@ -24495,7 +26817,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { Loader2, Search, FileSpreadsheet, AlertCircle, Check, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Search, FileSpreadsheet, AlertCircle, Check, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { importExecute, type PreviewResponse } from './importService';
@@ -25112,7 +27435,7 @@ export default function ImportPreviewModal({
                             className="bg-primary hover:bg-primary/90"
                         >
                             {isExecuting ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                <BrandWave size="sm" />
                             ) : (
                                 <Check className="mr-2 h-4 w-4" />
                             )}
@@ -25213,7 +27536,7 @@ export default function ImportPreviewModal({
                         Cancel
                     </Button>
                     <Button variant="destructive" onClick={executeImport} disabled={isExecuting}>
-                        {isExecuting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Confirm Import"}
+                        {isExecuting ? <BrandWave size="sm" /> : "Confirm Import"}
                     </Button>
                 </div>
             </DialogContent>
@@ -25256,12 +27579,12 @@ import {
   Trash2,
   UserX,
   X,
-  Loader2,
   CalendarDays,
   Phone,
   MapPin,
   Clock,
 } from "lucide-react";
+import { BrandWave } from "@shared/loading/BrandWave";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Occupant, Tenant } from "@/types";
@@ -25441,7 +27764,7 @@ function UploadForm({
       </div>
       <div className="flex gap-2 pt-1">
         <Button type="submit" className="flex-1" disabled={submitting}>
-          {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {submitting && <BrandWave size="sm" />}
           Upload
         </Button>
         <Button type="button" variant="outline" className="flex-1" disabled={submitting} onClick={onCancel}>
@@ -25567,7 +27890,7 @@ export default function OccupantsModal({ tenant, open, onOpenChange }: Occupants
             </div>
             {loading ? (
               <div className="flex flex-1 items-center justify-center">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                <BrandWave size="sm" label="Loading…" />
               </div>
             ) : occupants.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 px-4 text-center text-muted-foreground">
@@ -26498,6 +28821,326 @@ export function parseSchemaMismatch(
 }
 ```
 
+### `frontend/landlord-app/src/components/privacy/MarkdownView.tsx`
+
+```typescript
+import React from 'react';
+
+function renderInline(text: string): React.ReactNode[] {
+  const nodes: React.ReactNode[] = [];
+  const regex = /(\*\*[^*]+\*\*|\*[^*\n]+\*|\[[^\]\n]+\]\([^)\n]+\))/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+    const token = match[0];
+    if (token.startsWith('**')) {
+      nodes.push(<strong key={key++}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith('*')) {
+      nodes.push(<em key={key++}>{token.slice(1, -1)}</em>);
+    } else {
+      const m = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+      if (m) {
+        nodes.push(
+          <a key={key++} href={m[2]} target="_blank" rel="noopener noreferrer" className="text-primary underline underline-offset-2">
+            {m[1]}
+          </a>
+        );
+      } else {
+        nodes.push(token);
+      }
+    }
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes;
+}
+
+function renderTable(rows: string[]): React.ReactElement {
+  const parseRow = (line: string): string[] =>
+    line
+      .trim()
+      .replace(/^\|/, '')
+      .replace(/\|$/, '')
+      .split('|')
+      .map((c) => c.trim());
+
+  const headers = parseRow(rows[0]);
+  const body = rows.slice(2).filter((r) => r.trim().length > 0);
+  return (
+    <div className="overflow-x-auto my-4">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr>
+            {headers.map((h, i) => (
+              <th key={i} className="border px-3 py-2 text-left bg-muted/50 font-semibold">
+                {renderInline(h)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {body.map((row, ri) => (
+            <tr key={ri}>
+              {parseRow(row).map((cell, ci) => (
+                <td key={ci} className="border px-3 py-2 align-top">
+                  {renderInline(cell)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export default function MarkdownView({ content }: { content: string }) {
+  const lines = content.split('\n');
+  const blocks: React.ReactElement[] = [];
+  let i = 0;
+  let key = 0;
+
+  const push = (el: React.ReactElement) => blocks.push(React.cloneElement(el, { key: key++ }));
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (/^\s*$/.test(line)) {
+      i++;
+      continue;
+    }
+
+    const hr = line.match(/^\s*(---|\*\*\*)\s*$/);
+    if (hr) {
+      push(<hr className="my-6 border-muted" />);
+      i++;
+      continue;
+    }
+
+    const blockquote = line.match(/^\s*>\s?(.*)$/);
+    if (blockquote) {
+      const quote: string[] = [];
+      while (i < lines.length) {
+        const q = lines[i].match(/^\s*>\s?(.*)$/);
+        if (!q) break;
+        quote.push(q[1]);
+        i++;
+      }
+      push(
+        <blockquote className="my-4 border-l-4 border-primary/40 pl-4 py-1 text-muted-foreground">
+          {quote.map((q, qi) => (
+            <p key={qi} className="mb-1">
+              {renderInline(q)}
+            </p>
+          ))}
+        </blockquote>
+      );
+      continue;
+    }
+
+    const heading = line.match(/^(#{1,3})\s+(.*)$/);
+    if (heading) {
+      const level = heading[1].length;
+      const text = renderInline(heading[2]);
+      if (level === 1) push(<h1 className="text-2xl font-bold mt-8 mb-3">{text}</h1>);
+      else if (level === 2) push(<h2 className="text-xl font-semibold mt-6 mb-2">{text}</h2>);
+      else push(<h3 className="text-lg font-medium mt-4 mb-2">{text}</h3>);
+      i++;
+      continue;
+    }
+
+    if (line.trim().startsWith('|')) {
+      const rows: string[] = [];
+      while (i < lines.length && lines[i].trim().startsWith('|')) {
+        rows.push(lines[i]);
+        i++;
+      }
+      push(renderTable(rows));
+      continue;
+    }
+
+    const unordered = line.match(/^\s*[-*]\s+(.*)$/);
+    if (unordered) {
+      const items: string[] = [];
+      while (i < lines.length) {
+        const m = lines[i].match(/^\s*[-*]\s+(.*)$/);
+        if (!m) break;
+        items.push(m[1]);
+        i++;
+      }
+      push(
+        <ul className="my-3 list-disc pl-6 space-y-1">
+          {items.map((it, ii) => (
+            <li key={ii}>{renderInline(it)}</li>
+          ))}
+        </ul>
+      );
+      continue;
+    }
+
+    const ordered = line.match(/^\s*\d+\.\s+(.*)$/);
+    if (ordered) {
+      const items: string[] = [];
+      while (i < lines.length) {
+        const m = lines[i].match(/^\s*\d+\.\s+(.*)$/);
+        if (!m) break;
+        items.push(m[1]);
+        i++;
+      }
+      push(
+        <ol className="my-3 list-decimal pl-6 space-y-1">
+          {items.map((it, ii) => (
+            <li key={ii}>{renderInline(it)}</li>
+          ))}
+        </ol>
+      );
+      continue;
+    }
+
+    const paragraph: string[] = [];
+    while (i < lines.length && lines[i].trim().length > 0 && !lines[i].trim().startsWith('|') && !/^(#{1,3})\s/.test(lines[i]) && !/^\s*[-*]\s/.test(lines[i]) && !/^\s*\d+\.\s/.test(lines[i])) {
+      paragraph.push(lines[i]);
+      i++;
+    }
+    if (paragraph.length > 0) {
+      push(
+        <p className="my-3">
+          {paragraph.map((p, pi) => (
+            <React.Fragment key={pi}>
+              {pi > 0 && <br />}
+              {renderInline(p)}
+            </React.Fragment>
+          ))}
+        </p>
+      );
+    }
+  }
+
+  return <div className="prose-sm max-w-none text-sm leading-relaxed">{blocks}</div>;
+}
+```
+
+### `frontend/landlord-app/src/components/privacy/PrivacyPolicyModal.tsx`
+
+```typescript
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
+import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ROUTES } from '@/lib/routes';
+import MarkdownView from '@/components/privacy/MarkdownView';
+
+interface PolicyInfo {
+  version: string;
+  effectiveDate: string;
+  url: string;
+  content: string;
+}
+
+interface PrivacyPolicyModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAgree: () => void;
+}
+
+export default function PrivacyPolicyModal({ open, onOpenChange, onAgree }: PrivacyPolicyModalProps) {
+  const [policy, setPolicy] = useState<PolicyInfo | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    fetch(ROUTES.LANDLORDAPIPRIVACYPOLICY)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return;
+        if (data?.content) {
+          setPolicy(data);
+          setError('');
+        } else {
+          setPolicy(null);
+          setError('Privacy Policy content is unavailable right now.');
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setPolicy(null);
+        setError('Unable to load the Privacy Policy. Please try again.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-full">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <DialogTitle>PROPAURA Privacy Policy</DialogTitle>
+              <DialogDescription>
+                {policy
+                  ? `Version ${policy.version} — Effective ${policy.effectiveDate}`
+                  : 'Landlord Account Creation'}
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="overflow-y-auto px-6 py-4 border-y flex-1">
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {!policy && !error && (
+            <div className="flex items-center justify-center py-16">
+              <BrandWave label="Loading policy…" />
+            </div>
+          )}
+
+          {policy?.content && <MarkdownView content={policy.content} />}
+        </div>
+
+        <DialogFooter className="px-6 py-4 items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <ShieldCheck className="h-4 w-4 text-green-600" />
+            Issued in compliance with the Digital Personal Data Protection Act, 2023
+          </div>
+          <div className="flex gap-3">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+            <Link to={ROUTES.LANDLORDPAGEPRIVACYPOLICY}>
+              <Button variant="outline">Open Full Page</Button>
+            </Link>
+            <Button onClick={() => onAgree()}>I Agree</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
 ### `frontend/landlord-app/src/components/shared/EditBillModal.tsx`
 
 ```typescript
@@ -26522,6 +29165,7 @@ import { api } from '@/services/api';
 import type { Tenant, Receipt } from '@/types';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 interface EditBillModalProps {
   billNo: string | null;
@@ -26601,7 +29245,9 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
         </DialogHeader>
 
         {loading ? (
-          <div className="py-8 text-center text-muted-foreground">Loading...</div>
+          <div className="py-8 text-center text-muted-foreground">
+            <BrandWave stacked label="Loading bill…" />
+          </div>
         ) : receipt ? (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -33485,18 +36131,27 @@ type LoginResult =
   | { status: "success"; landlordUuid: string }
   | { status: "totp_required" }
   | { status: "password_change_required"; landlordUuid: string }
-  | { status: "failed" };
+  | { status: "failed"; message?: string };
 
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   landlordUuid: string | null;
+  username: string | null;
+  fullName: string | null;
   hasTotp: boolean;
   totpEnabled: boolean;
   requiresPasswordChange: boolean;
+  privacyConsented: boolean | null;
+  setupCompleted: boolean;
+  setupSkipped: boolean;
   login: (
     username: string,
     password: string,
+    rememberMe?: boolean
+  ) => Promise<LoginResult>;
+  googleLogin: (
+    credential: string,
     rememberMe?: boolean
   ) => Promise<LoginResult>;
   verifyTotp: (
@@ -33512,6 +36167,7 @@ interface AuthContextType {
     confirmPassword: string
   ) => Promise<{ status: string; message?: string; next_step?: string; totp?: any }>;
   refreshMe: () => Promise<void>;
+  setSetupState: (completed: boolean, skipped: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33520,9 +36176,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [landlordUuid, setLandlordUuid] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [fullName, setFullName] = useState<string | null>(null);
   const [hasTotp, setHasTotp] = useState(false);
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
+  const [privacyConsented, setPrivacyConsented] = useState<boolean | null>(null);
+  const [setupCompleted, setSetupCompleted] = useState(false);
+  const [setupSkipped, setSetupSkipped] = useState(false);
+
+  const setSetupState = useCallback((completed: boolean, skipped: boolean) => {
+    setSetupCompleted(completed);
+    setSetupSkipped(skipped);
+  }, []);
 
   const refreshMe = useCallback(async () => {
     try {
@@ -33532,16 +36198,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const uuid = data?.landlord?.landlordUuid ?? null;
       setIsAuthenticated(true);
       setLandlordUuid(uuid);
+      setUsername(data?.landlord?.username ?? null);
+      setFullName(data?.landlord?.fullName ?? null);
       setHasTotp(data?.landlord?.hasTotp ?? false);
       setTotpEnabled(data?.landlord?.totpEnabled ?? false);
       setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
+      setPrivacyConsented(data?.landlord?.privacyConsented ?? true);
+      setSetupCompleted(data?.landlord?.setupCompleted ?? false);
+      setSetupSkipped(data?.landlord?.setupSkipped ?? false);
       if (uuid) localStorage.setItem("landlordUuid", uuid);
     } catch {
       setIsAuthenticated(false);
       setLandlordUuid(null);
+      setUsername(null);
+      setFullName(null);
       setHasTotp(false);
       setTotpEnabled(false);
       setRequiresPasswordChange(false);
+      setPrivacyConsented(null);
+      setSetupCompleted(false);
+      setSetupSkipped(false);
       localStorage.removeItem("landlordUuid");
     }
   }, []);
@@ -33593,7 +36269,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const uuid = data?.landlord?.landlordUuid ?? "";
           setIsAuthenticated(true);
           setLandlordUuid(uuid);
+          setUsername(data?.landlord?.username ?? null);
+          setFullName(data?.landlord?.fullName ?? null);
           localStorage.setItem("landlordUuid", uuid);
+          await refreshMe();
           return { status: "success", landlordUuid: uuid };
         }
 
@@ -33604,7 +36283,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    []
+    [refreshMe]
+  );
+
+  const googleLogin = useCallback(
+    async (
+      credential: string,
+      rememberMe = false
+    ): Promise<LoginResult> => {
+      setIsLoading(true);
+
+      try {
+        const response = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credential, rememberMe }),
+        });
+
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          return {
+            status: "failed",
+            message: data?.detail || "Google authentication failed",
+          };
+        }
+
+        if (data.status === "password_change_required") {
+          return { status: "password_change_required", landlordUuid: data.landlordUuid };
+        }
+
+        if (data.status === "success") {
+          const uuid = data?.landlord?.landlordUuid ?? "";
+          setIsAuthenticated(true);
+          setLandlordUuid(uuid);
+          setUsername(data?.landlord?.username ?? null);
+          setFullName(data?.landlord?.fullName ?? null);
+          localStorage.setItem("landlordUuid", uuid);
+          await refreshMe();
+          return { status: "success", landlordUuid: uuid };
+        }
+
+        return {
+          status: "failed",
+          message: data?.detail || "Google authentication failed",
+        };
+      } catch {
+        return { status: "failed", message: "Network error during Google authentication" };
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [refreshMe]
   );
 
   const verifyTotp = useCallback(
@@ -33641,7 +36372,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const uuid = data?.landlord?.landlordUuid ?? "";
         setIsAuthenticated(true);
         setLandlordUuid(uuid);
+        setUsername(data?.landlord?.username ?? null);
+        setFullName(data?.landlord?.fullName ?? null);
         localStorage.setItem("landlordUuid", uuid);
+        await refreshMe();
         return { status: "success", landlordUuid: uuid };
       } catch {
         return false;
@@ -33649,7 +36383,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    []
+    [refreshMe]
   );
 
   const changePassword = useCallback(
@@ -33690,6 +36424,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsAuthenticated(false);
       setLandlordUuid(null);
+      setUsername(null);
+      setFullName(null);
       localStorage.removeItem("landlordUuid");
       window.location.assign(ROUTES.LANDLORDPAGELOGIN);
     }
@@ -33700,13 +36436,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useAuthSync(
     authChannel,
     useCallback(
-      (event) => {
+      async (event) => {
         if (
           event.type === "AUTH_STATE_CHANGED" ||
           event.type === "TOTP_STATE_CHANGED" ||
           event.type === "PASSWORD_RESET"
         ) {
-          refreshMe();
+          await refreshMe();
         }
       },
       [refreshMe]
@@ -33723,7 +36459,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, landlordUuid, hasTotp, totpEnabled, requiresPasswordChange, login, verifyTotp, logout, changePassword, refreshMe }}
+      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, privacyConsented, setupCompleted, setupSkipped, login, googleLogin, verifyTotp, logout, changePassword, refreshMe, setSetupState }}
     >
       {children}
     </AuthContext.Provider>
@@ -34344,6 +37080,18 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 ```
 
+### `frontend/landlord-app/src/lib/privacy.ts`
+
+```typescript
+/**
+ * src/lib/privacy.ts
+ * Privacy Policy version constants for the landlord frontend.
+ * Must match backend/app/app/core/privacy.py.
+ */
+export const PRIVACY_POLICY_VERSION = "1.0";
+export const PRIVACY_POLICY_EFFECTIVE_DATE = "2026-08-28";
+```
+
 ### `frontend/landlord-app/src/lib/routes.ts`
 
 ```typescript
@@ -34593,6 +37341,21 @@ export const ROUTES = {
     get LANDLORDPAGESIGNUP() { return page("landlord", "signup"); },
     get LANDLORDPAGEDASHBOARD() { return page("landlord", "dashboard"); },
     get LANDLORDPAGELOGOUT() { return page("landlord", "logout"); },
+    get LANDLORDPAGEPRIVACYPOLICY() { return page("landlord", "privacyPolicy"); },
+    get LANDLORDPAGESETUP() { return page("landlord", "setup"); },
+
+    // Landlord API: Setup wizard
+    get LANDLORDAPISETUPREQUIRED() { return api("landlord", "setup", "required"); },
+    get LANDLORDAPISETUPCREATE() { return api("landlord", "setup", "create"); },
+    get LANDLORDAPISETUPSKIP() { return api("landlord", "setup", "skip"); },
+
+    // Landlord API: Properties
+    LANDLORDAPIPROPERTIESLIST(landlordUuid: string) { return api("landlord", "properties", "list", { landlordUuid }); },
+    LANDLORDAPIPROPERTIESCREATE(landlordUuid: string) { return api("landlord", "properties", "create", { landlordUuid }); },
+    LANDLORDAPIPROPERTIESGET(landlordUuid: string, propertyId: number) { return api("landlord", "properties", "get", { landlordUuid, propertyId }); },
+    LANDLORDAPIPROPERTIESUPDATE(landlordUuid: string, propertyId: number) { return api("landlord", "properties", "update", { landlordUuid, propertyId }); },
+    LANDLORDAPIPROPERTIESDELETE(landlordUuid: string, propertyId: number) { return api("landlord", "properties", "delete", { landlordUuid, propertyId }); },
+    LANDLORDAPIPROPERTIESTENANTS(landlordUuid: string, propertyId: number) { return api("landlord", "properties", "tenants", { landlordUuid, propertyId }); },
 
     // Landlord API: Auth
     get LANDLORDAPIAUTHPUBLICKEY() { return api("landlord", "auth", "publicKey"); },
@@ -34606,6 +37369,8 @@ export const ROUTES = {
     get LANDLORDAPIAUTHLOGOUT() { return api("landlord", "auth", "logout"); },
     get LANDLORDAPIAUTHME() { return api("landlord", "auth", "me"); },
     get LANDLORDAPIAUTHCHANGEPASSWORD() { return api("landlord", "auth", "changePassword"); },
+    get LANDLORDAPIPRIVACYPOLICY() { return api("landlord", "auth", "privacyPolicy"); },
+    get LANDLORDAPIAUTHPRIVACYCONSENT() { return api("landlord", "auth", "privacyConsent"); },
 
     // Landlord API: Dashboard
     LANDLORDAPIDASHBOARDSTATS(landlordUuid: string) { return api("landlord", "dashboard", "stats", { landlordUuid }); },
@@ -34750,6 +37515,7 @@ import { api } from "@/services/api";
 import { useToast } from "@/hooks/useToast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Shield, Search, ChevronLeft, ChevronRight, Filter, X } from "lucide-react";
+import { BrandWave } from '@shared/loading/BrandWave';
 
 const ACTION_COLORS: Record<string, { bg: string; fg: string }> = {
   "Login Success":            { bg: "bg-emerald-100 dark:bg-emerald-900/30", fg: "text-emerald-700 dark:text-emerald-400" },
@@ -34950,7 +37716,11 @@ export default function ActivityPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">Loading\u2026</td>
+                    <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
+                      <div className="flex items-center justify-center">
+                        <BrandWave size="sm" label="Loading…" />
+                      </div>
+                    </td>
                   </tr>
                 ) : logs.length === 0 ? (
                   <tr>
@@ -35025,6 +37795,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Shield, Eye, EyeOff, Copy, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { ROUTES } from '@/lib/routes';
 import AuthLayout from '@/components/layout/AuthLayout';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
 interface SetupResponse {
   status: string;
@@ -35124,7 +37895,8 @@ export default function AdminSetupPage() {
   };
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -35213,7 +37985,7 @@ export default function AdminSetupPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Creating Account...' : 'Create Admin Account'}
+              Create Admin Account
             </Button>
           </form>
         </CardContent>
@@ -35274,7 +38046,9 @@ export default function AdminSetupPage() {
           )}
         </DialogContent>
       </Dialog>
-    </AuthLayout>
+      </AuthLayout>
+      {loading && <LoadingOverlay label="Creating Account…" />}
+    </>
   );
 }
 ```
@@ -35289,11 +38063,12 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Tenant, Receipt } from '@/types';
-import { Search, Archive as ArchiveIcon, Loader2 } from 'lucide-react';
+import { Search, Archive as ArchiveIcon } from 'lucide-react';
 import { ArchiveTenantCard } from '@/components/archive/ArchiveTenantCard';
 import PDFPreviewModal from '@/components/shared/PDFPreviewModal';
 import EditBillModal from '@/components/shared/EditBillModal';
 import ReceiptRow from '@/components/shared/ReceiptRow';
+import { BrandWave } from '@shared/loading/BrandWave';
 
 export default function ARCHIVEPAGE() {
   const { landlordUuid } = useAuth();
@@ -35390,7 +38165,7 @@ export default function ARCHIVEPAGE() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <BrandWave stacked label="Loading archive…" />
       </div>
     );
   }
@@ -35521,6 +38296,7 @@ import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import { ROUTES } from '@/lib/routes';
 import type { Backup, TenantRecoverySnapshot, SnapshotRestorePreview } from '@/types';
+import { BrandWave } from '@shared/loading/BrandWave';
 import {
   Database,
   ShieldPlus,
@@ -35635,7 +38411,7 @@ function TenantRecoverySection() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-40">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <BrandWave stacked label="Loading backups…" />
       </div>
     );
   }
@@ -35764,8 +38540,7 @@ function TenantRecoverySection() {
 
           {previewLoading && (
             <div className="flex flex-col items-center py-8 gap-3">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Checking for conflicts...</p>
+              <BrandWave stacked label="Checking for conflicts…" />
             </div>
           )}
 
@@ -35912,8 +38687,6 @@ export default function Backups() {
   const [backups, setBackups] = useState<Backup[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('All');
-  const [restoring, setRestoring] = useState<Backup | null>(null);
-  const [restoreStep, setRestoreStep] = useState(0);
   const toast = useToast();
 
   const loadBackups = async () => {
@@ -35971,32 +38744,13 @@ export default function Backups() {
     }
   };
 
-  const startRestore = async (backup: Backup) => {
-    setRestoring(backup);
-    setRestoreStep(1);
-  };
-
-  const executeRestore = async () => {
-    if (!restoring) return;
-    setRestoreStep(3);
-    try {
-      await api.restoreBackup(landlordUuid!, restoring.id);
-      toast.success('System restored successfully! Reloading...');
-      setTimeout(() => window.location.reload(), 1500);
-    } catch {
-      toast.error('Restore failed');
-      setRestoreStep(0);
-      setRestoring(null);
-    }
-  };
-
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b">
         <div>
           <h1 className="text-2xl font-bold">Disaster Recovery & Backups</h1>
-          <p className="text-sm text-muted-foreground">Manage, verify, and restore system snapshots safely.</p>
+          <p className="text-sm text-muted-foreground">Manage and verify system snapshots safely.</p>
         </div>
         <Button onClick={handleCreateBackup}>
           <ShieldPlus className="h-4 w-4 mr-1" /> Create Manual Backup
@@ -36030,7 +38784,7 @@ export default function Backups() {
       {activeFilter !== 'Deleted Tenants' && (
         loading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <BrandWave stacked label="Loading backups…" />
           </div>
         ) : filtered.length === 0 ? (
           <Card>
@@ -36080,14 +38834,6 @@ export default function Backups() {
                     </div>
 
                     <div className="flex items-center justify-between pt-3 border-t">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-full text-xs"
-                        onClick={() => startRestore(b)}
-                      >
-                        <RotateCcw className="h-3 w-3 mr-1" /> Restore
-                      </Button>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
                           const a = document.createElement('a');
@@ -36113,63 +38859,6 @@ export default function Backups() {
         )
       )}
 
-      {/* Restore Wizard Dialog (system-level restore — separate from tenant recovery) */}
-      <Dialog open={!!restoring} onOpenChange={() => { setRestoring(null); setRestoreStep(0); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <RotateCcw className="h-5 w-5 text-primary" />
-              {restoreStep === 1 && 'Restore System'}
-              {restoreStep === 2 && 'Validating Backup...'}
-              {restoreStep === 3 && 'Restoring System...'}
-            </DialogTitle>
-          </DialogHeader>
-
-          {restoreStep === 1 && (
-            <div className="text-center py-6">
-              <AlertTriangle className="h-16 w-16 text-yellow-500 mx-auto mb-4" />
-              <h4 className="text-lg font-bold mb-2">Confirm Restore</h4>
-              <p className="text-muted-foreground mb-4">
-                You are about to restore the system to:<br />
-                <strong className="text-foreground">{restoring?.notes || restoring?.id}</strong>
-              </p>
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-sm text-left text-blue-700 dark:text-blue-300 flex items-start gap-2">
-                <ShieldCheck className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                A temporary restore point will be created automatically before the rollback.
-              </div>
-            </div>
-          )}
-
-          {restoreStep === 2 && (
-            <div className="text-center py-8">
-              <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
-              <h5 className="font-bold">Validating Backup...</h5>
-              <p className="text-sm text-muted-foreground">Checking checksums and archive integrity.</p>
-            </div>
-          )}
-
-          {restoreStep === 3 && (
-            <div className="text-center py-8">
-              <Loader2 className="h-12 w-12 animate-spin text-green-500 mx-auto mb-4" />
-              <h5 className="font-bold">Restoring System...</h5>
-              <p className="text-sm text-muted-foreground">Extracting files and safely replacing database.</p>
-            </div>
-          )}
-
-          <DialogFooter className="gap-2">
-            {restoreStep === 1 && (
-              <>
-                <Button variant="outline" onClick={() => { setRestoring(null); setRestoreStep(0); }}>
-                  Cancel
-                </Button>
-                <Button onClick={() => { setRestoreStep(2); setTimeout(() => setRestoreStep(3), 800); setTimeout(executeRestore, 2000); }}>
-                  Validate Integrity
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -36194,14 +38883,17 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Tenant } from '@/types';
+import type { Tenant, Property } from '@/types';
 import { CheckCircle, FileText, Download, Clock, AlertCircle, Zap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function Billing() {
   const { landlordUuid } = useAuth();
   const navigate = useNavigate();
+  const [properties, setProperties] = useState<Property[]>([]);
+  const [selectedPropertyId, setSelectedPropertyId] = useState('');
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [months, setMonths] = useState<string[]>([]);
   const [currentMonth, setCurrentMonth] = useState('');
@@ -36233,8 +38925,13 @@ export default function Billing() {
 
   useEffect(() => {
     if (!landlordUuid) return;
-    Promise.all([api.getTenants(landlordUuid), api.getBillingMonths(landlordUuid)])
-      .then(([t, m]) => {
+    Promise.all([
+      api.getProperties(landlordUuid).catch(() => []),
+      api.getTenants(landlordUuid),
+      api.getBillingMonths(landlordUuid),
+    ])
+      .then(([props, t, m]) => {
+        setProperties(props);
         setTenants(t.filter((x: Tenant) => x.status === 'Active'));
         setMonths(m.months);
         setCurrentMonth(m.currentMonth);
@@ -36243,6 +38940,23 @@ export default function Billing() {
       .catch(() => toast.error('Failed to load data'))
       .finally(() => setLoading(false));
   }, [landlordUuid]);
+
+  const visibleTenants =
+    properties.length > 0 && selectedPropertyId
+      ? tenants.filter(
+          (t) => t.propertyId !== null && t.propertyId !== undefined && String(t.propertyId) === selectedPropertyId
+        )
+      : tenants;
+
+  const handlePropertyChange = useCallback(
+    (propertyId: string) => {
+      setSelectedPropertyId(propertyId);
+      setSelectedTenantId('');
+      setGeneratedBill(null);
+      setShowSuccess(false);
+    },
+    []
+  );
 
   const handleTenantChange = useCallback(async (tenantId: string) => {
     setSelectedTenantId(tenantId);
@@ -36377,7 +39091,7 @@ export default function Billing() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BrandWave stacked label="Loading billing…" />
       </div>
     );
   }
@@ -36396,21 +39110,46 @@ export default function Billing() {
         </CardHeader>
         <CardContent className="p-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Property */}
+            {properties.length > 0 && (
+              <div className="space-y-2">
+                <Label>Property</Label>
+                <Select value={selectedPropertyId} onValueChange={handlePropertyChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Property..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {properties.map((p) => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        {p.property_name}
+                        {p.address ? ` — ${p.address}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Tenant */}
             <div className="space-y-2">
               <Label>Tenant Name</Label>
               <Select value={selectedTenantId} onValueChange={handleTenantChange}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select Tenant..." />
+                  <SelectValue placeholder={visibleTenants.length ? "Select Tenant..." : "No tenants in this property"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {tenants.map((t) => (
+                  {visibleTenants.map((t) => (
                     <SelectItem key={t.id} value={String(t.id)}>
                       {t.name} {t.roomNumber ? `(Room ${t.roomNumber})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {properties.length > 0 && selectedPropertyId && visibleTenants.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  No active tenants in this property yet. Add tenants from the Tenants page.
+                </p>
+              )}
             </div>
 
             {/* Billing Month */}
@@ -36628,6 +39367,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, KeyRound, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
 import { ROUTES } from '@/lib/routes';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
@@ -36724,7 +39464,8 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
+    <>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -36830,7 +39571,7 @@ export default function ChangePasswordPage() {
               </div>
 
               <Button type="submit" className="w-full" disabled={loading || !!success}>
-                {loading ? 'Updating...' : isGoogleSignup ? 'Set Password' : 'Update Password'}
+                {isGoogleSignup ? 'Set Password' : 'Update Password'}
               </Button>
             </form>
           )}
@@ -36843,7 +39584,9 @@ export default function ChangePasswordPage() {
         totp={totpData}
         hasExistingTotp={hasTotp}
       />
-    </div>
+      </div>
+      {loading && <LoadingOverlay label="Updating…" />}
+    </>
   );
 }
 ```
@@ -36859,6 +39602,7 @@ import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { DashboardStats, Tenant } from '@/types';
+import { BrandWave } from '@shared/loading/BrandWave';
 import {
   TrendingUp,
   TrendingDown,
@@ -36933,7 +39677,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BrandWave stacked label="Loading dashboard…" />
       </div>
     );
   }
@@ -37380,6 +40124,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import type { Receipt } from '@/types';
 import { Search, Receipt as ReceiptIcon, ChevronDown } from 'lucide-react';
 import ReceiptRow from '@/components/shared/ReceiptRow';
+import { BrandWave } from '@shared/loading/BrandWave';
 import PDFPreviewModal from '@/components/shared/PDFPreviewModal';
 import EditBillModal from '@/components/shared/EditBillModal';
 
@@ -37450,7 +40195,7 @@ export default function History() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BrandWave stacked label="Loading history…" />
       </div>
     );
   }
@@ -37571,11 +40316,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Shield, AlertTriangle, ArrowLeft, KeyRound } from 'lucide-react';
 import AuthLayout from '@/components/layout/AuthLayout';
-import { ROUTES } from '@/lib/routes';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
 export default function LandlordLoginPage() {
   const navigate = useNavigate();
-  const { login, verifyTotp, isAuthenticated, isLoading, landlordUuid } = useAuth();
+  const { login, verifyTotp, isAuthenticated, isLoading, landlordUuid, googleLogin } = useAuth();
   const [loginData, setLoginData] = useState({ username: '', password: '', totpToken: '', rememberMe: false });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -37593,22 +40338,17 @@ export default function LandlordLoginPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential, rememberMe: loginData.rememberMe }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || "Google authentication failed");
+      const result = await googleLogin(credentialResponse.credential, loginData.rememberMe);
+      if (result.status === "failed") {
+        setError(result.message || "Google authentication failed");
         return;
       }
-      if (data.status === "password_change_required") {
+      if (result.status === "password_change_required") {
         navigate("/change-password?from=google", { replace: true });
         return;
       }
-      if (data.status === "success") {
-        navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true });
+      if (result.status === "success") {
+        navigate(`/${result.landlordUuid}/dashboard`, { replace: true });
       }
     } catch {
       setError("Network error during Google authentication");
@@ -37672,7 +40412,8 @@ export default function LandlordLoginPage() {
   };
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -37772,7 +40513,7 @@ export default function LandlordLoginPage() {
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Please wait...' : needsTOTP ? 'Verify & Login' : 'Login'}
+              {needsTOTP ? 'Verify & Login' : 'Login'}
             </Button>
 
             {!needsTOTP && (
@@ -37819,7 +40560,9 @@ export default function LandlordLoginPage() {
           </p>
         </CardFooter>
       </Card>
-    </AuthLayout>
+      </AuthLayout>
+      {loading && <LoadingOverlay label={needsTOTP ? "Verifying…" : "Signing in…"} />}
+    </>
   );
 }
 ```
@@ -37829,7 +40572,7 @@ export default function LandlordLoginPage() {
 ```typescript
 import { useState, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { GoogleLogin } from '@react-oauth/google';
+import { GoogleLogin, type CredentialResponse } from '@react-oauth/google';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37839,6 +40582,11 @@ import { Eye, EyeOff, Shield, AlertTriangle, Check, X, Loader2 } from 'lucide-re
 import { toast } from 'sonner';
 import AuthLayout from '@/components/layout/AuthLayout';
 import { ROUTES } from '@/lib/routes';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
+import { useAuth } from '@/contexts/AuthContext';
+import { Checkbox } from '@/components/ui/checkbox';
+import { PRIVACY_POLICY_VERSION } from '@/lib/privacy';
+import PrivacyPolicyModal from '@/components/privacy/PrivacyPolicyModal';
 
 type FieldStatus = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
@@ -37851,6 +40599,7 @@ interface Conflict {
 
 export default function LandlordSignupPage() {
   const navigate = useNavigate();
+  const { googleLogin } = useAuth();
   const [signupData, setSignupData] = useState({
     username: '',
     password: '',
@@ -37862,12 +40611,14 @@ export default function LandlordSignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
   const [usernameStatus, setUsernameStatus] = useState<FieldStatus>('idle');
   const [emailStatus, setEmailStatus] = useState<FieldStatus>('idle');
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
 
   const usernameTimer = useRef<ReturnType<typeof setTimeout>>();
   const emailTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -37948,27 +40699,33 @@ export default function LandlordSignupPage() {
     toast.success(`Username "${s}" is available`);
   };
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
+  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     setError('');
+    if (!privacyAccepted) {
+      setError('Please accept the PROPAURA Privacy Policy before continuing with Google.');
+      toast.error('Privacy Policy acceptance required', {
+        description: 'Tick the acceptance box above to enable Google Sign-Up.',
+      });
+      return;
+    }
     setGoogleLoading(true);
     try {
-      const res = await fetch(ROUTES.LANDLORDAPIAUTHGOOGLE, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential: credentialResponse.credential, rememberMe: false }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.detail || "Google Sign-Up failed");
+      if (!credentialResponse.credential) {
+        setError('Google Sign-Up failed');
         return;
       }
-      if (data.status === "password_change_required") {
+      const result = await googleLogin(credentialResponse.credential, false);
+      if (result.status === "failed") {
+        setError(result.message || "Google Sign-Up failed");
+        return;
+      }
+      if (result.status === "password_change_required") {
         navigate("/change-password?from=google", { replace: true });
         return;
       }
-      if (data.status === "success") {
+      if (result.status === "success") {
         toast.success('Account created via Google!', { description: 'Redirecting...' });
-        setTimeout(() => navigate(`/${data.landlord.landlordUuid}/dashboard`, { replace: true }), 1200);
+        setTimeout(() => navigate(`/${result.landlordUuid}/dashboard`, { replace: true }), 1200);
       }
     } catch {
       setError("Network error during Google Sign-Up");
@@ -37993,13 +40750,24 @@ export default function LandlordSignupPage() {
       setError('Password must be at least 8 characters.');
       return;
     }
+    if (!privacyAccepted) {
+      setError('You must accept the PROPAURA Privacy Policy to create an account.');
+      toast.error('Privacy Policy acceptance required', {
+        description: 'Please accept the PROPAURA Privacy Policy to continue.',
+      });
+      return;
+    }
 
     setLoading(true);
     try {
       const response = await fetch(ROUTES.LANDLORDAPIAUTHSIGNUP, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(signupData),
+        body: JSON.stringify({
+          ...signupData,
+          privacyAccepted,
+          privacyVersion: PRIVACY_POLICY_VERSION,
+        }),
       });
       const data = await response.json();
 
@@ -38050,7 +40818,8 @@ export default function LandlordSignupPage() {
   const strengthLabel = (s: number) => s <= 1 ? 'Very weak' : s <= 2 ? 'Weak' : s <= 3 ? 'Fair' : s <= 4 ? 'Good' : 'Strong';
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
@@ -38224,6 +40993,28 @@ export default function LandlordSignupPage() {
               )}
             </div>
 
+            <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+              <Checkbox
+                checked={privacyAccepted}
+                onCheckedChange={(v) => setPrivacyAccepted(v === true)}
+                className="mt-0.5"
+                required
+              />
+              <span className="text-sm leading-relaxed">
+                I have read and agree to the{' '}
+                <button
+                  type="button"
+                  onClick={() => setPrivacyModalOpen(true)}
+                  className="text-primary underline underline-offset-2"
+                >
+                  PROPAURA Privacy Policy
+                </button>
+                . I consent to the processing of my personal data for landlord account creation and
+                rental-property management, and I accept the responsibility and liability provisions in the
+                Policy. I understand that my account cannot be created unless I accept this Policy.
+              </span>
+            </label>
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
@@ -38239,19 +41030,27 @@ export default function LandlordSignupPage() {
                 onError={() => setError("Google Sign-Up failed")}
                 size="large"
                 width={384}
-                disabled={googleLoading}
+                disabled={googleLoading || !privacyAccepted}
               />
             </div>
 
+            <p className="text-xs text-center text-muted-foreground">
+              By continuing with Google, you agree to the PROPAURA Privacy Policy.
+            </p>
+
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating Account...
-                </>
-              ) : 'Sign Up'}
+              Sign Up
             </Button>
           </form>
+
+          <PrivacyPolicyModal
+            open={privacyModalOpen}
+            onOpenChange={setPrivacyModalOpen}
+            onAgree={() => {
+              setPrivacyAccepted(true);
+              setPrivacyModalOpen(false);
+            }}
+          />
         </CardContent>
         <CardFooter className="flex justify-center border-t p-4 mt-2">
           <p className="text-sm text-muted-foreground">
@@ -38259,7 +41058,11 @@ export default function LandlordSignupPage() {
           </p>
         </CardFooter>
       </Card>
-    </AuthLayout>
+      </AuthLayout>
+      {(loading || googleLoading) && (
+        <LoadingOverlay label={googleLoading ? "Signing up…" : "Creating Account…"} />
+      )}
+    </>
   );
 }
 ```
@@ -38268,7 +41071,7 @@ export default function LandlordSignupPage() {
 
 ```typescript
 import { useState } from 'react';
-import { Shield, User, KeyRound, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Shield, User, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38277,6 +41080,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { APP_BASE } from '@/lib/runtime';
 import { ROUTES } from '@/lib/routes';
 import AuthLayout from '@/components/layout/AuthLayout';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -38303,7 +41107,8 @@ export default function Login() {
   };
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <div className="w-full max-w-sm">
         <div className="bg-card border rounded-xl shadow-lg p-6">
           {/* Logo */}
@@ -38376,7 +41181,7 @@ export default function Login() {
               className="w-full"
               disabled={isLoading}
             >
-              {isLoading ? 'Logging in...' : 'Login to Dashboard'}
+              {'Login to Dashboard'}
             </Button>
           </form>
         </div>
@@ -38385,7 +41190,280 @@ export default function Login() {
           <span className="text-xs text-muted-foreground">PROPAURA v3.0.0</span>
         </div>
       </div>
-    </AuthLayout>
+      </AuthLayout>
+      {isLoading && <LoadingOverlay label="Logging in…" />}
+    </>
+  );
+}
+```
+
+### `frontend/landlord-app/src/pages/PrivacyConsentPage.tsx`
+
+```typescript
+import { useEffect, useRef, useState } from 'react';
+import { useNavigate, Link } from 'react-router';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertTriangle, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { toast } from 'sonner';
+import { ROUTES } from '@/lib/routes';
+import { useAuth } from '@/contexts/AuthContext';
+import MarkdownView from '@/components/privacy/MarkdownView';
+import { BrandWave } from '@shared/loading/BrandWave';
+import LoadingOverlay from '@shared/loading/LoadingOverlay';
+
+interface PolicyInfo {
+  version: string;
+  effectiveDate: string;
+  url: string;
+  content: string;
+}
+
+export default function PrivacyConsentPage() {
+  const navigate = useNavigate();
+  const { refreshMe, landlordUuid } = useAuth();
+  const [policy, setPolicy] = useState<PolicyInfo | null>(null);
+  const [agreed, setAgreed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetch(ROUTES.LANDLORDAPIPRIVACYPOLICY)
+      .then((res) => res.json())
+      .then((data) => {
+        if (active && data?.content) setPolicy(data);
+        else if (active) setError('Privacy Policy content is unavailable right now.');
+      })
+      .catch(() => active && setError('Unable to load the Privacy Policy. Please try again.'));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
+      // reached the end — nothing special, checkbox still explicit
+    }
+  };
+
+  const handleAccept = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    if (!agreed) {
+      setError('You must read and accept the Privacy Policy to continue.');
+      return;
+    }
+    if (!policy) {
+      setError('Privacy Policy is still loading. Please try again.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(ROUTES.LANDLORDAPIAUTHPRIVACYCONSENT, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accepted: true, privacyVersion: policy.version }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setError(data?.detail || 'Could not record your acceptance. Please try again.');
+        return;
+      }
+
+      toast.success('Privacy Policy accepted', { description: 'Thank you. Redirecting to your dashboard...' });
+      await refreshMe();
+      const dest = landlordUuid ? `/${landlordUuid}/dashboard` : '/dashboard';
+      setTimeout(() => navigate(dest, { replace: true }), 1200);
+    } catch {
+      setError('Network error. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-8 px-4">
+      <div className="max-w-3xl mx-auto">
+        <Card className="shadow-xl">
+          <CardHeader className="space-y-1">
+            <div className="flex items-center justify-center mb-4">
+              <div className="p-3 bg-primary/10 rounded-full">
+                <ShieldCheck className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl text-center">Privacy Policy Consent Required</CardTitle>
+            <CardDescription className="text-center">
+              {policy
+                ? `Version ${policy.version} — Effective ${policy.effectiveDate}`
+                : 'Your account cannot be used until you accept the current Privacy Policy.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {!policy && !error && (
+              <div className="flex items-center justify-center py-16">
+                <BrandWave label="Loading policy…" />
+              </div>
+            )}
+
+            {policy?.content && (
+              <>
+                <div
+                  ref={scrollRef}
+                  onScroll={handleScroll}
+                  className="border rounded-md max-h-72 overflow-y-auto p-4 bg-muted/30 text-sm mb-4"
+                >
+                  <MarkdownView content={policy.content} />
+                </div>
+
+                <p className="text-xs text-muted-foreground mb-4">
+                  Read the complete policy on the{' '}
+                  <Link to={ROUTES.LANDLORDPAGEPRIVACYPOLICY} className="text-primary underline underline-offset-2">
+                    Privacy Policy page
+                  </Link>
+                  .
+                </p>
+
+                <form onSubmit={handleAccept} className="space-y-4">
+                  <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                    <Checkbox
+                      checked={agreed}
+                      onCheckedChange={(v) => setAgreed(v === true)}
+                      className="mt-0.5"
+                    />
+                    <span className="text-sm leading-relaxed">
+                      I have read and agree to the PROPAURA Privacy Policy. I consent to the processing of my
+                      personal data for landlord account creation and rental-property management, and I accept the
+                      responsibility and liability provisions in the Policy. I understand that my account cannot be
+                      used until I accept this Policy.
+                    </span>
+                  </label>
+
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    Accept and Continue
+                  </Button>
+
+                  <div className="flex items-center gap-2 justify-center text-xs text-muted-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                    Acceptance is recorded with the version, time, IP address and device details.
+                  </div>
+                </form>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      </div>
+      {loading && <LoadingOverlay label="Recording acceptance…" />}
+    </>
+  );
+}
+```
+
+### `frontend/landlord-app/src/pages/PrivacyPolicyPage.tsx`
+
+```typescript
+import { useEffect, useState } from 'react';
+import { useNavigate, Link } from 'react-router';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ROUTES } from '@/lib/routes';
+import MarkdownView from '@/components/privacy/MarkdownView';
+import { BrandWave } from '@shared/loading/BrandWave';
+
+interface PolicyInfo {
+  version: string;
+  effectiveDate: string;
+  url: string;
+  content: string;
+}
+
+export default function PrivacyPolicyPage() {
+  const navigate = useNavigate();
+  const [policy, setPolicy] = useState<PolicyInfo | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    fetch(ROUTES.LANDLORDAPIPRIVACYPOLICY)
+      .then((res) => res.json())
+      .then((data) => {
+        if (active && data?.content) setPolicy(data);
+        else if (active) setError('Privacy Policy content is unavailable right now.');
+      })
+      .catch(() => active && setError('Unable to load the Privacy Policy. Please try again.'));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-8 px-4">
+      <div className="max-w-3xl mx-auto">
+        <Card className="shadow-xl">
+          <CardHeader className="space-y-1">
+            <div className="flex items-center justify-center mb-4">
+              <div className="p-3 bg-primary/10 rounded-full">
+                <FileText className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl text-center">PROPAURA Privacy Policy</CardTitle>
+            <CardDescription className="text-center">
+              {policy
+                ? `Version ${policy.version} — Effective ${policy.effectiveDate}`
+                : 'Landlord Account Creation'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {!policy && !error && (
+              <div className="flex items-center justify-center py-16">
+                <BrandWave label="Loading policy…" />
+              </div>
+            )}
+
+            {policy?.content && <MarkdownView content={policy.content} />}
+
+            <div className="mt-8 pt-6 border-t flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <ShieldCheck className="h-4 w-4 text-green-600" />
+                Issued in compliance with the Digital Personal Data Protection Act, 2023
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => navigate(-1)}>Back</Button>
+                <Link to={ROUTES.LANDLORDPAGESIGNUP}>
+                  <Button>Return to Sign Up</Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 }
 ```
@@ -38409,6 +41487,7 @@ import {
   Shield, KeyRound, Copy, CheckCircle2, AlertTriangle, 
   RefreshCw, Eye, EyeOff, QrCode 
 } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
 
 interface TOTPData {
@@ -38686,7 +41765,7 @@ export default function SecuritySettingsPage() {
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <QrCode className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Loading TOTP configuration...</p>
+                  <BrandWave stacked label="Loading TOTP configuration…" />
                 </div>
               )}
             </CardContent>
@@ -38876,8 +41955,8 @@ import { ROUTES } from '@/lib/routes';
 import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
-
-import type { AppConfig } from '@/types';
+import { BrandWave } from '@shared/loading/BrandWave';
+import type { AppConfig, Property } from '@/types';
 import ImportPreviewModal from '../components/modals/ImportPreviewModal';
 import ExportPreviewModal from '../components/modals/ExportPreviewModal';
 import SchemaMismatchDialog, { type SchemaMismatchInfo } from '../components/modals/SchemaMismatchDialog';
@@ -38899,6 +41978,9 @@ import {
   HardDrive,
   Download,
   QrCode,
+  Building2,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 
 export default function Settings() {
@@ -38917,6 +41999,8 @@ export default function Settings() {
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrData, setQrData] = useState<{ secret: string, qr_code_base64: string } | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+  const [props, setProps] = useState<Property[]>([]);
+  const [propsSaving, setPropsSaving] = useState(false);
   const toast = useToast();
   const { theme, resolvedTheme, setTheme } = useTheme();
 
@@ -38932,9 +42016,73 @@ export default function Settings() {
     }
   };
 
+  const loadProperties = async () => {
+    if (!landlordUuid) return;
+    try {
+      setProps(await api.getProperties(landlordUuid));
+    } catch {
+      setProps([]);
+    }
+  };
+
   useEffect(() => {
-    if (landlordUuid) loadConfig();
+    if (landlordUuid) {
+      loadConfig();
+      loadProperties();
+    }
   }, [landlordUuid]);
+
+  const handlePropsAdd = () => {
+    setProps([...props, { property_name: '', address: '' } as Property]);
+  };
+
+  const handlePropsChange = (row: Property, patch: Partial<Property>) => {
+    setProps(props.map((x) => (x === row ? { ...x, ...patch } : x)));
+  };
+
+  const handlePropsSave = async () => {
+    if (!landlordUuid) return;
+    setPropsSaving(true);
+    try {
+      for (const p of props) {
+        if (!p.property_name.trim()) continue;
+        if (p.id) {
+          await api.updateProperty(landlordUuid, p.id, {
+            property_name: p.property_name,
+            address: p.address ?? '',
+          });
+        } else {
+          await api.createProperty(landlordUuid, {
+            property_name: p.property_name,
+            address: p.address ?? '',
+          });
+        }
+      }
+      await loadProperties();
+      toast.success('Properties saved');
+    } catch {
+      toast.error('Failed to save properties');
+    } finally {
+      setPropsSaving(false);
+    }
+  };
+
+  const handlePropsDelete = async (row: Property) => {
+    if (!landlordUuid) return;
+    if (row.id && !window.confirm(`Delete "${row.property_name || 'Unnamed'}"? Its tenants stay but lose their property assignment.`)) {
+      return;
+    }
+    setPropsSaving(true);
+    try {
+      if (row.id) await api.deleteProperty(landlordUuid, row.id);
+      setProps(props.filter((x) => x !== row));
+      toast.success('Property deleted');
+    } catch {
+      toast.error('Failed to delete property');
+    } finally {
+      setPropsSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (landlordUuid && totpEnabled) {
@@ -39099,7 +42247,7 @@ export default function Settings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BrandWave stacked label="Loading settings…" />
       </div>
     );
   }
@@ -39547,6 +42695,65 @@ export default function Settings() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Properties */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-primary" />
+                Properties
+              </CardTitle>
+              <CardDescription>
+                Group tenants under properties. Tenants are assigned a property from the Tenants page, and billing filters by property.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {props.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No properties yet. Add your first property below.
+                </p>
+              )}
+              {props.map((p, idx) => (
+                <div key={p.id ?? `new-${idx}`} className="flex flex-col sm:flex-row gap-3 items-end rounded-md border p-3">
+                  <div className="flex-1 space-y-1.5">
+                    <Label className="text-xs">Property name</Label>
+                    <Input
+                      value={p.property_name}
+                      onChange={(e) => handlePropsChange(p, { property_name: e.target.value })}
+                      placeholder="e.g. Lakshmi Nivas"
+                    />
+                  </div>
+                  <div className="flex-[2] space-y-1.5">
+                    <Label className="text-xs">Address</Label>
+                    <Input
+                      value={p.address ?? ''}
+                      onChange={(e) => handlePropsChange(p, { address: e.target.value })}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handlePropsDelete(p)}
+                    disabled={propsSaving}
+                    aria-label="Delete property"
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <div className="flex flex-wrap gap-3">
+                <Button variant="outline" size="sm" onClick={handlePropsAdd}>
+                  <Plus className="h-4 w-4 mr-1" /> Add Property
+                </Button>
+                <Button size="sm" onClick={handlePropsSave} disabled={propsSaving}>
+                  <Save className="h-4 w-4 mr-1" />
+                  {propsSaving ? 'Saving…' : 'Save Properties'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ─── NOTIFICATIONS TAB ─── */}
@@ -39812,11 +43019,464 @@ export default function Settings() {
 }
 ```
 
+### `frontend/landlord-app/src/pages/SetupPage.tsx`
+
+```typescript
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
+import { AlertTriangle, Building2, Plus, Trash2, UserRound, CheckCircle2, Upload, PenLine, ChevronLeft, ChevronRight } from "lucide-react";
+import { toast } from "sonner";
+import { api } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
+import LoadingOverlay from "@shared/loading/LoadingOverlay";
+
+interface PropertyRow {
+  property_name: string;
+  address: string;
+}
+
+interface LandlordProfile {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+  signature_image: string;
+}
+
+const STEPS = [
+  { key: "details", label: "Your details" },
+  { key: "properties", label: "Properties" },
+  { key: "signature", label: "Signature" },
+];
+
+export default function SetupPage() {
+  const navigate = useNavigate();
+  const { landlordUuid, setupCompleted, refreshMe, setSetupState } = useAuth();
+
+  const [step, setStep] = useState(0);
+  const [profile, setProfile] = useState<LandlordProfile>({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+    signature_image: "",
+  });
+  const [properties, setProperties] = useState<PropertyRow[]>([
+    { property_name: "Property 1", address: "" },
+  ]);
+  const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [signaturePreview, setSignaturePreview] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const destinations = useMemo(() => {
+    const uuid = landlordUuid || "";
+    return {
+      home: uuid ? `/${uuid}/dashboard` : "/dashboard",
+      settings: uuid ? `/${uuid}/settings` : "/settings",
+    };
+  }, [landlordUuid]);
+
+  if (setupCompleted) {
+    return null;
+  }
+
+  const defaultName = (index: number) => `Property ${index + 1}`;
+
+  const updateProperty = (index: number, patch: Partial<PropertyRow>) => {
+    setProperties((prev) =>
+      prev.map((p, i) => (i === index ? { ...p, ...patch } : p))
+    );
+  };
+
+  const addProperty = () => {
+    setProperties((prev) => {
+      const nextName = `Property ${prev.length + 1}`;
+      return [...prev, { property_name: nextName, address: "" }];
+    });
+  };
+
+  const removeProperty = (index: number) => {
+    setProperties((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length ? next : [{ property_name: "Property 1", address: "" }];
+    });
+  };
+
+  const handleSignatureFile = (file: File | null) => {
+    if (!file) {
+      setSignatureFile(null);
+      setSignaturePreview("");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setError("Please select an image file for your signature.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Signature image must be under 2MB.");
+      return;
+    }
+    setError("");
+    setSignatureFile(file);
+    setSignaturePreview(URL.createObjectURL(file));
+  };
+
+  const nextStep = () => {
+    setError("");
+    if (step === 1) {
+      const validProps = properties
+        .map((p) => p.property_name.trim())
+        .filter(Boolean);
+      if (!validProps.length) {
+        setError("Add at least one property to continue.");
+        return;
+      }
+    }
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  };
+
+  const handleComplete = async () => {
+    setError("");
+    const validProps = properties
+      .map((p) => ({
+        property_name: p.property_name.trim() || defaultName(0),
+        address: p.address.trim(),
+      }))
+      .filter((p) => p.property_name);
+
+    if (!validProps.length) {
+      setError("Add at least one property to continue.");
+      setStep(1);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let signaturePath = "";
+      if (signatureFile && landlordUuid) {
+        signaturePath = await api.uploadSignature(landlordUuid, signatureFile);
+      }
+      await api.completeSetup({
+        landlord: { ...profile, signature_image: signaturePath },
+        properties: validProps,
+      });
+      setSetupState(true, false);
+      toast.success("Setup complete", { description: "Welcome to PROPAURA. You can manage properties any time from Settings." });
+      await refreshMe();
+      navigate(destinations.home, { replace: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to complete setup. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCompleteLater = async () => {
+    setError("");
+    setSaving(true);
+    try {
+      await api.skipSetup();
+      setSetupState(false, true);
+      toast.success("You can complete setup later from Settings.");
+      await refreshMe();
+      navigate(destinations.home, { replace: true });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to skip setup. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-8 px-4">
+        <div className="max-w-2xl mx-auto space-y-6">
+          <Card className="shadow-xl">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center justify-center mb-4">
+                <div className="p-3 bg-primary/10 rounded-full">
+                  <Building2 className="h-8 w-8 text-primary" />
+                </div>
+              </div>
+              <CardTitle className="text-2xl text-center">Welcome to PROPAURA</CardTitle>
+              <CardDescription className="text-center">
+                Let us set up your account. Add your details and properties so billing is ready to use.
+              </CardDescription>
+
+              {/* Step indicator */}
+              <div className="flex items-center justify-center gap-2 pt-4">
+                {STEPS.map((s, i) => (
+                  <div key={s.key} className="flex items-center gap-2">
+                    {i > 0 && <div className={`h-px w-6 ${i <= step ? "bg-primary" : "bg-muted"}`} />}
+                    <div
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                        i === step
+                          ? "bg-primary text-primary-foreground"
+                          : i < step
+                            ? "bg-primary/15 text-primary"
+                            : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {i < step ? (
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                      ) : (
+                        <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                      )}
+                      {s.label}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              {step === 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <UserRound className="h-5 w-5 text-primary" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                      Your details
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="setup-name">Landlord name</Label>
+                      <Input
+                        id="setup-name"
+                        value={profile.name}
+                        onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                        placeholder="e.g. Ramesh Kumar"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-phone">Phone</Label>
+                      <Input
+                        id="setup-phone"
+                        value={profile.phone}
+                        onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                        placeholder="+91 98765 43210"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-email">Email</Label>
+                      <Input
+                        id="setup-email"
+                        type="email"
+                        value={profile.email}
+                        onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                        placeholder="you@example.com"
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="setup-address">Address</Label>
+                      <Input
+                        id="setup-address"
+                        value={profile.address}
+                        onChange={(e) => setProfile({ ...profile, address: e.target.value })}
+                        placeholder="This address prints on your rent receipts"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {step === 1 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-primary" />
+                      <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                        Properties
+                      </h3>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={addProperty}>
+                      <Plus className="h-4 w-4 mr-1" /> Add property
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground -mt-2">
+                    You can have one or more properties, each with its own tenants. Add more later from Settings.
+                  </p>
+
+                  <div className="space-y-4">
+                    {properties.map((p, index) => (
+                      <div key={index} className="rounded-md border p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-2">
+                          <Label className="text-xs font-medium text-muted-foreground">
+                            {p.property_name || defaultName(index)}
+                          </Label>
+                          {properties.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                              onClick={() => removeProperty(index)}
+                              aria-label={`Remove ${p.property_name || defaultName(index)}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`prop-name-${index}`} className="text-xs">Property name</Label>
+                            <Input
+                              id={`prop-name-${index}`}
+                              value={p.property_name}
+                              onChange={(e) => updateProperty(index, { property_name: e.target.value })}
+                              placeholder={defaultName(index)}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`prop-address-${index}`} className="text-xs">Address</Label>
+                            <Input
+                              id={`prop-address-${index}`}
+                              value={p.address}
+                              onChange={(e) => updateProperty(index, { address: e.target.value })}
+                              placeholder="Property address (optional)"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {step === 2 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <PenLine className="h-5 w-5 text-primary" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                      Digital Signature
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground -mt-2">
+                    Optional — your signature prints on rent receipts. You can add it later from Settings.
+                  </p>
+
+                  <div
+                    className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors flex flex-col items-center justify-center gap-2"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      handleSignatureFile(e.dataTransfer.files?.[0] ?? null);
+                    }}
+                    onClick={() => document.getElementById("signature-upload")?.click()}
+                  >
+                    {signaturePreview ? (
+                      <img
+                        src={signaturePreview}
+                        alt="Signature Preview"
+                        className="max-h-24 object-contain mb-2 border rounded p-1 bg-white"
+                      />
+                    ) : (
+                      <Upload className="h-8 w-8 mx-auto mb-2 text-primary" />
+                    )}
+                    <h6 className="font-bold">
+                      <label htmlFor="signature-upload" className="cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                        {signatureFile ? signatureFile.name : "Drag & Drop Signature or Click"}
+                      </label>
+                    </h6>
+                    <p className="text-xs text-muted-foreground mt-1">Accepted: PNG, JPG, WEBP. Max size: 2MB.</p>
+                    <input
+                      id="signature-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => handleSignatureFile(e.target.files?.[0] ?? null)}
+                    />
+                  </div>
+                  {signatureFile && (
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleSignatureFile(null)}
+                      >
+                        Remove signature
+                      </Button>
+                    </div>
+                  )}
+
+                  <Separator />
+
+                  <div className="rounded-md border bg-muted/30 p-4 space-y-1.5">
+                    <p className="text-sm font-semibold">Review</p>
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">{profile.name || "Landlord"}</span>
+                      {profile.phone && ` · ${profile.phone}`}
+                      {profile.email && ` · ${profile.email}`}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {properties.map((p, i) => p.property_name.trim() || defaultName(i)).join(", ")}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3 pt-2">
+                <div className="flex gap-3">
+                  {step > 0 && (
+                    <Button variant="outline" className="flex-1" onClick={() => setStep((s) => Math.max(s - 1, 0))} disabled={saving}>
+                      <ChevronLeft className="h-4 w-4 mr-1" /> Back
+                    </Button>
+                  )}
+                  {step < STEPS.length - 1 ? (
+                    <Button className="flex-1" onClick={nextStep} disabled={saving}>
+                      Continue <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  ) : (
+                    <Button className="flex-1" onClick={handleComplete} disabled={saving}>
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      {saving ? "Saving…" : "Save & Continue"}
+                    </Button>
+                  )}
+                </div>
+                <Button variant="ghost" className="w-full" onClick={handleCompleteLater} disabled={saving}>
+                  Complete Later
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">
+                  You can set up your properties later from{" "}
+                  <button
+                    className="underline underline-offset-2 text-primary"
+                    onClick={() => navigate(destinations.settings)}
+                  >
+                    Settings
+                  </button>
+                  .
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+      {saving && <LoadingOverlay label="Saving your setup…" />}
+    </>
+  );
+}
+```
+
 ### `frontend/landlord-app/src/pages/Tenants.tsx`
 
 ```typescript
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
+import { BrandWave } from '@shared/loading/BrandWave';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39834,7 +43494,7 @@ import { API_BASE } from '@/services/base';
 import { getPublicAppUrl } from '@shared/api-config';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
-import type { Tenant } from '@/types';
+import type { Tenant, Property } from '@/types';
 import BillsModal, { type TenantBill } from '@/components/modals/BillsModal';
 import OccupantsModal from '@/components/modals/OccupantsModal';
 import { exportExcel, downloadBlob } from '@/components/modals/ExportService';
@@ -39878,7 +43538,8 @@ function formatDisplayDate(date = new Date()) {
 }
 
 function buildTenantUrl(landlordUuid: string, tenant: Tenant): string {
-  const base = `${getPublicAppUrl()}/rent/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
+  const propertyId = tenant.propertyId ?? 0;
+  const base = `${getPublicAppUrl()}/rent/${landlordUuid}/t/${propertyId}/${tenant.id}/${tenant.viewToken}`;
   return tenant.qr_key ? `${base}?qr_key=${encodeURIComponent(tenant.qr_key)}` : base;
 }
 
@@ -40123,6 +43784,7 @@ function printHtmlInSameWindow(html: string) {
 export default function Tenants() {
   const { landlordUuid } = useAuth();
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [showAdd, setShowAdd] = useState(false);
@@ -40269,7 +43931,12 @@ export default function Tenants() {
   };
 
   useEffect(() => {
-    if (landlordUuid) loadTenants();
+    if (!landlordUuid) return;
+    loadTenants();
+    api
+      .getProperties(landlordUuid)
+      .then(setProperties)
+      .catch(() => setProperties([]));
   }, [landlordUuid]);
 
   const filtered = tenants.filter(
@@ -40293,7 +43960,7 @@ export default function Tenants() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        <BrandWave stacked label="Loading tenants…" />
       </div>
     );
   }
@@ -40324,6 +43991,7 @@ export default function Tenants() {
                 <DialogTitle>Add New Tenant</DialogTitle>
               </DialogHeader>
               <TenantForm
+                properties={properties}
                 onSave={async (data) => {
                   try {
                     await api.addTenant(landlordUuid!, data as any);
@@ -40397,6 +44065,7 @@ export default function Tenants() {
           {editingTenant && (
             <TenantForm
               tenant={editingTenant}
+              properties={properties}
               onSave={async (data) => {
                 if (!editingTenant.id) return;
                 try {
@@ -40830,11 +44499,13 @@ function TenantCard({
 
 function TenantForm({
   tenant,
+  properties,
   onSave,
   onChangePin,
   onSavePortalAuth,
 }: {
   tenant?: Tenant | null;
+  properties?: Property[];
   onSave: (data: Record<string, unknown>) => void;
   onChangePin?: (pin: string) => Promise<void>;
   onSavePortalAuth?: (data: { tenantUsername?: string; temporaryPassword?: string; resetRequired?: boolean }) => Promise<void>;
@@ -40855,6 +44526,7 @@ function TenantForm({
     address: tenant?.address || '',
     roomNumber: tenant?.roomNumber || '',
     meterId: tenant?.meterId || '',
+    propertyId: tenant?.propertyId ?? (properties && properties.length === 1 ? (properties[0].id as number) : ''),
     rent: tenant?.rent || 8000,
     water: tenant?.water || 500,
     electricityRate: tenant?.electricityRate || 15,
@@ -40867,7 +44539,14 @@ function TenantForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(form);
+    const { propertyId, ...rest } = form;
+    onSave({
+      ...rest,
+      property_id:
+        propertyId === '' || propertyId === 'none' || propertyId === null || propertyId === undefined
+          ? null
+          : Number(propertyId),
+    });
   };
 
   const handleSavePortalAuth = async () => {
@@ -40915,6 +44594,28 @@ function TenantForm({
         <Label>Address</Label>
         <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
       </div>
+
+      {properties && properties.length > 0 && (
+        <div className="space-y-2">
+          <Label>Property</Label>
+          <Select
+            value={form.propertyId === '' || form.propertyId === undefined || form.propertyId === null ? 'none' : String(form.propertyId)}
+            onValueChange={(val) => setForm({ ...form, propertyId: val === 'none' ? '' : val })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select property" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No property</SelectItem>
+              {properties.map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.property_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-3">
         <div className="space-y-2">
@@ -41131,7 +44832,7 @@ function TenantForm({
 ### `frontend/landlord-app/src/services/api.ts`
 
 ```typescript
-import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult } from "@/types";
+import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig } from "@/types";
 import { ROUTES } from "@/lib/routes";
 
 export type ArchiveDataResponse = {
@@ -41625,6 +45326,87 @@ export const api = {
     if (!res.ok) throw new Error("Failed to fetch action types");
     return res.json();
   },
+
+  // Setup wizard
+  getSetupRequired: async (): Promise<{ required: boolean; setupCompleted: boolean; setupSkipped: boolean; propertyCount: number }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPISETUPREQUIRED);
+    if (!res.ok) throw new Error("Failed to fetch setup status");
+    return res.json();
+  },
+
+  completeSetup: async (payload: { skip?: boolean; landlord?: Partial<PropertyConfig>; properties?: { property_name: string; address?: string }[] }): Promise<{ status: string; setupCompleted?: boolean; skipped?: boolean }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPISETUPCREATE, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to complete setup");
+    return data;
+  },
+
+  skipSetup: async (): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPISETUPSKIP, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to skip setup");
+    return data;
+  },
+
+  uploadSignature: async (landlordUuid: string, file: File): Promise<string> => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid), {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Signature upload failed");
+    return data.path as string;
+  },
+
+  // Properties
+  getProperties: async (landlordUuid: string): Promise<Property[]> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROPERTIESLIST(landlordUuid));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to fetch properties");
+    return data.properties ?? [];
+  },
+
+  createProperty: async (landlordUuid: string, property: { property_name: string; address?: string }): Promise<{ status: string; property: Property }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROPERTIESCREATE(landlordUuid), {
+      method: "POST",
+      body: JSON.stringify(property),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to create property");
+    return data;
+  },
+
+  updateProperty: async (landlordUuid: string, propertyId: number, property: { property_name?: string; address?: string }): Promise<{ status: string; property: Property }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROPERTIESUPDATE(landlordUuid, propertyId), {
+      method: "PUT",
+      body: JSON.stringify(property),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to update property");
+    return data;
+  },
+
+  deleteProperty: async (landlordUuid: string, propertyId: number): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROPERTIESDELETE(landlordUuid, propertyId), {
+      method: "DELETE",
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to delete property");
+    return data;
+  },
+
+  getPropertyTenants: async (landlordUuid: string, propertyId: number): Promise<Tenant[]> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROPERTIESTENANTS(landlordUuid, propertyId));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to fetch property tenants");
+    return data.tenants ?? [];
+  },
 };
 ```
 
@@ -41698,6 +45480,7 @@ export interface Tenant {
   qr_key?: string;
   tenantUsername?: string;
   arrears: number;
+  propertyId?: number | null;
 }
 
 export interface Receipt {
@@ -41986,6 +45769,18 @@ export interface LandlordConfig {
   signature_image: string;
 }
 
+export interface Property {
+  id: number;
+  landlord_id?: number;
+  property_name: string;
+  address?: string;
+  sort_order?: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type PropertyConfig = Partial<LandlordConfig>;
+
 export interface WhatsappConfig {
   enabled?: boolean;
   single_template: {
@@ -42133,6 +45928,18 @@ export interface PermanentDeleteResult {
       ],
       "@shared/*": [
         "../shared/*"
+      ],
+      "react": [
+        "./node_modules/@types/react"
+      ],
+      "react/*": [
+        "./node_modules/@types/react/*"
+      ],
+      "react-dom": [
+        "./node_modules/@types/react-dom"
+      ],
+      "react-dom/*": [
+        "./node_modules/@types/react-dom/*"
       ]
     },
     /* Bundler mode */
@@ -42227,6 +46034,8 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@shared": path.resolve(__dirname, "../shared"),
+      react: path.resolve(__dirname, "node_modules/react"),
+      "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
     },
   },
   build: {
@@ -42328,6 +46137,202 @@ export function getApiUrl(path: string): string {
 }
 ```
 
+### `frontend/shared/loading/BrandLoading.css`
+
+```css
+/* PROPAURA brand loading — single source of truth for all frontend apps. */
+
+/* Full-screen splash overlay */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  background: #0b1120;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.loading-screen.loading-fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Form-submit overlay — translucent veil, wave centered on screen */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 17, 32, 0.85);
+  backdrop-filter: blur(2px);
+}
+
+/* PROPAURA letter-wave wordmark */
+.loading-letters {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 800;
+  letter-spacing: 3px;
+  line-height: 1;
+}
+
+.loading-letters span {
+  animation: letter-wave 1.8s ease-in-out infinite;
+}
+
+.loading-letters--lg {
+  font-size: 48px;
+}
+
+.loading-letters--md {
+  font-size: 16px;
+}
+
+.loading-letters--sm {
+  font-size: 13px;
+}
+
+@keyframes letter-wave {
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: translateY(4px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* BrandWave composition */
+.brand-wave {
+  display: inline-flex;
+}
+
+.brand-wave--stacked {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-wave--row {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-wave-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: #6b7280;
+}
+```
+
+### `frontend/shared/loading/BrandWave.tsx`
+
+```typescript
+import "./BrandLoading.css";
+
+export type BrandWaveSize = "sm" | "md" | "lg";
+
+interface BrandWaveProps {
+  label?: string;
+  size?: BrandWaveSize;
+  stacked?: boolean;
+  className?: string;
+}
+
+const BRAND = "PROPAURA";
+
+export function BrandWave({ label, size = "md", stacked = false, className = "" }: BrandWaveProps) {
+  const sizeClass =
+    size === "lg" ? "loading-letters--lg" : size === "sm" ? "loading-letters--sm" : "loading-letters--md";
+  return (
+    <span
+      className={`brand-wave ${stacked ? "brand-wave--stacked" : "brand-wave--row"} ${className}`}
+      role="status"
+      aria-label="PROPAURA loading"
+    >
+      <span className={`loading-letters ${sizeClass}`}>
+        {BRAND.split("").map((ch, i) => (
+          <span
+            key={i}
+            style={{
+              color: i < 4 ? "#708498" : "#95A58F",
+              animationDelay: `${i * 0.12}s`,
+            }}
+          >
+            {ch}
+          </span>
+        ))}
+      </span>
+      {label && <span className="brand-wave-label">{label}</span>}
+    </span>
+  );
+}
+
+export default BrandWave;
+```
+
+### `frontend/shared/loading/LoadingOverlay.tsx`
+
+```typescript
+import BrandWave from "./BrandWave";
+
+interface LoadingOverlayProps {
+  label: string;
+}
+
+export default function LoadingOverlay({ label }: LoadingOverlayProps) {
+  return (
+    <div className="loading-overlay" role="status">
+      <BrandWave size="lg" stacked label={label} />
+    </div>
+  );
+}
+```
+
+### `frontend/shared/loading/LoadingScreen.tsx`
+
+```typescript
+import { useState, useEffect } from "react";
+import BrandWave from "./BrandWave";
+
+interface LoadingScreenProps {
+  isLoading: boolean;
+}
+
+export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
+  const [visible, setVisible] = useState(true);
+  const [fading, setFading] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading && visible) {
+      setFading(true);
+      const timer = setTimeout(() => setVisible(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isLoading, visible]);
+
+  if (!visible) return null;
+
+  return (
+    <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
+      <BrandWave size="lg" />
+    </div>
+  );
+}
+```
+
 ### `frontend/tenant-app/package.json`
 
 ```json
@@ -42383,6 +46388,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { tenantApi } from "@/lib/api";
+import { BrandWave } from "@shared/loading/BrandWave";
 import { Shield } from "lucide-react";
 
 const ACTION_COLORS: Record<string, { bg: string; fg: string }> = {
@@ -42424,7 +46430,7 @@ export default function ActivityLog() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary" />
+        <BrandWave stacked label="Loading…" />
       </div>
     );
   }
@@ -42820,42 +46826,6 @@ export default class ErrorBoundary extends Component<Props, State> {
 }
 ```
 
-### `frontend/tenant-app/src/components/LoadingScreen.tsx`
-
-```typescript
-import { useState, useEffect } from "react";
-import "./LoadingScreen.css";
-
-interface LoadingScreenProps {
-  isLoading: boolean;
-}
-
-export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
-  const [visible, setVisible] = useState(true);
-  const [fading, setFading] = useState(false);
-
-  useEffect(() => {
-    if (!isLoading && visible) {
-      setFading(true);
-      const timer = setTimeout(() => setVisible(false), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading, visible]);
-
-  if (!visible) return null;
-
-  return (
-    <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
-      <div className="loading-brand">
-        <span className="loading-prop">PROP</span>
-        <span className="loading-aura">AURA</span>
-      </div>
-      <div className="loading-spinner" />
-    </div>
-  );
-}
-```
-
 ### `frontend/tenant-app/src/components/OccupantCard.tsx`
 
 ```typescript
@@ -43134,8 +47104,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
 import { tenantApi } from "@/lib/api";
+import { BrandWave } from "@shared/loading/BrandWave";
 
 export interface OccupantKycUploadDialogProps {
   open: boolean;
@@ -43281,8 +47251,7 @@ export function OccupantKycUploadDialog({
           
           <div className="flex gap-2 pt-2">
             <Button type="submit" className="flex-1" disabled={submitting}>
-              {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Upload
+              {submitting ? <BrandWave size="sm" label="Uploading…" /> : "Upload"}
             </Button>
             <Button type="button" variant="outline" className="flex-1" disabled={submitting} onClick={() => onOpenChange(false)}>
               Cancel
@@ -43782,9 +47751,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { FileText, Download, Loader2, X } from "lucide-react";
+import { FileText, Download, X } from "lucide-react";
 import { toast } from "sonner";
 import { tenantApi } from "@/lib/api";
+import { BrandWave } from "@shared/loading/BrandWave";
 
 interface PdfPreviewModalProps {
   billNo: string;
@@ -43908,8 +47878,7 @@ export default function PdfPreviewModal({
         <div className="flex-1 min-h-0 bg-muted relative">
           {loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading PDF preview...</p>
+              <BrandWave stacked label="Loading PDF preview..." />
             </div>
           )}
 
@@ -45113,6 +49082,7 @@ import type { PortalResponse, Receipt, Occupant } from "@/types";
 
 type TenantContextType = {
   landlordUuid: string;
+  propertyId: string;
   tenantId: string;
   viewToken: string;
   profile: PortalResponse | undefined;
@@ -45129,7 +49099,7 @@ type TenantContextType = {
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const { landlordUuid, tenantId, viewToken } = getTenantRuntime();
+  const { landlordUuid, propertyId, tenantId, viewToken } = getTenantRuntime();
   const queryClient = useQueryClient();
 
   const { data, isLoading, refetch } = useQuery<PortalResponse>({
@@ -45166,6 +49136,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       landlordUuid: landlordUuid!,
+      propertyId: propertyId!,
       tenantId: tenantId!,
       viewToken: viewToken!,
       profile: data,
@@ -45180,6 +49151,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }),
     [
       landlordUuid,
+      propertyId,
       tenantId,
       viewToken,
       data,
@@ -45587,6 +49559,7 @@ const APP_BASE = (import.meta.env.VITE_APP_BASE_PATH || "/rent").replace(/\/+$/,
 export type TenantRuntime = {
   appBase: string;
   landlordUuid: string | null;
+  propertyId: string | null;
   tenantId: string | null;
   viewToken: string | null;
   tenantBase: string;
@@ -45597,18 +49570,22 @@ export function getTenantRuntime(pathname = window.location.pathname): TenantRun
   const appBase = APP_BASE === "/" ? "" : APP_BASE;
 
   const escapedBase = appBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`^${escapedBase}/([^/]+)/t/([^/]+)/([^/]+)`);
+  const re = new RegExp(`^${escapedBase}/([^/]+)/t/([^/]+)/([^/]+)/([^/]+)`);
   const match = cleanPath.match(re);
 
   const landlordUuid = match?.[1] ?? null;
-  const tenantId = match?.[2] ?? null;
-  const viewToken = match?.[3] ?? null;
+  const propertyId = match?.[2] ?? null;
+  const tenantId = match?.[3] ?? null;
+  const viewToken = match?.[4] ?? null;
   const tenantBase =
-    landlordUuid && tenantId && viewToken ? `${appBase}/${landlordUuid}/t/${tenantId}/${viewToken}` : `${appBase}/t`;
+    landlordUuid && propertyId && tenantId && viewToken
+      ? `${appBase}/${landlordUuid}/t/${propertyId}/${tenantId}/${viewToken}`
+      : `${appBase}/t`;
 
   return {
     appBase: appBase || "/",
     landlordUuid,
+    propertyId,
     tenantId,
     viewToken,
     tenantBase,
@@ -45732,6 +49709,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "@/components/AuthLayout";
+import LoadingOverlay from "@shared/loading/LoadingOverlay";
 import {
   portalLogin,
   forgotTenantPassword,
@@ -45859,7 +49837,8 @@ export default function PortalLoginPage() {
   };
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <Card className="w-full max-w-md rounded-3xl border shadow-xl">
         <CardContent className="p-8">
           {view === "login" && (
@@ -45938,8 +49917,7 @@ export default function PortalLoginPage() {
                   disabled={loading || !username.trim() || !password}
                   className="w-full h-12 rounded-2xl text-base"
                 >
-                  {loading ? "Signing in…" : "Sign In"}
-                  {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
+                  Sign In <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </form>
 
@@ -46008,7 +49986,7 @@ export default function PortalLoginPage() {
                   disabled={loading || !username.trim()}
                   className="w-full h-12 rounded-2xl text-base"
                 >
-                  {loading ? "Submitting…" : "Request Reset"}
+                  Request Reset
                 </Button>
 
                 <Button
@@ -46095,7 +50073,7 @@ export default function PortalLoginPage() {
                   disabled={loading || !password || newPassword.length < 8}
                   className="w-full h-12 rounded-2xl text-base"
                 >
-                  {loading ? "Updating…" : "Update Password"}
+                  Update Password
                 </Button>
               </form>
             </>
@@ -46107,7 +50085,13 @@ export default function PortalLoginPage() {
           </p>
         </CardContent>
       </Card>
-    </AuthLayout>
+      </AuthLayout>
+      {loading && (
+        <LoadingOverlay
+          label={view === "login" ? "Signing in…" : view === "forgot" ? "Submitting…" : "Updating…"}
+        />
+      )}
+    </>
   );
 }
 ```
@@ -46123,6 +50107,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "@/components/AuthLayout";
+import LoadingOverlay from "@shared/loading/LoadingOverlay";
 import { qrLoginByPin } from "@/lib/login-api";
 import type { QrTenantProfile } from "@/types";
 
@@ -46156,7 +50141,8 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
   };
 
   return (
-    <AuthLayout>
+    <>
+      <AuthLayout>
       <Card className="w-full max-w-md rounded-3xl border shadow-xl">
         <CardContent className="p-8">
           <div className="text-center mb-6">
@@ -46219,8 +50205,7 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
               disabled={loading || pin.length !== 4}
               className="w-full h-12 rounded-2xl text-base"
             >
-              {loading ? "Unlocking…" : "Unlock Portal"}
-              {!loading && <ArrowRight className="w-4 h-4 ml-2" />}
+              Unlock Portal <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </form>
 
@@ -46244,7 +50229,9 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
           </div>
         </CardContent>
       </Card>
-    </AuthLayout>
+      </AuthLayout>
+      {loading && <LoadingOverlay label="Unlocking…" />}
+    </>
   );
 }
 ```
@@ -46256,6 +50243,7 @@ export interface TenantProfile {
   id: number;
   name: string;
   viewToken: string;
+  propertyId?: number | null;
   unlocked: boolean;
   readOnly?: boolean;
   phone?: string;
@@ -46326,6 +50314,7 @@ export interface QrTenantProfile {
   id: number;
   name: string;
   viewToken: string;
+  propertyId?: number | null;
   unlocked: boolean;
   readOnly: boolean;
 }
@@ -46343,6 +50332,7 @@ export interface PortalLoginResponse {
     id: number;
     name: string;
     landlord_uuid: string;
+    property_id: number | null;
     view_token: string;
   };
   redirect_url: string | null;
@@ -46367,7 +50357,14 @@ export interface ApiError {
     "module": "esnext",
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
-    "skipLibCheck": true,  "paths": { "@/*": ["./src/*"], "@shared/*": ["../shared/*"] },
+    "skipLibCheck": true,  "paths": {
+      "@/*": ["./src/*"],
+      "@shared/*": ["../shared/*"],
+      "react": ["./node_modules/@types/react"],
+      "react/*": ["./node_modules/@types/react/*"],
+      "react-dom": ["./node_modules/@types/react-dom"],
+      "react-dom/*": ["./node_modules/@types/react-dom/*"]
+    },
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -46444,6 +50441,8 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@shared': path.resolve(__dirname, '../shared'),
+      react: path.resolve(__dirname, 'node_modules/react'),
+      'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
     },
   },
   build: {
@@ -46546,6 +50545,7 @@ http {
 
         include /etc/nginx/routes/api.conf;
         include /etc/nginx/routes/tenant-api.conf;
+        include /etc/nginx/routes/vks.conf;
         include /etc/nginx/routes/redirect.conf;
 
         # Bare API domain → the public frontend app

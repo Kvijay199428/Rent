@@ -56,3 +56,4 @@ scratch/
 output/
 *.zip
 .gstack/
+.opencode/

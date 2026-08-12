@@ -10,12 +10,13 @@ def _tenant_cookie_paths(request: Request | None):
 
     params = request.path_params or {}
     landlordUuid = params.get("landlordUuid")
+    property_id = params.get("propertyId")
     tenant_id = params.get("tenantId")
     view_token = params.get("viewToken")
 
-    # Canonical: /{landlordUuid}/t/{tenantId}/{viewToken}
-    if landlordUuid and tenant_id and view_token:
-        base = f"{rootpath}/{landlordUuid}/t/{tenant_id}/{view_token}".rstrip("/")
+    # Canonical: /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}
+    if landlordUuid and property_id and tenant_id and view_token:
+        base = f"{rootpath}/{landlordUuid}/t/{property_id}/{tenant_id}/{view_token}".rstrip("/")
         return base, f"{base}/api/auth"
     access_path = rootpath if rootpath else "/"
     refresh_path = f"{rootpath}/api/auth" if rootpath else "/api/auth"

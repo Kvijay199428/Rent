@@ -2,7 +2,18 @@
 from jose import jwt
 from datetime import datetime, timedelta
 
-ADMIN_JWT_SECRET = os.environ.get("ADMIN_JWT_SECRET", "REPLACE_WITH_ADMIN_SECURE_RANDOM_KEY")
+
+def _require_secret(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(
+            f"{name} environment variable is required and must not be empty. "
+            "Refusing to start with a fallback/guessable signing secret."
+        )
+    return value
+
+
+ADMIN_JWT_SECRET = _require_secret("ADMIN_JWT_SECRET")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 

@@ -19,9 +19,14 @@ def _is_browser_navigation(request: Request) -> bool:
 
 
 def _tenant_redirect_url(request: Request) -> str:
-    viewToken = request.path_params.get("viewToken")
-    if viewToken:
-        return str(request.url_for("public_tenant_profile_get", viewToken=viewToken))
+    params = request.path_params or {}
+    root = (request.scope.get("root_path") or "").rstrip("/")
+    landlordUuid = params.get("landlordUuid")
+    property_id = params.get("propertyId")
+    tenant_id = params.get("tenantId")
+    view_token = params.get("viewToken")
+    if landlordUuid and property_id and tenant_id and view_token:
+        return f"{root}/{landlordUuid}/t/{property_id}/{tenant_id}/{view_token}"
 
     referer = request.headers.get("referer")
     if referer:

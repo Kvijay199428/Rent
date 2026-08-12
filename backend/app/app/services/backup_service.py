@@ -124,7 +124,7 @@ def create_metadata(backupId, backup_type, timestamp_str):
     schema_conf = config.get("schema", {})
     ui_conf = config.get("ui", {})
     r_count, arc_count, t_count, it_count, p_count = get_db_stats()
-    
+
     # Get tenant snapshot for restore point identification
     tenant_snapshot = []
     try:
@@ -142,7 +142,7 @@ def create_metadata(backupId, backup_type, timestamp_str):
         ]
     except Exception:
         pass
-    
+
     metadata = {
         "id": backupId,
         "type": backup_type,
@@ -170,10 +170,79 @@ def create_metadata(backupId, backup_type, timestamp_str):
     }
     return metadata
 
-def create_backup(type_="Manual", subtype="manual", tag=""):
+def _stage_landlord_export(landlord_id: int, temp_dir: str):
+    """Stage a per-landlord export (NO global DB, NO other landlords, NO
+    PIN/password vaults). Writes data/tenants.json, data/receipts.json,
+    data/occupants.json, config/landlord_config.json, receipts/*.pdf and
+    signature/*.png."""
+    import shutil as _shutil
+
+    from app.core.db import get_conn
+    from app.services.landlord_config_service import get_effective_landlord_config
+
+    data_dir = os.path.join(temp_dir, "data")
+    config_dir = os.path.join(temp_dir, "config")
+    receipts_zip_dir = os.path.join(temp_dir, "receipts")
+    signature_dir = os.path.join(temp_dir, "signature")
+    os.makedirs(data_dir, exist_ok=True)
+    os.makedirs(config_dir, exist_ok=True)
+    os.makedirs(receipts_zip_dir, exist_ok=True)
+    os.makedirs(signature_dir, exist_ok=True)
+
+    with get_conn() as conn:
+        tenants = [dict(r) for r in conn.execute(
+            "SELECT * FROM tenants WHERE landlord_id = ?", (landlord_id,)
+        ).fetchall()]
+        receipts = [dict(r) for r in conn.execute(
+            "SELECT * FROM receipts WHERE landlord_id = ?", (landlord_id,)
+        ).fetchall()]
+        occupants = [dict(r) for r in conn.execute(
+            "SELECT * FROM occupants WHERE landlord_id = ?", (landlord_id,)
+        ).fetchall()]
+
+    with open(os.path.join(data_dir, "tenants.json"), "w", encoding="utf-8") as f:
+        json.dump(tenants, f, indent=4, default=str)
+    with open(os.path.join(data_dir, "receipts.json"), "w", encoding="utf-8") as f:
+        json.dump(receipts, f, indent=4, default=str)
+    with open(os.path.join(data_dir, "occupants.json"), "w", encoding="utf-8") as f:
+        json.dump(occupants, f, indent=4, default=str)
+
+    try:
+        landlord_conf = get_effective_landlord_config(landlord_id)
+        with open(os.path.join(config_dir, "landlord_config.json"), "w", encoding="utf-8") as f:
+            json.dump(landlord_conf, f, indent=4, default=str)
+    except Exception:
+        pass
+
+    pdf_names = set()
+    for r in receipts:
+        pdf = (r.get("pdf") or "").strip()
+        if pdf:
+            pdf_names.add(os.path.basename(pdf))
+    for pdf in sorted(pdf_names):
+        src = os.path.join(RECEIPTS_DIR, pdf)
+        if os.path.exists(src):
+            _shutil.copy2(src, os.path.join(receipts_zip_dir, pdf))
+
+    signature_file = os.path.join(UPLOADS_DIR, f"{landlord_id}_signature_flattened.png")
+    if os.path.exists(signature_file):
+        _shutil.copy2(signature_file, os.path.join(signature_dir, "signature_flattened.png"))
+
+    return {
+        "tenant_count": len(tenants),
+        "receipt_count": len(receipts),
+        "occupant_count": len(occupants),
+        "pdf_count": len(pdf_names),
+    }
+
+
+def create_backup(type_="Manual", subtype="manual", tag="", landlord_id=None):
     """
     type_: 'Manual', 'Automatic', 'Restore Point', 'Emergency'
     subtype: 'manual', 'daily', 'weekly', 'monthly', 'before_edit', etc.
+    landlord_id: when set, produces a per-landlord export (no global DB, no
+    PIN/password vaults, no other landlords). When None, produces the full
+    system backup (platform-admin scope).
     """
     start_time = datetime.now()
     timestamp = start_time.strftime("%Y%m%d_%H%M%S")
@@ -202,10 +271,14 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
     os.makedirs(temp_dir, exist_ok=True)
     
     try:
-        # Copy dirs mapping real paths to internal zip structure
-        for real_path, legacy_name in DIR_MAPPING.items():
-            if os.path.exists(real_path):
-                shutil.copytree(real_path, os.path.join(temp_dir, legacy_name))
+        if landlord_id is not None:
+            counts = _stage_landlord_export(landlord_id, temp_dir)
+        else:
+            # Full system backup — includes the complete DB (platform-admin scope)
+            for real_path, legacy_name in DIR_MAPPING.items():
+                if os.path.exists(real_path):
+                    shutil.copytree(real_path, os.path.join(temp_dir, legacy_name))
+            counts = None
                 
         # Generate manifest & metadata
         manifest = create_manifest(backupId, type_, timestamp_iso)
@@ -213,6 +286,25 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
             json.dump(manifest, f, indent=4)
             
         metadata = create_metadata(backupId, type_, timestamp_iso)
+        metadata["scope"] = "landlord" if landlord_id is not None else "system"
+        if landlord_id is not None:
+            metadata["landlord_id"] = landlord_id
+            metadata["created_by"] = f"Landlord {landlord_id}"
+            metadata["tenant_count"] = counts["tenant_count"]
+            metadata["receipt_count"] = counts["receipt_count"]
+            metadata["inactive_tenant_count"] = 0
+            metadata["archived_receipt_count"] = 0
+            metadata["pdf_count"] = counts["pdf_count"]
+            metadata["tenant_snapshot"] = [
+                {
+                    "id": t.get("id"),
+                    "name": t.get("name"),
+                    "status": t.get("status"),
+                    "phone": t.get("phone"),
+                    "roomNumber": t.get("roomnumber") or t.get("roomNumber"),
+                }
+                for t in _landlord_tenants(landlord_id)
+            ]
         if tag:
             metadata["notes"] = tag
             
@@ -250,13 +342,23 @@ def create_backup(type_="Manual", subtype="manual", tag=""):
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir, ignore_errors=True)
 
-def create_full_backup(tag="auto"):
+
+def _landlord_tenants(landlord_id: int) -> list:
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT id, name, status, phone, roomnumber FROM tenants WHERE landlord_id = ?",
+            (landlord_id,),
+        ).fetchall()]
+
+
+def create_full_backup(tag="auto", landlord_id=None):
     if tag == "auto" or not tag:
-        return create_backup(type_="Automatic", subtype="daily")
+        return create_backup(type_="Automatic", subtype="daily", landlord_id=landlord_id)
     elif tag.startswith("settings_change"):
-        return create_backup(type_="Restore Point", subtype="before_settings", tag="Settings Change")
+        return create_backup(type_="Restore Point", subtype="before_settings", tag="Settings Change", landlord_id=landlord_id)
     elif tag.startswith("restore_bill"):
-        return create_backup(type_="Restore Point", subtype="before_restore", tag="Receipt Restore")
+        return create_backup(type_="Restore Point", subtype="before_restore", tag="Receipt Restore", landlord_id=landlord_id)
     elif tag.startswith("add_tenant") or tag.startswith("update_tenant") or tag.startswith("delete_tenant"):
         return None
     else:
@@ -264,6 +366,23 @@ def create_full_backup(tag="auto"):
 
 def get_all_backups():
     return load_registry()
+
+def get_backup_by_id(backupId):
+    registry = load_registry()
+    return next((b for b in registry["backups"] if b["id"] == backupId), None)
+
+def get_backups_for_landlord(landlord_id):
+    """Only backups scoped to this landlord (global/system backups are
+    platform-admin-only and never visible to a landlord)."""
+    registry = load_registry()
+    return {
+        "version": registry.get("version", 1),
+        "backups": [b for b in registry["backups"] if b.get("landlord_id") == landlord_id],
+    }
+
+def backup_owned_by(backupId, landlord_id) -> bool:
+    meta = get_backup_by_id(backupId)
+    return bool(meta and meta.get("scope") == "landlord" and meta.get("landlord_id") == landlord_id)
 
 def verify_backup_integrity(backupId):
     registry = load_registry()
@@ -280,6 +399,21 @@ def verify_backup_integrity(backupId):
         raise Exception("Backup ZIP checksum mismatch (corrupted)")
         
     return True
+
+def delete_backup(backupId):
+    registry = load_registry()
+    for i, b in enumerate(registry["backups"]):
+        if b["id"] == backupId:
+            abs_path = os.path.join(BACKUP_DIR, b["path"])
+            if os.path.exists(abs_path):
+                try:
+                    os.remove(abs_path)
+                except:
+                    pass
+            registry["backups"].pop(i)
+            save_registry(registry)
+            return True
+    return False
 
 def restore_backup(backupId):
     start_time = datetime.now()
@@ -326,19 +460,4 @@ def restore_backup(backupId):
         duration = int((datetime.now() - start_time).total_seconds() * 1000)
         _log("Restore", "Full", "Failed", duration, {"error": str(e), "backupId": backupId})
         raise e
-
-def delete_backup(backupId):
-    registry = load_registry()
-    for i, b in enumerate(registry["backups"]):
-        if b["id"] == backupId:
-            abs_path = os.path.join(BACKUP_DIR, b["path"])
-            if os.path.exists(abs_path):
-                try:
-                    os.remove(abs_path)
-                except:
-                    pass
-            registry["backups"].pop(i)
-            save_registry(registry)
-            return True
-    return False
 

@@ -62,7 +62,8 @@ function formatDisplayDate(date = new Date()) {
 }
 
 function buildTenantUrl(landlordUuid: string, tenant: Tenant): string {
-  const base = `${getPublicAppUrl()}/rent/${landlordUuid}/t/${tenant.id}/${tenant.viewToken}`;
+  const propertyId = tenant.propertyId ?? 0;
+  const base = `${getPublicAppUrl()}/rent/${landlordUuid}/t/${propertyId}/${tenant.id}/${tenant.viewToken}`;
   return tenant.qr_key ? `${base}?qr_key=${encodeURIComponent(tenant.qr_key)}` : base;
 }
 

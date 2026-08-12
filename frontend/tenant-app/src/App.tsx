@@ -263,7 +263,7 @@ export default function App() {
       <Route path="/tenant/login" element={<PortalLoginPage />} />
       <Route path="/login" element={<PortalLoginPage />} />
       <Route
-        path="/:landlordUuid/t/:tenantId/:viewToken"
+        path="/:landlordUuid/t/:propertyId/:tenantId/:viewToken"
         element={
           <TenantProvider>
             <TenantPortalInner />

@@ -8,10 +8,42 @@ from app.core.api_guard import APIGuardedStaticFiles
 from app.core.runtime import serve_frontend
 
 
+def _validate_required_secret(name: str, min_len: int = 32) -> None:
+    """Fail closed unless every signing/vault secret is present and strong."""
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(f"{name} environment variable is required (fail-closed).")
+    if len(value) < min_len:
+        raise RuntimeError(
+            f"{name} is too short ({len(value)} chars); minimum {min_len} chars."
+        )
+
+
+def validate_secrets() -> None:
+    for secret in [
+        "LANDLORD_JWT_SECRET",
+        "TENANT_JWT_SECRET",
+        "PLATFORM_JWT_SECRET",
+        "ADMIN_JWT_SECRET",
+    ]:
+        _validate_required_secret(secret)
+
+    from cryptography.fernet import Fernet
+
+    vault_key = os.environ.get("tenantPin_VAULT_KEY")
+    if not vault_key:
+        raise RuntimeError("tenantPin_VAULT_KEY environment variable is required (fail-closed).")
+    try:
+        Fernet(vault_key.encode("utf-8"))
+    except Exception as exc:
+        raise RuntimeError("tenantPin_VAULT_KEY is not a valid Fernet key.") from exc
+
+
 class StartupManager:
     @staticmethod
     def initialize(app: FastAPI):
         try:
+            validate_secrets()
             StartupManager.initialize_storage()
             StartupManager.initialize_config()
             init_db()

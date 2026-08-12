@@ -134,7 +134,7 @@ async def api_create_bill(landlordUuid: str, tenantId: int, bill_req: BillReques
             bill_req.paymentstatus,
             landlord_id=principal.landlord_id
         )
-        background_tasks.add_task(create_full_backup, tag="create_bill")
+        background_tasks.add_task(create_full_backup, tag="create_bill", landlord_id=principal.landlord_id)
 
         landlord_id = principal.landlord_id
         if landlord_id:
@@ -174,7 +174,7 @@ async def api_update_bill(landlordUuid: str, tenantId: int, billNo: str, bill_re
             (bill_req.paymentstatus or "PENDING").upper(),
             landlord_id=principal.landlord_id
         )
-        background_tasks.add_task(create_full_backup, tag="edit_bill")
+        background_tasks.add_task(create_full_backup, tag="edit_bill", landlord_id=principal.landlord_id)
 
         landlord_id = principal.landlord_id
         if landlord_id:
@@ -206,7 +206,7 @@ async def api_update_payment(landlordUuid: str, tenantId: int, billNo: str, data
             raise HTTPException(status_code=400, detail="Amount received cannot be negative.")
 
         update_paymentStatus(tenantId, billNo, status, amount, landlord_id=principal.landlord_id)
-        background_tasks.add_task(create_full_backup, tag="paymentStatus")
+        background_tasks.add_task(create_full_backup, tag="paymentStatus", landlord_id=principal.landlord_id)
         return {"status": "success"}
     except HTTPException:
         raise
@@ -217,7 +217,7 @@ async def api_update_payment(landlordUuid: str, tenantId: int, billNo: str, data
 async def api_archive_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     try:
         archive_bill(tenantId, billNo, landlord_id=principal.landlord_id)
-        background_tasks.add_task(create_full_backup, tag="archive_bill")
+        background_tasks.add_task(create_full_backup, tag="archive_bill", landlord_id=principal.landlord_id)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -226,7 +226,7 @@ async def api_archive_bill(landlordUuid: str, tenantId: int, billNo: str, backgr
 async def api_restore_bill(landlordUuid: str, tenantId: int, billNo: str, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     try:
         restore_bill(tenantId, billNo, landlord_id=principal.landlord_id)
-        background_tasks.add_task(create_full_backup, tag="restore_bill")
+        background_tasks.add_task(create_full_backup, tag="restore_bill", landlord_id=principal.landlord_id)
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -237,7 +237,7 @@ async def api_delete_bill(landlordUuid: str, tenantId: int, billNo: str, request
 
     try:
         delete_bill(tenantId, billNo, landlord_id=principal.landlord_id)
-        background_tasks.add_task(create_full_backup, tag="delete_bill")
+        background_tasks.add_task(create_full_backup, tag="delete_bill", landlord_id=principal.landlord_id)
 
         landlord_id = principal.landlord_id
         if landlord_id:

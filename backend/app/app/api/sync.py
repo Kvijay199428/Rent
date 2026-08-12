@@ -830,7 +830,7 @@ async def import_execute_data(
                 existing_tenant_id_map[target_key] = matches[0]["existingTenantId"]
 
     # Schedule backup BEFORE processing
-    background_tasks.add_task(create_full_backup, tag="pre_import_excel")
+    background_tasks.add_task(create_full_backup, tag="pre_import_excel", landlord_id=principal.landlord_id)
 
     imported_tenants = []
     imported_receipts = 0
@@ -1614,7 +1614,7 @@ if __name__ == "__main__":
 #     sys_receipts = get_all_receipts()
 
 #     # Schedule backup BEFORE processing (non-blocking)
-#     background_tasks.add_task(create_full_backup, tag="pre_import_excel")
+#     background_tasks.add_task(create_full_backup, tag="pre_import_excel", landlord_id=principal.landlord_id)
 
 #     # Track results for reporting
 #     imported_tenants = []

@@ -18,11 +18,11 @@ export async function onRequest(context) {
     });
   }
 
-  // Tenant portal deep links (/rent/{landlordUuid}/t/{tenantId}/{viewToken}) —
+  // Tenant portal deep links (/rent/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}) —
   // serve the tenant SPA from Pages. Its router (basename /rent) renders the
   // portal from the URL params, so deep links work without touching the API host.
   const tenantLinkRe =
-    /^\/rent\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/t\/[0-9]+\/[0-9a-zA-Z-]+(?:\/.*)?$/;
+    /^\/rent\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/t\/[0-9]+\/[0-9]+\/[0-9a-zA-Z-]+(?:\/.*)?$/;
   if (tenantLinkRe.test(path)) {
     const indexUrl = new URL("/rent/t/index.html", url);
     const indexResponse = await context.env.ASSETS.fetch(indexUrl);

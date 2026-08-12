@@ -1,30 +1,32 @@
 # app/app/core/routes_manifest_tenant.py
 
 class TenantRoutes:
-    TENANTPAGEROOT = "/{landlordUuid}/t/{tenantId}/{viewToken}"
+    # Canonical tenant portal URL: /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}
+    # The propertyId scopes the tenant link to a specific property (property-first billing).
+    TENANTPAGEROOT = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}"
 
-    # Tenant API: Auth — paths follow /{landlordUuid}/t/{tenantId}/{viewToken}/api/...
-    TENANTAPIAUTHPUBLICKEY = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/public-key"
-    TENANTAPIAUTHLOGIN = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/login"
-    TENANTAPIAUTHREFRESH = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/refresh"
-    TENANTAPIAUTHLOGOUT = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout"
-    TENANTAPIAUTHLOGOUTALL = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout-all"
+    # Tenant API: Auth — paths follow /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/...
+    TENANTAPIAUTHPUBLICKEY = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/public-key"
+    TENANTAPIAUTHLOGIN = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/login"
+    TENANTAPIAUTHREFRESH = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/refresh"
+    TENANTAPIAUTHLOGOUT = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout"
+    TENANTAPIAUTHLOGOUTALL = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout-all"
 
     # Tenant API: Profile
-    TENANTAPIPROFILEGET = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/profile"
+    TENANTAPIPROFILEGET = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/profile"
 
     # Tenant API: KYC
-    TENANTAPIKYCUPLOAD = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc"
-    TENANTAPIKYCMARKINACTIVE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive"
-    TENANTAPIKYCDELETE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}"
-    TENANTAPIKYCGETFILE = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/file/{filename}"
+    TENANTAPIKYCUPLOAD = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc"
+    TENANTAPIKYCMARKINACTIVE = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive"
+    TENANTAPIKYCDELETE = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}"
+    TENANTAPIKYCGETFILE = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/file/{filename}"
 
     # Tenant API: PDF
-    TENANTAPIPDFVIEW = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view"
-    TENANTAPIPDFDOWNLOAD = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
+    TENANTAPIPDFVIEW = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/view"
+    TENANTAPIPDFDOWNLOAD = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
 
     # Tenant API: Audit Logs
-    TENANTAPIAUDITLOGS = "/{landlordUuid}/t/{tenantId}/{viewToken}/api/audit-logs"
+    TENANTAPIAUDITLOGS = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/audit-logs"
 
 
 

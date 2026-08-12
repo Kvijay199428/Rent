@@ -52,7 +52,7 @@ async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: in
     if not landlordUuid:
         raise HTTPException(status_code=400, detail="Missing landlord context in request")
         
-    link = f"{public_app_url()}/rent/{landlordUuid}/t/{tenant.id}/{token}"
+    link = f"{public_app_url()}/rent/{landlordUuid}/t/{getattr(tenant, 'propertyId', 0) or 0}/{tenant.id}/{token}"
     grandTotal = float(receipt.get("Total", 0)) + float(receipt.get("previousArrears", 0))
 
     tenant_portal_pin = "(Unavailable)"

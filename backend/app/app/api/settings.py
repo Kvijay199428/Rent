@@ -70,7 +70,7 @@ class ConfigUpdateModel(BaseModel):
 async def update_config(landlordUuid: str, data: ConfigUpdateModel, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api)):
     from app.database.landlord_repository import create_landlord_audit_log
 
-    background_tasks.add_task(create_full_backup, tag="settings_change")
+    background_tasks.add_task(create_full_backup, tag="settings_change", landlord_id=principal.landlord_id)
 
     from app.services.landlord_config_service import save_effective_landlord_config
     save_effective_landlord_config(principal.landlord_id, data.landlord)

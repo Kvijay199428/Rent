@@ -34,16 +34,36 @@ router = APIRouter()
 
 
 from app.authentication.tenant.middleware import get_current_tenant
-from app.routers.auth import _verify_tenant_viewToken
+
+
+def _property_belongs_to_tenant(tenant, propertyId: int) -> bool:
+    """Property-first scoping: the URL propertyId must match the tenant's own property."""
+    return int(getattr(tenant, "propertyId", 0) or 0) == int(propertyId or 0)
+
+
+def _resolve_tenant_property_id(tenant_id: int, landlord_id):
+    """Fallback for tenants without property_id (pre-backfill edge): returns the
+    landlord's first property so a canonical /t/{propertyId}/ URL can still be built."""
+    from app.core.db import get_conn
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM landlord_properties WHERE landlord_id = ? ORDER BY sort_order, id LIMIT 1",
+            (landlord_id,),
+        ).fetchone()
+        if row:
+            return row["id"]
+    return None
 
 # Legacy route (no landlordUuid prefix)
 @router.get(TenantRoutes.TENANTAPIPROFILEGET, name=TenantNames.TENANTPROFILEGET)
-async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Request):
+async def public_tenant_profile_json(propertyId: int, tenantId: int, viewToken: str, request: Request):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
-        
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
+
     unlocked = False
     token = request.cookies.get("access_token")
     if token:
@@ -62,6 +82,7 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
         "id": tenant.id,
         "name": getattr(tenant, "name", ""),
         "viewToken": viewToken,
+        "propertyId": getattr(tenant, "propertyId", None),
         "unlocked": unlocked,
         "readOnly": tenant.status != "Active",
         "phone": getattr(tenant, "phone", ""),
@@ -80,6 +101,7 @@ async def public_tenant_profile_json(tenantId: int, viewToken: str, request: Req
                 "id": tenant.id,
                 "name": getattr(tenant, "name", ""),
                 "viewToken": viewToken,
+                "propertyId": getattr(tenant, "propertyId", None),
                 "unlocked": unlocked,
                 "readOnly": tenant.status != "Active",
             }
@@ -115,11 +137,56 @@ class EncryptedLoginRequest(BaseModel):
     nonce: str      # Base64-encoded nonce
 
 @router.post(TenantRoutes.TENANTAPIAUTHLOGIN, name=TenantNames.TENANTLOGIN)
-async def public_tenant_login(tenantId: int, viewToken: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
+async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, request: Request, response: Response, login_req: EncryptedLoginRequest):
+    from datetime import datetime, timedelta
+    from app.core.db import get_conn
+    from app.authentication.common.utils import verify_pin, constant_time_eq
+    from app.authentication.tenant.sessions import create_tenant_session
+    from app.authentication.tenant.jwt import create_access_token
+    from app.authentication.tenant.cookies import set_tenant_auth_cookies
+    from app.database.auth_repository import log_audit
+
+    ip = request.client.host if request.client else "Unknown IP"
+
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
+
+    # Brute-force lockout (5 failed PIN/QR attempts -> 15 minute lock).
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT failed_attempts, locked_until FROM tenants WHERE id = ?",
+            (tenant.id,),
+        ).fetchone()
+
+    if row and row["locked_until"]:
+        try:
+            locked_dt = datetime.fromisoformat(row["locked_until"])
+            if datetime.utcnow() < locked_dt:
+                log_audit(tenant.id, "Login Blocked - Too Many Failed PIN Attempts", ip)
+                raise HTTPException(
+                    status_code=429,
+                    detail="Too many failed attempts. Account locked for 15 minutes.",
+                )
+        except ValueError:
+            pass
+
+    def _record_failed_attempt(detail: str):
+        failed_attempts = (row["failed_attempts"] or 0) + 1 if row else 1
+        locked_until_str = None
+        if failed_attempts >= 5:
+            locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE tenants SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                (failed_attempts, locked_until_str, tenant.id),
+            )
+            conn.commit()
+        log_audit(tenant.id, detail, ip)
+        return locked_until_str
 
     from app.encryption import decrypt_payload
     try:
@@ -133,23 +200,28 @@ async def public_tenant_login(tenantId: int, viewToken: str, request: Request, r
     # binds each QR login to the specific printed QR (invalidateable by rotation).
     if qr_key:
         stored_key = (getattr(tenant, "qr_key", "") or "").strip()
-        from app.authentication.common.utils import constant_time_eq
         if not stored_key or not constant_time_eq(qr_key, stored_key):
+            _record_failed_attempt("Login Failed - Wrong QR Key")
             raise HTTPException(status_code=401, detail="Invalid QR link")
 
-    if getattr(tenant, "tenantPin", None) != pin:
-        from app.authentication.common.utils import verify_pin
-        if not verify_pin(pin, getattr(tenant, "tenantPin", "")):
-            raise HTTPException(status_code=401, detail="Invalid PIN")
+    if not verify_pin(pin, getattr(tenant, "tenantPin", "")):
+        _record_failed_attempt("Login Failed - Wrong PIN")
+        raise HTTPException(status_code=401, detail="Invalid PIN")
 
-    from app.authentication.tenant.sessions import create_tenant_session
-    from app.authentication.tenant.jwt import create_access_token
-    from app.authentication.tenant.cookies import set_tenant_auth_cookies
+    # Reset attempts on success
+    if (row and row["failed_attempts"]) or (row and row["locked_until"]):
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE tenants SET failed_attempts = 0, locked_until = NULL WHERE id = ?",
+                (tenant.id,),
+            )
+            conn.commit()
 
     session_id, refresh_token = create_tenant_session(tenant.id, request, remember_me=True)
     access_token = create_access_token(tenant.id, session_id)
     
     set_tenant_auth_cookies(response, access_token, refresh_token, True, request)
+    log_audit(tenant.id, "Login Success", ip)
     
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
@@ -201,7 +273,7 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name, landlord_id, viewToken, password_hash, "
+            "SELECT id, name, landlord_id, viewToken, password_hash, property_id, "
             "password_failed_attempts, password_locked_until, password_reset_required "
             "FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
             (username,),
@@ -262,6 +334,7 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
     landlord_uuid = landlord["landlord_uuid"]
     view_token = row["viewToken"]
     tenant_id = row["id"]
+    property_id = row["property_id"] or _resolve_tenant_property_id(tenant_id, row["landlord_id"])
 
     session_id, refresh_token = create_tenant_session(tenant_id, request, remember_me)
     access_token = create_access_token(tenant_id, session_id)
@@ -269,7 +342,7 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
     cookie_val = f"{session_id}:{refresh_token}"
     max_age_refresh = 180 * 24 * 60 * 60 if remember_me else 24 * 60 * 60
     rootpath = (request.scope.get("root_path") or "").rstrip("/")
-    cookie_path = f"{rootpath}/{landlord_uuid}/t/{tenant_id}/{view_token}"
+    cookie_path = f"{rootpath}/{landlord_uuid}/t/{property_id}/{tenant_id}/{view_token}"
 
     response.set_cookie(
         key="access_token", value=access_token,
@@ -290,9 +363,10 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
             "id": tenant_id,
             "name": row["name"],
             "landlord_uuid": landlord_uuid,
+            "property_id": property_id,
             "view_token": view_token,
         },
-        "redirect_url": f"{rootpath}/{landlord_uuid}/t/{tenant_id}/{view_token}",
+        "redirect_url": f"{rootpath}/{landlord_uuid}/t/{property_id}/{tenant_id}/{view_token}",
         "reset_required": bool(row["password_reset_required"]),
     }
 
@@ -478,7 +552,7 @@ async def global_tenant_change_password(request: Request, response: Response, lo
 
 
 @router.get(TenantRoutes.TENANTAPIPDFVIEW, name=TenantNames.TENANTPDFVIEW)
-async def tenant_view_pdf(tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
+async def tenant_view_pdf(propertyId: int, tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
@@ -488,6 +562,8 @@ async def tenant_view_pdf(tenantId: int, viewToken: str, billNo: str, principal 
     tenant = next((t for t in tenants if t.id == principal.id), None)
     if not tenant or int(receipt.get("TenantId", 0) or 0) != tenant.id:
         raise HTTPException(status_code=403, detail="Access denied")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
         
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
@@ -501,7 +577,7 @@ async def tenant_view_pdf(tenantId: int, viewToken: str, billNo: str, principal 
     return response
 
 @router.get(TenantRoutes.TENANTAPIPDFDOWNLOAD, name=TenantNames.TENANTPDFDOWNLOAD)
-async def tenant_download_pdf(tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
+async def tenant_download_pdf(propertyId: int, tenantId: int, viewToken: str, billNo: str, principal = Depends(get_current_tenant)):
     receipt = get_receipt(tenantId, billNo)
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
@@ -511,6 +587,8 @@ async def tenant_download_pdf(tenantId: int, viewToken: str, billNo: str, princi
     tenant = next((t for t in tenants if t.id == principal.id), None)
     if not tenant or int(receipt.get("TenantId", 0) or 0) != tenant.id:
         raise HTTPException(status_code=403, detail="Access denied")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
         
     tenantName = receipt.get("Tenant", "Unknown").replace(" ", "_")
     try:
@@ -531,6 +609,7 @@ async def tenant_download_pdf(tenantId: int, viewToken: str, billNo: str, princi
 
 @router.post(TenantRoutes.TENANTAPIKYCUPLOAD, name=TenantNames.TENANTKYCUPLOAD)
 async def public_tenant_kyc_upload(
+    propertyId: int,
     tenantId: int,
     viewToken: str,
     name: str = Form(...),
@@ -548,6 +627,8 @@ async def public_tenant_kyc_upload(
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
 
     if tenant.status != "Active":
         raise HTTPException(status_code=403, detail="KYC uploads are not allowed for inactive tenants.")
@@ -625,11 +706,13 @@ async def public_tenant_kyc_upload(
     return {"status": "success", "message": "KYC uploaded successfully"}
 
 @router.put(TenantRoutes.TENANTAPIKYCMARKINACTIVE, name=TenantNames.TENANTKYCMARKINACTIVE)
-async def public_tenant_kyc_mark_inactive(tenantId: int, viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
+async def public_tenant_kyc_mark_inactive(propertyId: int, tenantId: int, viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid link.")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
 
     if tenant.status != "Active":
         raise HTTPException(status_code=403, detail="KYC modifications are not allowed for inactive tenants.")
@@ -639,11 +722,13 @@ async def public_tenant_kyc_mark_inactive(tenantId: int, viewToken: str, occupan
     return {"status": "success"}
 
 @router.delete(TenantRoutes.TENANTAPIKYCDELETE, name=TenantNames.TENANTKYCDELETE)
-async def public_tenant_kyc_delete(tenantId: int, viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
+async def public_tenant_kyc_delete(propertyId: int, tenantId: int, viewToken: str, occupantUuid: str, principal = Depends(get_current_tenant)):
     tenants = load_tenants()
     tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
     if not tenant or tenant.id != principal.id:
         raise HTTPException(status_code=404, detail="Invalid or expired link.")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
 
     if tenant.status != "Active":
         raise HTTPException(status_code=403, detail="KYC deletions are not allowed for inactive tenants.")
@@ -667,17 +752,22 @@ async def public_tenant_kyc_delete(tenantId: int, viewToken: str, occupantUuid: 
     return {"status": "success"}
 
 @router.get(TenantRoutes.TENANTAPIKYCGETFILE, name=TenantNames.TENANTKYCGETFILE)
-async def tenant_public_get_kyc_file(tenantId: int, viewToken: str, filename: str, principal = Depends(get_current_tenant)):
+async def tenant_public_get_kyc_file(propertyId: int, tenantId: int, viewToken: str, filename: str, principal = Depends(get_current_tenant)):
     safe_filename = os.path.basename(filename)
     if safe_filename != filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
+    if not safe_filename.startswith(f"{principal.id}_"):
+        raise HTTPException(status_code=403, detail="Forbidden: Cannot access this file")
+    
+    tenants = load_tenants()
+    tenant = next((t for t in tenants if t.id == principal.id), None)
+    if not tenant or not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
+
     file_path = os.path.join(KYC_DIR, safe_filename)
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
-        
-    if not safe_filename.startswith(f"{principal.id}_"):
-        raise HTTPException(status_code=403, detail="Forbidden: Cannot access this file")
     
     mime_type, _ = mimetypes.guess_type(file_path)
     if not mime_type:
@@ -693,6 +783,7 @@ async def tenant_public_get_kyc_file(tenantId: int, viewToken: str, filename: st
 
 @router.get(TenantRoutes.TENANTAPIAUDITLOGS, name=TenantNames.TENANTAUDITLOGS)
 async def tenant_audit_logs(
+    propertyId: int,
     tenantId: int,
     viewToken: str,
     request: Request,
@@ -704,8 +795,9 @@ async def tenant_audit_logs(
     limit: int = 50,
     offset: int = 0,
 ):
-    """Return audit logs for this tenant."""
-    _verify_tenant_viewToken(request, viewToken)
+    """Return audit logs for this tenant (scoped to property/tenant/viewToken URL)."""
+    from app.routers.auth import _tenant_viewtoken_guard
+    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId)
 
     from app.core.db import get_conn as _get_conn
     import json as _json

@@ -120,32 +120,32 @@
   },
   "tenant": {
     "pages": {
-      "root": "/{landlordUuid}/t/{tenantId}/{viewToken}",
+      "root": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}",
       "catchAll": "/*"
     },
     "api": {
       "auth": {
-        "publicKey": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/public-key",
-        "login": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/login",
-        "refresh": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/refresh",
-        "logout": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout",
-        "logoutAll": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/auth/logout-all"
+        "publicKey": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/public-key",
+        "login": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/login",
+        "refresh": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/refresh",
+        "logout": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout",
+        "logoutAll": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout-all"
       },
       "profile": {
-        "get": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/profile"
+        "get": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/profile"
       },
       "kyc": {
-        "upload": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc",
-        "markInactive": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive",
-        "delete": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
-        "getFile": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/kyc/file/{filename}"
+        "upload": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc",
+        "markInactive": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive",
+        "delete": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
+        "getFile": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/file/{filename}"
       },
       "audit": {
-        "logs": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/audit-logs"
+        "logs": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/audit-logs"
       },
       "pdf": {
-        "view": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
-        "download": "/{landlordUuid}/t/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
+        "view": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
+        "download": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
       }
     }
   },

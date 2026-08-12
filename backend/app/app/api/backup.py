@@ -22,8 +22,9 @@ from app.services.billing_service import (
     get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import (
-    create_full_backup, get_all_backups, create_backup,
-    delete_backup, verify_backup_integrity, restore_backup
+    create_backup,
+    delete_backup, verify_backup_integrity, restore_backup,
+    get_backups_for_landlord, get_backup_by_id, backup_owned_by
 )
 from app.core.paths import BACKUPS_DIR
 from app.authentication.landlord.middleware import get_current_landlord_api_strict
@@ -33,14 +34,14 @@ router = APIRouter()
 
 @router.get(Routes.LANDLORDAPIBACKUPSLIST, name=Names.APIGETBACKUPS)
 async def api_get_backups(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
-    return get_all_backups()
+    return get_backups_for_landlord(principal.landlord_id)
 
 @router.post(Routes.LANDLORDAPIBACKUPSCREATEMANUAL, name=Names.APICREATEMANUALBACKUP)
 async def api_create_manual_backup(landlordUuid: str, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
     from app.database.landlord_repository import create_landlord_audit_log
 
     try:
-        metadata = create_backup(type_="Manual", subtype="manual")
+        metadata = create_backup(type_="Manual", subtype="manual", landlord_id=principal.landlord_id)
 
         landlord_id = principal.landlord_id
         if landlord_id:
@@ -56,12 +57,16 @@ async def api_create_manual_backup(landlordUuid: str, request: Request, backgrou
 
 @router.delete(Routes.LANDLORDAPIBACKUPSDELETE, name=Names.APIDELETEBACKUP)
 async def api_delete_backup(landlordUuid: str, backupId: str, principal=Depends(get_current_landlord_api_strict)):
+    if not backup_owned_by(backupId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Backup not found")
     if delete_backup(backupId):
         return {"status": "success"}
     raise HTTPException(status_code=404, detail="Backup not found")
 
 @router.get(Routes.LANDLORDAPIBACKUPSVERIFY, name=Names.APIVERIFYBACKUP)
 async def api_verify_backup(landlordUuid: str, backupId: str, principal=Depends(get_current_landlord_api_strict)):
+    if not backup_owned_by(backupId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Backup not found")
     try:
         verify_backup_integrity(backupId)
         return {"status": "success", "message": "Backup is fully intact and verified."}
@@ -80,11 +85,10 @@ async def api_restore_backup(landlordUuid: str, backupId: str, request: Request,
 
 @router.get(Routes.LANDLORDAPIBACKUPSDOWNLOAD, name=Names.APIDOWNLOADBACKUP)
 async def api_download_backup(landlordUuid: str, backupId: str, principal=Depends(get_current_landlord_api_strict)):
-    registry = get_all_backups()
-    backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
-    if not backup_meta:
+    backup_meta = get_backup_by_id(backupId)
+    if not backup_meta or not backup_owned_by(backupId, principal.landlord_id):
         raise HTTPException(status_code=404, detail="Backup not found")
-        
+
     abs_path = os.path.join(BACKUPS_DIR, backup_meta["path"])
     if not os.path.exists(abs_path):
         raise HTTPException(status_code=404, detail="Backup file missing")
@@ -93,9 +97,8 @@ async def api_download_backup(landlordUuid: str, backupId: str, principal=Depend
 
 @router.get(Routes.LANDLORDAPIBACKUPSMETADATA, name=Names.APIDOWNLOADMETADATA)
 async def api_download_metadata(landlordUuid: str, backupId: str, principal=Depends(get_current_landlord_api_strict)):
-    registry = get_all_backups()
-    backup_meta = next((b for b in registry["backups"] if b["id"] == backupId), None)
-    if not backup_meta:
+    backup_meta = get_backup_by_id(backupId)
+    if not backup_meta or not backup_owned_by(backupId, principal.landlord_id):
         raise HTTPException(status_code=404, detail="Backup not found")
         
     return backup_meta

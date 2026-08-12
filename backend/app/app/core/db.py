@@ -748,6 +748,32 @@ def init_db():
             )
             conn.commit()
 
+        # ─── tenants.property_id backfill v2 ───────────────────────────
+        # v1 only assigned a property to tenants of landlords that had no
+        # property yet. Tenants of landlords who already had one (setup
+        # wizard, earlier data) were left NULL, which would 403 the
+        # property-scoped portal deep link. Assign the landlord's first
+        # property to every tenant still missing one.
+        prop_filled = conn.execute(
+            "SELECT 1 FROM app_metadata WHERE key = 'tenant_property_id_backfill_v2'"
+        ).fetchone()
+        if not prop_filled:
+            conn.execute(
+                """
+                UPDATE tenants
+                SET property_id = (
+                    SELECT lp.id FROM landlord_properties lp
+                    WHERE lp.landlord_id = tenants.landlord_id
+                    ORDER BY lp.sort_order, lp.id LIMIT 1
+                )
+                WHERE property_id IS NULL AND landlord_id IS NOT NULL
+                """
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('tenant_property_id_backfill_v2', 'done')"
+            )
+            conn.commit()
+
         # ─── Seed default platform admin ───────────────────────────────
         # Ensure at least one platform admin exists (admin/admin)
         from app.authentication.common.utils import hash_pin

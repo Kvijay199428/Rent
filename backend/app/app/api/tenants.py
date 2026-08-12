@@ -81,7 +81,7 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     from app.core.db import get_conn
     from datetime import datetime
     
-    background_tasks.add_task(create_full_backup, tag="add_tenant")
+    background_tasks.add_task(create_full_backup, tag="add_tenant", landlord_id=principal.landlord_id)
     
     # Strictly validate 4-digit PIN on creation
     validate_tenantPin(t.tenantPin)
@@ -125,7 +125,7 @@ async def api_update_tenant(landlordUuid: str, tenantId: int, t: Tenant, request
     from app.database.landlord_repository import create_landlord_audit_log
 
     t.id = tenantId
-    background_tasks.add_task(create_full_backup, tag="update_tenant")
+    background_tasks.add_task(create_full_backup, tag="update_tenant", landlord_id=principal.landlord_id)
     
     existing_t = get_tenant(tenantId, landlord_id=principal.landlord_id)
     if not existing_t:
@@ -200,7 +200,7 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
     ip = request.client.host if request.client else "Unknown IP"
     log_audit(tenantId, "Tenant PIN Changed", ip)
     
-    background_tasks.add_task(create_full_backup, tag="change_pin")
+    background_tasks.add_task(create_full_backup, tag="change_pin", landlord_id=principal.landlord_id)
     
     return {"status": "success", "message": "PIN changed successfully."}
 
@@ -251,7 +251,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
     from app.core.db import get_conn
     from datetime import datetime
 
-    background_tasks.add_task(create_full_backup, tag="portal_auth")
+    background_tasks.add_task(create_full_backup, tag="portal_auth", landlord_id=principal.landlord_id)
 
     with get_conn() as conn:
         existing = conn.execute(
@@ -353,7 +353,7 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
     from app.database.landlord_repository import create_landlord_audit_log
     from app.core.db import get_conn
 
-    background_tasks.add_task(create_full_backup, tag="regenerate_qr_key")
+    background_tasks.add_task(create_full_backup, tag="regenerate_qr_key", landlord_id=principal.landlord_id)
 
     new_key = _uuid.uuid4().hex + _uuid.uuid4().hex
     with get_conn() as conn:
@@ -447,7 +447,7 @@ async def api_delete_tenant(
         raise HTTPException(status_code=404, detail="Tenant not found.")
 
     try:
-        background_tasks.add_task(create_full_backup, tag=f"{action}_tenant")
+        background_tasks.add_task(create_full_backup, tag=f"{action}_tenant", landlord_id=principal.landlord_id)
         result = delete_tenant(tenantId, action, landlord_id=principal.landlord_id)
 
         landlord_id = principal.landlord_id
@@ -522,7 +522,7 @@ async def api_restore_tenant(
         raise HTTPException(status_code=404, detail="Tenant not found.")
 
     try:
-        background_tasks.add_task(create_full_backup, tag="restore_tenant")
+        background_tasks.add_task(create_full_backup, tag="restore_tenant", landlord_id=principal.landlord_id)
         result = delete_tenant(tenantId, "restore", landlord_id=principal.landlord_id)
         return {"status": "success", "action": "restore", "data": result}
     except ValueError as e:

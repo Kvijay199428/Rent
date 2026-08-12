@@ -12,6 +12,7 @@ import type { PortalResponse, Receipt, Occupant } from "@/types";
 
 type TenantContextType = {
   landlordUuid: string;
+  propertyId: string;
   tenantId: string;
   viewToken: string;
   profile: PortalResponse | undefined;
@@ -28,7 +29,7 @@ type TenantContextType = {
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
 export function TenantProvider({ children }: { children: ReactNode }) {
-  const { landlordUuid, tenantId, viewToken } = getTenantRuntime();
+  const { landlordUuid, propertyId, tenantId, viewToken } = getTenantRuntime();
   const queryClient = useQueryClient();
 
   const { data, isLoading, refetch } = useQuery<PortalResponse>({
@@ -65,6 +66,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const value = useMemo(
     () => ({
       landlordUuid: landlordUuid!,
+      propertyId: propertyId!,
       tenantId: tenantId!,
       viewToken: viewToken!,
       profile: data,
@@ -79,6 +81,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     }),
     [
       landlordUuid,
+      propertyId,
       tenantId,
       viewToken,
       data,

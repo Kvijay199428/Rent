@@ -2,6 +2,7 @@ export interface TenantProfile {
   id: number;
   name: string;
   viewToken: string;
+  propertyId?: number | null;
   unlocked: boolean;
   readOnly?: boolean;
   phone?: string;
@@ -72,6 +73,7 @@ export interface QrTenantProfile {
   id: number;
   name: string;
   viewToken: string;
+  propertyId?: number | null;
   unlocked: boolean;
   readOnly: boolean;
 }
@@ -89,6 +91,7 @@ export interface PortalLoginResponse {
     id: number;
     name: string;
     landlord_uuid: string;
+    property_id: number | null;
     view_token: string;
   };
   redirect_url: string | null;

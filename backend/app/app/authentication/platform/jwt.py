@@ -9,9 +9,18 @@ from jose import jwt, JWTError
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 
-PLATFORM_JWT_SECRET = os.environ.get(
-    "PLATFORM_JWT_SECRET", "REPLACE_WITH_PLATFORM_SECURE_RANDOM_KEY"
-)
+
+def _require_secret(name: str) -> str:
+    value = os.environ.get(name)
+    if not value:
+        raise RuntimeError(
+            f"{name} environment variable is required and must not be empty. "
+            "Refusing to start with a fallback/guessable signing secret."
+        )
+    return value
+
+
+PLATFORM_JWT_SECRET = _require_secret("PLATFORM_JWT_SECRET")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

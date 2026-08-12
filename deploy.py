@@ -34,6 +34,7 @@ EXCLUDE_DIRS = {
     ".venv",
     "node_modules",
     "dist-ssr",
+    ".opencode",
 }
 
 TARGETS = {

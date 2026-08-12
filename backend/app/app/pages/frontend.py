@@ -100,11 +100,11 @@ _app_prefix("t", TENANT_DIST)
 _app_prefix("tenant", TENANT_DIST)
 
 
-# ─── Tenant portal deep links /rent/{landlordUuid}/t/{tenantId}/{viewToken} ──
+# ─── Tenant portal deep links /rent/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken} ──
 
-@router.get("/rent/{landlordUuid}/t/{tenantId}/{viewToken}", include_in_schema=False)
-@router.get("/rent/{landlordUuid}/t/{tenantId}/{viewToken}/{path:path}", include_in_schema=False)
-async def tenant_deep_link(request: Request, landlordUuid: str, tenantId: str, viewToken: str, path: str = ""):
+@router.get("/rent/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}", include_in_schema=False)
+@router.get("/rent/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/{path:path}", include_in_schema=False)
+async def tenant_deep_link(request: Request, landlordUuid: str, propertyId: str, tenantId: str, viewToken: str, path: str = ""):
     return _spa_index(TENANT_DIST, request, path)
 
 
