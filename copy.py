@@ -4,6 +4,7 @@
 import os
 import re
 import fnmatch
+from datetime import datetime
 
 # ---------------------------------------------------------------------------
 # User-configurable settings
@@ -11,36 +12,30 @@ import fnmatch
 
 SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-SOURCE_FILES = [
-    "backend/app/**/*.py",
-    "backend/app/**/*.json",
-    "backend/app/config/**",
-    "backend/Dockerfile",
-    "backend/compose.yml",
-    "backend/compose.test.yml",
-    "backend/.env.example",
-    "backend/requirements.txt",
-    "backend/shared/routes.json",
-    "backend/deploy/**/*.py",
-    "backend/scripts/**/*.py",
-    "frontend/shared/**/*",
-    "frontend/*/src/**/*.ts",
-    "frontend/*/src/**/*.tsx",
-    "frontend/*.ts",
-    "frontend/*/package.json",
-    "frontend/*/tsconfig*.json",
-    "frontend/*/vite.config.ts",
-    "frontend/package.json",
-    "frontend/build.sh",
-    "frontend-test/nginx.conf",
-    "frontend-test/compose.yml",
-    "gateway/nginx/nginx.conf",
-    "gateway/nginx/routes/rent.conf",
-    "gateway/compose.yml",
-    "copy.py",
-    ".env.example",
-    ".gitignore",
-    "README.md",
+# Complete source: every file in the repo, filtered by IGNORE_DIRS /
+# EXCLUDE_FILES / is_binary below. "**" (not "**/*") is used because fnmatch
+# treats "*" as crossing path separators, and "**/*" would silently miss
+# top-level files (e.g. deploy.py, AGENTS.md, compose.dev.yml).
+SOURCE_FILES = ["**"]
+
+# Files that are never embedded regardless of type. Matched with fnmatch
+# against the repo-relative path and the basename.
+#  - Secrets: env files (except *.example), keys, cookies, ngrok auth.
+#  - Generated artifacts: logs, lockfiles, TS build info, empty markers.
+#  - rent.md (self) and update.zip (the deploy bundle) avoid recursion/dupes.
+EXCLUDE_FILES = [
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "cookies.txt",
+    "ngrok.auth.yml",
+    "*.log",
+    "package-lock.json",
+    "*.tsbuildinfo",
+    ".gitkeep",
+    "rent.md",
+    "update.zip",
 ]
 
 # ---------------------------------------------------------------------------
@@ -50,17 +45,21 @@ SOURCE_FILES = [
 SCRIPT = os.path.abspath(__file__)
 BASE = SOURCE_DIR
 OUTPUT = os.path.join(BASE, "rent.md")
-MAX_FILE_SIZE = 500 * 1024
+MAX_FILE_SIZE = 3 * 1024 * 1024
 INCLUDE = SOURCE_FILES
 
+# Directory names / globs pruned while walking the tree. Any path part that
+# fnmatch-matches an entry here is skipped.
 IGNORE_DIRS = {
     "node_modules", "dist", "__pycache__", ".git", ".sisyphus",
     "storage", "build-output", "scratch", "output", ".fonts",
     ".rent_test_assets", ".sample", "venv", ".venv",
+    ".opencode", ".gstack",
+    ".restore_backup_*",
 }
 BINARY_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".xlsx",
               ".xls", ".db", ".pyc", ".pyd", ".so", ".woff", ".woff2",
-              ".ttf", ".eot", ".mp3", ".mp4", ".pdf"}
+              ".ttf", ".eot", ".mp3", ".mp4", ".pdf", ".exe"}
 
 LANG_MAP = {
     ".py": "python",
@@ -77,12 +76,28 @@ LANG_MAP = {
     ".md": "markdown",
     ".txt": "text",
     ".example": "text",
+    ".sql": "sql",
+    ".toml": "toml",
+    ".svg": "xml",
 }
 
 
-def should_ignore(path):
-    parts = path.split(os.sep)
-    return any(d in IGNORE_DIRS for d in parts)
+def should_ignore_dir(name):
+    return any(fnmatch.fnmatch(name, pat) for pat in IGNORE_DIRS)
+
+
+def should_exclude(rel):
+    name = os.path.basename(rel)
+    for pat in EXCLUDE_FILES:
+        if fnmatch.fnmatch(name, pat):
+            # Keep the *.example templates (e.g. .env.example), which are
+            # safe and useful, even though they match ".env.*".
+            if name.startswith(".env.") and name.endswith(".example"):
+                continue
+            return True
+        if fnmatch.fnmatch(rel, pat):
+            return True
+    return False
 
 
 def is_binary(name):
@@ -97,14 +112,16 @@ def guess_lang(name):
 def walk_files():
     matched = []
     for root, dirs, files in os.walk(BASE):
-        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
+        dirs[:] = [d for d in dirs if not should_ignore_dir(d)]
 
         for f in files:
             full = os.path.join(root, f)
             rel = os.path.relpath(full, BASE)
-            if should_ignore(rel):
+            if should_ignore_dir(f):
                 continue
             if is_binary(f):
+                continue
+            if should_exclude(rel):
                 continue
             for pat in INCLUDE:
                 if fnmatch.fnmatch(rel, pat):
@@ -148,7 +165,7 @@ def main():
 
     md = f"""# Rent — Complete Source Code
 
-Generated: 2025-07-29
+Generated: {datetime.now().strftime('%Y-%m-%d')}
 Script:   {SCRIPT}
 Source:   {BASE}
 Files:    {len(sections)}
