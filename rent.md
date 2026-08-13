@@ -1,10 +1,10 @@
 # Rent — Complete Source Code
 
-Generated: 2026-08-12
+Generated: 2026-08-13
 Script:   /root/rent/copy.py
 Source:   /root/rent
 Files:    403
-Size:     3871 KB
+Size:     3884 KB
 Skipped:  0
 
 ---
@@ -3946,7 +3946,7 @@ import socket
 import uuid
 
 from app.services.tenant_service import load_tenants, add_tenant, update_tenant
-from app.services.billing_service import get_all_receipts
+from app.services.billing_service import get_all_receipts, recompute_tenant_arrear_chain
 from app.services.backup_service import create_full_backup
 from app.core.paths import BACKUPS_DIR
 
@@ -4777,6 +4777,7 @@ async def import_execute_data(
                 (datetime.datetime.utcnow().isoformat(), admin_username, ", ".join(parsed_files_data.keys()), "IN_PROGRESS", "{}", "{}", "{}")
             )
             job_id = job_cur.lastrowid
+            affected_tenant_ids = set()
             
             for filename, parsed_data in parsed_files_data.items():
                 for t_id, t_data in parsed_data.items():
@@ -4963,7 +4964,9 @@ async def import_execute_data(
                                     tenant_landlord_id
                                 ))
                                 imported_receipts += 1
-                                
+
+                    affected_tenant_ids.add(tenantId)
+
                     conn.execute(
                         "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, existing_tenant_id, result) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         (job_id, target_key, t_id, t_name, action, existing_t.id if existing_t else None, "SUCCESS")
@@ -4978,6 +4981,11 @@ async def import_execute_data(
 
             # Mark job complete
             conn.execute("UPDATE import_jobs SET status = ?, result_json = ? WHERE id = ?", ("COMPLETED", json.dumps({"tenants": len(imported_tenants), "receipts": imported_receipts}), job_id))
+
+            # Imported previousArrears may diverge from the running-balance
+            # model — normalize every affected tenant's chain before commit.
+            for tid in affected_tenant_ids:
+                recompute_tenant_arrear_chain(conn, tid)
             
             # Commit the single transaction
             conn.commit()
@@ -16831,7 +16839,12 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
         row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
-        
+
+        # Normalize the chain first so validation and the PAID default use the
+        # authoritative running balance entering this bill.
+        recompute_tenant_arrear_chain(conn, tenantId)
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+
         currentTotal = float(row["total"])
         previousArrears = float(row["previousarrears"])
         grandTotal = round(currentTotal + previousArrears, 2)
@@ -16872,6 +16885,7 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
             SET paymentstatus = ?, amountreceived = ?
             WHERE tenantId = ? AND billNo = ?
         """, (finalStatus, amountReceived, tenantId, billNo))
+        recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
     
     return finalStatus
@@ -16928,6 +16942,96 @@ def _row_to_dict(row):
         "previousArrears": _safe_float(row.get("previousarrears")),
         "amountReceived": _safe_float(row.get("amountreceived")),
     }
+
+_MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"]
+
+def _month_sort_key(month_str: str):
+    """Sort key for 'January 2026' style month strings; unknown months sort last."""
+    parts = str(month_str or "").strip().split()
+    if len(parts) == 2 and parts[0] in _MONTH_NAMES and parts[1].isdigit():
+        return (int(parts[1]), _MONTH_NAMES.index(parts[0]))
+    return (99999, 99)
+
+def get_tenant_balance(tenant_id: int) -> float:
+    """Total accumulated balance owed by a tenant across all active receipts.
+
+    Balance = Σ Total − Σ amountReceived over non-archived receipts. In the
+    running-balance model this equals the latest bill's due amount (the latest
+    bill already carries all previous arrears) and is the value that must be
+    carried forward as the next bill's previousArrears.
+    """
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(COALESCE(total,0)),0) - COALESCE(SUM(COALESCE(amountreceived,0)),0) AS balance "
+            "FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+            (tenant_id,),
+        ).fetchone()
+    return round(float(row["balance"] or 0), 2)
+
+def recompute_tenant_arrear_chain(conn, tenant_id: int) -> list:
+    """Recompute cumulative previousArrears for every active receipt of a tenant.
+
+    Receipts are ordered chronologically (parsed month, rowid tiebreak) and each
+    bill's previousArrears is set to the running balance entering it, so the
+    latest bill carries the full accumulated unpaid balance from the first bill
+    to the current one. Payments recorded on an earlier bill therefore cascade
+    forward automatically.
+
+    Best-effort regenerates the PDF of every bill whose previousArrears changed.
+
+    Returns the list of bill numbers whose previousArrears changed.
+    """
+    from app.services.pdf_service import generate_professional_pdf
+    from app.services.landlord_config_service import get_effective_landlord_config
+
+    rows = conn.execute(
+        "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+        (tenant_id,),
+    ).fetchall()
+
+    ordered = sorted(rows, key=lambda r: (_month_sort_key(r["month"]), r["rowid"]))
+
+    running = 0.0
+    changed = []
+    landlord_id = None
+    for r in ordered:
+        if landlord_id is None and "landlord_id" in r.keys():
+            landlord_id = r["landlord_id"]
+        total = float(r["total"] or 0)
+        received = float(r["amountreceived"] or 0)
+        expected_prev = round(running, 2)
+        actual_prev = round(float(r["previousarrears"] or 0), 2)
+        if abs(expected_prev - actual_prev) > 0.001:
+            conn.execute(
+                "UPDATE receipts SET previousarrears = ? WHERE billNo = ? AND tenantId = ?",
+                (expected_prev, r["billNo"], tenant_id),
+            )
+            changed.append(r["billNo"])
+        running += total - received
+
+    if changed:
+        try:
+            conf = get_effective_landlord_config(landlord_id) if landlord_id else {}
+            fresh = conn.execute(
+                "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+                (tenant_id,),
+            ).fetchall()
+            fresh_by_no = {r["billNo"]: r for r in fresh}
+            for bill_no in changed:
+                r = fresh_by_no.get(bill_no)
+                if r is None:
+                    continue
+                try:
+                    pdf_name = r["pdf"] or f"{r['billNo']}.pdf"
+                    pdf_path = os.path.join(RECEIPTS_DIR, pdf_name)
+                    generate_professional_pdf(_row_to_dict(r), conf, pdf_path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    return changed
 
 def get_active_tenant_ids(landlord_id=None) -> set:
     """Returns a set of tenant IDs (optionally scoped to a landlord) that are NOT archived."""
@@ -17051,6 +17155,11 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
         raise ValueError("Tenant not found")
     tenantName = tenant.name
 
+    # Arrears are fully auto-computed: the new bill carries the tenant's running
+    # balance (Σ earlier Totals − Σ earlier payments) as its previousArrears, so
+    # it reflects the accumulated unpaid amount from the first bill to now.
+    previousArrears = get_tenant_balance(tenant.id)
+
     # FIX: Generate bill number with tenant ID prefix (T1, T2, etc.)
     # Count existing receipts for THIS specific tenant
     with get_conn() as conn:
@@ -17148,6 +17257,7 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
             paymentStatus, MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived,
             tenant_landlord_id
         ))
+        recompute_tenant_arrear_chain(conn, tenant.id)
         conn.commit()
 
     return receipt_dict
@@ -17185,7 +17295,17 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         tenant.rent, tenant.water, tankWater, MaintenanceCharge,
         tenant.electricityRate, tenant.additionalPersonCharge
     )
-    
+
+    # Arrears are auto-computed: normalize the chain so this bill's
+    # previousArrears is the running balance entering it.
+    with get_conn() as conn:
+        recompute_tenant_arrear_chain(conn, tenantId)
+        _row = conn.execute(
+            "SELECT previousarrears FROM receipts WHERE tenantId = ? AND billNo = ?",
+            (tenantId, billNo),
+        ).fetchone()
+    previousArrears = float(_row["previousarrears"] or 0) if _row else 0.0
+
     if paymentStatus == "PAID" and amountReceived is None:
         amountReceived = charges["total"] + previousArrears
     elif amountReceived is None:
@@ -17252,6 +17372,7 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
             MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived,
             billNo
         ))
+        recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
 
     return updated_dict
@@ -17273,6 +17394,7 @@ def archive_bill(tenantId, billNo, landlord_id=None):
             UPDATE receipts SET status = 'ARCHIVED', archiveddate = ?, archivedby = 'Admin'
             WHERE tenantId = ? AND billNo = ? AND status != 'ARCHIVED'
         """, (datetime.now().strftime("%Y-%m-%d"), tenantId, billNo))
+        recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
     return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
@@ -17293,6 +17415,7 @@ def restore_bill(tenantId, billNo, landlord_id=None):
             UPDATE receipts SET status = 'ACTIVE', archiveddate = '', archivedby = ''
             WHERE tenantId = ? AND billNo = ? AND status != 'ACTIVE'
         """, (tenantId, billNo))
+        recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
     return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
@@ -17583,6 +17706,18 @@ def save_all_receipts(receipts_list):
                     r.get("paymentStatus", "PENDING"), r.get("MaintenanceCharge", 0), r.get("MaintenanceDesc", ""),
                     r.get("previousArrears", 0), r.get("amountReceived", 0)
                 ))
+
+        # Imported previousArrears may be stale or divergent — normalize every
+        # affected tenant's chain so running balances are authoritative.
+        affected_tenant_ids = {
+            int(r.get("TenantId") or r.get("tenantId"))
+            for r in receipts_list
+            if (r.get("TenantId") or r.get("tenantId")) is not None
+        }
+        for tid in affected_tenant_ids:
+            if tid in valid_tenant_ids:
+                recompute_tenant_arrear_chain(conn, tid)
+
         conn.commit()
 
 ```
@@ -18777,6 +18912,7 @@ from typing import Optional
 from app.core.db import get_conn
 from app.core.config_service import config
 from app.core.paths import BACKUPS_DIR, KYC_DIR, RECEIPTS_DIR
+from app.services.billing_service import recompute_tenant_arrear_chain
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 
@@ -19650,6 +19786,9 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
             "UPDATE tenant_recovery_snapshots SET status = 'RESTORED', restored_at = ? WHERE id = ?",
             (now_iso, snapshot_id),
         )
+
+        # Restored previousArrears may diverge — rebuild the running-balance chain.
+        recompute_tenant_arrear_chain(conn, new_tenant_id)
         conn.commit()
 
     # Restore KYC files and PDFs from ZIP back to filesystem
@@ -22526,7 +22665,9 @@ services:
     image: node:22-alpine
     container_name: frontend_dev
     restart: unless-stopped
-    working_dir: /app
+    # Mount the whole frontend/ tree so tenant-app's `@shared` alias
+    # (../shared) resolves inside the container, mirroring local dev layout.
+    working_dir: /app/tenant-app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL}
@@ -22535,7 +22676,7 @@ services:
     ports:
       - "${FRONTEND_DEV_PORT:-28003}:5173"
     volumes:
-      - ./frontend/tenant-app:/app
+      - ./frontend:/app
     networks:
       - dev-net
     depends_on:
@@ -23012,11 +23153,20 @@ EXIT_UNEXPECTED = 6     # anything unclassified
 parser = argparse.ArgumentParser(
     description="Deploy Rent Receipt Application (development or production).",
     epilog="Examples:\n"
-           "  python deploy.py --dev --sshPublic        # dev stack via SSH to public IP\n"
-           "  python deploy.py --prod --sshPublic       # blue-green production deploy\n"
-           "  python deploy.py --release                # release branch deploy (self-pull, runs here)\n"
-           "  python deploy.py --main                   # main branch deploy (self-pull, runs here)\n"
-           "  python deploy.py --dev --self-test        # check SSH connectivity to the target only\n"
+           "  python deploy.py --dev --sshPublic --clean   # dev stack, full wipe+rebuild, via SSH to public IP\n"
+           "  python deploy.py --dev --sshPublic           # dev stack via SSH to public IP\n"
+           "  python deploy.py --prod --sshPublic          # blue-green production deploy\n"
+           "  python deploy.py --release                   # release branch deploy (self-pull, runs here)\n"
+           "  python deploy.py --main                      # main branch deploy (self-pull, runs here)\n"
+           "  python deploy.py --dev --self-test           # check SSH connectivity to the target only\n"
+           "\n"
+           "Scopes (default --all):\n"
+           "  --all         ship the entire repo (default)\n"
+           "  --frontend    ship only frontend/\n"
+           "  --backend     ship only backend/\n"
+           "  --storage     ship storage/ incl. SQLite DBs (overwrites server data)\n"
+           "  --database    ship database schema code + rent.db\n"
+           "  e.g. python deploy.py --dev --sshPublic --backend   # only backend fixes\n"
            "\n"
            "Exit codes: 1 build/zip, 2 connectivity, 3 auth, 4 upload,\n"
            "            5 remote command failed, 6 unexpected error.",
@@ -23034,7 +23184,14 @@ gh_group = parser.add_mutually_exclusive_group()
 gh_group.add_argument("--main", action="store_true", help="Deploy the main (development) branch. Defaults to running here (server self-pull); combine with --sshLocal/--sshPublic to push from a machine.")
 gh_group.add_argument("--release", action="store_true", help="Deploy the release (production) branch. Defaults to running here (server self-pull); combine with --sshLocal/--sshPublic to push from a machine.")
 
-parser.add_argument("--clean", action="store_true", help="Full rebuild: remove containers, images, volumes, and rebuild from scratch. NOT supported with --prod/--release.")
+scope_group = parser.add_mutually_exclusive_group()
+scope_group.add_argument("--all", action="store_true", help="Ship the entire repo (default).")
+scope_group.add_argument("--frontend", action="store_true", help="Ship only frontend/ (and root infra files).")
+scope_group.add_argument("--backend", action="store_true", help="Ship only backend/ (and root infra files).")
+scope_group.add_argument("--storage", action="store_true", help="Ship storage/ including SQLite DBs — overwrites server data with local data.")
+scope_group.add_argument("--database", action="store_true", help="Ship database schema code (backend/app/app/database, core/db.py) + rent.db.")
+
+parser.add_argument("--clean", action="store_true", help="Full rebuild: remove containers, images, volumes, and rebuild from scratch. NOT supported with --prod/--release or scoped flags (implies --all).")
 parser.add_argument("--no-build", action="store_true", help="Skip frontend npm builds (useful for backend-only changes).")
 parser.add_argument("--debug", action="store_true", help="Print full Python tracebacks when something fails.")
 parser.add_argument("--self-test", action="store_true", help="Only check connectivity to the deploy target, then exit (no build, no zip, no deploy).")
@@ -23050,6 +23207,51 @@ REMOTE_DIR = REMOTE_DIR_PROD if env == ENV_PROD else REMOTE_DIR_DEV
 if env == ENV_PROD and args.clean:
     parser.error("--clean is not supported for --prod/--release: it would delete the server repo and wipe storage/release (SQLite). Use the rollback path in deploy/deploy-release.sh instead.")
 
+# Scope: which components are shipped. Default --all.
+SCOPES = ("all", "frontend", "backend", "storage", "database")
+scope = next((s for s in SCOPES[1:] if getattr(args, s)), "all")
+
+if args.clean and scope != "all":
+    parser.error(
+        "--clean wipes the server repo and re-extracts the uploaded package, so it "
+        "requires the full deploy. Use  --clean --all  (or just --clean), or drop "
+        "--clean for a scoped deploy (--frontend/--backend/--storage/--database)."
+    )
+
+# Scope -> relative path roots to ship. The exact key order matters: more
+# specific (deeper) paths must be tested before their parents.
+SCOPE_PATHS = {
+    "all": None,  # whole repo (create_zip walks everything, as before)
+    "frontend": ["frontend"],
+    "backend": ["backend"],
+    "storage": ["storage"],
+    "database": [
+        "backend/app/app/database",
+        "backend/app/app/core/db.py",
+    ],
+}
+
+# Small root-level "infra" files always carried by scoped zips so the overlay on
+# the server stays self-sufficient (compose, env, nginx/gateway/deploy).
+SCOPE_INFRA_FILES = {
+    "compose.dev.yml",
+    "compose.prod.yml",
+    "nginx",
+    "gateway",
+    "deploy",
+    "infrastructure",
+}
+SCOPE_INFRA_ENV_PREFIXES = (".env",)
+
+# Dev compose service targeted by each scope (backend restarts pick up schema
+# init_db() and config reload). `all` keeps the existing full build+up.
+SCOPE_SERVICES = {
+    "frontend": "frontend_dev",
+    "backend": "backend_dev",
+    "storage": "backend_dev",
+    "database": "backend_dev",
+}
+
 # Transport. --main/--release (branch self-pull) default to running locally on
 # the server; explicit SSH flags push the code from this machine instead.
 if github_mode:
@@ -23060,7 +23262,7 @@ elif not args.local and not args.sshLocal and not args.sshPublic:
 
 target_name = "local" if args.local else ("sshPublic" if args.sshPublic else "sshLocal")
 
-build_enabled = (env == ENV_PROD) and not args.no_build
+build_enabled = (env == ENV_PROD) and not args.no_build and scope in ("all", "frontend")
 
 
 def get_password():
@@ -23232,6 +23434,9 @@ def build_frontends():
     if args.no_build:
         print("Skipping frontend builds (--no-build).")
         return
+    if scope not in ("all", "frontend"):
+        print(f"Skipping frontend builds (scope: {scope}).")
+        return
     check_node_version()
     print("Building frontend applications...")
     for rel_dir in FRONTEND_DIRS:
@@ -23254,6 +23459,32 @@ def build_frontends():
             print(f"  Skipping {rel_dir} (not found)")
 
 
+def _zip_roots():
+    """Walk roots for the current scope.
+
+    Returns a list of (abs_path, arcname_root) pairs. arcname_root is the path
+    prefix to keep inside the zip (relative to LOCAL_DIR); files use their own
+    relative path. `--all` walks the whole repo exactly as before.
+    """
+    if scope == "all":
+        return [(LOCAL_DIR, "")]
+    roots = []
+    for rel in SCOPE_PATHS[scope]:
+        p = os.path.join(LOCAL_DIR, rel)
+        if os.path.exists(p):
+            roots.append((p, rel))
+    for rel in sorted(SCOPE_INFRA_FILES):
+        p = os.path.join(LOCAL_DIR, rel)
+        if os.path.isfile(p):
+            roots.append((p, rel))
+        elif os.path.isdir(p):
+            roots.append((p, rel))
+    for fname in sorted(os.listdir(LOCAL_DIR)):
+        if fname.startswith(SCOPE_INFRA_ENV_PREFIXES) and os.path.isfile(os.path.join(LOCAL_DIR, fname)):
+            roots.append((os.path.join(LOCAL_DIR, fname), fname))
+    return roots
+
+
 def create_zip():
     if os.path.exists(ZIP_FILE):
         try:
@@ -23267,18 +23498,32 @@ def create_zip():
                 EXIT_BUILD,
             )
     print(f"\nZipping {LOCAL_DIR} -> {ZIP_FILE}")
+    print(f"  Scope: {scope}" + ("" if scope == "all" else " (infra files always included)"))
+
+    exclude = set(EXCLUDE_DIRS)
+    if scope == "storage":
+        exclude.discard("storage")  # --storage ships the DB/config/backup trees
+
+    def write_file(zipf, abs_path, arcname):
+        if os.path.basename(abs_path).endswith(".zip"):
+            return
+        zipf.write(abs_path, arcname=arcname.replace("\\", "/"))
+
     try:
         with zipfile.ZipFile(ZIP_FILE, "w", zipfile.ZIP_DEFLATED) as zipf:
-            for root, dirs, files in os.walk(LOCAL_DIR):
-                dirs[:] = [d for d in dirs if d not in EXCLUDE_DIRS]
-                if any(part in EXCLUDE_DIRS for part in root.replace("\\", "/").split("/")):
+            for root_abs, arc_root in _zip_roots():
+                if os.path.isfile(root_abs):
+                    write_file(zipf, root_abs, arc_root)
                     continue
-                for file in files:
-                    if file.endswith(".zip"):
+                for root, dirs, files in os.walk(root_abs):
+                    dirs[:] = [d for d in dirs if d not in exclude]
+                    rel_parts = os.path.relpath(root, LOCAL_DIR).replace("\\", "/").split("/")
+                    if any(part in exclude for part in rel_parts):
                         continue
-                    local_path = os.path.join(root, file)
-                    arcname = os.path.relpath(local_path, LOCAL_DIR).replace("\\", "/")
-                    zipf.write(local_path, arcname=arcname)
+                    for file in files:
+                        local_path = os.path.join(root, file)
+                        arcname = os.path.relpath(local_path, LOCAL_DIR)
+                        write_file(zipf, local_path, arcname)
     except OSError as exc:
         if args.debug:
             traceback.print_exc()
@@ -23312,23 +23557,37 @@ def get_deploy_commands():
 
     compose = "compose.dev.yml"
     env_file = ".env.development"
+    base = f"docker compose --env-file {env_file} -f {compose}"
+    svc = SCOPE_SERVICES.get(scope)
+
     if args.clean:
         cmds = [
-            f"cd {REMOTE_DIR} && docker compose --env-file {env_file} -f {compose} down --rmi all -v --remove-orphans || true",
+            f"cd {REMOTE_DIR} && {base} down --rmi all -v --remove-orphans || true",
             f"echo '{get_password()}' | sudo -S rm -rf {REMOTE_DIR}",
             f"mkdir -p {REMOTE_DIR}",
             f"python3 -c \"import zipfile; zipfile.ZipFile('{REMOTE_ZIP}','r').extractall('{REMOTE_DIR}')\"",
             f"rm -f {REMOTE_ZIP}",
             f"cat > {REMOTE_DIR}/.dockerignore <<'DOCKEOF'\n{DOCKERIGNORE}DOCKEOF",
             "docker builder prune -af",
-            f"cd {REMOTE_DIR} && docker compose --env-file {env_file} -f {compose} build --no-cache",
-            f"cd {REMOTE_DIR} && docker compose --env-file {env_file} -f {compose} up -d --force-recreate",
+            f"cd {REMOTE_DIR} && {base} build --no-cache",
+            f"cd {REMOTE_DIR} && {base} up -d --force-recreate",
         ]
+    elif scope == "all" or svc is None:
+        cmds = extract_zip_cmds()
+        cmds.extend([
+            f"cd {REMOTE_DIR} && {base} build",
+            f"cd {REMOTE_DIR} && {base} up -d",
+        ])
+    elif scope == "storage":
+        # No backend code changed — the storage volume is overlaid and the
+        # backend restarts so the in-memory config cache reloads from disk.
+        cmds = extract_zip_cmds()
+        cmds.append(f"cd {REMOTE_DIR} && {base} restart {svc}")
     else:
         cmds = extract_zip_cmds()
         cmds.extend([
-            f"cd {REMOTE_DIR} && docker compose --env-file {env_file} -f {compose} build",
-            f"cd {REMOTE_DIR} && docker compose --env-file {env_file} -f {compose} up -d",
+            f"cd {REMOTE_DIR} && {base} build {svc}",
+            f"cd {REMOTE_DIR} && {base} up -d --no-deps {svc}",
         ])
     return cmds
 
@@ -23442,7 +23701,7 @@ def run_self_test():
     cfg = TARGETS[target_name]
     print("=" * 60)
     print(f" SELF-TEST: {target_name.upper()} -> {cfg['user']}@{cfg['host']}:{cfg['port']}")
-    print(f" MODE: {'PROD' if env == ENV_PROD else 'DEV'}   REMOTE_DIR: {REMOTE_DIR}")
+    print(f" MODE: {'PROD' if env == ENV_PROD else 'DEV'}   SCOPE: {scope.upper()}   REMOTE_DIR: {REMOTE_DIR}")
     print("=" * 60)
     preflight_tcp(cfg["host"], cfg["port"], target_name)
     print()
@@ -23458,6 +23717,7 @@ def main():
     print(f" MODE: {'PROD' if env == ENV_PROD else 'DEV'}")
     print(f" TARGET: {target_name.upper()}{' (GitHub)' if github_mode else ''}")
     print(f" CLEAN: {'YES' if args.clean else 'no'}")
+    print(f" SCOPE: {scope.upper()}")
     print(f" BUILD: {'skip' if not build_enabled else 'yes'}")
     print("=" * 50)
 
@@ -23483,17 +23743,26 @@ def main():
         else:
             compose = "compose.dev.yml"
             env_file = ".env.development"
+            base = f"docker compose --env-file {env_file} -f {compose}"
+            svc = SCOPE_SERVICES.get(scope)
             commands = []
             if args.clean:
                 commands.extend([
-                    f"cd {LOCAL_DIR} && docker compose --env-file {env_file} -f {compose} down --rmi all -v --remove-orphans || true",
-                    f"cd {LOCAL_DIR} && docker compose --env-file {env_file} -f {compose} build --no-cache",
-                    f"cd {LOCAL_DIR} && docker compose --env-file {env_file} -f {compose} up -d --force-recreate",
+                    f"cd {LOCAL_DIR} && {base} down --rmi all -v --remove-orphans || true",
+                    f"cd {LOCAL_DIR} && {base} build --no-cache",
+                    f"cd {LOCAL_DIR} && {base} up -d --force-recreate",
                 ])
+            elif scope == "all" or svc is None:
+                commands.extend([
+                    f"cd {LOCAL_DIR} && {base} build",
+                    f"cd {LOCAL_DIR} && {base} up -d",
+                ])
+            elif scope == "storage":
+                commands.append(f"cd {LOCAL_DIR} && {base} restart {svc}")
             else:
                 commands.extend([
-                    f"cd {LOCAL_DIR} && docker compose --env-file {env_file} -f {compose} build",
-                    f"cd {LOCAL_DIR} && docker compose --env-file {env_file} -f {compose} up -d",
+                    f"cd {LOCAL_DIR} && {base} build {svc}",
+                    f"cd {LOCAL_DIR} && {base} up -d --no-deps {svc}",
                 ])
 
         for cmd in commands:
@@ -23679,6 +23948,38 @@ Existing flags still work: `--local`, `--sshLocal`, `--sshPublic`, `--clean`
 (self-pull); combine them with `--sshLocal`/`--sshPublic` to push from a
 machine instead. For manual push deploys, `DEPLOY_PASSWORD` (server password,
 default `1010`) overrides the embedded password.
+
+### Scoped deploys — ship only what was fixed
+
+Add a scope flag to limit the upload (and the dev compose step) to the
+components you actually changed. Default is `--all` (the whole repo).
+
+| Scope       | Ships | Dev compose step |
+|-------------|-------|------------------|
+| `--all`     | entire repo (default) | `build` + `up -d` all services |
+| `--frontend`| `frontend/` + root infra | `build`/`up` `frontend_dev` |
+| `--backend` | `backend/` + root infra | `build`/`up` `backend_dev` |
+| `--storage` | `storage/` incl. SQLite DBs + config + backups | `restart backend_dev` (reloads config) |
+| `--database`| `backend/app/app/database/`, `core/db.py`, `rent.db` + root infra | `build`/`up` `backend_dev` (runs `init_db`) |
+
+- Scoped zips **always** also carry the small root infra set
+  (`compose.dev.yml`, `compose.prod.yml`, `.env*`, `nginx/`, `gateway/`,
+  `deploy/`, `infrastructure/`) so the server overlay stays self-sufficient.
+- Extraction is additive — files outside the scope are left untouched on the
+  server.
+- `--clean` **requires `--all`**: it wipes the server repo and re-extracts the
+  package, so combining it with a scope is rejected by the parser.
+- `--storage` and `--database` **overwrite server data with your local files**
+  (SQLite DBs, config). Only use them when you intentionally want to ship those.
+
+```bash
+python3 deploy.py --dev --sshPublic --clean             # full clean dev deploy
+python3 deploy.py --dev --sshPublic --backend           # only backend/ fixes
+python3 deploy.py --dev --sshPublic --frontend          # only frontend/ fixes
+python3 deploy.py --dev --sshPublic --storage           # storage incl. DBs
+python3 deploy.py --dev --sshPublic --database          # schema code + rent.db
+python3 deploy.py --dev --sshPublic --clean --backend   # ERROR (clean implies --all)
+```
 
 ```bash
 # Development
@@ -36622,8 +36923,12 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
                   type="number"
                   step="0.1"
                   value={receipt.previousArrears || 0}
-                  onChange={(e) => setReceipt({ ...receipt, previousArrears: parseFloat(e.target.value) || 0 })}
+                  disabled
+                  className="bg-muted"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Auto-computed from unpaid balances; changes to payments cascade automatically.
+                </p>
               </div>
             </div>
 
