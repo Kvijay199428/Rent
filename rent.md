@@ -3,8 +3,8 @@
 Generated: 2026-08-13
 Script:   /root/rent/copy.py
 Source:   /root/rent
-Files:    403
-Size:     3884 KB
+Files:    407
+Size:     3903 KB
 Skipped:  0
 
 ---
@@ -116,6 +116,7 @@ Skipped:  0
 - backend/app/app/services/google_oauth_service.py
 - backend/app/app/services/landlord_config_service.py
 - backend/app/app/services/pdf_service.py
+- backend/app/app/services/phone_service.py
 - backend/app/app/services/signature_service.py
 - backend/app/app/services/telegram_otp_service.py
 - backend/app/app/services/tenant_recovery_service.py
@@ -338,6 +339,7 @@ Skipped:  0
 - frontend/shared/loading/BrandWave.tsx
 - frontend/shared/loading/LoadingOverlay.tsx
 - frontend/shared/loading/LoadingScreen.tsx
+- frontend/shared/phone/PhoneInput.tsx
 - frontend/shared/routes.json
 - frontend/tenant-app/.gitignore
 - frontend/tenant-app/.oxlintrc.json
@@ -372,10 +374,12 @@ Skipped:  0
 - frontend/tenant-app/src/components/ui/button.tsx
 - frontend/tenant-app/src/components/ui/card.tsx
 - frontend/tenant-app/src/components/ui/collapsible.tsx
+- frontend/tenant-app/src/components/ui/command.tsx
 - frontend/tenant-app/src/components/ui/dialog.tsx
 - frontend/tenant-app/src/components/ui/dropdown-menu.tsx
 - frontend/tenant-app/src/components/ui/input.tsx
 - frontend/tenant-app/src/components/ui/label.tsx
+- frontend/tenant-app/src/components/ui/popover.tsx
 - frontend/tenant-app/src/components/ui/scroll-area.tsx
 - frontend/tenant-app/src/components/ui/separator.tsx
 - frontend/tenant-app/src/components/ui/tabs.tsx
@@ -2936,6 +2940,7 @@ from app.services.tenant_service import (
     load_tenants, add_tenant, update_tenant, delete_tenant,
     get_occupants, save_occupant, delete_occupant
 )
+from app.services.phone_service import normalize_phone
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
@@ -3603,7 +3608,7 @@ async def public_tenant_kyc_upload(
     save_occupant(tenant.id, {
         "uuid": occupantUuid,
         "name": name.strip(),
-        "mobile": mobile.strip(),
+        "mobile": normalize_phone(mobile),
         "address": address.strip(),
         "residentSince": residentSince,
         "status": "Active",
@@ -6124,6 +6129,7 @@ from app.services.billing_service import (
     get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
+from app.services.phone_service import normalize_phone
 from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
 router = APIRouter()
@@ -6698,7 +6704,7 @@ async def admin_post_occupants(
     occ_data = {
         "occupantUuid":    occ_uuid,
         "name":            name,
-        "mobile":          mobile,
+        "mobile":          normalize_phone(mobile),
         "address":         address,
         "residentSince":   residentSince,
         "status":          "Active",
@@ -12094,6 +12100,14 @@ class Tenant(BaseModel):
         that collapse receipt ownership when names are compared by string."""
         return str(v).strip() if v is not None else ""
 
+    @field_validator("phone", mode="before")
+    @classmethod
+    def normalize_phone(cls, v):
+        """Canonicalize phone numbers to E.164 (+<country code><number>)."""
+        from app.services.phone_service import normalize_phone
+
+        return normalize_phone(v) or ""
+
 
 ```
 
@@ -13367,6 +13381,7 @@ from app.authentication.landlord.sessions import (
     get_landlord_session_db,
     revoke_landlord_session_db,
 )
+from app.services.phone_service import normalize_phone
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 from app.database.landlord_repository import (
     create_landlord,
@@ -13583,7 +13598,7 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     landlord = create_landlord(
         full_name=payload.fullName.strip(),
         email=payload.email.strip().lower() if payload.email else None,
-        phone=payload.phone.strip() if payload.phone else None,
+        phone=normalize_phone(payload.phone) if payload.phone else None,
         username=username,
         password_hash=password_hash,
         landlord_uuid=landlord_uuid,
@@ -17910,6 +17925,7 @@ from typing import Any, Dict
 
 from app.core.config_service import config
 from app.database.property_repository import get_landlord_profile, save_landlord_profile
+from app.services.phone_service import normalize_phone
 
 
 def get_effective_landlord_config(landlord_id: int) -> Dict[str, Any]:
@@ -17922,7 +17938,10 @@ def get_effective_landlord_config(landlord_id: int) -> Dict[str, Any]:
 
 def save_effective_landlord_config(landlord_id: int, section: Dict[str, Any]) -> None:
     """Persist the per-landlord override of the landlord section."""
-    save_landlord_profile(landlord_id, dict(section or {}))
+    normalized = dict(section or {})
+    if normalized.get("phone"):
+        normalized["phone"] = normalize_phone(normalized["phone"])
+    save_landlord_profile(landlord_id, normalized)
     config.reload("landlord")
 ```
 
@@ -18511,6 +18530,65 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
 
 
 generateprofessionalpdf = generate_professional_pdf
+```
+
+### `backend/app/app/services/phone_service.py`
+
+```python
+"""
+app/services/phone_service.py
+
+Canonical phone-number handling.
+
+All phone numbers entered through the PROPAURA forms are stored in E.164
+format (+<country code><national number>), e.g. "+919876543210".
+This module normalizes raw input (country code prefix, "00" prefix, or bare
+national digits resolved against a default region) into that canonical form.
+"""
+
+import phonenumbers
+
+
+def normalize_phone(raw, default_region="IN"):
+    """
+    Normalize a phone number to E.164 format, e.g. "+919876543210".
+
+    Accepts:
+      - Full E.164 input:  "+919876543210"
+      - International prefix: "00919876543210"
+      - National number with explicit country: "+1 202 555 0100"
+      - Bare national digits: "9876543210" (resolved against default_region)
+
+    Returns the E.164 string when the input parses and is a possible number,
+    the stripped original input when non-empty but unparseable (so existing
+    imports/flows never break on odd values), or None when empty.
+    """
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if not text:
+        return None
+    try:
+        number = phonenumbers.parse(text, default_region or "IN")
+    except phonenumbers.NumberParseException:
+        return text
+    if not phonenumbers.is_possible_number(number):
+        return text
+    return phonenumbers.format_number(number, phonenumbers.PhoneNumberFormat.E164)
+
+
+def is_valid_phone(raw, default_region="IN"):
+    """
+    True when `raw` parses to a valid number for the given region
+    (or as an international E.164 number).
+    """
+    if not raw:
+        return False
+    try:
+        number = phonenumbers.parse(str(raw).strip(), default_region or "IN")
+    except phonenumbers.NumberParseException:
+        return False
+    return phonenumbers.is_valid_number(number)
 ```
 
 ### `backend/app/app/services/signature_service.py`
@@ -21856,6 +21934,7 @@ httpx>=0.27.2
 pydantic>=2.0.0
 google-auth>=2.38.0
 requests>=2.32.0
+phonenumbers>=8.13.0
 ```
 
 ### `backend/scripts/backfill_tenant_ids.py`
@@ -31065,15 +31144,18 @@ Structure:
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "country-flag-icons": "^1.6.20",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
+    "libphonenumber-js": "^1.13.10",
     "lucide-react": "^0.562.0",
     "next-themes": "^0.4.6",
     "react": "^19.2.0",
     "react-day-picker": "^9.13.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.70.0",
+    "react-phone-number-input": "^3.4.17",
     "react-qr-code": "^2.2.0",
     "react-resizable-panels": "^4.2.2",
     "react-router": "^8.3.0",
@@ -35178,6 +35260,7 @@ import {
   Clock,
 } from "lucide-react";
 import { BrandWave } from "@shared/loading/BrandWave";
+import PhoneInputField from "@shared/phone/PhoneInput";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Occupant, Tenant } from "@/types";
@@ -35245,6 +35328,7 @@ function UploadForm({
   const { landlordUuid } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [aadhaarMode, setAadhaarMode] = useState<"combined" | "split">("combined");
+  const [mobile, setMobile] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -35266,7 +35350,7 @@ function UploadForm({
     // Build clean FormData — exclude empty file inputs from the inactive Aadhaar mode
     const data = new FormData();
     data.append("name", (rawForm.get("name") as string)?.trim() ?? "");
-    data.append("mobile", (rawForm.get("mobile") as string)?.trim() ?? "");
+    data.append("mobile", mobile.trim());
     data.append("address", (rawForm.get("address") as string)?.trim() ?? "");
     data.append("residentSince", rawForm.get("residentSince") as string ?? "");
 
@@ -35301,7 +35385,7 @@ function UploadForm({
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Mobile</Label>
-          <Input name="mobile" placeholder="10-digit number" />
+          <PhoneInputField value={mobile} onChange={(value) => setMobile(value || "")} placeholder="Mobile number" />
         </div>
       </div>
       <div className="space-y-1">
@@ -48315,6 +48399,7 @@ import { toast } from 'sonner';
 import AuthLayout from '@/components/layout/AuthLayout';
 import { ROUTES } from '@/lib/routes';
 import LoadingOverlay from '@shared/loading/LoadingOverlay';
+import PhoneInputField from '@shared/phone/PhoneInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PRIVACY_POLICY_VERSION } from '@/lib/privacy';
@@ -48645,13 +48730,11 @@ export default function LandlordSignupPage() {
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone (optional)</Label>
-              <Input
+              <PhoneInputField
                 id="phone"
-                type="tel"
-                placeholder="10-digit mobile number"
+                placeholder="Mobile number"
                 value={signupData.phone}
-                onChange={e => handleChange('phone', e.target.value.replace(/\D/g, ''))}
-                maxLength={10}
+                onChange={(value) => handleChange('phone', value || '')}
               />
             </div>
 
@@ -49688,6 +49771,7 @@ import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { BrandWave } from '@shared/loading/BrandWave';
+import PhoneInputField from '@shared/phone/PhoneInput';
 import type { AppConfig, Property } from '@/types';
 import ImportPreviewModal from '../components/modals/ImportPreviewModal';
 import ExportPreviewModal from '../components/modals/ExportPreviewModal';
@@ -50209,7 +50293,7 @@ export default function Settings() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Phone Number</Label>
-                  <Input value={config.landlord.phone} onChange={(e) => updateLandlord('phone', e.target.value)} />
+                  <PhoneInputField value={config.landlord.phone} onChange={(value) => updateLandlord('phone', value || '')} />
                 </div>
                 <div className="space-y-2">
                   <Label>Email Address</Label>
@@ -50760,13 +50844,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, Building2, Plus, Trash2, UserRound, CheckCircle2, Upload, PenLine, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, Building2, Plus, Trash2, UserRound, CheckCircle2, Upload, PenLine, ChevronLeft, ChevronRight, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
+import PhoneInputField from "@shared/phone/PhoneInput";
 
 interface PropertyRow {
   property_name: string;
@@ -50779,11 +50865,18 @@ interface LandlordProfile {
   email: string;
   address: string;
   signature_image: string;
+  bank_account_name: string;
+  bank_account_number: string;
+  bank_name: string;
+  bank_branch: string;
+  bank_ifsc: string;
+  mask_bank_account: boolean;
 }
 
 const STEPS = [
   { key: "details", label: "Your details" },
   { key: "properties", label: "Properties" },
+  { key: "bank", label: "Bank" },
   { key: "signature", label: "Signature" },
 ];
 
@@ -50798,6 +50891,12 @@ export default function SetupPage() {
     email: "",
     address: "",
     signature_image: "",
+    bank_account_name: "",
+    bank_account_number: "",
+    bank_name: "",
+    bank_branch: "",
+    bank_ifsc: "",
+    mask_bank_account: false,
   });
   const [properties, setProperties] = useState<PropertyRow[]>([
     { property_name: "Property 1", address: "" },
@@ -50995,11 +51094,11 @@ export default function SetupPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="setup-phone">Phone</Label>
-                      <Input
+                      <PhoneInputField
                         id="setup-phone"
                         value={profile.phone}
-                        onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                        placeholder="+91 98765 43210"
+                        onChange={(value) => setProfile({ ...profile, phone: value || "" })}
+                        placeholder="Mobile number"
                       />
                     </div>
                     <div className="space-y-2">
@@ -51091,6 +51190,78 @@ export default function SetupPage() {
               {step === 2 && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
+                    <Landmark className="h-5 w-5 text-primary" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                      Bank details
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground -mt-2">
+                    Optional — if provided, payment instructions are added to your rent receipts. You can edit this later from Settings.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-bank-name">Account Holder Name</Label>
+                      <Input
+                        id="setup-bank-name"
+                        value={profile.bank_account_name}
+                        onChange={(e) => setProfile({ ...profile, bank_account_name: e.target.value })}
+                        placeholder="e.g. Ramesh Kumar"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-bank-number">Account Number</Label>
+                      <Input
+                        id="setup-bank-number"
+                        value={profile.bank_account_number}
+                        onChange={(e) => setProfile({ ...profile, bank_account_number: e.target.value })}
+                        placeholder="Account number"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-bank-name-2">Bank Name</Label>
+                      <Input
+                        id="setup-bank-name-2"
+                        value={profile.bank_name}
+                        onChange={(e) => setProfile({ ...profile, bank_name: e.target.value })}
+                        placeholder="e.g. HDFC Bank"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-bank-branch">Branch</Label>
+                      <Input
+                        id="setup-bank-branch"
+                        value={profile.bank_branch}
+                        onChange={(e) => setProfile({ ...profile, bank_branch: e.target.value })}
+                        placeholder="e.g. Koramangala"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-bank-ifsc">IFSC Code</Label>
+                      <Input
+                        id="setup-bank-ifsc"
+                        value={profile.bank_ifsc}
+                        onChange={(e) => setProfile({ ...profile, bank_ifsc: e.target.value.toUpperCase() })}
+                        placeholder="e.g. HDFC0001234"
+                        className="uppercase"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="setup-bank-mask"
+                      checked={profile.mask_bank_account}
+                      onCheckedChange={(v) => setProfile({ ...profile, mask_bank_account: v })}
+                    />
+                    <Label htmlFor="setup-bank-mask" className="cursor-pointer">Mask account number on printed receipts</Label>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
                     <PenLine className="h-5 w-5 text-primary" />
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                       Digital Signature
@@ -51157,6 +51328,14 @@ export default function SetupPage() {
                     <p className="text-xs text-muted-foreground">
                       {properties.map((p, i) => p.property_name.trim() || defaultName(i)).join(", ")}
                     </p>
+                    {profile.bank_name && (
+                      <p className="text-xs text-muted-foreground">
+                        {profile.bank_account_name || profile.bank_name}
+                        {profile.bank_name && ` · ${profile.bank_name}`}
+                        {profile.bank_branch && ` · ${profile.bank_branch}`}
+                        {profile.bank_ifsc && ` · ${profile.bank_ifsc}`}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}
@@ -51209,6 +51388,7 @@ export default function SetupPage() {
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 import { BrandWave } from '@shared/loading/BrandWave';
+import PhoneInputField from '@shared/phone/PhoneInput';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52307,7 +52487,7 @@ function TenantForm({
         </div>
         <div className="space-y-2">
           <Label>Phone</Label>
-          <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <PhoneInputField value={form.phone} onChange={(value) => setForm({ ...form, phone: value || '' })} />
         </div>
       </div>
 
@@ -53672,6 +53852,15 @@ export interface PermanentDeleteResult {
       ],
       "react-dom/*": [
         "./node_modules/@types/react-dom/*"
+      ],
+      "react-phone-number-input": [
+        "./node_modules/react-phone-number-input/index.d.ts"
+      ],
+      "country-flag-icons/*": [
+        "./node_modules/country-flag-icons/*/index.d.ts"
+      ],
+      "lucide-react": [
+        "./node_modules/lucide-react"
       ]
     },
     /* Bundler mode */
@@ -53768,6 +53957,10 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "../shared"),
       react: path.resolve(__dirname, "node_modules/react"),
       "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
+      "react-phone-number-input": path.resolve(__dirname, "node_modules/react-phone-number-input"),
+      "country-flag-icons": path.resolve(__dirname, "node_modules/country-flag-icons"),
+      "libphonenumber-js": path.resolve(__dirname, "node_modules/libphonenumber-js"),
+      "lucide-react": path.resolve(__dirname, "node_modules/lucide-react"),
     },
   },
   build: {
@@ -54061,6 +54254,164 @@ export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
     <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
       <BrandWave size="lg" />
     </div>
+  );
+}
+```
+
+### `frontend/shared/phone/PhoneInput.tsx`
+
+```typescript
+import { useState } from "react";
+import PhoneInput from "react-phone-number-input";
+import { getCountryCallingCode, type Country } from "react-phone-number-input";
+import getCountryFlag from "country-flag-icons/unicode";
+import { ChevronDown, Globe } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+
+interface CountryOption {
+  value?: Country;
+  label: string;
+  divider?: boolean;
+}
+
+interface CountrySelectProps {
+  value?: Country;
+  options: CountryOption[];
+  onChange: (value?: Country) => void;
+  disabled?: boolean;
+  readOnly?: boolean;
+  className?: string;
+}
+
+function CountrySelect({
+  value,
+  options,
+  onChange,
+  disabled,
+  readOnly,
+  className,
+}: CountrySelectProps) {
+  const [open, setOpen] = useState(false);
+  const selectedCallingCode = value ? getCountryCallingCode(value) : undefined;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          disabled={disabled || readOnly}
+          className={cn(
+            "h-9 shrink-0 rounded-r-none border-r-0 px-2.5 font-normal text-foreground",
+            className
+          )}
+        >
+          <span className="text-base leading-none">
+            {value ? (
+              getCountryFlag(value)
+            ) : (
+              <Globe className="size-4" />
+            )}
+          </span>
+          <span className="text-xs tabular-nums">
+            {selectedCallingCode ? `+${selectedCallingCode}` : ""}
+          </span>
+          <ChevronDown className="size-3.5 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={2} className="w-[320px] p-0">
+        <Command>
+          <CommandInput placeholder="Search country…" />
+          <CommandList>
+            <CommandEmpty>No country found.</CommandEmpty>
+            <CommandGroup>
+              {options.map((option) => {
+                if (option.divider) return null;
+                const isInternational = !option.value;
+                return (
+                  <CommandItem
+                    key={option.value ?? "ZZ"}
+                    value={`${option.label} ${option.value ?? ""}`.trim()}
+                    onSelect={() => {
+                      onChange(isInternational ? undefined : option.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="text-base leading-none">
+                      {isInternational ? (
+                        <Globe className="size-4" />
+                      ) : (
+                        getCountryFlag(option.value as Country)
+                      )}
+                    </span>
+                    <span className="flex-1 truncate">{option.label}</span>
+                    {option.value && (
+                      <span className="text-muted-foreground text-xs tabular-nums">
+                        +{getCountryCallingCode(option.value)}
+                      </span>
+                    )}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+interface PhoneInputFieldProps {
+  value?: string;
+  onChange: (value?: string) => void;
+  id?: string;
+  name?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  readOnly?: boolean;
+  autoComplete?: string;
+  className?: string;
+}
+
+export default function PhoneInputField({
+  value,
+  onChange,
+  className,
+  ...props
+}: PhoneInputFieldProps) {
+  return (
+    <PhoneInput
+      {...props}
+      international
+      defaultCountry="IN"
+      value={value}
+      onChange={onChange}
+      inputComponent={Input}
+      countrySelectComponent={CountrySelect}
+      numberInputProps={{
+        className: "flex-1 min-w-0 rounded-l-none",
+      }}
+      className={cn("flex items-center", className)}
+    />
   );
 }
 ```
@@ -54425,6 +54776,7 @@ dist-ssr
     "@radix-ui/react-dialog": "^1.1.19",
     "@radix-ui/react-dropdown-menu": "^2.1.20",
     "@radix-ui/react-label": "^2.1.11",
+    "@radix-ui/react-popover": "^1.1.23",
     "@radix-ui/react-scroll-area": "^1.2.14",
     "@radix-ui/react-separator": "^1.1.11",
     "@radix-ui/react-slot": "^1.3.0",
@@ -54434,9 +54786,13 @@ dist-ssr
     "axios": "^1.18.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
+    "country-flag-icons": "^1.6.20",
+    "libphonenumber-js": "^1.13.10",
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-phone-number-input": "^3.4.17",
     "react-router": "^8.3.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.6.0",
@@ -55802,6 +56158,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { tenantApi } from "@/lib/api";
 import { BrandWave } from "@shared/loading/BrandWave";
+import PhoneInputField from "@shared/phone/PhoneInput";
 
 export interface OccupantKycUploadDialogProps {
   open: boolean;
@@ -55816,6 +56173,7 @@ export function OccupantKycUploadDialog({
 }: OccupantKycUploadDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [aadhaarMode, setAadhaarMode] = useState<"combined" | "split">("combined");
+  const [mobile, setMobile] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -55838,7 +56196,7 @@ export function OccupantKycUploadDialog({
     // validation isn't tripped by empty browser file inputs from the hidden mode
     const data = new FormData();
     data.append("name", (rawForm.get("name") as string)?.trim() ?? "");
-    data.append("mobile", (rawForm.get("mobile") as string)?.trim() ?? "");
+    data.append("mobile", mobile.trim());
     data.append("address", (rawForm.get("address") as string)?.trim() ?? "");
     data.append("residentSince", rawForm.get("residentSince") as string ?? "");
 
@@ -55883,7 +56241,7 @@ export function OccupantKycUploadDialog({
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Mobile</Label>
-              <Input name="mobile" placeholder="10-digit number" />
+              <PhoneInputField value={mobile} onChange={(value) => setMobile(value || "")} placeholder="Mobile number" />
             </div>
           </div>
           
@@ -57133,6 +57491,193 @@ function CollapsibleContent({
 export { Collapsible, CollapsibleTrigger, CollapsibleContent }
 ```
 
+### `frontend/tenant-app/src/components/ui/command.tsx`
+
+```typescript
+import * as React from "react"
+import { Command as CommandPrimitive } from "cmdk"
+import { SearchIcon } from "lucide-react"
+
+import { cn } from "@/lib/utils"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+
+function Command({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive>) {
+  return (
+    <CommandPrimitive
+      data-slot="command"
+      className={cn(
+        "bg-popover text-popover-foreground flex h-full w-full flex-col overflow-hidden rounded-md",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CommandDialog({
+  title = "Command Palette",
+  description = "Search for a command to run...",
+  children,
+  className,
+  showCloseButton = true,
+  ...props
+}: React.ComponentProps<typeof Dialog> & {
+  title?: string
+  description?: string
+  className?: string
+  showCloseButton?: boolean
+}) {
+  return (
+    <Dialog {...props}>
+      <DialogHeader className="sr-only">
+        <DialogTitle>{title}</DialogTitle>
+        <DialogDescription>{description}</DialogDescription>
+      </DialogHeader>
+      <DialogContent
+        className={cn("overflow-hidden p-0", className)}
+        showCloseButton={showCloseButton}
+      >
+        <Command className="[&_[cmdk-group-heading]]:text-muted-foreground **:data-[slot=command-input-wrapper]:h-12 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
+          {children}
+        </Command>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function CommandInput({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+  return (
+    <div
+      data-slot="command-input-wrapper"
+      className="flex h-9 items-center gap-2 border-b px-3"
+    >
+      <SearchIcon className="size-4 shrink-0 opacity-50" />
+      <CommandPrimitive.Input
+        data-slot="command-input"
+        className={cn(
+          "placeholder:text-muted-foreground flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+          className
+        )}
+        {...props}
+      />
+    </div>
+  )
+}
+
+function CommandList({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.List>) {
+  return (
+    <CommandPrimitive.List
+      data-slot="command-list"
+      className={cn(
+        "max-h-[300px] scroll-py-1 overflow-x-hidden overflow-y-auto",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CommandEmpty({
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Empty>) {
+  return (
+    <CommandPrimitive.Empty
+      data-slot="command-empty"
+      className="py-6 text-center text-sm"
+      {...props}
+    />
+  )
+}
+
+function CommandGroup({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Group>) {
+  return (
+    <CommandPrimitive.Group
+      data-slot="command-group"
+      className={cn(
+        "text-foreground [&_[cmdk-group-heading]]:text-muted-foreground overflow-hidden p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CommandSeparator({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Separator>) {
+  return (
+    <CommandPrimitive.Separator
+      data-slot="command-separator"
+      className={cn("bg-border -mx-1 h-px", className)}
+      {...props}
+    />
+  )
+}
+
+function CommandItem({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Item>) {
+  return (
+    <CommandPrimitive.Item
+      data-slot="command-item"
+      className={cn(
+        "data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg:not([class*='text-'])]:text-muted-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CommandShortcut({
+  className,
+  ...props
+}: React.ComponentProps<"span">) {
+  return (
+    <span
+      data-slot="command-shortcut"
+      className={cn(
+        "text-muted-foreground ml-auto text-xs tracking-widest",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export {
+  Command,
+  CommandDialog,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandShortcut,
+  CommandSeparator,
+}
+```
+
 ### `frontend/tenant-app/src/components/ui/dialog.tsx`
 
 ```typescript
@@ -57592,6 +58137,59 @@ function Label({
 }
 
 export { Label }
+```
+
+### `frontend/tenant-app/src/components/ui/popover.tsx`
+
+```typescript
+"use client"
+
+import * as React from "react"
+import * as PopoverPrimitive from "@radix-ui/react-popover"
+
+import { cn } from "@/lib/utils"
+
+function Popover({
+  ...props
+}: React.ComponentProps<typeof PopoverPrimitive.Root>) {
+  return <PopoverPrimitive.Root data-slot="popover" {...props} />
+}
+
+function PopoverTrigger({
+  ...props
+}: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
+  return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
+}
+
+function PopoverContent({
+  className,
+  align = "center",
+  sideOffset = 4,
+  ...props
+}: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+  return (
+    <PopoverPrimitive.Portal>
+      <PopoverPrimitive.Content
+        data-slot="popover-content"
+        align={align}
+        sideOffset={sideOffset}
+        className={cn(
+          "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-72 origin-(--radix-popover-content-transform-origin) rounded-md border p-4 shadow-md outline-hidden",
+          className
+        )}
+        {...props}
+      />
+    </PopoverPrimitive.Portal>
+  )
+}
+
+function PopoverAnchor({
+  ...props
+}: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
+  return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />
+}
+
+export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor }
 ```
 
 ### `frontend/tenant-app/src/components/ui/scroll-area.tsx`
@@ -59189,7 +59787,10 @@ export interface ApiError {
       "react": ["./node_modules/@types/react"],
       "react/*": ["./node_modules/@types/react/*"],
       "react-dom": ["./node_modules/@types/react-dom"],
-      "react-dom/*": ["./node_modules/@types/react-dom/*"]
+      "react-dom/*": ["./node_modules/@types/react-dom/*"],
+      "react-phone-number-input": ["./node_modules/react-phone-number-input/index.d.ts"],
+      "country-flag-icons/*": ["./node_modules/country-flag-icons/*/index.d.ts"],
+      "lucide-react": ["./node_modules/lucide-react"]
     },
 
     /* Bundler mode */
@@ -59269,6 +59870,10 @@ export default defineConfig({
       '@shared': path.resolve(__dirname, '../shared'),
       react: path.resolve(__dirname, 'node_modules/react'),
       'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      'react-phone-number-input': path.resolve(__dirname, 'node_modules/react-phone-number-input'),
+      'country-flag-icons': path.resolve(__dirname, 'node_modules/country-flag-icons'),
+      'libphonenumber-js': path.resolve(__dirname, 'node_modules/libphonenumber-js'),
+      'lucide-react': path.resolve(__dirname, 'node_modules/lucide-react'),
     },
   },
   build: {
