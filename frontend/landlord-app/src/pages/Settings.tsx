@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { BrandWave } from '@shared/loading/BrandWave';
+import PhoneInputField from '@shared/phone/PhoneInput';
 import type { AppConfig, Property } from '@/types';
 import ImportPreviewModal from '../components/modals/ImportPreviewModal';
 import ExportPreviewModal from '../components/modals/ExportPreviewModal';
@@ -535,7 +536,7 @@ export default function Settings() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Phone Number</Label>
-                  <Input value={config.landlord.phone} onChange={(e) => updateLandlord('phone', e.target.value)} />
+                  <PhoneInputField value={config.landlord.phone} onChange={(value) => updateLandlord('phone', value || '')} />
                 </div>
                 <div className="space-y-2">
                   <Label>Email Address</Label>

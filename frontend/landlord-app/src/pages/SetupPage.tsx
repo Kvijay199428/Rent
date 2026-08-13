@@ -4,13 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { AlertTriangle, Building2, Plus, Trash2, UserRound, CheckCircle2, Upload, PenLine, ChevronLeft, ChevronRight } from "lucide-react";
+import { AlertTriangle, Building2, Plus, Trash2, UserRound, CheckCircle2, Upload, PenLine, ChevronLeft, ChevronRight, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
+import PhoneInputField from "@shared/phone/PhoneInput";
 
 interface PropertyRow {
   property_name: string;
@@ -23,11 +25,18 @@ interface LandlordProfile {
   email: string;
   address: string;
   signature_image: string;
+  bank_account_name: string;
+  bank_account_number: string;
+  bank_name: string;
+  bank_branch: string;
+  bank_ifsc: string;
+  mask_bank_account: boolean;
 }
 
 const STEPS = [
   { key: "details", label: "Your details" },
   { key: "properties", label: "Properties" },
+  { key: "bank", label: "Bank" },
   { key: "signature", label: "Signature" },
 ];
 
@@ -42,6 +51,12 @@ export default function SetupPage() {
     email: "",
     address: "",
     signature_image: "",
+    bank_account_name: "",
+    bank_account_number: "",
+    bank_name: "",
+    bank_branch: "",
+    bank_ifsc: "",
+    mask_bank_account: false,
   });
   const [properties, setProperties] = useState<PropertyRow[]>([
     { property_name: "Property 1", address: "" },
@@ -239,11 +254,11 @@ export default function SetupPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="setup-phone">Phone</Label>
-                      <Input
+                      <PhoneInputField
                         id="setup-phone"
                         value={profile.phone}
-                        onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                        placeholder="+91 98765 43210"
+                        onChange={(value) => setProfile({ ...profile, phone: value || "" })}
+                        placeholder="Mobile number"
                       />
                     </div>
                     <div className="space-y-2">
@@ -335,6 +350,78 @@ export default function SetupPage() {
               {step === 2 && (
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
+                    <Landmark className="h-5 w-5 text-primary" />
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                      Bank details
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground -mt-2">
+                    Optional — if provided, payment instructions are added to your rent receipts. You can edit this later from Settings.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-bank-name">Account Holder Name</Label>
+                      <Input
+                        id="setup-bank-name"
+                        value={profile.bank_account_name}
+                        onChange={(e) => setProfile({ ...profile, bank_account_name: e.target.value })}
+                        placeholder="e.g. Ramesh Kumar"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-bank-number">Account Number</Label>
+                      <Input
+                        id="setup-bank-number"
+                        value={profile.bank_account_number}
+                        onChange={(e) => setProfile({ ...profile, bank_account_number: e.target.value })}
+                        placeholder="Account number"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-bank-name-2">Bank Name</Label>
+                      <Input
+                        id="setup-bank-name-2"
+                        value={profile.bank_name}
+                        onChange={(e) => setProfile({ ...profile, bank_name: e.target.value })}
+                        placeholder="e.g. HDFC Bank"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-bank-branch">Branch</Label>
+                      <Input
+                        id="setup-bank-branch"
+                        value={profile.bank_branch}
+                        onChange={(e) => setProfile({ ...profile, bank_branch: e.target.value })}
+                        placeholder="e.g. Koramangala"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="setup-bank-ifsc">IFSC Code</Label>
+                      <Input
+                        id="setup-bank-ifsc"
+                        value={profile.bank_ifsc}
+                        onChange={(e) => setProfile({ ...profile, bank_ifsc: e.target.value.toUpperCase() })}
+                        placeholder="e.g. HDFC0001234"
+                        className="uppercase"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      id="setup-bank-mask"
+                      checked={profile.mask_bank_account}
+                      onCheckedChange={(v) => setProfile({ ...profile, mask_bank_account: v })}
+                    />
+                    <Label htmlFor="setup-bank-mask" className="cursor-pointer">Mask account number on printed receipts</Label>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
                     <PenLine className="h-5 w-5 text-primary" />
                     <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                       Digital Signature
@@ -401,6 +488,14 @@ export default function SetupPage() {
                     <p className="text-xs text-muted-foreground">
                       {properties.map((p, i) => p.property_name.trim() || defaultName(i)).join(", ")}
                     </p>
+                    {profile.bank_name && (
+                      <p className="text-xs text-muted-foreground">
+                        {profile.bank_account_name || profile.bank_name}
+                        {profile.bank_name && ` · ${profile.bank_name}`}
+                        {profile.bank_branch && ` · ${profile.bank_branch}`}
+                        {profile.bank_ifsc && ` · ${profile.bank_ifsc}`}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

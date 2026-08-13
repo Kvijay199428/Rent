@@ -33,6 +33,15 @@
       ],
       "react-dom/*": [
         "./node_modules/@types/react-dom/*"
+      ],
+      "react-phone-number-input": [
+        "./node_modules/react-phone-number-input/index.d.ts"
+      ],
+      "country-flag-icons/*": [
+        "./node_modules/country-flag-icons/*/index.d.ts"
+      ],
+      "lucide-react": [
+        "./node_modules/lucide-react"
       ]
     },
     /* Bundler mode */

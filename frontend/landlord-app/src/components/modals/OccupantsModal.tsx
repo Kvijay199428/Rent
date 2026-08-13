@@ -34,6 +34,7 @@ import {
   Clock,
 } from "lucide-react";
 import { BrandWave } from "@shared/loading/BrandWave";
+import PhoneInputField from "@shared/phone/PhoneInput";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Occupant, Tenant } from "@/types";
@@ -101,6 +102,7 @@ function UploadForm({
   const { landlordUuid } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [aadhaarMode, setAadhaarMode] = useState<"combined" | "split">("combined");
+  const [mobile, setMobile] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -122,7 +124,7 @@ function UploadForm({
     // Build clean FormData — exclude empty file inputs from the inactive Aadhaar mode
     const data = new FormData();
     data.append("name", (rawForm.get("name") as string)?.trim() ?? "");
-    data.append("mobile", (rawForm.get("mobile") as string)?.trim() ?? "");
+    data.append("mobile", mobile.trim());
     data.append("address", (rawForm.get("address") as string)?.trim() ?? "");
     data.append("residentSince", rawForm.get("residentSince") as string ?? "");
 
@@ -157,7 +159,7 @@ function UploadForm({
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Mobile</Label>
-          <Input name="mobile" placeholder="10-digit number" />
+          <PhoneInputField value={mobile} onChange={(value) => setMobile(value || "")} placeholder="Mobile number" />
         </div>
       </div>
       <div className="space-y-1">

@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import AuthLayout from '@/components/layout/AuthLayout';
 import { ROUTES } from '@/lib/routes';
 import LoadingOverlay from '@shared/loading/LoadingOverlay';
+import PhoneInputField from '@shared/phone/PhoneInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PRIVACY_POLICY_VERSION } from '@/lib/privacy';
@@ -341,13 +342,11 @@ export default function LandlordSignupPage() {
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone (optional)</Label>
-              <Input
+              <PhoneInputField
                 id="phone"
-                type="tel"
-                placeholder="10-digit mobile number"
+                placeholder="Mobile number"
                 value={signupData.phone}
-                onChange={e => handleChange('phone', e.target.value.replace(/\D/g, ''))}
-                maxLength={10}
+                onChange={(value) => handleChange('phone', value || '')}
               />
             </div>
 

@@ -12,6 +12,10 @@ export default defineConfig({
       '@shared': path.resolve(__dirname, '../shared'),
       react: path.resolve(__dirname, 'node_modules/react'),
       'react-dom': path.resolve(__dirname, 'node_modules/react-dom'),
+      'react-phone-number-input': path.resolve(__dirname, 'node_modules/react-phone-number-input'),
+      'country-flag-icons': path.resolve(__dirname, 'node_modules/country-flag-icons'),
+      'libphonenumber-js': path.resolve(__dirname, 'node_modules/libphonenumber-js'),
+      'lucide-react': path.resolve(__dirname, 'node_modules/lucide-react'),
     },
   },
   build: {

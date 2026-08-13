@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import QRCode from 'react-qr-code';
 import { BrandWave } from '@shared/loading/BrandWave';
+import PhoneInputField from '@shared/phone/PhoneInput';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1099,7 +1100,7 @@ function TenantForm({
         </div>
         <div className="space-y-2">
           <Label>Phone</Label>
-          <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+          <PhoneInputField value={form.phone} onChange={(value) => setForm({ ...form, phone: value || '' })} />
         </div>
       </div>
 

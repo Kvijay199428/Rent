@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { tenantApi } from "@/lib/api";
 import { BrandWave } from "@shared/loading/BrandWave";
+import PhoneInputField from "@shared/phone/PhoneInput";
 
 export interface OccupantKycUploadDialogProps {
   open: boolean;
@@ -20,6 +21,7 @@ export function OccupantKycUploadDialog({
 }: OccupantKycUploadDialogProps) {
   const [submitting, setSubmitting] = useState(false);
   const [aadhaarMode, setAadhaarMode] = useState<"combined" | "split">("combined");
+  const [mobile, setMobile] = useState("");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -42,7 +44,7 @@ export function OccupantKycUploadDialog({
     // validation isn't tripped by empty browser file inputs from the hidden mode
     const data = new FormData();
     data.append("name", (rawForm.get("name") as string)?.trim() ?? "");
-    data.append("mobile", (rawForm.get("mobile") as string)?.trim() ?? "");
+    data.append("mobile", mobile.trim());
     data.append("address", (rawForm.get("address") as string)?.trim() ?? "");
     data.append("residentSince", rawForm.get("residentSince") as string ?? "");
 
@@ -87,7 +89,7 @@ export function OccupantKycUploadDialog({
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Mobile</Label>
-              <Input name="mobile" placeholder="10-digit number" />
+              <PhoneInputField value={mobile} onChange={(value) => setMobile(value || "")} placeholder="Mobile number" />
             </div>
           </div>
           
