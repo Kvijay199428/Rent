@@ -22,7 +22,7 @@ import socket
 import uuid
 
 from app.services.tenant_service import load_tenants, add_tenant, update_tenant
-from app.services.billing_service import get_all_receipts
+from app.services.billing_service import get_all_receipts, recompute_tenant_arrear_chain
 from app.services.backup_service import create_full_backup
 from app.core.paths import BACKUPS_DIR
 
@@ -853,6 +853,7 @@ async def import_execute_data(
                 (datetime.datetime.utcnow().isoformat(), admin_username, ", ".join(parsed_files_data.keys()), "IN_PROGRESS", "{}", "{}", "{}")
             )
             job_id = job_cur.lastrowid
+            affected_tenant_ids = set()
             
             for filename, parsed_data in parsed_files_data.items():
                 for t_id, t_data in parsed_data.items():
@@ -1039,7 +1040,9 @@ async def import_execute_data(
                                     tenant_landlord_id
                                 ))
                                 imported_receipts += 1
-                                
+
+                    affected_tenant_ids.add(tenantId)
+
                     conn.execute(
                         "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, existing_tenant_id, result) VALUES (?, ?, ?, ?, ?, ?, ?)",
                         (job_id, target_key, t_id, t_name, action, existing_t.id if existing_t else None, "SUCCESS")
@@ -1054,6 +1057,11 @@ async def import_execute_data(
 
             # Mark job complete
             conn.execute("UPDATE import_jobs SET status = ?, result_json = ? WHERE id = ?", ("COMPLETED", json.dumps({"tenants": len(imported_tenants), "receipts": imported_receipts}), job_id))
+
+            # Imported previousArrears may diverge from the running-balance
+            # model — normalize every affected tenant's chain before commit.
+            for tid in affected_tenant_ids:
+                recompute_tenant_arrear_chain(conn, tid)
             
             # Commit the single transaction
             conn.commit()

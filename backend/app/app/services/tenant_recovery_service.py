@@ -23,6 +23,7 @@ from typing import Optional
 from app.core.db import get_conn
 from app.core.config_service import config
 from app.core.paths import BACKUPS_DIR, KYC_DIR, RECEIPTS_DIR
+from app.services.billing_service import recompute_tenant_arrear_chain
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 
@@ -896,6 +897,9 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
             "UPDATE tenant_recovery_snapshots SET status = 'RESTORED', restored_at = ? WHERE id = ?",
             (now_iso, snapshot_id),
         )
+
+        # Restored previousArrears may diverge — rebuild the running-balance chain.
+        recompute_tenant_arrear_chain(conn, new_tenant_id)
         conn.commit()
 
     # Restore KYC files and PDFs from ZIP back to filesystem

@@ -184,8 +184,12 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
                   type="number"
                   step="0.1"
                   value={receipt.previousArrears || 0}
-                  onChange={(e) => setReceipt({ ...receipt, previousArrears: parseFloat(e.target.value) || 0 })}
+                  disabled
+                  className="bg-muted"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Auto-computed from unpaid balances; changes to payments cascade automatically.
+                </p>
               </div>
             </div>
 

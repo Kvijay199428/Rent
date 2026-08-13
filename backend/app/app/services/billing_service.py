@@ -97,7 +97,12 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
         row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
-        
+
+        # Normalize the chain first so validation and the PAID default use the
+        # authoritative running balance entering this bill.
+        recompute_tenant_arrear_chain(conn, tenantId)
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+
         currentTotal = float(row["total"])
         previousArrears = float(row["previousarrears"])
         grandTotal = round(currentTotal + previousArrears, 2)
@@ -138,6 +143,7 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
             SET paymentstatus = ?, amountreceived = ?
             WHERE tenantId = ? AND billNo = ?
         """, (finalStatus, amountReceived, tenantId, billNo))
+        recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
     
     return finalStatus
@@ -194,6 +200,96 @@ def _row_to_dict(row):
         "previousArrears": _safe_float(row.get("previousarrears")),
         "amountReceived": _safe_float(row.get("amountreceived")),
     }
+
+_MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+                "July", "August", "September", "October", "November", "December"]
+
+def _month_sort_key(month_str: str):
+    """Sort key for 'January 2026' style month strings; unknown months sort last."""
+    parts = str(month_str or "").strip().split()
+    if len(parts) == 2 and parts[0] in _MONTH_NAMES and parts[1].isdigit():
+        return (int(parts[1]), _MONTH_NAMES.index(parts[0]))
+    return (99999, 99)
+
+def get_tenant_balance(tenant_id: int) -> float:
+    """Total accumulated balance owed by a tenant across all active receipts.
+
+    Balance = Σ Total − Σ amountReceived over non-archived receipts. In the
+    running-balance model this equals the latest bill's due amount (the latest
+    bill already carries all previous arrears) and is the value that must be
+    carried forward as the next bill's previousArrears.
+    """
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(COALESCE(total,0)),0) - COALESCE(SUM(COALESCE(amountreceived,0)),0) AS balance "
+            "FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+            (tenant_id,),
+        ).fetchone()
+    return round(float(row["balance"] or 0), 2)
+
+def recompute_tenant_arrear_chain(conn, tenant_id: int) -> list:
+    """Recompute cumulative previousArrears for every active receipt of a tenant.
+
+    Receipts are ordered chronologically (parsed month, rowid tiebreak) and each
+    bill's previousArrears is set to the running balance entering it, so the
+    latest bill carries the full accumulated unpaid balance from the first bill
+    to the current one. Payments recorded on an earlier bill therefore cascade
+    forward automatically.
+
+    Best-effort regenerates the PDF of every bill whose previousArrears changed.
+
+    Returns the list of bill numbers whose previousArrears changed.
+    """
+    from app.services.pdf_service import generate_professional_pdf
+    from app.services.landlord_config_service import get_effective_landlord_config
+
+    rows = conn.execute(
+        "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+        (tenant_id,),
+    ).fetchall()
+
+    ordered = sorted(rows, key=lambda r: (_month_sort_key(r["month"]), r["rowid"]))
+
+    running = 0.0
+    changed = []
+    landlord_id = None
+    for r in ordered:
+        if landlord_id is None and "landlord_id" in r.keys():
+            landlord_id = r["landlord_id"]
+        total = float(r["total"] or 0)
+        received = float(r["amountreceived"] or 0)
+        expected_prev = round(running, 2)
+        actual_prev = round(float(r["previousarrears"] or 0), 2)
+        if abs(expected_prev - actual_prev) > 0.001:
+            conn.execute(
+                "UPDATE receipts SET previousarrears = ? WHERE billNo = ? AND tenantId = ?",
+                (expected_prev, r["billNo"], tenant_id),
+            )
+            changed.append(r["billNo"])
+        running += total - received
+
+    if changed:
+        try:
+            conf = get_effective_landlord_config(landlord_id) if landlord_id else {}
+            fresh = conn.execute(
+                "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+                (tenant_id,),
+            ).fetchall()
+            fresh_by_no = {r["billNo"]: r for r in fresh}
+            for bill_no in changed:
+                r = fresh_by_no.get(bill_no)
+                if r is None:
+                    continue
+                try:
+                    pdf_name = r["pdf"] or f"{r['billNo']}.pdf"
+                    pdf_path = os.path.join(RECEIPTS_DIR, pdf_name)
+                    generate_professional_pdf(_row_to_dict(r), conf, pdf_path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    return changed
 
 def get_active_tenant_ids(landlord_id=None) -> set:
     """Returns a set of tenant IDs (optionally scoped to a landlord) that are NOT archived."""
@@ -317,6 +413,11 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
         raise ValueError("Tenant not found")
     tenantName = tenant.name
 
+    # Arrears are fully auto-computed: the new bill carries the tenant's running
+    # balance (Σ earlier Totals − Σ earlier payments) as its previousArrears, so
+    # it reflects the accumulated unpaid amount from the first bill to now.
+    previousArrears = get_tenant_balance(tenant.id)
+
     # FIX: Generate bill number with tenant ID prefix (T1, T2, etc.)
     # Count existing receipts for THIS specific tenant
     with get_conn() as conn:
@@ -414,6 +515,7 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
             paymentStatus, MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived,
             tenant_landlord_id
         ))
+        recompute_tenant_arrear_chain(conn, tenant.id)
         conn.commit()
 
     return receipt_dict
@@ -451,7 +553,17 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         tenant.rent, tenant.water, tankWater, MaintenanceCharge,
         tenant.electricityRate, tenant.additionalPersonCharge
     )
-    
+
+    # Arrears are auto-computed: normalize the chain so this bill's
+    # previousArrears is the running balance entering it.
+    with get_conn() as conn:
+        recompute_tenant_arrear_chain(conn, tenantId)
+        _row = conn.execute(
+            "SELECT previousarrears FROM receipts WHERE tenantId = ? AND billNo = ?",
+            (tenantId, billNo),
+        ).fetchone()
+    previousArrears = float(_row["previousarrears"] or 0) if _row else 0.0
+
     if paymentStatus == "PAID" and amountReceived is None:
         amountReceived = charges["total"] + previousArrears
     elif amountReceived is None:
@@ -518,6 +630,7 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
             MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived,
             billNo
         ))
+        recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
 
     return updated_dict
@@ -539,6 +652,7 @@ def archive_bill(tenantId, billNo, landlord_id=None):
             UPDATE receipts SET status = 'ARCHIVED', archiveddate = ?, archivedby = 'Admin'
             WHERE tenantId = ? AND billNo = ? AND status != 'ARCHIVED'
         """, (datetime.now().strftime("%Y-%m-%d"), tenantId, billNo))
+        recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
     return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
@@ -559,6 +673,7 @@ def restore_bill(tenantId, billNo, landlord_id=None):
             UPDATE receipts SET status = 'ACTIVE', archiveddate = '', archivedby = ''
             WHERE tenantId = ? AND billNo = ? AND status != 'ACTIVE'
         """, (tenantId, billNo))
+        recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
     return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
@@ -849,5 +964,17 @@ def save_all_receipts(receipts_list):
                     r.get("paymentStatus", "PENDING"), r.get("MaintenanceCharge", 0), r.get("MaintenanceDesc", ""),
                     r.get("previousArrears", 0), r.get("amountReceived", 0)
                 ))
+
+        # Imported previousArrears may be stale or divergent — normalize every
+        # affected tenant's chain so running balances are authoritative.
+        affected_tenant_ids = {
+            int(r.get("TenantId") or r.get("tenantId"))
+            for r in receipts_list
+            if (r.get("TenantId") or r.get("tenantId")) is not None
+        }
+        for tid in affected_tenant_ids:
+            if tid in valid_tenant_ids:
+                recompute_tenant_arrear_chain(conn, tid)
+
         conn.commit()
 
