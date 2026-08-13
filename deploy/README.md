@@ -126,6 +126,38 @@ Existing flags still work: `--local`, `--sshLocal`, `--sshPublic`, `--clean`
 machine instead. For manual push deploys, `DEPLOY_PASSWORD` (server password,
 default `1010`) overrides the embedded password.
 
+### Scoped deploys — ship only what was fixed
+
+Add a scope flag to limit the upload (and the dev compose step) to the
+components you actually changed. Default is `--all` (the whole repo).
+
+| Scope       | Ships | Dev compose step |
+|-------------|-------|------------------|
+| `--all`     | entire repo (default) | `build` + `up -d` all services |
+| `--frontend`| `frontend/` + root infra | `build`/`up` `frontend_dev` |
+| `--backend` | `backend/` + root infra | `build`/`up` `backend_dev` |
+| `--storage` | `storage/` incl. SQLite DBs + config + backups | `restart backend_dev` (reloads config) |
+| `--database`| `backend/app/app/database/`, `core/db.py`, `rent.db` + root infra | `build`/`up` `backend_dev` (runs `init_db`) |
+
+- Scoped zips **always** also carry the small root infra set
+  (`compose.dev.yml`, `compose.prod.yml`, `.env*`, `nginx/`, `gateway/`,
+  `deploy/`, `infrastructure/`) so the server overlay stays self-sufficient.
+- Extraction is additive — files outside the scope are left untouched on the
+  server.
+- `--clean` **requires `--all`**: it wipes the server repo and re-extracts the
+  package, so combining it with a scope is rejected by the parser.
+- `--storage` and `--database` **overwrite server data with your local files**
+  (SQLite DBs, config). Only use them when you intentionally want to ship those.
+
+```bash
+python3 deploy.py --dev --sshPublic --clean             # full clean dev deploy
+python3 deploy.py --dev --sshPublic --backend           # only backend/ fixes
+python3 deploy.py --dev --sshPublic --frontend          # only frontend/ fixes
+python3 deploy.py --dev --sshPublic --storage           # storage incl. DBs
+python3 deploy.py --dev --sshPublic --database          # schema code + rent.db
+python3 deploy.py --dev --sshPublic --clean --backend   # ERROR (clean implies --all)
+```
+
 ```bash
 # Development
 python3 deploy.py --dev --sshPublic
