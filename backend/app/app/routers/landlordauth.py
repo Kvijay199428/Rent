@@ -33,6 +33,7 @@ from app.authentication.landlord.sessions import (
     get_landlord_session_db,
     revoke_landlord_session_db,
 )
+from app.services.phone_service import normalize_phone
 from app.core.routes_manifest_landlord import LandlordRoutes as Routes, LandlordNames as Names
 from app.database.landlord_repository import (
     create_landlord,
@@ -249,7 +250,7 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     landlord = create_landlord(
         full_name=payload.fullName.strip(),
         email=payload.email.strip().lower() if payload.email else None,
-        phone=payload.phone.strip() if payload.phone else None,
+        phone=normalize_phone(payload.phone) if payload.phone else None,
         username=username,
         password_hash=password_hash,
         landlord_uuid=landlord_uuid,

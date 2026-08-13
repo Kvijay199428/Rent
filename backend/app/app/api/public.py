@@ -23,6 +23,7 @@ from app.services.tenant_service import (
     load_tenants, add_tenant, update_tenant, delete_tenant,
     get_occupants, save_occupant, delete_occupant
 )
+from app.services.phone_service import normalize_phone
 from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
@@ -690,7 +691,7 @@ async def public_tenant_kyc_upload(
     save_occupant(tenant.id, {
         "uuid": occupantUuid,
         "name": name.strip(),
-        "mobile": mobile.strip(),
+        "mobile": normalize_phone(mobile),
         "address": address.strip(),
         "residentSince": residentSince,
         "status": "Active",

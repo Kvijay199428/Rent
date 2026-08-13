@@ -13,6 +13,7 @@ from typing import Any, Dict
 
 from app.core.config_service import config
 from app.database.property_repository import get_landlord_profile, save_landlord_profile
+from app.services.phone_service import normalize_phone
 
 
 def get_effective_landlord_config(landlord_id: int) -> Dict[str, Any]:
@@ -25,5 +26,8 @@ def get_effective_landlord_config(landlord_id: int) -> Dict[str, Any]:
 
 def save_effective_landlord_config(landlord_id: int, section: Dict[str, Any]) -> None:
     """Persist the per-landlord override of the landlord section."""
-    save_landlord_profile(landlord_id, dict(section or {}))
+    normalized = dict(section or {})
+    if normalized.get("phone"):
+        normalized["phone"] = normalize_phone(normalized["phone"])
+    save_landlord_profile(landlord_id, normalized)
     config.reload("landlord")

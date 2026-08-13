@@ -64,4 +64,12 @@ class Tenant(BaseModel):
         that collapse receipt ownership when names are compared by string."""
         return str(v).strip() if v is not None else ""
 
+    @field_validator("phone", mode="before")
+    @classmethod
+    def normalize_phone(cls, v):
+        """Canonicalize phone numbers to E.164 (+<country code><number>)."""
+        from app.services.phone_service import normalize_phone
+
+        return normalize_phone(v) or ""
+
 

@@ -35,6 +35,7 @@ from app.services.billing_service import (
     get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
 )
 from app.services.backup_service import create_full_backup
+from app.services.phone_service import normalize_phone
 from app.authentication.landlord.middleware import get_current_landlord_api_strict
 
 router = APIRouter()
@@ -609,7 +610,7 @@ async def admin_post_occupants(
     occ_data = {
         "occupantUuid":    occ_uuid,
         "name":            name,
-        "mobile":          mobile,
+        "mobile":          normalize_phone(mobile),
         "address":         address,
         "residentSince":   residentSince,
         "status":          "Active",
