@@ -382,6 +382,52 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
 
     return {"status": "success", "message": "QR key regenerated.", "qr_key": new_key}
 
+@router.get(Routes.LANDLORDAPITENANTSQR, name=Names.LANDLORDTENANTQR)
+async def api_tenant_qr(
+    landlordUuid: str,
+    tenantId: int,
+    size: int = Query(200, ge=100, le=1000),
+    format: str = Query("svg", pattern="^(svg|png)$"),
+    principal=Depends(get_current_landlord_api_strict),
+):
+    """Return the PROPAURA-branded tenant portal QR as a data URI.
+
+    Generated server-side at ECC H with the lockup embedded in the pattern,
+    then decode-validated before being returned.
+    """
+    from app.core.db import get_conn
+    from app.services.qr_service import QrBuildError, build_branded_qr, tenant_qr_payload
+
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, name, property_id, viewToken, qr_key FROM tenants WHERE id = ?",
+            (tenantId,),
+        ).fetchone()
+
+    if not row or not row["viewToken"]:
+        raise HTTPException(status_code=400, detail="Tenant portal token is missing.")
+    if not row["qr_key"]:
+        raise HTTPException(status_code=400, detail="Tenant QR key is missing.")
+
+    url = tenant_qr_payload(landlordUuid, row["property_id"], tenantId, row["viewToken"], row["qr_key"])
+    try:
+        qr, fmt, count = build_branded_qr(url, size=size, fmt=format, validate=True)
+    except QrBuildError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return {
+        "status": "success",
+        "qr": qr,
+        "format": fmt,
+        "error_correction": "H",
+        "size": size,
+        "modules": count,
+        "url": url,
+    }
+
 @router.delete(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIDELETETENANT)
 async def api_delete_tenant(
     landlordUuid: str,

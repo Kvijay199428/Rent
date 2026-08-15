@@ -118,6 +118,17 @@ export const api = {
     return data;
   },
 
+  tenantQr: async (
+    landlordUuid: string,
+    tenantId: number,
+    size: number,
+  ): Promise<{ qr: string; format: string; error_correction: string; size: number; modules: number; url: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSQR(landlordUuid, tenantId, size));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to generate tenant QR");
+    return data;
+  },
+
   deleteTenant: async (landlordUuid: string, id: number, action: string = "archive"): Promise<{ status: string }> => {
     const res = await fetchWithAuth(`${ROUTES.LANDLORDAPITENANTSDELETE(landlordUuid, id)}?action=${action}`, {
       method: "DELETE",

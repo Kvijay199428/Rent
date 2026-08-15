@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import qrcode from 'qrcode-generator';
 import { BrandWave } from '@shared/loading/BrandWave';
 import PhoneInputField from '@shared/phone/PhoneInput';
 import { Card, CardContent } from '@/components/ui/card';
@@ -77,74 +76,16 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#039;');
 }
 
-const PROPAURA_MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 413.02 269.52" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-  <path fill="#010101" d="M196.07 133.89l1.23 -0.32c-6.75,-8.54 -13.87,-22.49 -19.85,-32.66 -6.48,-11.02 -12.56,-22.32 -19.3,-33.67 -7.67,-12.93 -32.79,-59.97 -38.49,-67.16l-119.21 -0.08 97.09 67.3c11.67,7.96 87.89,61.44 98.53,66.59z"/>
-  <path fill="#010101" d="M214.59 134.6l1.76 -0.06c7.25,-5.88 15.89,-10.56 23.87,-16.08l170.99 -118.43 -119.06 -0.03 -77.56 134.59z"/>
-  <path fill="#020202" d="M410.95 15.63l-0.22 -0.37c-5.91,1.84 -173.73,118.85 -189.57,130.03l117.34 -0.26c2.53,-2.73 70.82,-124.24 72.45,-129.4z"/>
-  <path fill="#010101" d="M71.54 145.02l118.15 0.07c-4.53,-5.61 -40.66,-28.4 -47.21,-33.13l-93.97 -64.93c-9.81,-6.56 -41.31,-29.19 -48.51,-32.64 2.99,8.6 13.14,24.67 17.91,32.94 7.3,12.65 51.11,90.08 53.63,97.68z"/>
-  <path fill="#010101" d="M145.21 269.41l120.89 0.11c-1.8,-6.75 -10.88,-20.72 -14.53,-27.03 -5.28,-9.14 -10.07,-16.64 -15.43,-26.23l-30.31 -53.87 -60.63 107.02z"/>
-  <path fill="#010101" d="M274.93 258.85c9.89,-15 19.16,-34 28.64,-50.49 5.11,-8.89 26.99,-45.5 28.6,-52.2l-117.42 -0c2.62,6.95 58.87,101.59 60.19,102.69z"/>
-  <path fill="#010101" d="M136.31 259.15c4.49,-3.51 25.27,-41.37 30.11,-50.49l29.81 -52.92 -117.59 0.52 57.67 102.89z"/>
-  <path fill="#625B54" d="M216.35 134.54l-1.76 0.06 -1.79 2.34c4.9,-1.45 2.23,-0.92 3.55,-2.39z"/>
-  <path fill="#625B54" d="M197.3 133.57l-1.23 0.32 2.75 3.02c-0.7,-7.34 0.56,-0.53 -1.53,-3.35z"/>
-  <polygon fill="#625B54" points="410.95,15.63 413.02,13.15 410.72,15.26"/>
-</svg>`;
-
-function buildBrandedQrSvg(url: string, size: number): string {
-  const qr = qrcode(0, 'H');
-  qr.addData(url);
-  qr.make();
-
-  const count = qr.getModuleCount();
-  const module = size / count;
-  const box = Math.max(7, Math.round(count * 0.22));
-  const start = Math.floor((count - box) / 2);
-  const end = start + box;
-
-  let cells = '';
-  for (let r = 0; r < count; r++) {
-    for (let c = 0; c < count; c++) {
-      const insideLockup = r >= start && r < end && c >= start && c < end;
-      if (!insideLockup && qr.isDark(r, c)) {
-        cells += `<rect x="${(c * module).toFixed(2)}" y="${(r * module).toFixed(2)}" width="${module.toFixed(2)}" height="${module.toFixed(2)}"/>`;
-      }
-    }
-  }
-
-  const boxPx = box * module;
-  const lockW = boxPx * 0.8;
-  const markH = lockW * (269.52 / 413.02);
-  const font = Math.max(5, boxPx * 0.16);
-  const markY = (boxPx - markH - font) / 2;
-  const markX = (size - lockW) / 2;
-
-  const markInner = PROPAURA_MARK_SVG.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
-  const lockup =
-    `<g transform="translate(${markX.toFixed(2)} ${markY.toFixed(2)}) scale(${(lockW / 413.02).toFixed(4)})">${markInner}</g>` +
-    `<text x="${(size / 2).toFixed(2)}" y="${(markY + markH + font).toFixed(2)}" text-anchor="middle" font-family="Arial, 'Segoe UI', Roboto, Helvetica, sans-serif" font-size="${font.toFixed(1)}" font-weight="800" letter-spacing="1" fill="#708498">PROP<tspan fill="#95A58F">AURA</tspan></text>`;
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
-  <rect width="${size}" height="${size}" fill="#ffffff"/>
-  ${cells}
-  <rect x="${(start * module).toFixed(2)}" y="${(start * module).toFixed(2)}" width="${boxPx.toFixed(2)}" height="${boxPx.toFixed(2)}" rx="${(boxPx * 0.09).toFixed(2)}" fill="#ffffff" stroke="#e5e7eb" stroke-width="1"/>
-  ${lockup}
-</svg>`;
-}
-
-function buildBrandedQrDataUri(url: string, size: number): string {
-  return 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(buildBrandedQrSvg(url, size));
-}
-
 function buildQrPrintHtml({
   tenantName,
   roomNumber,
   pin,
-  url,
+  qrDataUri,
 }: {
   tenantName: string;
   roomNumber?: string;
   pin: string;
-  url: string;
+  qrDataUri: string;
 }) {
   const safeTenantName = escapeHtml(tenantName || 'Tenant');
   const safeRoom = escapeHtml(roomNumber || '-');
@@ -288,7 +229,7 @@ function buildQrPrintHtml({
         <div class="tenant">${safeTenantName}</div>
 
         <div class="qr-wrap">
-          <img src="${buildBrandedQrDataUri(url, 340)}" alt="PROPAURA QR" width="340" height="340" />
+          <img src="${qrDataUri}" alt="PROPAURA QR" width="340" height="340" />
         </div>
 
         <div class="instructions">
@@ -365,6 +306,9 @@ export default function Tenants() {
   const [qrTenant, setQrTenant] = useState<Tenant | null>(null);
   const [qrPin, setQrPin] = useState('1234');
   const [qrPinLoading, setQrPinLoading] = useState(false);
+  const [qrDataUri, setQrDataUri] = useState<string | null>(null);
+  const [qrDataLoading, setQrDataLoading] = useState(false);
+  const [qrDataError, setQrDataError] = useState<string | null>(null);
   const [showQrPinEditor, setShowQrPinEditor] = useState(false);
   const [newQrPin, setNewQrPin] = useState('');
   const [savingQrPin, setSavingQrPin] = useState(false);
@@ -417,6 +361,15 @@ export default function Tenants() {
     setShowQrPinEditor(false);
     setNewQrPin('');
 
+    setQrDataUri(null);
+    setQrDataError(null);
+    setQrDataLoading(true);
+    api
+      .tenantQr(landlordUuid!, tenant.id, 260)
+      .then((res) => setQrDataUri(res.qr))
+      .catch((e: any) => setQrDataError(e?.message || 'Failed to generate QR'))
+      .finally(() => setQrDataLoading(false));
+
     try {
                 const res = await api.revealTenantPin(landlordUuid!, tenant.id);
       setQrPin(res.pin || '----');
@@ -433,6 +386,14 @@ export default function Tenants() {
       setRegeneratingQr(true);
       const res = await api.regenerateQrKey(landlordUuid!, qrTenant.id);
       setQrTenant({ ...qrTenant, qr_key: res.qr_key });
+      setQrDataUri(null);
+      setQrDataError(null);
+      setQrDataLoading(true);
+      api
+        .tenantQr(landlordUuid!, qrTenant.id, 260)
+        .then((qrRes) => setQrDataUri(qrRes.qr))
+        .catch((e: any) => setQrDataError(e?.message || 'Failed to generate QR'))
+        .finally(() => setQrDataLoading(false));
       toast.success(res.message || 'QR key regenerated');
       loadTenants();
     } catch (e: any) {
@@ -681,6 +642,9 @@ export default function Tenants() {
         setQrTenant(null);
         setShowQrPinEditor(false);
         setNewQrPin('');
+        setQrDataUri(null);
+        setQrDataError(null);
+        setQrDataLoading(false);
       }}>
         <DialogContent className="max-w-[420px] p-4">
           <DialogHeader className="pb-1">
@@ -699,13 +663,43 @@ export default function Tenants() {
                 </div>
 
                 <div className="mt-4 flex justify-center bg-white p-2">
-                  <img
-                    src={buildBrandedQrDataUri(buildTenantUrl(landlordUuid!, qrTenant), 200)}
-                    alt={`${qrTenant.name} PROPAURA QR`}
-                    width={200}
-                    height={200}
-                    className="block h-[200px] w-[200px]"
-                  />
+                  {qrDataLoading ? (
+                    <div className="flex h-[200px] w-[200px] items-center justify-center text-sm text-gray-400">
+                      Generating QR...
+                    </div>
+                  ) : qrDataUri ? (
+                    <img
+                      src={qrDataUri}
+                      alt={`${qrTenant.name} PROPAURA QR`}
+                      width={200}
+                      height={200}
+                      className="block h-[200px] w-[200px]"
+                    />
+                  ) : (
+                    <div className="flex h-[200px] w-[200px] flex-col items-center justify-center gap-2 text-center">
+                      <span className="text-sm text-red-600">
+                        {qrDataError || 'Failed to generate QR'}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (!qrTenant.id) return;
+                          setQrDataUri(null);
+                          setQrDataError(null);
+                          setQrDataLoading(true);
+                          api
+                            .tenantQr(landlordUuid!, qrTenant.id, 260)
+                            .then((res) => setQrDataUri(res.qr))
+                            .catch((e: any) => setQrDataError(e?.message || 'Failed to generate QR'))
+                            .finally(() => setQrDataLoading(false));
+                        }}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="my-4 border-t border-dashed border-gray-200" />
@@ -992,8 +986,6 @@ function TenantCard({
             onClick={async () => {
               if (!tenant.viewToken || !tenant.id) return;
 
-              const url = buildTenantUrl(landlordUuid!, tenant);
-
               let pin = '----';
               try {
       const res = await api.revealTenantPin(landlordUuid!, tenant.id);
@@ -1002,11 +994,21 @@ function TenantCard({
                 console.error('Failed to fetch tenant PIN', e);
               }
 
+              let qrDataUri = '';
+              try {
+                const qrRes = await api.tenantQr(landlordUuid!, tenant.id, 340);
+                qrDataUri = qrRes.qr;
+              } catch (e) {
+                console.error('Failed to generate tenant QR', e);
+                toast.error('Failed to generate QR. Please try again.');
+                return;
+              }
+
               const htmlContent = buildQrPrintHtml({
                 tenantName: tenant.name,
                 roomNumber: tenant.roomNumber || '-',
                 pin,
-                url,
+                qrDataUri,
               });
 
               try {

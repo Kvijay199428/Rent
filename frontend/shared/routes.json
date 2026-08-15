@@ -212,6 +212,7 @@
         "revealPin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/reveal-pin",
         "portalAuth": "/landlord/{landlordUuid}/api/tenants/{tenantId}/portal-auth",
         "qrKey": "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr-key",
+        "qr": "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr",
         "receipts": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
         "recoverySnapshots": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots",
         "recoverySnapshotPreview": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/preview",

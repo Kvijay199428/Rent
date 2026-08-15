@@ -102,6 +102,7 @@ class LandlordRoutes:
     LANDLORDAPITENANTSRECEIPTS = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts"
     LANDLORDAPITENANTSPORTALAUTH = "/landlord/{landlordUuid}/api/tenants/{tenantId}/portal-auth"
     LANDLORDAPITENANTSQRKEY = "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr-key"
+    LANDLORDAPITENANTSQR = "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr"
 
     # Landlord API: Tenant Recovery Snapshots
     LANDLORDAPITENANTSNAPSHOTS = "/landlord/{landlordUuid}/api/tenant-recovery-snapshots"
@@ -275,6 +276,7 @@ class LandlordNames:
     LANDLORDREVEALPIN = "landlord_reveal_tenantPin"
     LANDLORDTENANTPORTALAUTH = "landlord_tenant_portal_auth"
     LANDLORDTENANTQRKEY = "landlord_tenant_qr_key"
+    LANDLORDTENANTQR = "landlord_tenant_qr"
 
 
 class LandlordTemplates:

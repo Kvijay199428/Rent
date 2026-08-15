@@ -311,6 +311,7 @@ export const ROUTES = {
     LANDLORDAPITENANTSREVEALPIN(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "revealPin", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTSPORTALAUTH(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "portalAuth", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTSQRKEY(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "qrKey", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSQR(landlordUuid: string, tenantId: number, size: number) { return `${api("landlord", "tenants", "qr", { landlordUuid, tenantId })}?size=${size}`; },
     LANDLORDAPITENANTSRECEIPTS(landlordUuid: string, tenantId: number | string) { return api("landlord", "tenants", "receipts", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTRECOVERYSNAPSHOTS(landlordUuid: string) { return api("landlord", "tenants", "recoverySnapshots", { landlordUuid }); },
     LANDLORDAPITENANTSNAPSHOT_PREVIEW(landlordUuid: string, snapshotId: string) { return api("landlord", "tenants", "recoverySnapshotPreview", { landlordUuid, snapshotId }); },
