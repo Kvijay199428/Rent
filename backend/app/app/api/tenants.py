@@ -356,7 +356,9 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
 
     background_tasks.add_task(create_full_backup, tag="regenerate_qr_key", landlord_id=principal.landlord_id)
 
-    new_key = _uuid.uuid4().hex + _uuid.uuid4().hex
+    # Single 128-bit key — matches the length used at tenant creation. A longer
+    # key bloats the QR payload into a larger matrix, which hurts scannability.
+    new_key = _uuid.uuid4().hex
     with get_conn() as conn:
         existing = conn.execute(
             "SELECT id, name FROM tenants WHERE id = ? AND landlord_id = ?", (tenantId, principal.landlord_id)

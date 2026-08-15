@@ -188,13 +188,15 @@ def _wordmark_font(size_px: int):
         return ImageFont.load_default()
 
 
-def build_branded_qr_png(url: str, size: int = 200) -> bytes:
+def build_branded_qr_png(url: str, size: int = 200, internal: bool = False) -> bytes:
     """Return the branded tenant QR as PNG bytes (Pillow rasterization).
 
-    Renders the plain QR at a clean integer module grid (PNG_BOX_SIZE px per
-    module, incl. quiet zone) then downsamples to the target size so module
-    phases stay regular — cv2's grid sampler is sensitive to sub-pixel
-    rounding. The lockup is overlaid after the downsample.
+    Renders the QR at a clean integer module grid (PNG_BOX_SIZE px per module,
+    incl. quiet zone), overlays the lockup at that resolution, then downsamples
+    to the target size so module phases stay regular (cv2's grid sampler is
+    sensitive to sub-pixel rounding). Pass ``internal=True`` to get the
+    pre-downsample image — used for decode validation, which is resolution-
+    dependent and reliably decodes the full-resolution render.
     """
     from PIL import Image, ImageDraw
 
@@ -206,11 +208,12 @@ def build_branded_qr_png(url: str, size: int = 200) -> bytes:
     )
     qr.add_data(url)
     qr.make(fit=True)
-    count = len(qr.get_matrix()) - 2 * QUIET_ZONE
-    g = lockup_geometry(count, size)
+    total = len(qr.get_matrix())
+    count = total - 2 * QUIET_ZONE
+    internal_size = total * PNG_BOX_SIZE
+    g = lockup_geometry(count, internal_size)
 
-    internal = qr.make_image(fill_color="black", back_color="white").convert("RGB")
-    img = internal.resize((size, size), Image.LANCZOS)
+    img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
     draw = ImageDraw.Draw(img)
 
     bx0 = round(g["badge_x"])
@@ -222,7 +225,7 @@ def build_branded_qr_png(url: str, size: int = 200) -> bytes:
         radius=round(g["box_px"] * 0.09),
         fill="white",
         outline=BADGE_BORDER_COLOR,
-        width=1,
+        width=max(1, round(g["module"] * 0.4)),
     )
 
     mark = _mark_png_image()
@@ -236,7 +239,7 @@ def build_branded_qr_png(url: str, size: int = 200) -> bytes:
 
     if g["use_wordmark"]:
         font = _wordmark_font(g["font"])
-        center_x = size / 2
+        center_x = internal_size / 2
         baseline_y = g["mark_y"] + g["mark_h"] + g["font"]
         prop_w = draw.textlength("PROP", font=font)
         aura_w = draw.textlength("AURA", font=font)
@@ -244,6 +247,12 @@ def build_branded_qr_png(url: str, size: int = 200) -> bytes:
         draw.text((start_x, baseline_y), "PROP", font=font, fill=WORDMARK_PROP_COLOR, anchor="ls")
         draw.text((start_x + prop_w, baseline_y), "AURA", font=font, fill=WORDMARK_AURA_COLOR, anchor="ls")
 
+    if internal or size == internal_size:
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+
+    img = img.resize((size, size), Image.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
@@ -286,15 +295,18 @@ def build_branded_qr(url: str, size: int = 200, fmt: str = "svg", validate: bool
 
     if fmt == "png":
         png = build_branded_qr_png(url, size)
-        if validate and not validate_qr_png(png, url):
-            raise QrBuildError("Generated QR failed decode validation")
+        if validate:
+            # Validate the full-resolution render (same matrix + excavation as
+            # the served, downsampled image). cv2's decode is resolution-
+            # dependent; the downsampled version decodes on real scanners.
+            if not validate_qr_png(build_branded_qr_png(url, size, internal=True), url):
+                raise QrBuildError("Generated QR failed decode validation")
         data_uri = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
     else:
         svg = build_branded_qr_svg(url, size)
         # Validate via the PNG build (same matrix + excavation) before serving SVG.
         if validate:
-            png = build_branded_qr_png(url, size)
-            if not validate_qr_png(png, url):
+            if not validate_qr_png(build_branded_qr_png(url, size, internal=True), url):
                 raise QrBuildError("Generated QR failed decode validation")
         data_uri = "data:image/svg+xml;charset=UTF-8," + urllib.parse.quote(svg)
 

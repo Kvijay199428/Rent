@@ -735,7 +735,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
         # QR key: prefer snapshot's value; regenerate a fresh key if missing.
         qr_key = t.get("qr_key") or ""
         if not qr_key:
-            qr_key = uuid.uuid4().hex + uuid.uuid4().hex
+            qr_key = uuid.uuid4().hex
         conn.execute(
             """
             INSERT INTO tenants (

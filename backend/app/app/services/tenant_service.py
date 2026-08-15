@@ -152,7 +152,9 @@ def add_tenant(t: Tenant):
     tenantpin = t_dict.get("tenantPin") or ""
     qr_key = (t_dict.get("qr_key") or "").strip()
     if not qr_key:
-        qr_key = uuid.uuid4().hex + uuid.uuid4().hex
+        # Single 128-bit key; a longer key would bloat the QR payload into a
+        # larger matrix and hurt scannability.
+        qr_key = uuid.uuid4().hex
     
     with get_conn() as conn:
         conn.execute('''
