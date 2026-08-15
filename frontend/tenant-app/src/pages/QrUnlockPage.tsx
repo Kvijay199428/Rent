@@ -1,13 +1,20 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Lock, ShieldCheck, Receipt, Users, ArrowRight } from "lucide-react";
+import { Lock, ShieldCheck, Receipt, Users, ArrowRight, AlertTriangle, Send } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import AuthLayout from "@/components/AuthLayout";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
-import { qrLoginByPin } from "@/lib/login-api";
+import { qrLoginByPin, submitQrFeedback } from "@/lib/login-api";
 import type { QrTenantProfile } from "@/types";
 
 interface Props {
@@ -15,13 +22,53 @@ interface Props {
   basePath: string;
 }
 
+const MAX_FAILURES_BEFORE_FEEDBACK = 2;
+
+function collectDiagnostics(qrKey: string, attempts: number): Record<string, unknown> {
+  const nav = typeof navigator !== "undefined" ? navigator : ({} as Navigator);
+  const con = (nav as any)?.connection;
+  return {
+    url: typeof window !== "undefined" ? window.location.href : "",
+    pathname: typeof window !== "undefined" ? window.location.pathname : "",
+    qr_key: qrKey,
+    attempts,
+    user_agent: nav.userAgent || "",
+    platform: nav.platform || "",
+    language: nav.language || "",
+    languages: Array.isArray(nav.languages) ? nav.languages : [],
+    screen: typeof window !== "undefined" && window.screen
+      ? { width: window.screen.width, height: window.screen.height }
+      : {},
+    viewport:
+      typeof window !== "undefined"
+        ? { width: window.innerWidth, height: window.innerHeight }
+        : {},
+    online: typeof nav !== "undefined" ? nav.onLine : null,
+    connection: con
+      ? {
+          effectiveType: con.effectiveType ?? null,
+          downlink: con.downlink ?? null,
+          rtt: con.rtt ?? null,
+        }
+      : {},
+  };
+}
+
 export default function QrUnlockPage({ tenant, basePath }: Props) {
   const navigate = useNavigate();
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [feedbackDone, setFeedbackDone] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
+  const consecutiveFailures = useRef(0);
 
   const firstName = tenant.name?.split(" ")[0] || "Tenant";
+
+  const qrKey = new URLSearchParams(window.location.search).get("qr_key") || "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,12 +77,43 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
     setError("");
     setLoading(true);
     try {
-      await qrLoginByPin(basePath, pin);
+      // Hold the PROPAURA loading animation for at least 5 seconds while the
+      // server validates the QR key — no countdown, just the brand overlay.
+      await Promise.all([
+        qrLoginByPin(basePath, pin),
+        new Promise((resolve) => setTimeout(resolve, 5000)),
+      ]);
       window.location.reload();
     } catch (err: any) {
-      setError(err.message || "Invalid PIN. Please try again.");
+      consecutiveFailures.current += 1;
+      setError(err.message || "wrong qrKey or pin rescan the qr");
       setPin("");
       setLoading(false);
+      if (consecutiveFailures.current >= MAX_FAILURES_BEFORE_FEEDBACK) {
+        consecutiveFailures.current = 0;
+        setFeedbackDone(false);
+        setFeedbackError("");
+        setFeedbackMessage("");
+        setShowFeedback(true);
+      }
+    }
+  };
+
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setFeedbackError("");
+    try {
+      await submitQrFeedback(basePath, {
+        message: feedbackMessage,
+        qr_key: qrKey,
+        diagnostics: collectDiagnostics(qrKey, MAX_FAILURES_BEFORE_FEEDBACK),
+      });
+      setFeedbackDone(true);
+    } catch (err: any) {
+      setFeedbackError(err.message || "Could not submit feedback. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -130,6 +208,82 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
       </Card>
       </AuthLayout>
       {loading && <LoadingOverlay label="Unlocking…" />}
+
+      <Dialog open={showFeedback} onOpenChange={(open) => { if (!submitting) setShowFeedback(open); }}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg">This QR key looks invalid</DialogTitle>
+                <DialogDescription className="mt-1 text-sm">
+                  Your QR key did not unlock after several tries. Report it to the
+                  admin so they can issue a fix.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {feedbackDone ? (
+            <div className="space-y-4">
+              <Alert className="rounded-xl">
+                <AlertDescription>
+                  Feedback submitted. The admin will review and fix your QR link. Please try again later.
+                </AlertDescription>
+              </Alert>
+              <Button
+                className="w-full h-11 rounded-2xl"
+                onClick={() => setShowFeedback(false)}
+              >
+                Close
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmitFeedback} className="space-y-4">
+              <label className="block">
+                <span className="text-sm font-semibold block mb-2">
+                  Anything we should know? (optional)
+                </span>
+                <textarea
+                  value={feedbackMessage}
+                  onChange={(e) => setFeedbackMessage(e.target.value.slice(0, 2000))}
+                  placeholder="e.g. My QR stopped working after the update…"
+                  rows={3}
+                  className="w-full rounded-2xl border bg-muted/30 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary resize-none"
+                />
+              </label>
+
+              {feedbackError && (
+                <Alert variant="destructive" className="rounded-xl">
+                  <AlertDescription>{feedbackError}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={submitting}
+                  className="h-11 rounded-2xl flex-1"
+                  onClick={() => setShowFeedback(false)}
+                >
+                  Not now
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="h-11 rounded-2xl flex-1 gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  {submitting ? "Sending…" : "Report to Admin"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

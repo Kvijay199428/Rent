@@ -14,8 +14,9 @@ import LoadingOverlay from '@shared/loading/LoadingOverlay';
 import PhoneInputField from '@shared/phone/PhoneInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
-import { PRIVACY_POLICY_VERSION } from '@/lib/privacy';
+import { PRIVACY_POLICY_VERSION, TERMS_CONDITIONS_VERSION } from '@/lib/privacy';
 import PrivacyPolicyModal from '@/components/privacy/PrivacyPolicyModal';
+import TermsConditionsModal from '@/components/privacy/TermsConditionsModal';
 
 type FieldStatus = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
@@ -41,6 +42,7 @@ export default function LandlordSignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [usernameStatus, setUsernameStatus] = useState<FieldStatus>('idle');
   const [emailStatus, setEmailStatus] = useState<FieldStatus>('idle');
@@ -48,6 +50,7 @@ export default function LandlordSignupPage() {
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
 
   const usernameTimer = useRef<ReturnType<typeof setTimeout>>();
   const emailTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -130,10 +133,10 @@ export default function LandlordSignupPage() {
 
   const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     setError('');
-    if (!privacyAccepted) {
-      setError('Please accept the PROPAURA Privacy Policy before continuing with Google.');
-      toast.error('Privacy Policy acceptance required', {
-        description: 'Tick the acceptance box above to enable Google Sign-Up.',
+    if (!privacyAccepted || !termsAccepted) {
+      setError('Please accept the PROPAURA Privacy Policy and Terms and Conditions before continuing with Google.');
+      toast.error('Acceptance required', {
+        description: 'Tick both acceptance boxes above to enable Google Sign-Up.',
       });
       return;
     }
@@ -186,6 +189,13 @@ export default function LandlordSignupPage() {
       });
       return;
     }
+    if (!termsAccepted) {
+      setError('You must accept the PROPAURA Terms and Conditions to create an account.');
+      toast.error('Terms and Conditions acceptance required', {
+        description: 'Please accept the PROPAURA Terms and Conditions to continue.',
+      });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -196,6 +206,8 @@ export default function LandlordSignupPage() {
           ...signupData,
           privacyAccepted,
           privacyVersion: PRIVACY_POLICY_VERSION,
+          termsAccepted,
+          termsVersion: TERMS_CONDITIONS_VERSION,
         }),
       });
       const data = await response.json();
@@ -442,6 +454,27 @@ export default function LandlordSignupPage() {
               </span>
             </label>
 
+            <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+              <Checkbox
+                checked={termsAccepted}
+                onCheckedChange={(v) => setTermsAccepted(v === true)}
+                className="mt-0.5"
+                required
+              />
+              <span className="text-sm leading-relaxed">
+                I have read and agree to the{' '}
+                <button
+                  type="button"
+                  onClick={() => setTermsModalOpen(true)}
+                  className="text-primary underline underline-offset-2"
+                >
+                  PROPAURA Terms and Conditions
+                </button>
+                , including the liability limitations in the Terms. I understand that my account cannot be
+                created unless I accept these Terms.
+              </span>
+            </label>
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
@@ -457,12 +490,12 @@ export default function LandlordSignupPage() {
                 onError={() => setError("Google Sign-Up failed")}
                 size="large"
                 width={384}
-                disabled={googleLoading || !privacyAccepted}
+                disabled={googleLoading || !privacyAccepted || !termsAccepted}
               />
             </div>
 
             <p className="text-xs text-center text-muted-foreground">
-              By continuing with Google, you agree to the PROPAURA Privacy Policy.
+              By continuing with Google, you agree to the PROPAURA Privacy Policy and Terms and Conditions.
             </p>
 
             <Button type="submit" className="w-full" disabled={loading}>
@@ -476,6 +509,14 @@ export default function LandlordSignupPage() {
             onAgree={() => {
               setPrivacyAccepted(true);
               setPrivacyModalOpen(false);
+            }}
+          />
+          <TermsConditionsModal
+            open={termsModalOpen}
+            onOpenChange={setTermsModalOpen}
+            onAgree={() => {
+              setTermsAccepted(true);
+              setTermsModalOpen(false);
             }}
           />
         </CardContent>

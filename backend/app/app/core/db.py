@@ -657,6 +657,43 @@ def init_db():
                      "ON landlord_privacy_consents(landlord_id)")
         conn.commit()
 
+        # ─── Landlord terms-and-conditions consent columns ────────────────
+        # Existing accounts are grandfathered as consenting (default 1) so the
+        # upgrade does not lock out current landlords. New signups set this
+        # explicitly from the accepted Terms and Conditions.
+        if not _column_exists(conn, "landlord_accounts", "terms_consented"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_consented INTEGER NOT NULL DEFAULT 1")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "terms_version"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_version TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "terms_accepted_at"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_accepted_at TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "terms_accepted_ip"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_accepted_ip TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "terms_accepted_user_agent"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_accepted_user_agent TEXT")
+            conn.commit()
+
+        # ─── Landlord terms consent audit trail ───────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS landlord_terms_consents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                landlord_id INTEGER NOT NULL,
+                terms_version TEXT NOT NULL,
+                accepted INTEGER NOT NULL DEFAULT 1,
+                accepted_at TEXT NOT NULL,
+                accepted_ip TEXT,
+                accepted_user_agent TEXT,
+                FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_landlord_terms_consents_landlord "
+                     "ON landlord_terms_consents(landlord_id)")
+        conn.commit()
+
         # ─── Landlord password admin store (for platform admin reveal) ──
         conn.execute("""
             CREATE TABLE IF NOT EXISTS landlord_password_admin_store (
@@ -773,6 +810,33 @@ def init_db():
                 "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('tenant_property_id_backfill_v2', 'done')"
             )
             conn.commit()
+
+        # ─── Tenant QR feedback (wrong qrKey reports to platform admin) ──
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tenant_qr_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id INTEGER,
+                landlord_id INTEGER,
+                property_id INTEGER,
+                tenant_name TEXT,
+                view_token TEXT,
+                qr_key TEXT,
+                message TEXT,
+                diagnostics_json TEXT,
+                failed_attempts INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'open',
+                admin_reply TEXT,
+                resolved_at TEXT,
+                resolved_by INTEGER,
+                created_at TEXT NOT NULL,
+                ip_address TEXT
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_status "
+                     "ON tenant_qr_feedback(status, created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_landlord "
+                     "ON tenant_qr_feedback(landlord_id)")
+        conn.commit()
 
         # ─── Seed default platform admin ───────────────────────────────
         # Ensure at least one platform admin exists (admin/admin)

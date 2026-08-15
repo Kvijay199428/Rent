@@ -28,6 +28,9 @@ class TenantRoutes:
     # Tenant API: Audit Logs
     TENANTAPIAUDITLOGS = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/audit-logs"
 
+    # Tenant API: QR feedback (wrong qrKey report -> platform admin inbox)
+    TENANTAPIFEEDBACK = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/feedback"
+
 
 
 class TenantNames:
@@ -49,6 +52,7 @@ class TenantNames:
     TENANTPDFDOWNLOAD = "tenant_pdf_download"
 
     TENANTAUDITLOGS = "tenant_audit_logs"
+    TENANTFEEDBACK = "tenant_feedback"
 
 
 class TenantTemplates:

@@ -26,7 +26,7 @@ export default function Footer() {
           <h4 className="footer-heading">Contact</h4>
           <ul>
             <li><a href="mailto:vijaykrsha@hotmail.com">vijaykrsha@hotmail.com</a></li>
-            <li><a href="tel:+919449825584">+91 94498 25584</a></li>
+            <li><a href="tel:+91959130381">+91 95913 0381</a></li>
           </ul>
         </div>
       </div>
@@ -34,8 +34,8 @@ export default function Footer() {
       <div className="footer-bottom">
         <p>&copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.</p>
         <div className="footer-bottom-links">
-          <a href="#">Privacy Policy</a>
-          <a href="#">Terms of Service</a>
+          <a href="/rent/landlord/privacy-policy">Privacy Policy</a>
+          <a href="/rent/landlord/terms">Terms of Service</a>
         </div>
       </div>
     </footer>

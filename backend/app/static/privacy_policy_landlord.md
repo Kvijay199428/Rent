@@ -1,12 +1,13 @@
 # PROPAURA — Privacy Policy for Landlord Account Creation
 
 **Effective Date:** 28 August 2026
-**Version:** 1.0
+**Version:** 2.0
 **Platform:** PROPAURA (Rent Receipt & Property Management System v3.0.0)
 **Website:** vijaykrsha.online
 **Data Fiduciary / Platform Operator:** Vijay Kumar Sharma
-**Postal Address:** 1E, Shiv Durga Vihar, Lakarpur, Surajukund, Faridabad, Haryana – 121009
+**Postal Address:** 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana, Pin - 121009
 **Privacy / Grievance Contact Email:** vijaykrsha@hotmail.com
+**Privacy / Grievance Contact Phone:** +91 95913 0381
 **Jurisdiction:** Republic of India
 
 ---
@@ -25,11 +26,11 @@ PROPAURA is a rental-property management software platform. From the supplied so
 - KYC document storage for tenants and occupants, including Aadhaar-related and employment-related documents;
 - WhatsApp-based receipt sharing and payment-reminder messages;
 - CSV, Excel and ZIP data export; Excel/CSV import with preview and execution;
-- Manual and scheduled backups with integrity verification and restore;
+- Automatic (event-triggered) and manual backups with integrity verification and restore;
 - Tenant "recovery snapshots" kept after permanent tenant deletion;
 - Full audit logging of landlord, tenant and platform-administrator actions.
 
-**This Policy is a condition of account creation.** A landlord account **cannot** be created unless the landlord actively accepts this Policy by selecting the required consent checkbox during signup. If the checkbox is not selected, the signup request is rejected and no account record is created.
+**This Policy, together with the PropAura Terms and Conditions, is a condition of account creation.** A landlord account **cannot** be created unless the landlord actively accepts both this Policy and the Terms and Conditions by selecting the required consent checkboxes during signup. If either checkbox is not selected, the signup request is rejected and no account record is created.
 
 For the purposes of India's **Digital Personal Data Protection Act, 2023** (the "DPDP Act"), Vijay Kumar Sharma, operating through vijaykrsha.online, is the **Data Fiduciary** in respect of the personal data described in Section 3 of this Policy. Where a landlord enters or uploads data about tenants, occupants or other individuals, the landlord is a Data Fiduciary for that data and PROPAURA acts as a Data Processor providing the tools described in this Policy.
 
@@ -43,13 +44,13 @@ By selecting the checkbox and submitting the signup form, you:
 
 1. Acknowledge receipt of this notice under Section 5 of the DPDP Act;
 2. Provide explicit, informed consent under Section 6 to the processing described in this Policy;
-3. Confirm you are at least 18 years old and authorised to create a landlord account;
+3. Confirm you are authorised to create a landlord account;
 4. Confirm you understand that account creation is blocked unless this consent is recorded;
 5. Accept responsibility for personal data you enter about tenants, occupants or other individuals through your account, including obtaining any notices and consents required by law.
 
 **Consent is recorded and auditable.** On acceptance, PROPAURA stores the accepted policy version, the date and time of acceptance (UTC), the IP address and user-agent from which acceptance was made, and writes a `privacy_policy_accepted` entry to the landlord audit log. Renewed acceptance is required when a materially revised version of this Policy is issued.
 
-**Google sign-in.** If you create your account through Google sign-in, the account is created in a consent-pending state. The account cannot be used for landlord functions until you complete a consent step accepting this Policy and, where required, set a password. No account created through any method is usable without acceptance of this Policy.
+**Google sign-in.** If you create your account through Google sign-in, acceptance of this Policy is recorded as part of the Google sign-in flow. No account created through any method is usable without acceptance of this Policy and the Terms and Conditions.
 
 ---
 
@@ -60,7 +61,7 @@ By selecting the checkbox and submitting the signup form, you:
 | Data element | Purpose | Source |
 |---|---|---|
 | Full name | Account identity | Signup form / Google profile |
-| Email address | Account identity, login, and policy/security communication | Signup form / Google profile |
+| Email address | Account identity, login, and account-related contact | Signup form / Google profile |
 | Phone number | Account contact | Signup form |
 | Username | Login identity | Signup form |
 | Password | Authentication (stored only as an Argon2id hash; plaintext is never stored) | Signup form |
@@ -211,7 +212,8 @@ You may request account closure and early deletion of your account by contacting
 |---|---|
 | Name | Vijay Kumar Sharma |
 | Email | vijaykrsha@hotmail.com |
-| Postal address | 1E, Shiv Durga Vihar, Lakarpur, Surajukund, Faridabad, Haryana – 121009 |
+| Phone | +91 95913 0381 |
+| Postal address | 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana, Pin - 121009 |
 | Website | vijaykrsha.online |
 
 For rights requests, use the subject line `Privacy Request – Access / Correction / Erasure / Consent Withdrawal / Grievance` and include your registered email or username and a description of your request. PROPAURA will acknowledge requests promptly and respond within the period prescribed by applicable law.
@@ -249,13 +251,15 @@ If PROPAURA becomes aware of a personal-data breach, it will take reasonable ste
 
 ## 14. Children's Data
 
-Landlord accounts are intended for adults (18+). If you process data of a minor tenant, you must obtain verifiable guardian consent where required by law and comply with all applicable obligations before entering or uploading that data.
+Landlord accounts are intended for use by persons who have legal capacity to enter into the PropAura Terms and Conditions. If you process data of a minor tenant, you must obtain verifiable guardian consent where required by law and comply with all applicable obligations before entering or uploading that data.
 
 ---
 
 ## 15. Changes to this Policy
 
-PROPAURA may update this Policy to reflect changes in the Platform, legal requirements, data practices or security measures. Each revision will carry a new effective date and version number. Where a change materially affects how personal data is processed, PROPAURA will provide an appropriate notice and seek renewed consent where required before continuing that processing.
+PROPAURA may update this Policy from time to time to reflect changes in the Platform, legal requirements, data practices or security measures. Each revision will carry a new effective date and version number, and the current version will always be available through PropAura or vijaykrsha.online.
+
+Where a change materially affects how personal data is processed, PROPAURA will provide an appropriate notice and seek renewed consent where required before continuing that processing. Continued use of the Platform after an updated version is published constitutes acceptance of the revised Policy, except where renewed consent is required by law.
 
 ---
 
@@ -271,8 +275,8 @@ By selecting the checkbox below and submitting account creation, I declare that:
 
 1. I have read, understood and agree to this Privacy Policy;
 2. I consent, under the Digital Personal Data Protection Act, 2023, to the processing of my personal data for the purposes described in this Policy;
-3. I understand that my landlord account cannot be created unless I accept this Policy;
-4. I confirm that I am at least 18 years old and authorised to create this account;
+3. I understand that my landlord account cannot be created unless I accept this Policy and the PropAura Terms and Conditions;
+4. I confirm that I am authorised to create this account;
 5. I accept that I am the Data Fiduciary for tenant, occupant and third-party data I enter, and that I am responsible for lawful collection, notice, consent and handling of that data;
 6. I accept the liability limitations and exclusions in Section 12, to the maximum extent permitted by law;
 7. I agree to the retention practices in Section 5 and understand my rights under Sections 9–11.
@@ -283,4 +287,4 @@ By selecting the checkbox below and submitting account creation, I declare that:
 
 *This Privacy Policy is issued in compliance with the Digital Personal Data Protection Act, 2023 (Act No. 22 of 2023), Government of India.*
 *Document was prepared from a review of the PROPAURA source code (v3.0.0). It is a practical document, not a substitute for legal advice — an Indian privacy/technology lawyer should review the final wording, retention periods and consent workflow before production use.*
-*Version 1.0 — Effective 28 August 2026.*
+*Version 2.0 — Effective 28 August 2026.*

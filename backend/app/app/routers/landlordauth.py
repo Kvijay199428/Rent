@@ -52,6 +52,7 @@ from app.database.landlord_repository import (
     record_landlord_failed_attempt,
     reset_landlord_failed_attempts,
     record_privacy_consent,
+    record_terms_consent,
 )
 from app.models.landlord import (
     LandlordGoogleRequest,
@@ -59,6 +60,7 @@ from app.models.landlord import (
     LandlordLoginWithTotpRequest,
     LandlordPrivacyConsentRequest,
     LandlordSignupRequest,
+    LandlordTermsConsentRequest,
 )
 from app.core.config_service import config
 from app.core.db import get_conn
@@ -67,6 +69,8 @@ from app.core.privacy import (
     PRIVACY_CONSENT_REQUIRED_HEADER,
     PRIVACY_POLICY_EFFECTIVE_DATE,
     PRIVACY_POLICY_VERSION,
+    TERMS_CONDITIONS_EFFECTIVE_DATE,
+    TERMS_CONDITIONS_VERSION,
 )
 
 router = APIRouter(tags=["Landlord Authentication"])
@@ -179,13 +183,32 @@ async def landlord_privacy_policy():
     }
 
 
+@router.get(Routes.LANDLORDAPITERMS, name=Names.LANDLORDTERMS)
+async def landlord_terms():
+    """Return the current Terms and Conditions version, effective date and full text."""
+    content = ""
+    terms_path = os.path.join(STATIC_DIR, "terms_conditions_landlord.md")
+    try:
+        with open(terms_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        content = ""
+    return {
+        "version": TERMS_CONDITIONS_VERSION,
+        "effectiveDate": TERMS_CONDITIONS_EFFECTIVE_DATE,
+        "url": "/landlord/terms",
+        "content": content,
+    }
+
+
 @router.post(Routes.LANDLORDAPIAUTHSIGNUP, name=Names.LANDLORDSIGNUP)
 async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     """
     Create a new landlord account.
     Validates: username format, password match, uniqueness of username + email.
     Account creation is BLOCKED unless the landlord has accepted the current
-    Privacy Policy (privacyAccepted + privacyVersion). Returns 400 otherwise.
+    Privacy Policy (privacyAccepted + privacyVersion) AND the current Terms and
+    Conditions (termsAccepted + termsVersion). Returns 400 otherwise.
     Returns: { status, landlord: { id, landlordUuid, username, fullName } }
     """
     username = normalize_username(payload.username)
@@ -200,6 +223,18 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
         raise HTTPException(
             status_code=400,
             detail="The Privacy Policy version has changed. Please review and accept the current policy.",
+        )
+
+    # ── Terms and Conditions consent is mandatory before account creation ──
+    if not payload.termsAccepted:
+        raise HTTPException(
+            status_code=400,
+            detail="You must accept the PROPAURA Terms and Conditions to create an account.",
+        )
+    if payload.termsVersion != TERMS_CONDITIONS_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="The Terms and Conditions version has changed. Please review and accept the current terms.",
         )
 
     # ── Input validation ──
@@ -259,12 +294,23 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
         privacy_accepted_at=datetime.utcnow().isoformat(),
         privacy_accepted_ip=consent_ip,
         privacy_accepted_user_agent=consent_ua,
+        terms_consented=1,
+        terms_version=payload.termsVersion,
+        terms_accepted_at=datetime.utcnow().isoformat(),
+        terms_accepted_ip=consent_ip,
+        terms_accepted_user_agent=consent_ua,
     )
 
-    # Record the consent event in the auditable consent trail
+    # Record the consent events in the auditable consent trails
     record_privacy_consent(
         landlord["id"],
         privacy_version=payload.privacyVersion,
+        ip_address=consent_ip,
+        user_agent=consent_ua,
+    )
+    record_terms_consent(
+        landlord["id"],
+        terms_version=payload.termsVersion,
         ip_address=consent_ip,
         user_agent=consent_ua,
     )
@@ -293,6 +339,12 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
         "privacy_policy_accepted",
         ip_address=consent_ip,
         meta_json=json.dumps({"version": payload.privacyVersion, "user_agent": consent_ua}),
+    )
+    create_landlord_audit_log(
+        landlord["id"],
+        "terms_conditions_accepted",
+        ip_address=consent_ip,
+        meta_json=json.dumps({"version": payload.termsVersion, "user_agent": consent_ua}),
     )
 
     return {
@@ -343,6 +395,45 @@ async def landlord_privacy_consent(
     )
 
     return {"status": "success", "message": "Privacy Policy accepted.", "version": PRIVACY_POLICY_VERSION}
+
+
+@router.post(Routes.LANDLORDAPIAUTHTERMSCONSENT, name=Names.LANDLORDTERMSCONSENT)
+async def landlord_terms_consent(
+    request: Request,
+    payload: LandlordTermsConsentRequest,
+    principal=Depends(get_current_landlord_api),
+):
+    """
+    Record Terms and Conditions acceptance for an authenticated landlord.
+
+    Used for accounts created without an inline consent step (e.g. a brand-new
+    Google-created account), which are unusable until this consent is recorded.
+    """
+    if not payload.accepted:
+        raise HTTPException(status_code=400, detail="Terms and Conditions acceptance is required.")
+    if payload.termsVersion != TERMS_CONDITIONS_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="The Terms and Conditions version has changed. Please review and accept the current terms.",
+        )
+
+    consent_ip = request.client.host if request.client else None
+    consent_ua = request.headers.get("User-Agent", "")
+
+    record_terms_consent(
+        principal.landlord_id,
+        terms_version=payload.termsVersion,
+        ip_address=consent_ip,
+        user_agent=consent_ua,
+    )
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "terms_conditions_accepted",
+        ip_address=consent_ip,
+        meta_json=json.dumps({"version": payload.termsVersion, "user_agent": consent_ua}),
+    )
+
+    return {"status": "success", "message": "Terms and Conditions accepted.", "version": TERMS_CONDITIONS_VERSION}
 
 
 @router.post(Routes.LANDLORDAPIAUTHLOGIN, name=Names.LANDLORDLOGIN)
@@ -538,7 +629,9 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
     with get_conn() as conn:
         row = conn.execute(
             "SELECT totp_secret, totp_enabled, requires_password_change, "
-            "privacy_consented, privacy_version, setup_completed, setup_skipped "
+            "privacy_consented, privacy_version, "
+            "terms_consented, terms_version, "
+            "setup_completed, setup_skipped "
             "FROM landlord_accounts WHERE id = ?",
             (principal.landlord_id,),
         ).fetchone()
@@ -556,6 +649,8 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "requiresPasswordChange": bool(row and row["requires_password_change"]),
             "privacyConsented": bool(row and row["privacy_consented"]),
             "privacyVersion": row["privacy_version"] if row else None,
+            "termsConsented": bool(row and row["terms_consented"]),
+            "termsVersion": row["terms_version"] if row else None,
             "setupCompleted": bool(row and row["setup_completed"]),
             "setupSkipped": bool(row and row["setup_skipped"]),
         },

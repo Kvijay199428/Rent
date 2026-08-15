@@ -1,8 +1,9 @@
 import { useState, useEffect, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import { useAuth, OtpCooldownError } from "../contexts/AuthContext";
 import AuthLayout from "../components/AuthLayout";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
+import { API_BASE } from "../lib/runtime";
 
 type OtpMethod = "totp" | "telegram";
 
@@ -30,6 +31,12 @@ export default function LoginPage() {
   const [otpMsg, setOtpMsg] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [pendingFeedback, setPendingFeedback] = useState<{
+    id: number;
+    tenant_name: string;
+    message: string;
+    created_at: string;
+  }[] | null>(null);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -39,6 +46,20 @@ export default function LoginPage() {
 
   function useTelegram() {
     return method === "telegram" && methods.includes("telegram_otp");
+  }
+
+  async function checkPendingFeedback(): Promise<number> {
+    try {
+      const res = await fetch(`${API_BASE}/feedback?status=open&limit=10`, { credentials: "include" });
+      if (!res.ok) return 0;
+      const data = await res.json();
+      const total = data.total || 0;
+      if (total > 0) setPendingFeedback((data.items || []).slice(0, 10));
+      return total;
+    } catch {
+      // Non-critical — the dashboard banner still surfaces feedback.
+      return 0;
+    }
   }
 
   function resetSecondFactor() {
@@ -67,7 +88,8 @@ export default function LoginPage() {
           handleSendOtp();
         }
       } else {
-        navigate("/dashboard", { replace: true });
+        const total = await checkPendingFeedback();
+        if (total === 0) navigate("/dashboard", { replace: true });
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");
@@ -86,7 +108,8 @@ export default function LoginPage() {
       } else {
         await loginTOTP(code);
       }
-      navigate("/dashboard", { replace: true });
+      const total = await checkPendingFeedback();
+      if (total === 0) navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Verification failed");
     } finally {
@@ -342,6 +365,73 @@ export default function LoginPage() {
       </AuthLayout>
       {sending && <LoadingOverlay label="Sending code…" />}
       {!sending && busy && <LoadingOverlay label={totpRequired ? "Verifying…" : "Signing in…"} />}
+
+      {pendingFeedback && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 200,
+          background: "rgba(0,0,0,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 16,
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 16, padding: "28px 24px",
+            width: 460, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <span style={{ fontSize: 26 }}>📬</span>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#1a1d2e" }}>
+                  Pending QR Feedback
+                </h2>
+                <p style={{ margin: "2px 0 0", fontSize: 13, color: "#6b7280" }}>
+                  Tenants reported a wrong QR key on the unlock screen.
+                </p>
+              </div>
+            </div>
+
+            {pendingFeedback.map((f) => (
+              <div key={f.id} style={{
+                padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e7eb",
+                background: "#f8fafc", marginBottom: 8,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                  <strong style={{ fontSize: 13, color: "#1a1d2e" }}>{f.tenant_name || `Tenant #${f.id}`}</strong>
+                  <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                    {new Date(f.created_at + "Z").toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                  </span>
+                </div>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#374151" }}>
+                  {f.message || <span style={{ color: "#9ca3af" }}>No message included.</span>}
+                </p>
+              </div>
+            ))}
+
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <button
+                onClick={() => setPendingFeedback(null)}
+                style={{
+                  flex: 1, padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
+                  background: "#fff", color: "#6b7280", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                Later
+              </button>
+              <Link
+                to="/feedback"
+                onClick={() => setPendingFeedback(null)}
+                style={{
+                  flex: 1, textAlign: "center", padding: "10px 0", borderRadius: 8, border: "none",
+                  background: "#3b4a6b", color: "#fff", fontSize: 14, fontWeight: 700,
+                  textDecoration: "none", display: "inline-block",
+                }}
+              >
+                View Inbox
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -64,6 +64,10 @@ class LandlordRoutes:
     LANDLORDAPIPRIVACYPOLICY = "/landlord/api/privacy-policy"
     LANDLORDAPIAUTHPRIVACYCONSENT = "/landlord/api/auth/privacy-consent"
 
+    # Landlord API: Terms and Conditions (public document + consent recording)
+    LANDLORDAPITERMS = "/landlord/api/terms"
+    LANDLORDAPIAUTHTERMSCONSENT = "/landlord/api/auth/terms-consent"
+
     # Landlord API: Dashboard
     LANDLORDAPIDASHBOARDSTATS = "/landlord/{landlordUuid}/api/dashboard"
 
@@ -161,6 +165,8 @@ class LandlordNames:
     LANDLORDCHANGEPASSWORD = "landlordchangepassword"
     LANDLORDPRIVACYPOLICY = "landlordprivacypolicy"
     LANDLORDPRIVACYCONSENT = "landlordprivacyconsent"
+    LANDLORDTERMS = "landlordterms"
+    LANDLORDTERMSCONSENT = "landlordtermsconsent"
 
     # Pages
     HOME = "home_page"

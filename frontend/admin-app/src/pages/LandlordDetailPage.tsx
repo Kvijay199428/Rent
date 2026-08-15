@@ -122,6 +122,10 @@ export default function LandlordDetailPage() {
                 ["Privacy Version", l.privacy_version ?? "—"],
                 ["Privacy Accepted At", l.privacy_accepted_at ? new Date(String(l.privacy_accepted_at)).toLocaleString() : "—"],
                 ["Privacy Accepted IP", l.privacy_accepted_ip ?? "—"],
+                ["Terms Accepted", l.terms_consented ? "Yes" : "Pending"],
+                ["Terms Version", l.terms_version ?? "—"],
+                ["Terms Accepted At", l.terms_accepted_at ? new Date(String(l.terms_accepted_at)).toLocaleString() : "—"],
+                ["Terms Accepted IP", l.terms_accepted_ip ?? "—"],
               ].map(([label, value]) => (
                 <tr key={String(label)} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 140 }}>{String(label)}</td>

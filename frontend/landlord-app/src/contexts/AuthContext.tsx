@@ -27,6 +27,7 @@ interface AuthContextType {
   totpEnabled: boolean;
   requiresPasswordChange: boolean;
   privacyConsented: boolean | null;
+  termsConsented: boolean | null;
   setupCompleted: boolean;
   setupSkipped: boolean;
   login: (
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
   const [privacyConsented, setPrivacyConsented] = useState<boolean | null>(null);
+  const [termsConsented, setTermsConsented] = useState<boolean | null>(null);
   const [setupCompleted, setSetupCompleted] = useState(false);
   const [setupSkipped, setSetupSkipped] = useState(false);
 
@@ -88,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTotpEnabled(data?.landlord?.totpEnabled ?? false);
       setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
       setPrivacyConsented(data?.landlord?.privacyConsented ?? true);
+      setTermsConsented(data?.landlord?.termsConsented ?? true);
       setSetupCompleted(data?.landlord?.setupCompleted ?? false);
       setSetupSkipped(data?.landlord?.setupSkipped ?? false);
       if (uuid) localStorage.setItem("landlordUuid", uuid);
@@ -100,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTotpEnabled(false);
       setRequiresPasswordChange(false);
       setPrivacyConsented(null);
+      setTermsConsented(null);
       setSetupCompleted(false);
       setSetupSkipped(false);
       localStorage.removeItem("landlordUuid");
@@ -343,7 +347,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, privacyConsented, setupCompleted, setupSkipped, login, googleLogin, verifyTotp, logout, changePassword, refreshMe, setSetupState }}
+      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, privacyConsented, termsConsented, setupCompleted, setupSkipped, login, googleLogin, verifyTotp, logout, changePassword, refreshMe, setSetupState }}
     >
       {children}
     </AuthContext.Provider>

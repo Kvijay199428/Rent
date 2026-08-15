@@ -15,6 +15,7 @@ from app.core.config_service import config
 from app.models.tenant import Tenant
 from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json
+import asyncio
 import mimetypes
 import uuid
 import shutil, logging
@@ -199,15 +200,25 @@ async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, re
 
     # When a qr_key is supplied, it must match the tenant's stored key. This
     # binds each QR login to the specific printed QR (invalidateable by rotation).
+    # On failure we enforce a 5-second delay (also blocks brute force) and
+    # return the same message for a wrong qrKey or a wrong PIN so the client
+    # never reveals which factor failed.
+    qr_key_ok = True
     if qr_key:
         stored_key = (getattr(tenant, "qr_key", "") or "").strip()
-        if not stored_key or not constant_time_eq(qr_key, stored_key):
+        qr_key_ok = bool(stored_key) and constant_time_eq(qr_key, stored_key)
+        if not qr_key_ok:
             _record_failed_attempt("Login Failed - Wrong QR Key")
-            raise HTTPException(status_code=401, detail="Invalid QR link")
+            await asyncio.sleep(5)
+            raise HTTPException(status_code=401, detail="wrong qrKey or pin rescan the qr")
 
     if not verify_pin(pin, getattr(tenant, "tenantPin", "")):
         _record_failed_attempt("Login Failed - Wrong PIN")
-        raise HTTPException(status_code=401, detail="Invalid PIN")
+        if qr_key_ok:
+            # Delay only when a valid QR key was supplied: keep the failure
+            # timing uniform with the wrong-qrKey path above.
+            await asyncio.sleep(5)
+        raise HTTPException(status_code=401, detail="wrong qrKey or pin rescan the qr")
 
     # Reset attempts on success
     if (row and row["failed_attempts"]) or (row and row["locked_until"]):
@@ -865,3 +876,72 @@ async def tenant_audit_logs(
         })
 
     return {"items": items, "total": total}
+
+
+class FeedbackRequest(BaseModel):
+    message: str = ""
+    qr_key: str = ""
+    diagnostics: dict | None = None
+
+
+@router.post(TenantRoutes.TENANTAPIFEEDBACK, name=TenantNames.TENANTFEEDBACK)
+async def submit_tenant_feedback(
+    propertyId: int,
+    tenantId: int,
+    viewToken: str,
+    request: Request,
+    feedback: FeedbackRequest,
+):
+    """Store a wrong-qrKey report from the QR unlock screen into the platform
+    admin's feedback inbox. The QR link itself is the credential here (no
+    session is required yet), so scoping is the same as the QR login."""
+    from app.core.db import get_conn as _get_conn
+    from datetime import datetime as _dt
+
+    tenants = load_tenants(include_archived=True)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Invalid or expired link.")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
+
+    if len(feedback.message or "") > 2000:
+        raise HTTPException(status_code=400, detail="Message too long.")
+
+    ip = request.client.host if request.client else "Unknown IP"
+    diagnostics = feedback.diagnostics or {}
+    if not isinstance(diagnostics, dict):
+        diagnostics = {}
+
+    with _get_conn() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO tenant_qr_feedback
+            (tenant_id, landlord_id, property_id, tenant_name, view_token, qr_key,
+             message, diagnostics_json, failed_attempts, status, created_at, ip_address)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+            """,
+            (
+                tenant.id,
+                getattr(tenant, "landlord_id", None),
+                propertyId,
+                getattr(tenant, "name", ""),
+                viewToken,
+                (feedback.qr_key or "").strip(),
+                feedback.message,
+                json.dumps(diagnostics),
+                getattr(tenant, "failed_attempts", 0) or 0,
+                _dt.utcnow().isoformat(),
+                ip,
+            ),
+        )
+        conn.commit()
+        feedback_id = cur.lastrowid
+
+    log_audit(
+        tenant.id,
+        "QR Feedback Submitted - Wrong qrKey",
+        ip,
+        json.dumps({"feedback_id": feedback_id}),
+    )
+    return {"status": "success", "feedback_id": feedback_id, "message": "Feedback submitted."}

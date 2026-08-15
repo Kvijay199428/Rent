@@ -1,10 +1,10 @@
 # Rent — Complete Source Code
 
-Generated: 2026-08-13
+Generated: 2026-08-15
 Script:   /root/rent/copy.py
 Source:   /root/rent
-Files:    407
-Size:     3903 KB
+Files:    412
+Size:     3989 KB
 Skipped:  0
 
 ---
@@ -23,6 +23,7 @@ Skipped:  0
 - Chrome-MCP.md
 - PRIVACY_POLICY_LANDLORD.md
 - README.md
+- TERMS_CONDITIONS_LANDLORD.md
 - backend/.env.example
 - backend/Dockerfile
 - backend/app/README.md
@@ -127,6 +128,7 @@ Skipped:  0
 - backend/app/config/ui.json
 - backend/app/diagnose.py
 - backend/app/static/privacy_policy_landlord.md
+- backend/app/static/terms_conditions_landlord.md
 - backend/app/templates/error.html
 - backend/app/templates/landing.html
 - backend/compose.test.yml
@@ -170,6 +172,7 @@ Skipped:  0
 - frontend/admin-app/src/pages/AuditLogsPage.tsx
 - frontend/admin-app/src/pages/DashboardPage.tsx
 - frontend/admin-app/src/pages/DataExplorerPage.tsx
+- frontend/admin-app/src/pages/FeedbackInboxPage.tsx
 - frontend/admin-app/src/pages/LandlordDetailPage.tsx
 - frontend/admin-app/src/pages/LandlordsPage.tsx
 - frontend/admin-app/src/pages/LoginPage.tsx
@@ -238,6 +241,7 @@ Skipped:  0
 - frontend/landlord-app/src/components/modals/importService.ts
 - frontend/landlord-app/src/components/privacy/MarkdownView.tsx
 - frontend/landlord-app/src/components/privacy/PrivacyPolicyModal.tsx
+- frontend/landlord-app/src/components/privacy/TermsConditionsModal.tsx
 - frontend/landlord-app/src/components/shared/EditBillModal.tsx
 - frontend/landlord-app/src/components/shared/PDFPreviewModal.tsx
 - frontend/landlord-app/src/components/shared/ReceiptRow.tsx
@@ -326,6 +330,7 @@ Skipped:  0
 - frontend/landlord-app/src/pages/Settings.tsx
 - frontend/landlord-app/src/pages/SetupPage.tsx
 - frontend/landlord-app/src/pages/Tenants.tsx
+- frontend/landlord-app/src/pages/TermsConditionsPage.tsx
 - frontend/landlord-app/src/services/api.ts
 - frontend/landlord-app/src/services/base.ts
 - frontend/landlord-app/src/types/index.ts
@@ -1814,12 +1819,13 @@ For a reference implementation, see the [Gemini CLI browser agent documentation]
 # PROPAURA — Privacy Policy for Landlord Account Creation
 
 **Effective Date:** 28 August 2026
-**Version:** 1.0
+**Version:** 2.0
 **Platform:** PROPAURA (Rent Receipt & Property Management System v3.0.0)
 **Website:** vijaykrsha.online
 **Data Fiduciary / Platform Operator:** Vijay Kumar Sharma
-**Postal Address:** 1E, Shiv Durga Vihar, Lakarpur, Surajukund, Faridabad, Haryana – 121009
+**Postal Address:** 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana, Pin - 121009
 **Privacy / Grievance Contact Email:** vijaykrsha@hotmail.com
+**Privacy / Grievance Contact Phone:** +91 95913 0381
 **Jurisdiction:** Republic of India
 
 ---
@@ -1838,11 +1844,11 @@ PROPAURA is a rental-property management software platform. From the supplied so
 - KYC document storage for tenants and occupants, including Aadhaar-related and employment-related documents;
 - WhatsApp-based receipt sharing and payment-reminder messages;
 - CSV, Excel and ZIP data export; Excel/CSV import with preview and execution;
-- Manual and scheduled backups with integrity verification and restore;
+- Automatic (event-triggered) and manual backups with integrity verification and restore;
 - Tenant "recovery snapshots" kept after permanent tenant deletion;
 - Full audit logging of landlord, tenant and platform-administrator actions.
 
-**This Policy is a condition of account creation.** A landlord account **cannot** be created unless the landlord actively accepts this Policy by selecting the required consent checkbox during signup. If the checkbox is not selected, the signup request is rejected and no account record is created.
+**This Policy, together with the PropAura Terms and Conditions, is a condition of account creation.** A landlord account **cannot** be created unless the landlord actively accepts both this Policy and the Terms and Conditions by selecting the required consent checkboxes during signup. If either checkbox is not selected, the signup request is rejected and no account record is created.
 
 For the purposes of India's **Digital Personal Data Protection Act, 2023** (the "DPDP Act"), Vijay Kumar Sharma, operating through vijaykrsha.online, is the **Data Fiduciary** in respect of the personal data described in Section 3 of this Policy. Where a landlord enters or uploads data about tenants, occupants or other individuals, the landlord is a Data Fiduciary for that data and PROPAURA acts as a Data Processor providing the tools described in this Policy.
 
@@ -1856,13 +1862,13 @@ By selecting the checkbox and submitting the signup form, you:
 
 1. Acknowledge receipt of this notice under Section 5 of the DPDP Act;
 2. Provide explicit, informed consent under Section 6 to the processing described in this Policy;
-3. Confirm you are at least 18 years old and authorised to create a landlord account;
+3. Confirm you are authorised to create a landlord account;
 4. Confirm you understand that account creation is blocked unless this consent is recorded;
 5. Accept responsibility for personal data you enter about tenants, occupants or other individuals through your account, including obtaining any notices and consents required by law.
 
 **Consent is recorded and auditable.** On acceptance, PROPAURA stores the accepted policy version, the date and time of acceptance (UTC), the IP address and user-agent from which acceptance was made, and writes a `privacy_policy_accepted` entry to the landlord audit log. Renewed acceptance is required when a materially revised version of this Policy is issued.
 
-**Google sign-in.** If you create your account through Google sign-in, the account is created in a consent-pending state. The account cannot be used for landlord functions until you complete a consent step accepting this Policy and, where required, set a password. No account created through any method is usable without acceptance of this Policy.
+**Google sign-in.** If you create your account through Google sign-in, acceptance of this Policy is recorded as part of the Google sign-in flow. No account created through any method is usable without acceptance of this Policy and the Terms and Conditions.
 
 ---
 
@@ -1873,7 +1879,7 @@ By selecting the checkbox and submitting the signup form, you:
 | Data element | Purpose | Source |
 |---|---|---|
 | Full name | Account identity | Signup form / Google profile |
-| Email address | Account identity, login, and policy/security communication | Signup form / Google profile |
+| Email address | Account identity, login, and account-related contact | Signup form / Google profile |
 | Phone number | Account contact | Signup form |
 | Username | Login identity | Signup form |
 | Password | Authentication (stored only as an Argon2id hash; plaintext is never stored) | Signup form |
@@ -2024,7 +2030,8 @@ You may request account closure and early deletion of your account by contacting
 |---|---|
 | Name | Vijay Kumar Sharma |
 | Email | vijaykrsha@hotmail.com |
-| Postal address | 1E, Shiv Durga Vihar, Lakarpur, Surajukund, Faridabad, Haryana – 121009 |
+| Phone | +91 95913 0381 |
+| Postal address | 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana, Pin - 121009 |
 | Website | vijaykrsha.online |
 
 For rights requests, use the subject line `Privacy Request – Access / Correction / Erasure / Consent Withdrawal / Grievance` and include your registered email or username and a description of your request. PROPAURA will acknowledge requests promptly and respond within the period prescribed by applicable law.
@@ -2062,13 +2069,15 @@ If PROPAURA becomes aware of a personal-data breach, it will take reasonable ste
 
 ## 14. Children's Data
 
-Landlord accounts are intended for adults (18+). If you process data of a minor tenant, you must obtain verifiable guardian consent where required by law and comply with all applicable obligations before entering or uploading that data.
+Landlord accounts are intended for use by persons who have legal capacity to enter into the PropAura Terms and Conditions. If you process data of a minor tenant, you must obtain verifiable guardian consent where required by law and comply with all applicable obligations before entering or uploading that data.
 
 ---
 
 ## 15. Changes to this Policy
 
-PROPAURA may update this Policy to reflect changes in the Platform, legal requirements, data practices or security measures. Each revision will carry a new effective date and version number. Where a change materially affects how personal data is processed, PROPAURA will provide an appropriate notice and seek renewed consent where required before continuing that processing.
+PROPAURA may update this Policy from time to time to reflect changes in the Platform, legal requirements, data practices or security measures. Each revision will carry a new effective date and version number, and the current version will always be available through PropAura or vijaykrsha.online.
+
+Where a change materially affects how personal data is processed, PROPAURA will provide an appropriate notice and seek renewed consent where required before continuing that processing. Continued use of the Platform after an updated version is published constitutes acceptance of the revised Policy, except where renewed consent is required by law.
 
 ---
 
@@ -2084,8 +2093,8 @@ By selecting the checkbox below and submitting account creation, I declare that:
 
 1. I have read, understood and agree to this Privacy Policy;
 2. I consent, under the Digital Personal Data Protection Act, 2023, to the processing of my personal data for the purposes described in this Policy;
-3. I understand that my landlord account cannot be created unless I accept this Policy;
-4. I confirm that I am at least 18 years old and authorised to create this account;
+3. I understand that my landlord account cannot be created unless I accept this Policy and the PropAura Terms and Conditions;
+4. I confirm that I am authorised to create this account;
 5. I accept that I am the Data Fiduciary for tenant, occupant and third-party data I enter, and that I am responsible for lawful collection, notice, consent and handling of that data;
 6. I accept the liability limitations and exclusions in Section 12, to the maximum extent permitted by law;
 7. I agree to the retention practices in Section 5 and understand my rights under Sections 9–11.
@@ -2096,7 +2105,7 @@ By selecting the checkbox below and submitting account creation, I declare that:
 
 *This Privacy Policy is issued in compliance with the Digital Personal Data Protection Act, 2023 (Act No. 22 of 2023), Government of India.*
 *Document was prepared from a review of the PROPAURA source code (v3.0.0). It is a practical document, not a substitute for legal advice — an Indian privacy/technology lawyer should review the final wording, retention periods and consent workflow before production use.*
-*Version 1.0 — Effective 28 August 2026.*
+*Version 2.0 — Effective 28 August 2026.*
 ```
 
 ### `README.md`
@@ -2110,6 +2119,262 @@ Multi-tenant rent receipt management system with a FastAPI backend and four Reac
 
 ## Architecture
 
+```
+
+### `TERMS_CONDITIONS_LANDLORD.md`
+
+```markdown
+# PropAura Terms and Conditions — Landlord Account and Platform Use
+
+**Effective Date:** 28 August 2026
+**Version:** 1.0
+**Platform:** PropAura
+**Website:** vijaykrsha.online
+**Operated by:** Vijay Kumar Sharma ("PropAura", "we", "us", "our")
+**Contact:** vijaykrsha@hotmail.com | +91 95913 0381
+**Address:** 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana, Pin - 121009
+
+These Terms and Conditions ("Terms") are a legal agreement between you ("Landlord", "you", "your") and PropAura. By selecting **"I Agree"**, creating a landlord account, logging in, or using the Platform, you agree to these Terms and the PropAura Privacy Policy.
+
+Electronic contracts and records are legally recognised in India and are not invalid solely because they are in electronic form.
+
+---
+
+## 1. Acceptance and Eligibility
+
+You may create and use a PropAura landlord account only if you:
+
+- Have legal capacity to enter into this agreement;
+- Are the owner, authorized landlord, property manager, or duly authorized representative for the property or rental records you manage;
+- Provide accurate, complete, and current registration details;
+- Agree to comply with these Terms, the Privacy Policy, and applicable law.
+
+You must not create an account or use the Platform if you do not agree to these Terms.
+
+**Required checkbox text**
+
+> **I have read and agree to the PropAura Terms and Conditions and Privacy Policy. I understand that my landlord account will not be created unless I accept them.**
+
+---
+
+## 2. Platform Services
+
+PropAura is rental-property management software. Its available features include landlord accounts, tenant profiles, room/property records, rent and utility billing, meter readings, deposits, payment status, arrears, professional PDF receipts, tenant self-service access, KYC document workflows, WhatsApp receipt and reminder sharing, reports, audit logs, data archives, CSV/Excel import-export, backups, and restore functions.
+
+PropAura is only a software platform. It is not a property owner, broker, agent, legal adviser, tax adviser, accountant, tenancy authority, payment gateway, identity-verification authority, or party to any agreement between a landlord and a tenant.
+
+---
+
+## 3. Account Registration
+
+You must create an account using your own correct information. You must not impersonate another person or use a username, email address, phone number, or identity that you are not authorized to use.
+
+You are responsible for all actions performed through your account, including actions by any person who accesses your account through your password, active login session, device, email, or multi-factor authentication method.
+
+PropAura may reject, restrict, suspend, or deactivate an account where we reasonably believe that the account is false, misleading, insecure, inactive, unlawful, abusive, or in breach of these Terms.
+
+---
+
+## 4. Credentials and Security
+
+You must keep your password, authentication codes, tenant access links, session details, downloads, backups, exported files, and devices secure.
+
+You must immediately notify us at **vijaykrsha@hotmail.com** if you suspect that your account, password, email, phone, device, exported data, or tenant records have been accessed or used without authorization.
+
+PropAura includes security measures such as encrypted login flows, hashed passwords, secure cookies, rotating sessions, login-attempt limits, account lockouts, role-based access controls, TOTP support, and audit logs. These safeguards reduce risk but cannot guarantee absolute security.
+
+---
+
+## 5. Landlord Responsibilities
+
+You are solely responsible for:
+
+- Your property, tenancy arrangements, tenant selection, rent, deposits, utility charges, maintenance charges, payments, arrears, notices, and property-management decisions;
+- The accuracy and completeness of all information entered into PropAura;
+- Reviewing all bills, calculations, meter readings, payment entries, receipts, reports, messages, and exports before relying on or sharing them;
+- Complying with property, tenancy, tax, accounting, consumer, privacy, identity-document, and communication laws applicable to you;
+- Keeping independent records of important legal, tenancy, accounting, tax, and financial documents.
+
+PropAura may calculate rent, utilities, arrears, additional-person charges, maintenance charges, and payment balances from the data you enter. You must independently verify every output before it is used.
+
+---
+
+## 6. Tenant and Occupant Data
+
+You may enter tenant, occupant, guarantor, employee, or other third-party data only if you have lawful authority to collect and process it.
+
+You confirm that you will:
+
+- Provide individuals with any privacy notice required by law;
+- Obtain valid consent where consent is required;
+- Collect only data that is necessary for a legitimate rental-property management purpose;
+- Keep information accurate, relevant, and appropriately protected;
+- Respect applicable data-access, correction, deletion, and grievance rights;
+- Delete or archive data only in accordance with your legal retention obligations.
+
+The DPDP Act imposes responsibilities on individuals handling personal data, including complying with applicable law, providing authentic information, and not impersonating another person.
+
+---
+
+## 7. KYC and Identity Documents
+
+PropAura may permit KYC or document uploads associated with tenants or occupants, including Aadhaar-related documents and employment-related documents.
+
+You must only request, collect, upload, access, disclose, retain, or delete these documents when lawful, necessary, proportionate, and properly authorized. You are responsible for obtaining all required notice, permission, or consent.
+
+Do not upload biometric information, bank passwords, debit/credit-card security information, OTPs, passwords, or any document that you are not legally entitled to possess or process.
+
+---
+
+## 8. Billing, Payments, and Receipts
+
+PropAura can generate billing records and PDF rent receipts using data entered by landlords. Such records may include rent, water charges, electricity usage, meter readings, additional-person charges, tank-water charges, maintenance charges, previous arrears, advances, payment status, and payment amounts.
+
+You are solely responsible for:
+
+- The legal and factual accuracy of every bill, payment record, receipt, demand, invoice, or reminder;
+- Confirming meter readings, tenant identification, rental periods, charges, taxes, payment receipt, and payment status;
+- Ensuring that receipts and financial records meet your legal, tax, accounting, and tenancy requirements;
+- Resolving disputes with tenants or third parties.
+
+Platform-generated records are not legal advice, tax advice, accounting advice, a government-certified receipt, or proof that a payment was actually made or received.
+
+---
+
+## 9. Tenant Portal and Access Links
+
+PropAura may allow landlords to issue access links and credentials for a tenant portal. Tenant users can access only functions available to them, such as viewing their profile, receipts, payment status, or uploading permitted KYC documents.
+
+You are responsible for issuing tenant access only to the correct person and for promptly revoking or changing access when a tenant moves out, a device is compromised, or access is no longer appropriate.
+
+You must not disclose tenant portal links, tenant credentials, PINs, or documents to an unauthorized person.
+
+---
+
+## 10. Communications
+
+PropAura may provide tools for WhatsApp messages, payment reminders, PDF receipt sharing, and tenant communications.
+
+You are solely responsible for the legality, accuracy, content, recipient, timing, and consent basis for every message you send. You must not use Platform communication functions for spam, harassment, misleading notices, unlawful debt collection, discrimination, threats, or any improper purpose.
+
+PropAura does not guarantee delivery, receipt, availability, or confidentiality of messages sent through WhatsApp, email, mobile networks, browsers, or other third-party services.
+
+---
+
+## 11. Data Import, Export, Backup, and Recovery
+
+PropAura may provide CSV/Excel imports, downloads, PDF receipts, ZIP exports, manual backups, restoration tools, archives, and limited tenant recovery snapshots.
+
+Before importing, deleting, restoring, exporting, or sharing data, you must verify that the operation is correct. You are responsible for protecting any files downloaded or stored outside PropAura.
+
+A tenant recovery snapshot may be available only for the configured retention period. After it expires, restoration may be impossible. Recovery snapshots can include tenant records, receipts, KYC files, PDFs, authentication-related records, and audit data, after which expired recovery snapshots are permanently purged.
+
+Backups and recovery features are not a substitute for your own business-continuity plan, lawful record-retention policy, or independent secure copies of important records.
+
+---
+
+## 12. Prohibited Activities
+
+You must not:
+
+- Use PropAura for unlawful, fraudulent, abusive, misleading, discriminatory, or harmful activity;
+- Access another person's account, data, documents, tenant links, sessions, or files without authorization;
+- Upload personal data or KYC documents without lawful authority;
+- Attempt to bypass security controls, authentication, data isolation, access restrictions, or rate limits;
+- Introduce malware, ransomware, viruses, harmful scripts, or unauthorized automated tools;
+- Reverse engineer, decompile, copy, modify, rent, sell, license, distribute, or exploit PropAura's software, design, source code, or services without written authorization;
+- Send spam, threats, unlawful payment demands, discriminatory messages, or abusive communications;
+- Use PropAura to make unlawful eviction decisions or to violate a tenant's legal rights;
+- Upload data that is false, defamatory, infringing, confidential without authority, or otherwise unlawful.
+
+We may monitor, log, investigate, restrict, preserve, or disclose relevant information where reasonably necessary to operate the Platform, protect users, investigate misuse, comply with law, or enforce these Terms.
+
+---
+
+## 13. Intellectual Property
+
+PropAura, vijaykrsha.online, software, source code, branding, interfaces, logos, designs, documentation, content, and associated intellectual property are owned by or licensed to Vijay Kumar Sharma.
+
+You receive only a limited, personal, revocable, non-exclusive, non-transferable right to use the Platform under these Terms. No ownership or intellectual-property right is transferred to you.
+
+You retain rights in data that you lawfully enter into the Platform. You grant PropAura a limited right to host, store, transmit, back up, secure, process, and display that data only as needed to provide, support, and protect the Platform.
+
+---
+
+## 14. Suspension and Termination
+
+You may stop using PropAura at any time. You may request account closure by contacting **vijaykrsha@hotmail.com**.
+
+We may suspend, restrict, or terminate your access immediately where reasonably necessary for security, legal compliance, fraud prevention, technical protection, or enforcement of these Terms. Examples include suspected unauthorized access, unlawful KYC processing, privacy violations, misuse of tenant data, credential sharing, attempted hacking, or harmful activity.
+
+Following closure or termination, certain information may be retained where necessary for legal compliance, backups, audit, fraud prevention, security, dispute resolution, or enforcement of these Terms, as described in the Privacy Policy.
+
+---
+
+## 15. Disclaimers
+
+PropAura is provided on an **"as available"** basis. We aim to provide a reliable and secure service, but we do not guarantee continuous availability, error-free operation, uninterrupted access, compatibility with every device or browser, successful delivery of third-party communications, or permanent preservation of data.
+
+PropAura does not provide legal, tenancy, tax, accounting, financial, insurance, property-management, eviction, identity-verification, or regulatory advice. Obtain professional advice when required.
+
+---
+
+## 16. Limitation of Liability
+
+To the maximum extent permitted by applicable law, Vijay Kumar Sharma, vijaykrsha.online, PropAura, and their owners, developers, employees, contractors, service providers, affiliates, and licensors are not liable for indirect, incidental, special, consequential, exemplary, punitive, commercial, reputational, data-related, or financial losses arising from:
+
+- Your use of or inability to use the Platform;
+- Incorrect, incomplete, fraudulent, outdated, unauthorized, or unlawfully processed data entered by you or another user;
+- Tenant disputes, rent disputes, payment disputes, eviction actions, property disputes, KYC disputes, or communication disputes;
+- Incorrect bills, meter readings, payment entries, receipts, exports, backups, reports, or calculations based on information supplied by you;
+- Loss, deletion, alteration, compromise, misuse, or disclosure of data caused by user action, third-party services, devices, networks, browsers, hosting outages, or circumstances outside our reasonable control;
+- Google, WhatsApp, email providers, payment providers, internet providers, mobile networks, device manufacturers, browsers, or other external services;
+- Service interruption, maintenance, technical failure, cyber incident, force majeure event, or data-recovery limitation.
+
+Nothing in these Terms excludes liability that cannot legally be excluded, including liability for fraud, wilful misconduct, or non-waivable obligations under applicable law. Indian consumer law also restricts unfair contractual terms.
+
+---
+
+## 17. Indemnity
+
+To the maximum extent permitted by law, you agree to defend, indemnify, and hold harmless Vijay Kumar Sharma, vijaykrsha.online, PropAura, and their owners, developers, employees, contractors, affiliates, licensors, and service providers from claims, losses, damages, penalties, liabilities, costs, and reasonable legal expenses arising from:
+
+- Your use of the Platform;
+- Landlord Data or any content uploaded, entered, imported, generated, or shared through your account;
+- Your failure to obtain required permissions, notices, or consent;
+- Your breach of these Terms, the Privacy Policy, or applicable law;
+- A dispute between you and your tenant, occupant, property owner, agent, employee, service provider, or another third party.
+
+---
+
+## 18. Changes to These Terms
+
+PropAura may update these Terms from time to time to reflect changes in the Platform, security requirements, legal obligations, or business operations. Each revision will carry a new effective date and version number, and the current version will always be available through PropAura or vijaykrsha.online.
+
+For material changes, we will provide reasonable notice through the Platform, email, or another suitable method. Where required, continued access may require acceptance of the revised Terms. Continued use of the Platform after an updated version is published constitutes acceptance of the revised Terms.
+
+---
+
+## 19. Governing Law and Jurisdiction
+
+These Terms are governed by the laws of India. Subject to applicable law, courts with competent jurisdiction in **Faridabad, Haryana, India** will have exclusive jurisdiction over disputes relating to these Terms or the Platform.
+
+---
+
+## 20. Contact
+
+For support, questions, account closure, or complaints about these Terms:
+
+**PropAura — Vijay Kumar Sharma**  
+Website: vijaykrsha.online  
+Email: vijaykrsha@hotmail.com  
+Phone: +91 95913 0381  
+Address: 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana, Pin - 121009
+
+---
+
+*This document was prepared from a review of the PropAura source code (v3.0.0). It is a practical document, not a substitute for legal advice — an Indian technology/privacy lawyer should review the final wording before production use.*
+*Version 1.0 — Effective 28 August 2026.*
 ```
 
 ### `backend/.env.example`
@@ -2932,6 +3197,7 @@ from app.core.config_service import config
 from app.models.tenant import Tenant
 from app.models.receipt import BillRequest, PaymentStatusUpdate
 import os, io, re, json
+import asyncio
 import mimetypes
 import uuid
 import shutil, logging
@@ -3116,15 +3382,25 @@ async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, re
 
     # When a qr_key is supplied, it must match the tenant's stored key. This
     # binds each QR login to the specific printed QR (invalidateable by rotation).
+    # On failure we enforce a 5-second delay (also blocks brute force) and
+    # return the same message for a wrong qrKey or a wrong PIN so the client
+    # never reveals which factor failed.
+    qr_key_ok = True
     if qr_key:
         stored_key = (getattr(tenant, "qr_key", "") or "").strip()
-        if not stored_key or not constant_time_eq(qr_key, stored_key):
+        qr_key_ok = bool(stored_key) and constant_time_eq(qr_key, stored_key)
+        if not qr_key_ok:
             _record_failed_attempt("Login Failed - Wrong QR Key")
-            raise HTTPException(status_code=401, detail="Invalid QR link")
+            await asyncio.sleep(5)
+            raise HTTPException(status_code=401, detail="wrong qrKey or pin rescan the qr")
 
     if not verify_pin(pin, getattr(tenant, "tenantPin", "")):
         _record_failed_attempt("Login Failed - Wrong PIN")
-        raise HTTPException(status_code=401, detail="Invalid PIN")
+        if qr_key_ok:
+            # Delay only when a valid QR key was supplied: keep the failure
+            # timing uniform with the wrong-qrKey path above.
+            await asyncio.sleep(5)
+        raise HTTPException(status_code=401, detail="wrong qrKey or pin rescan the qr")
 
     # Reset attempts on success
     if (row and row["failed_attempts"]) or (row and row["locked_until"]):
@@ -3782,6 +4058,75 @@ async def tenant_audit_logs(
         })
 
     return {"items": items, "total": total}
+
+
+class FeedbackRequest(BaseModel):
+    message: str = ""
+    qr_key: str = ""
+    diagnostics: dict | None = None
+
+
+@router.post(TenantRoutes.TENANTAPIFEEDBACK, name=TenantNames.TENANTFEEDBACK)
+async def submit_tenant_feedback(
+    propertyId: int,
+    tenantId: int,
+    viewToken: str,
+    request: Request,
+    feedback: FeedbackRequest,
+):
+    """Store a wrong-qrKey report from the QR unlock screen into the platform
+    admin's feedback inbox. The QR link itself is the credential here (no
+    session is required yet), so scoping is the same as the QR login."""
+    from app.core.db import get_conn as _get_conn
+    from datetime import datetime as _dt
+
+    tenants = load_tenants(include_archived=True)
+    tenant = next((t for t in tenants if getattr(t, "viewToken", "") == viewToken), None)
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Invalid or expired link.")
+    if not _property_belongs_to_tenant(tenant, propertyId):
+        raise HTTPException(status_code=403, detail="Property mismatch.")
+
+    if len(feedback.message or "") > 2000:
+        raise HTTPException(status_code=400, detail="Message too long.")
+
+    ip = request.client.host if request.client else "Unknown IP"
+    diagnostics = feedback.diagnostics or {}
+    if not isinstance(diagnostics, dict):
+        diagnostics = {}
+
+    with _get_conn() as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO tenant_qr_feedback
+            (tenant_id, landlord_id, property_id, tenant_name, view_token, qr_key,
+             message, diagnostics_json, failed_attempts, status, created_at, ip_address)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+            """,
+            (
+                tenant.id,
+                getattr(tenant, "landlord_id", None),
+                propertyId,
+                getattr(tenant, "name", ""),
+                viewToken,
+                (feedback.qr_key or "").strip(),
+                feedback.message,
+                json.dumps(diagnostics),
+                getattr(tenant, "failed_attempts", 0) or 0,
+                _dt.utcnow().isoformat(),
+                ip,
+            ),
+        )
+        conn.commit()
+        feedback_id = cur.lastrowid
+
+    log_audit(
+        tenant.id,
+        "QR Feedback Submitted - Wrong qrKey",
+        ip,
+        json.dumps({"feedback_id": feedback_id}),
+    )
+    return {"status": "success", "feedback_id": feedback_id, "message": "Feedback submitted."}
 ```
 
 ### `backend/app/app/api/settings.py`
@@ -7560,22 +7905,23 @@ async def get_current_landlord_api(request: Request) -> AuthPrincipal:
         if path_uuid and principal.landlord_uuid != path_uuid:
             raise HTTPException(status_code=403, detail="Forbidden: UUID mismatch")
 
-        # Privacy Policy consent gate. Accounts that have not accepted the
-        # Privacy Policy (e.g. brand-new Google-created accounts) may only
-        # reach the consent, change-password and identity endpoints until the
-        # consent step is completed.
+        # Privacy Policy + Terms and Conditions consent gate. Accounts that have
+        # not accepted the current documents (e.g. brand-new Google-created
+        # accounts) may only reach the consent, change-password and identity
+        # endpoints until the consent step is completed.
         path = request.url.path
         consent_exempt = (
             path.endswith("/api/auth/privacy-consent")
+            or path.endswith("/api/auth/terms-consent")
             or path.endswith("/api/auth/change-password")
             or path.endswith("/api/auth/me")
         )
         if not consent_exempt:
             landlord = get_landlord_by_id(principal.landlord_id)
-            if landlord and not landlord["privacy_consented"]:
+            if landlord and (not landlord["privacy_consented"] or not landlord["terms_consented"]):
                 raise HTTPException(
                     status_code=403,
-                    detail="Privacy Policy acceptance is required to continue.",
+                    detail="Privacy Policy and Terms and Conditions acceptance are required to continue.",
                     headers={PRIVACY_CONSENT_REQUIRED_HEADER: "1"},
                 )
 
@@ -9273,6 +9619,43 @@ def init_db():
                      "ON landlord_privacy_consents(landlord_id)")
         conn.commit()
 
+        # ─── Landlord terms-and-conditions consent columns ────────────────
+        # Existing accounts are grandfathered as consenting (default 1) so the
+        # upgrade does not lock out current landlords. New signups set this
+        # explicitly from the accepted Terms and Conditions.
+        if not _column_exists(conn, "landlord_accounts", "terms_consented"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_consented INTEGER NOT NULL DEFAULT 1")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "terms_version"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_version TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "terms_accepted_at"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_accepted_at TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "terms_accepted_ip"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_accepted_ip TEXT")
+            conn.commit()
+        if not _column_exists(conn, "landlord_accounts", "terms_accepted_user_agent"):
+            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_accepted_user_agent TEXT")
+            conn.commit()
+
+        # ─── Landlord terms consent audit trail ───────────────────────────
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS landlord_terms_consents (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                landlord_id INTEGER NOT NULL,
+                terms_version TEXT NOT NULL,
+                accepted INTEGER NOT NULL DEFAULT 1,
+                accepted_at TEXT NOT NULL,
+                accepted_ip TEXT,
+                accepted_user_agent TEXT,
+                FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_landlord_terms_consents_landlord "
+                     "ON landlord_terms_consents(landlord_id)")
+        conn.commit()
+
         # ─── Landlord password admin store (for platform admin reveal) ──
         conn.execute("""
             CREATE TABLE IF NOT EXISTS landlord_password_admin_store (
@@ -9390,6 +9773,33 @@ def init_db():
             )
             conn.commit()
 
+        # ─── Tenant QR feedback (wrong qrKey reports to platform admin) ──
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tenant_qr_feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant_id INTEGER,
+                landlord_id INTEGER,
+                property_id INTEGER,
+                tenant_name TEXT,
+                view_token TEXT,
+                qr_key TEXT,
+                message TEXT,
+                diagnostics_json TEXT,
+                failed_attempts INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL DEFAULT 'open',
+                admin_reply TEXT,
+                resolved_at TEXT,
+                resolved_by INTEGER,
+                created_at TEXT NOT NULL,
+                ip_address TEXT
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_status "
+                     "ON tenant_qr_feedback(status, created_at)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_landlord "
+                     "ON tenant_qr_feedback(landlord_id)")
+        conn.commit()
+
         # ─── Seed default platform admin ───────────────────────────────
         # Ensure at least one platform admin exists (admin/admin)
         from app.authentication.common.utils import hash_pin
@@ -9494,14 +9904,19 @@ def ensure_storage_dirs():
 """
 app/core/privacy.py
 
-Single source of truth for the PROPAURA landlord privacy-policy version and
-effective date. Backend signup/consent validation uses these constants so the
-accepted version recorded for each landlord always matches the published policy
-(see PRIVACY_POLICY_LANDLORD.md in the repository root).
+Single source of truth for the PROPAURA landlord privacy-policy and
+terms-and-conditions versions and effective dates. Backend signup/consent
+validation uses these constants so the accepted versions recorded for each
+landlord always match the published documents
+(see PRIVACY_POLICY_LANDLORD.md and TERMS_CONDITIONS_LANDLORD.md in the
+repository root).
 """
 
-PRIVACY_POLICY_VERSION = "1.0"
+PRIVACY_POLICY_VERSION = "2.0"
 PRIVACY_POLICY_EFFECTIVE_DATE = "2026-08-28"
+
+TERMS_CONDITIONS_VERSION = "1.0"
+TERMS_CONDITIONS_EFFECTIVE_DATE = "2026-08-28"
 
 # Header name used when a landlord account exists but privacy consent is still
 # pending (e.g. a brand-new Google-created account). The landlord frontend uses
@@ -9785,6 +10200,10 @@ class LandlordRoutes:
     LANDLORDAPIPRIVACYPOLICY = "/landlord/api/privacy-policy"
     LANDLORDAPIAUTHPRIVACYCONSENT = "/landlord/api/auth/privacy-consent"
 
+    # Landlord API: Terms and Conditions (public document + consent recording)
+    LANDLORDAPITERMS = "/landlord/api/terms"
+    LANDLORDAPIAUTHTERMSCONSENT = "/landlord/api/auth/terms-consent"
+
     # Landlord API: Dashboard
     LANDLORDAPIDASHBOARDSTATS = "/landlord/{landlordUuid}/api/dashboard"
 
@@ -9882,6 +10301,8 @@ class LandlordNames:
     LANDLORDCHANGEPASSWORD = "landlordchangepassword"
     LANDLORDPRIVACYPOLICY = "landlordprivacypolicy"
     LANDLORDPRIVACYCONSENT = "landlordprivacyconsent"
+    LANDLORDTERMS = "landlordterms"
+    LANDLORDTERMSCONSENT = "landlordtermsconsent"
 
     # Pages
     HOME = "home_page"
@@ -10111,6 +10532,9 @@ class TenantRoutes:
     # Tenant API: Audit Logs
     TENANTAPIAUDITLOGS = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/audit-logs"
 
+    # Tenant API: QR feedback (wrong qrKey report -> platform admin inbox)
+    TENANTAPIFEEDBACK = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/feedback"
+
 
 
 class TenantNames:
@@ -10132,6 +10556,7 @@ class TenantNames:
     TENANTPDFDOWNLOAD = "tenant_pdf_download"
 
     TENANTAUDITLOGS = "tenant_audit_logs"
+    TENANTFEEDBACK = "tenant_feedback"
 
 
 class TenantTemplates:
@@ -10836,7 +11261,35 @@ def init_production_db():
     """)
 
     # ============================================================
-    # 11. PERFORMANCE INDEXES
+    # 11. TENANT QR FEEDBACK (wrong qrKey reports to platform admin)
+    # ============================================================
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS tenant_qr_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER,
+        landlord_id INTEGER,
+        property_id INTEGER,
+        tenant_name TEXT,
+        view_token TEXT,
+        qr_key TEXT,
+        message TEXT,
+        diagnostics_json TEXT,
+        failed_attempts INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'open',
+        admin_reply TEXT,
+        resolved_at TEXT,
+        resolved_by INTEGER,
+        created_at TEXT NOT NULL,
+        ip_address TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_status
+        ON tenant_qr_feedback(status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_landlord
+        ON tenant_qr_feedback(landlord_id);
+    """)
+
+    # ============================================================
+    # 12. PERFORMANCE INDEXES
     # ============================================================
     conn.executescript("""
     CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant);
@@ -11248,6 +11701,11 @@ def create_landlord(
     privacy_accepted_at: str | None = None,
     privacy_accepted_ip: str | None = None,
     privacy_accepted_user_agent: str | None = None,
+    terms_consented: int = 1,
+    terms_version: str | None = None,
+    terms_accepted_at: str | None = None,
+    terms_accepted_ip: str | None = None,
+    terms_accepted_user_agent: str | None = None,
 ):
     """
     Insert a new landlord account and return the created row.
@@ -11262,15 +11720,19 @@ def create_landlord(
                 landlord_uuid, full_name, email, phone, username,
                 password_hash, status, created_at, updated_at,
                 privacy_consented, privacy_version, privacy_accepted_at,
-                privacy_accepted_ip, privacy_accepted_user_agent
+                privacy_accepted_ip, privacy_accepted_user_agent,
+                terms_consented, terms_version, terms_accepted_at,
+                terms_accepted_ip, terms_accepted_user_agent
             ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?,
-                      ?, ?, ?, ?, ?)
+                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 landlord_uuid, full_name, email, phone, username, password_hash,
                 now, now,
                 privacy_consented, privacy_version, privacy_accepted_at,
                 privacy_accepted_ip, privacy_accepted_user_agent,
+                terms_consented, terms_version, terms_accepted_at,
+                terms_accepted_ip, terms_accepted_user_agent,
             ),
         )
         conn.commit()
@@ -11310,6 +11772,40 @@ def record_privacy_consent(
                (landlord_id, privacy_version, accepted, accepted_at, accepted_ip, accepted_user_agent)
                VALUES (?, ?, 1, ?, ?, ?)""",
             (landlord_id, privacy_version, now, ip_address, user_agent),
+        )
+        conn.commit()
+
+
+def record_terms_consent(
+    landlord_id: int,
+    terms_version: str,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+):
+    """
+    Mark a landlord as having accepted the current Terms and Conditions.
+
+    Updates landlord_accounts terms fields and appends a row to
+    landlord_terms_consents so acceptance is auditable.
+    """
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE landlord_accounts
+               SET terms_consented = 1,
+                   terms_version = ?,
+                   terms_accepted_at = ?,
+                   terms_accepted_ip = ?,
+                   terms_accepted_user_agent = ?,
+                   updated_at = ?
+               WHERE id = ?""",
+            (terms_version, now, ip_address, user_agent, now, landlord_id),
+        )
+        conn.execute(
+            """INSERT INTO landlord_terms_consents
+               (landlord_id, terms_version, accepted, accepted_at, accepted_ip, accepted_user_agent)
+               VALUES (?, ?, 1, ?, ?, ?)""",
+            (landlord_id, terms_version, now, ip_address, user_agent),
         )
         conn.commit()
 
@@ -11857,6 +12353,8 @@ class LandlordSignupRequest(BaseModel):
     confirmPassword: str = Field(min_length=8, max_length=128)
     privacyAccepted: bool = False
     privacyVersion: str = Field(default="", max_length=32)
+    termsAccepted: bool = False
+    termsVersion: str = Field(default="", max_length=32)
 
 
 class LandlordLoginRequest(BaseModel):
@@ -11880,6 +12378,11 @@ class LandlordGoogleRequest(BaseModel):
 class LandlordPrivacyConsentRequest(BaseModel):
     accepted: bool = True
     privacyVersion: str = Field(default="", max_length=32)
+
+
+class LandlordTermsConsentRequest(BaseModel):
+    accepted: bool = True
+    termsVersion: str = Field(default="", max_length=32)
 
 
 class UsernameCheckResponse(BaseModel):
@@ -13400,6 +13903,7 @@ from app.database.landlord_repository import (
     record_landlord_failed_attempt,
     reset_landlord_failed_attempts,
     record_privacy_consent,
+    record_terms_consent,
 )
 from app.models.landlord import (
     LandlordGoogleRequest,
@@ -13407,6 +13911,7 @@ from app.models.landlord import (
     LandlordLoginWithTotpRequest,
     LandlordPrivacyConsentRequest,
     LandlordSignupRequest,
+    LandlordTermsConsentRequest,
 )
 from app.core.config_service import config
 from app.core.db import get_conn
@@ -13415,6 +13920,8 @@ from app.core.privacy import (
     PRIVACY_CONSENT_REQUIRED_HEADER,
     PRIVACY_POLICY_EFFECTIVE_DATE,
     PRIVACY_POLICY_VERSION,
+    TERMS_CONDITIONS_EFFECTIVE_DATE,
+    TERMS_CONDITIONS_VERSION,
 )
 
 router = APIRouter(tags=["Landlord Authentication"])
@@ -13527,13 +14034,32 @@ async def landlord_privacy_policy():
     }
 
 
+@router.get(Routes.LANDLORDAPITERMS, name=Names.LANDLORDTERMS)
+async def landlord_terms():
+    """Return the current Terms and Conditions version, effective date and full text."""
+    content = ""
+    terms_path = os.path.join(STATIC_DIR, "terms_conditions_landlord.md")
+    try:
+        with open(terms_path, "r", encoding="utf-8") as f:
+            content = f.read()
+    except OSError:
+        content = ""
+    return {
+        "version": TERMS_CONDITIONS_VERSION,
+        "effectiveDate": TERMS_CONDITIONS_EFFECTIVE_DATE,
+        "url": "/landlord/terms",
+        "content": content,
+    }
+
+
 @router.post(Routes.LANDLORDAPIAUTHSIGNUP, name=Names.LANDLORDSIGNUP)
 async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     """
     Create a new landlord account.
     Validates: username format, password match, uniqueness of username + email.
     Account creation is BLOCKED unless the landlord has accepted the current
-    Privacy Policy (privacyAccepted + privacyVersion). Returns 400 otherwise.
+    Privacy Policy (privacyAccepted + privacyVersion) AND the current Terms and
+    Conditions (termsAccepted + termsVersion). Returns 400 otherwise.
     Returns: { status, landlord: { id, landlordUuid, username, fullName } }
     """
     username = normalize_username(payload.username)
@@ -13548,6 +14074,18 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
         raise HTTPException(
             status_code=400,
             detail="The Privacy Policy version has changed. Please review and accept the current policy.",
+        )
+
+    # ── Terms and Conditions consent is mandatory before account creation ──
+    if not payload.termsAccepted:
+        raise HTTPException(
+            status_code=400,
+            detail="You must accept the PROPAURA Terms and Conditions to create an account.",
+        )
+    if payload.termsVersion != TERMS_CONDITIONS_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="The Terms and Conditions version has changed. Please review and accept the current terms.",
         )
 
     # ── Input validation ──
@@ -13607,12 +14145,23 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
         privacy_accepted_at=datetime.utcnow().isoformat(),
         privacy_accepted_ip=consent_ip,
         privacy_accepted_user_agent=consent_ua,
+        terms_consented=1,
+        terms_version=payload.termsVersion,
+        terms_accepted_at=datetime.utcnow().isoformat(),
+        terms_accepted_ip=consent_ip,
+        terms_accepted_user_agent=consent_ua,
     )
 
-    # Record the consent event in the auditable consent trail
+    # Record the consent events in the auditable consent trails
     record_privacy_consent(
         landlord["id"],
         privacy_version=payload.privacyVersion,
+        ip_address=consent_ip,
+        user_agent=consent_ua,
+    )
+    record_terms_consent(
+        landlord["id"],
+        terms_version=payload.termsVersion,
         ip_address=consent_ip,
         user_agent=consent_ua,
     )
@@ -13641,6 +14190,12 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
         "privacy_policy_accepted",
         ip_address=consent_ip,
         meta_json=json.dumps({"version": payload.privacyVersion, "user_agent": consent_ua}),
+    )
+    create_landlord_audit_log(
+        landlord["id"],
+        "terms_conditions_accepted",
+        ip_address=consent_ip,
+        meta_json=json.dumps({"version": payload.termsVersion, "user_agent": consent_ua}),
     )
 
     return {
@@ -13691,6 +14246,45 @@ async def landlord_privacy_consent(
     )
 
     return {"status": "success", "message": "Privacy Policy accepted.", "version": PRIVACY_POLICY_VERSION}
+
+
+@router.post(Routes.LANDLORDAPIAUTHTERMSCONSENT, name=Names.LANDLORDTERMSCONSENT)
+async def landlord_terms_consent(
+    request: Request,
+    payload: LandlordTermsConsentRequest,
+    principal=Depends(get_current_landlord_api),
+):
+    """
+    Record Terms and Conditions acceptance for an authenticated landlord.
+
+    Used for accounts created without an inline consent step (e.g. a brand-new
+    Google-created account), which are unusable until this consent is recorded.
+    """
+    if not payload.accepted:
+        raise HTTPException(status_code=400, detail="Terms and Conditions acceptance is required.")
+    if payload.termsVersion != TERMS_CONDITIONS_VERSION:
+        raise HTTPException(
+            status_code=400,
+            detail="The Terms and Conditions version has changed. Please review and accept the current terms.",
+        )
+
+    consent_ip = request.client.host if request.client else None
+    consent_ua = request.headers.get("User-Agent", "")
+
+    record_terms_consent(
+        principal.landlord_id,
+        terms_version=payload.termsVersion,
+        ip_address=consent_ip,
+        user_agent=consent_ua,
+    )
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "terms_conditions_accepted",
+        ip_address=consent_ip,
+        meta_json=json.dumps({"version": payload.termsVersion, "user_agent": consent_ua}),
+    )
+
+    return {"status": "success", "message": "Terms and Conditions accepted.", "version": TERMS_CONDITIONS_VERSION}
 
 
 @router.post(Routes.LANDLORDAPIAUTHLOGIN, name=Names.LANDLORDLOGIN)
@@ -13886,7 +14480,9 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
     with get_conn() as conn:
         row = conn.execute(
             "SELECT totp_secret, totp_enabled, requires_password_change, "
-            "privacy_consented, privacy_version, setup_completed, setup_skipped "
+            "privacy_consented, privacy_version, "
+            "terms_consented, terms_version, "
+            "setup_completed, setup_skipped "
             "FROM landlord_accounts WHERE id = ?",
             (principal.landlord_id,),
         ).fetchone()
@@ -13904,6 +14500,8 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "requiresPasswordChange": bool(row and row["requires_password_change"]),
             "privacyConsented": bool(row and row["privacy_consented"]),
             "privacyVersion": row["privacy_version"] if row else None,
+            "termsConsented": bool(row and row["terms_consented"]),
+            "termsVersion": row["terms_version"] if row else None,
             "setupCompleted": bool(row and row["setup_completed"]),
             "setupSkipped": bool(row and row["setup_skipped"]),
         },
@@ -15363,6 +15961,7 @@ async def list_landlords(
             la.failed_attempts, la.locked_until,
             la.requires_password_change,
             la.privacy_consented, la.privacy_version, la.privacy_accepted_at,
+            la.terms_consented, la.terms_version, la.terms_accepted_at,
             (SELECT COUNT(*) FROM tenants WHERE landlord_id = la.id) as tenant_count,
             (SELECT COUNT(*) FROM receipts WHERE landlord_id = la.id) as receipt_count,
             (SELECT COUNT(*) FROM occupants WHERE landlord_id = la.id) as kyc_count
@@ -16228,6 +16827,142 @@ async def trigger_audit_cleanup(request: Request):
     days = config.get("system.security.audit_log_retention_days", 30)
     removed = cleanup_old_audit_logs(days)
     return {"status": "success", "removed": removed, "retention_days": days}
+
+
+# ─── Tenant QR Feedback inbox ─────────────────────────────────────────────
+
+@router.get("/api/feedback")
+async def list_feedback(
+    request: Request,
+    status: str | None = None,
+    search: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    _get_platform_admin(request)
+    query = "SELECT * FROM tenant_qr_feedback WHERE 1=1"
+    params: list = []
+    if status in ("open", "resolved"):
+        query += " AND status = ?"
+        params.append(status)
+    if search:
+        query += " AND (tenant_name LIKE ? OR message LIKE ? OR qr_key LIKE ?)"
+        params.extend([f"%{search}%"] * 3)
+
+    count_query = "SELECT COUNT(*) FROM (" + query + ")"
+    with get_conn() as conn:
+        total = conn.execute(count_query, tuple(params)).fetchone()[0]
+
+    query += " ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    with get_conn() as conn:
+        rows = conn.execute(query, tuple(params)).fetchall()
+
+    items = []
+    for r in rows:
+        diag = {}
+        if r["diagnostics_json"]:
+            try:
+                diag = json.loads(r["diagnostics_json"])
+            except Exception:
+                pass
+        items.append({
+            "id": r["id"],
+            "tenant_id": r["tenant_id"],
+            "landlord_id": r["landlord_id"],
+            "property_id": r["property_id"],
+            "tenant_name": r["tenant_name"],
+            "view_token": r["view_token"],
+            "qr_key": r["qr_key"],
+            "message": r["message"],
+            "diagnostics": diag,
+            "failed_attempts": r["failed_attempts"],
+            "status": r["status"],
+            "admin_reply": r["admin_reply"],
+            "created_at": r["created_at"],
+            "resolved_at": r["resolved_at"],
+            "ip_address": r["ip_address"],
+        })
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/api/feedback/unread-count")
+async def feedback_unread_count(request: Request):
+    _get_platform_admin(request)
+    with get_conn() as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM tenant_qr_feedback WHERE status = 'open'"
+        ).fetchone()[0]
+    return {"unread": total}
+
+
+class FeedbackReplyRequest(BaseModel):
+    admin_reply: str
+
+
+@router.post("/api/feedback/{feedback_id}/reply")
+async def reply_feedback(request: Request, feedback_id: int, body: FeedbackReplyRequest):
+    admin = _get_platform_admin(request)
+    if not body.admin_reply or not body.admin_reply.strip():
+        raise HTTPException(status_code=400, detail="Reply cannot be empty")
+    if len(body.admin_reply) > 5000:
+        raise HTTPException(status_code=400, detail="Reply too long")
+
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, status FROM tenant_qr_feedback WHERE id = ?", (feedback_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Feedback not found")
+        conn.execute(
+            """
+            UPDATE tenant_qr_feedback
+            SET admin_reply = ?, status = 'resolved', resolved_at = ?, resolved_by = ?
+            WHERE id = ?
+            """,
+            (body.admin_reply.strip(), now, admin["id"], feedback_id),
+        )
+        conn.commit()
+
+    create_platform_admin_audit_log(
+        admin_id=admin["id"],
+        action="tenant_qr_feedback_replied",
+        target_type="feedback",
+        target_id=feedback_id,
+        meta={"note": f"Replied to QR feedback #{feedback_id}"},
+    )
+    return {"status": "success", "message": "Reply saved."}
+
+
+@router.post("/api/feedback/{feedback_id}/resolve")
+async def resolve_feedback(request: Request, feedback_id: int):
+    admin = _get_platform_admin(request)
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM tenant_qr_feedback WHERE id = ?", (feedback_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Feedback not found")
+        conn.execute(
+            """
+            UPDATE tenant_qr_feedback
+            SET status = 'resolved', resolved_at = ?, resolved_by = ?
+            WHERE id = ?
+            """,
+            (now, admin["id"], feedback_id),
+        )
+        conn.commit()
+
+    create_platform_admin_audit_log(
+        admin_id=admin["id"],
+        action="tenant_qr_feedback_resolved",
+        target_type="feedback",
+        target_id=feedback_id,
+        meta={"note": f"Resolved QR feedback #{feedback_id}"},
+    )
+    return {"status": "success", "message": "Feedback marked resolved."}
 
 
 # ─── Audit Settings ─────────────────────────────────────────────────────────
@@ -17752,12 +18487,13 @@ from app.authentication.landlord.cookies import set_landlord_auth_cookies
 from app.authentication.landlord.jwt import create_access_token
 from app.authentication.landlord.sessions import create_landlord_session
 from app.core.db import get_conn
-from app.core.privacy import PRIVACY_POLICY_VERSION
+from app.core.privacy import PRIVACY_POLICY_VERSION, TERMS_CONDITIONS_VERSION
 from app.database.landlord_repository import (
     create_landlord,
     create_landlord_audit_log,
     get_landlord_by_email,
     record_privacy_consent,
+    record_terms_consent,
 )
 
 GOOGLE_CLIENT_ID: str | None = None
@@ -17826,6 +18562,7 @@ def google_login(credential: str, remember_me: bool, request, response):
             password_hash=placeholder_hash,
             landlord_uuid=landlord_uuid,
             privacy_consented=1,
+            terms_consented=1,
         )
 
         with get_conn() as conn:
@@ -17845,7 +18582,7 @@ def google_login(credential: str, remember_me: bool, request, response):
             meta_json=json.dumps({"google_sub": google_sub, "email": email}),
         )
 
-    # ── Privacy Policy acceptance ──
+    # ── Privacy Policy + Terms and Conditions acceptance ──
     # Accepting via the Google button is an explicit affirmative action in the
     # signup/sign-in flow. Record consent for brand-new accounts and heal any
     # existing account that is still in a consent-pending state.
@@ -17864,6 +18601,23 @@ def google_login(credential: str, remember_me: bool, request, response):
             ip_address=consent_ip,
             meta_json=json.dumps({
                 "version": PRIVACY_POLICY_VERSION,
+                "user_agent": consent_ua,
+                "source": "google_signup" if created_new else "google_signin",
+            }),
+        )
+    if created_new or not landlord["terms_consented"]:
+        record_terms_consent(
+            landlord["id"],
+            terms_version=TERMS_CONDITIONS_VERSION,
+            ip_address=consent_ip,
+            user_agent=consent_ua,
+        )
+        create_landlord_audit_log(
+            landlord["id"],
+            "terms_conditions_accepted",
+            ip_address=consent_ip,
+            meta_json=json.dumps({
+                "version": TERMS_CONDITIONS_VERSION,
                 "user_agent": consent_ua,
                 "source": "google_signup" if created_new else "google_signin",
             }),
@@ -20660,12 +21414,13 @@ ssh.close()
 # PROPAURA — Privacy Policy for Landlord Account Creation
 
 **Effective Date:** 28 August 2026
-**Version:** 1.0
+**Version:** 2.0
 **Platform:** PROPAURA (Rent Receipt & Property Management System v3.0.0)
 **Website:** vijaykrsha.online
 **Data Fiduciary / Platform Operator:** Vijay Kumar Sharma
-**Postal Address:** 1E, Shiv Durga Vihar, Lakarpur, Surajukund, Faridabad, Haryana – 121009
+**Postal Address:** 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana, Pin - 121009
 **Privacy / Grievance Contact Email:** vijaykrsha@hotmail.com
+**Privacy / Grievance Contact Phone:** +91 95913 0381
 **Jurisdiction:** Republic of India
 
 ---
@@ -20684,11 +21439,11 @@ PROPAURA is a rental-property management software platform. From the supplied so
 - KYC document storage for tenants and occupants, including Aadhaar-related and employment-related documents;
 - WhatsApp-based receipt sharing and payment-reminder messages;
 - CSV, Excel and ZIP data export; Excel/CSV import with preview and execution;
-- Manual and scheduled backups with integrity verification and restore;
+- Automatic (event-triggered) and manual backups with integrity verification and restore;
 - Tenant "recovery snapshots" kept after permanent tenant deletion;
 - Full audit logging of landlord, tenant and platform-administrator actions.
 
-**This Policy is a condition of account creation.** A landlord account **cannot** be created unless the landlord actively accepts this Policy by selecting the required consent checkbox during signup. If the checkbox is not selected, the signup request is rejected and no account record is created.
+**This Policy, together with the PropAura Terms and Conditions, is a condition of account creation.** A landlord account **cannot** be created unless the landlord actively accepts both this Policy and the Terms and Conditions by selecting the required consent checkboxes during signup. If either checkbox is not selected, the signup request is rejected and no account record is created.
 
 For the purposes of India's **Digital Personal Data Protection Act, 2023** (the "DPDP Act"), Vijay Kumar Sharma, operating through vijaykrsha.online, is the **Data Fiduciary** in respect of the personal data described in Section 3 of this Policy. Where a landlord enters or uploads data about tenants, occupants or other individuals, the landlord is a Data Fiduciary for that data and PROPAURA acts as a Data Processor providing the tools described in this Policy.
 
@@ -20702,13 +21457,13 @@ By selecting the checkbox and submitting the signup form, you:
 
 1. Acknowledge receipt of this notice under Section 5 of the DPDP Act;
 2. Provide explicit, informed consent under Section 6 to the processing described in this Policy;
-3. Confirm you are at least 18 years old and authorised to create a landlord account;
+3. Confirm you are authorised to create a landlord account;
 4. Confirm you understand that account creation is blocked unless this consent is recorded;
 5. Accept responsibility for personal data you enter about tenants, occupants or other individuals through your account, including obtaining any notices and consents required by law.
 
 **Consent is recorded and auditable.** On acceptance, PROPAURA stores the accepted policy version, the date and time of acceptance (UTC), the IP address and user-agent from which acceptance was made, and writes a `privacy_policy_accepted` entry to the landlord audit log. Renewed acceptance is required when a materially revised version of this Policy is issued.
 
-**Google sign-in.** If you create your account through Google sign-in, the account is created in a consent-pending state. The account cannot be used for landlord functions until you complete a consent step accepting this Policy and, where required, set a password. No account created through any method is usable without acceptance of this Policy.
+**Google sign-in.** If you create your account through Google sign-in, acceptance of this Policy is recorded as part of the Google sign-in flow. No account created through any method is usable without acceptance of this Policy and the Terms and Conditions.
 
 ---
 
@@ -20719,7 +21474,7 @@ By selecting the checkbox and submitting the signup form, you:
 | Data element | Purpose | Source |
 |---|---|---|
 | Full name | Account identity | Signup form / Google profile |
-| Email address | Account identity, login, and policy/security communication | Signup form / Google profile |
+| Email address | Account identity, login, and account-related contact | Signup form / Google profile |
 | Phone number | Account contact | Signup form |
 | Username | Login identity | Signup form |
 | Password | Authentication (stored only as an Argon2id hash; plaintext is never stored) | Signup form |
@@ -20870,7 +21625,8 @@ You may request account closure and early deletion of your account by contacting
 |---|---|
 | Name | Vijay Kumar Sharma |
 | Email | vijaykrsha@hotmail.com |
-| Postal address | 1E, Shiv Durga Vihar, Lakarpur, Surajukund, Faridabad, Haryana – 121009 |
+| Phone | +91 95913 0381 |
+| Postal address | 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana, Pin - 121009 |
 | Website | vijaykrsha.online |
 
 For rights requests, use the subject line `Privacy Request – Access / Correction / Erasure / Consent Withdrawal / Grievance` and include your registered email or username and a description of your request. PROPAURA will acknowledge requests promptly and respond within the period prescribed by applicable law.
@@ -20908,13 +21664,15 @@ If PROPAURA becomes aware of a personal-data breach, it will take reasonable ste
 
 ## 14. Children's Data
 
-Landlord accounts are intended for adults (18+). If you process data of a minor tenant, you must obtain verifiable guardian consent where required by law and comply with all applicable obligations before entering or uploading that data.
+Landlord accounts are intended for use by persons who have legal capacity to enter into the PropAura Terms and Conditions. If you process data of a minor tenant, you must obtain verifiable guardian consent where required by law and comply with all applicable obligations before entering or uploading that data.
 
 ---
 
 ## 15. Changes to this Policy
 
-PROPAURA may update this Policy to reflect changes in the Platform, legal requirements, data practices or security measures. Each revision will carry a new effective date and version number. Where a change materially affects how personal data is processed, PROPAURA will provide an appropriate notice and seek renewed consent where required before continuing that processing.
+PROPAURA may update this Policy from time to time to reflect changes in the Platform, legal requirements, data practices or security measures. Each revision will carry a new effective date and version number, and the current version will always be available through PropAura or vijaykrsha.online.
+
+Where a change materially affects how personal data is processed, PROPAURA will provide an appropriate notice and seek renewed consent where required before continuing that processing. Continued use of the Platform after an updated version is published constitutes acceptance of the revised Policy, except where renewed consent is required by law.
 
 ---
 
@@ -20930,8 +21688,8 @@ By selecting the checkbox below and submitting account creation, I declare that:
 
 1. I have read, understood and agree to this Privacy Policy;
 2. I consent, under the Digital Personal Data Protection Act, 2023, to the processing of my personal data for the purposes described in this Policy;
-3. I understand that my landlord account cannot be created unless I accept this Policy;
-4. I confirm that I am at least 18 years old and authorised to create this account;
+3. I understand that my landlord account cannot be created unless I accept this Policy and the PropAura Terms and Conditions;
+4. I confirm that I am authorised to create this account;
 5. I accept that I am the Data Fiduciary for tenant, occupant and third-party data I enter, and that I am responsible for lawful collection, notice, consent and handling of that data;
 6. I accept the liability limitations and exclusions in Section 12, to the maximum extent permitted by law;
 7. I agree to the retention practices in Section 5 and understand my rights under Sections 9–11.
@@ -20942,6 +21700,262 @@ By selecting the checkbox below and submitting account creation, I declare that:
 
 *This Privacy Policy is issued in compliance with the Digital Personal Data Protection Act, 2023 (Act No. 22 of 2023), Government of India.*
 *Document was prepared from a review of the PROPAURA source code (v3.0.0). It is a practical document, not a substitute for legal advice — an Indian privacy/technology lawyer should review the final wording, retention periods and consent workflow before production use.*
+*Version 2.0 — Effective 28 August 2026.*
+```
+
+### `backend/app/static/terms_conditions_landlord.md`
+
+```markdown
+# PropAura Terms and Conditions — Landlord Account and Platform Use
+
+**Effective Date:** 28 August 2026
+**Version:** 1.0
+**Platform:** PropAura
+**Website:** vijaykrsha.online
+**Operated by:** Vijay Kumar Sharma ("PropAura", "we", "us", "our")
+**Contact:** vijaykrsha@hotmail.com | +91 95913 0381
+**Address:** 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana, Pin - 121009
+
+These Terms and Conditions ("Terms") are a legal agreement between you ("Landlord", "you", "your") and PropAura. By selecting **"I Agree"**, creating a landlord account, logging in, or using the Platform, you agree to these Terms and the PropAura Privacy Policy.
+
+Electronic contracts and records are legally recognised in India and are not invalid solely because they are in electronic form.
+
+---
+
+## 1. Acceptance and Eligibility
+
+You may create and use a PropAura landlord account only if you:
+
+- Have legal capacity to enter into this agreement;
+- Are the owner, authorized landlord, property manager, or duly authorized representative for the property or rental records you manage;
+- Provide accurate, complete, and current registration details;
+- Agree to comply with these Terms, the Privacy Policy, and applicable law.
+
+You must not create an account or use the Platform if you do not agree to these Terms.
+
+**Required checkbox text**
+
+> **I have read and agree to the PropAura Terms and Conditions and Privacy Policy. I understand that my landlord account will not be created unless I accept them.**
+
+---
+
+## 2. Platform Services
+
+PropAura is rental-property management software. Its available features include landlord accounts, tenant profiles, room/property records, rent and utility billing, meter readings, deposits, payment status, arrears, professional PDF receipts, tenant self-service access, KYC document workflows, WhatsApp receipt and reminder sharing, reports, audit logs, data archives, CSV/Excel import-export, backups, and restore functions.
+
+PropAura is only a software platform. It is not a property owner, broker, agent, legal adviser, tax adviser, accountant, tenancy authority, payment gateway, identity-verification authority, or party to any agreement between a landlord and a tenant.
+
+---
+
+## 3. Account Registration
+
+You must create an account using your own correct information. You must not impersonate another person or use a username, email address, phone number, or identity that you are not authorized to use.
+
+You are responsible for all actions performed through your account, including actions by any person who accesses your account through your password, active login session, device, email, or multi-factor authentication method.
+
+PropAura may reject, restrict, suspend, or deactivate an account where we reasonably believe that the account is false, misleading, insecure, inactive, unlawful, abusive, or in breach of these Terms.
+
+---
+
+## 4. Credentials and Security
+
+You must keep your password, authentication codes, tenant access links, session details, downloads, backups, exported files, and devices secure.
+
+You must immediately notify us at **vijaykrsha@hotmail.com** if you suspect that your account, password, email, phone, device, exported data, or tenant records have been accessed or used without authorization.
+
+PropAura includes security measures such as encrypted login flows, hashed passwords, secure cookies, rotating sessions, login-attempt limits, account lockouts, role-based access controls, TOTP support, and audit logs. These safeguards reduce risk but cannot guarantee absolute security.
+
+---
+
+## 5. Landlord Responsibilities
+
+You are solely responsible for:
+
+- Your property, tenancy arrangements, tenant selection, rent, deposits, utility charges, maintenance charges, payments, arrears, notices, and property-management decisions;
+- The accuracy and completeness of all information entered into PropAura;
+- Reviewing all bills, calculations, meter readings, payment entries, receipts, reports, messages, and exports before relying on or sharing them;
+- Complying with property, tenancy, tax, accounting, consumer, privacy, identity-document, and communication laws applicable to you;
+- Keeping independent records of important legal, tenancy, accounting, tax, and financial documents.
+
+PropAura may calculate rent, utilities, arrears, additional-person charges, maintenance charges, and payment balances from the data you enter. You must independently verify every output before it is used.
+
+---
+
+## 6. Tenant and Occupant Data
+
+You may enter tenant, occupant, guarantor, employee, or other third-party data only if you have lawful authority to collect and process it.
+
+You confirm that you will:
+
+- Provide individuals with any privacy notice required by law;
+- Obtain valid consent where consent is required;
+- Collect only data that is necessary for a legitimate rental-property management purpose;
+- Keep information accurate, relevant, and appropriately protected;
+- Respect applicable data-access, correction, deletion, and grievance rights;
+- Delete or archive data only in accordance with your legal retention obligations.
+
+The DPDP Act imposes responsibilities on individuals handling personal data, including complying with applicable law, providing authentic information, and not impersonating another person.
+
+---
+
+## 7. KYC and Identity Documents
+
+PropAura may permit KYC or document uploads associated with tenants or occupants, including Aadhaar-related documents and employment-related documents.
+
+You must only request, collect, upload, access, disclose, retain, or delete these documents when lawful, necessary, proportionate, and properly authorized. You are responsible for obtaining all required notice, permission, or consent.
+
+Do not upload biometric information, bank passwords, debit/credit-card security information, OTPs, passwords, or any document that you are not legally entitled to possess or process.
+
+---
+
+## 8. Billing, Payments, and Receipts
+
+PropAura can generate billing records and PDF rent receipts using data entered by landlords. Such records may include rent, water charges, electricity usage, meter readings, additional-person charges, tank-water charges, maintenance charges, previous arrears, advances, payment status, and payment amounts.
+
+You are solely responsible for:
+
+- The legal and factual accuracy of every bill, payment record, receipt, demand, invoice, or reminder;
+- Confirming meter readings, tenant identification, rental periods, charges, taxes, payment receipt, and payment status;
+- Ensuring that receipts and financial records meet your legal, tax, accounting, and tenancy requirements;
+- Resolving disputes with tenants or third parties.
+
+Platform-generated records are not legal advice, tax advice, accounting advice, a government-certified receipt, or proof that a payment was actually made or received.
+
+---
+
+## 9. Tenant Portal and Access Links
+
+PropAura may allow landlords to issue access links and credentials for a tenant portal. Tenant users can access only functions available to them, such as viewing their profile, receipts, payment status, or uploading permitted KYC documents.
+
+You are responsible for issuing tenant access only to the correct person and for promptly revoking or changing access when a tenant moves out, a device is compromised, or access is no longer appropriate.
+
+You must not disclose tenant portal links, tenant credentials, PINs, or documents to an unauthorized person.
+
+---
+
+## 10. Communications
+
+PropAura may provide tools for WhatsApp messages, payment reminders, PDF receipt sharing, and tenant communications.
+
+You are solely responsible for the legality, accuracy, content, recipient, timing, and consent basis for every message you send. You must not use Platform communication functions for spam, harassment, misleading notices, unlawful debt collection, discrimination, threats, or any improper purpose.
+
+PropAura does not guarantee delivery, receipt, availability, or confidentiality of messages sent through WhatsApp, email, mobile networks, browsers, or other third-party services.
+
+---
+
+## 11. Data Import, Export, Backup, and Recovery
+
+PropAura may provide CSV/Excel imports, downloads, PDF receipts, ZIP exports, manual backups, restoration tools, archives, and limited tenant recovery snapshots.
+
+Before importing, deleting, restoring, exporting, or sharing data, you must verify that the operation is correct. You are responsible for protecting any files downloaded or stored outside PropAura.
+
+A tenant recovery snapshot may be available only for the configured retention period. After it expires, restoration may be impossible. Recovery snapshots can include tenant records, receipts, KYC files, PDFs, authentication-related records, and audit data, after which expired recovery snapshots are permanently purged.
+
+Backups and recovery features are not a substitute for your own business-continuity plan, lawful record-retention policy, or independent secure copies of important records.
+
+---
+
+## 12. Prohibited Activities
+
+You must not:
+
+- Use PropAura for unlawful, fraudulent, abusive, misleading, discriminatory, or harmful activity;
+- Access another person's account, data, documents, tenant links, sessions, or files without authorization;
+- Upload personal data or KYC documents without lawful authority;
+- Attempt to bypass security controls, authentication, data isolation, access restrictions, or rate limits;
+- Introduce malware, ransomware, viruses, harmful scripts, or unauthorized automated tools;
+- Reverse engineer, decompile, copy, modify, rent, sell, license, distribute, or exploit PropAura's software, design, source code, or services without written authorization;
+- Send spam, threats, unlawful payment demands, discriminatory messages, or abusive communications;
+- Use PropAura to make unlawful eviction decisions or to violate a tenant's legal rights;
+- Upload data that is false, defamatory, infringing, confidential without authority, or otherwise unlawful.
+
+We may monitor, log, investigate, restrict, preserve, or disclose relevant information where reasonably necessary to operate the Platform, protect users, investigate misuse, comply with law, or enforce these Terms.
+
+---
+
+## 13. Intellectual Property
+
+PropAura, vijaykrsha.online, software, source code, branding, interfaces, logos, designs, documentation, content, and associated intellectual property are owned by or licensed to Vijay Kumar Sharma.
+
+You receive only a limited, personal, revocable, non-exclusive, non-transferable right to use the Platform under these Terms. No ownership or intellectual-property right is transferred to you.
+
+You retain rights in data that you lawfully enter into the Platform. You grant PropAura a limited right to host, store, transmit, back up, secure, process, and display that data only as needed to provide, support, and protect the Platform.
+
+---
+
+## 14. Suspension and Termination
+
+You may stop using PropAura at any time. You may request account closure by contacting **vijaykrsha@hotmail.com**.
+
+We may suspend, restrict, or terminate your access immediately where reasonably necessary for security, legal compliance, fraud prevention, technical protection, or enforcement of these Terms. Examples include suspected unauthorized access, unlawful KYC processing, privacy violations, misuse of tenant data, credential sharing, attempted hacking, or harmful activity.
+
+Following closure or termination, certain information may be retained where necessary for legal compliance, backups, audit, fraud prevention, security, dispute resolution, or enforcement of these Terms, as described in the Privacy Policy.
+
+---
+
+## 15. Disclaimers
+
+PropAura is provided on an **"as available"** basis. We aim to provide a reliable and secure service, but we do not guarantee continuous availability, error-free operation, uninterrupted access, compatibility with every device or browser, successful delivery of third-party communications, or permanent preservation of data.
+
+PropAura does not provide legal, tenancy, tax, accounting, financial, insurance, property-management, eviction, identity-verification, or regulatory advice. Obtain professional advice when required.
+
+---
+
+## 16. Limitation of Liability
+
+To the maximum extent permitted by applicable law, Vijay Kumar Sharma, vijaykrsha.online, PropAura, and their owners, developers, employees, contractors, service providers, affiliates, and licensors are not liable for indirect, incidental, special, consequential, exemplary, punitive, commercial, reputational, data-related, or financial losses arising from:
+
+- Your use of or inability to use the Platform;
+- Incorrect, incomplete, fraudulent, outdated, unauthorized, or unlawfully processed data entered by you or another user;
+- Tenant disputes, rent disputes, payment disputes, eviction actions, property disputes, KYC disputes, or communication disputes;
+- Incorrect bills, meter readings, payment entries, receipts, exports, backups, reports, or calculations based on information supplied by you;
+- Loss, deletion, alteration, compromise, misuse, or disclosure of data caused by user action, third-party services, devices, networks, browsers, hosting outages, or circumstances outside our reasonable control;
+- Google, WhatsApp, email providers, payment providers, internet providers, mobile networks, device manufacturers, browsers, or other external services;
+- Service interruption, maintenance, technical failure, cyber incident, force majeure event, or data-recovery limitation.
+
+Nothing in these Terms excludes liability that cannot legally be excluded, including liability for fraud, wilful misconduct, or non-waivable obligations under applicable law. Indian consumer law also restricts unfair contractual terms.
+
+---
+
+## 17. Indemnity
+
+To the maximum extent permitted by law, you agree to defend, indemnify, and hold harmless Vijay Kumar Sharma, vijaykrsha.online, PropAura, and their owners, developers, employees, contractors, affiliates, licensors, and service providers from claims, losses, damages, penalties, liabilities, costs, and reasonable legal expenses arising from:
+
+- Your use of the Platform;
+- Landlord Data or any content uploaded, entered, imported, generated, or shared through your account;
+- Your failure to obtain required permissions, notices, or consent;
+- Your breach of these Terms, the Privacy Policy, or applicable law;
+- A dispute between you and your tenant, occupant, property owner, agent, employee, service provider, or another third party.
+
+---
+
+## 18. Changes to These Terms
+
+PropAura may update these Terms from time to time to reflect changes in the Platform, security requirements, legal obligations, or business operations. Each revision will carry a new effective date and version number, and the current version will always be available through PropAura or vijaykrsha.online.
+
+For material changes, we will provide reasonable notice through the Platform, email, or another suitable method. Where required, continued access may require acceptance of the revised Terms. Continued use of the Platform after an updated version is published constitutes acceptance of the revised Terms.
+
+---
+
+## 19. Governing Law and Jurisdiction
+
+These Terms are governed by the laws of India. Subject to applicable law, courts with competent jurisdiction in **Faridabad, Haryana, India** will have exclusive jurisdiction over disputes relating to these Terms or the Platform.
+
+---
+
+## 20. Contact
+
+For support, questions, account closure, or complaints about these Terms:
+
+**PropAura — Vijay Kumar Sharma**  
+Website: vijaykrsha.online  
+Email: vijaykrsha@hotmail.com  
+Phone: +91 95913 0381  
+Address: 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana, Pin - 121009
+
+---
+
+*This document was prepared from a review of the PropAura source code (v3.0.0). It is a practical document, not a substitute for legal advice — an Indian technology/privacy lawyer should review the final wording before production use.*
 *Version 1.0 — Effective 28 August 2026.*
 ```
 
@@ -22339,35 +23353,35 @@ if __name__ == "__main__":
     }
   },
   "tenant": {
-    "pages": {
-      "root": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}",
-      "catchAll": "/*"
-    },
-    "api": {
-      "auth": {
-        "publicKey": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/public-key",
-        "login": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/login",
-        "refresh": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/refresh",
-        "logout": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout",
-        "logoutAll": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout-all"
-      },
-      "profile": {
-        "get": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/profile"
-      },
-      "kyc": {
-        "upload": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc",
-        "markInactive": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive",
-        "delete": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
-        "getFile": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/file/{filename}"
-      },
-      "audit": {
-        "logs": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/audit-logs"
-      },
-      "pdf": {
-        "view": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
-        "download": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
-      }
-    }
+ "pages": {
+  "root": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}",
+  "catchAll": "/*"
+ },
+ "api": {
+  "auth": {
+   "publicKey": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/public-key",
+   "login": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/login",
+   "refresh": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/refresh",
+   "logout": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout",
+   "logoutAll": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout-all"
+  },
+  "profile": {
+   "get": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/profile"
+  },
+  "kyc": {
+   "upload": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc",
+   "markInactive": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive",
+   "delete": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
+   "getFile": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/file/{filename}"
+  },
+  "audit": {
+   "logs": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/audit-logs"
+  },
+  "pdf": {
+   "view": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
+   "download": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
+  }
+ }
   },
   "landlord": {
     "pages": {
@@ -22376,12 +23390,15 @@ if __name__ == "__main__":
       "signup": "/landlord/signup",
       "dashboard": "/landlord/dashboard",
       "logout": "/landlord/logout",
-      "setup": "/landlord/setup",
-      "catchAll": "/landlord/*"
+      "privacyPolicy": "/landlord/privacy-policy",
+      "terms": "/landlord/terms",
+      "catchAll": "/landlord/*",
+      "setup": "/landlord/setup"
     },
     "api": {
       "auth": {
         "publicKey": "/landlord/api/auth/public-key",
+        "google": "/landlord/api/auth/google",
         "checkUsername": "/landlord/api/auth/check-username",
         "checkEmail": "/landlord/api/auth/check-email",
         "signup": "/landlord/api/auth/signup",
@@ -22390,7 +23407,11 @@ if __name__ == "__main__":
         "refresh": "/landlord/api/auth/refresh",
         "logout": "/landlord/api/auth/logout",
         "me": "/landlord/api/auth/me",
-        "changePassword": "/landlord/api/auth/change-password"
+        "changePassword": "/landlord/api/auth/change-password",
+        "privacyPolicy": "/landlord/api/privacy-policy",
+        "privacyConsent": "/landlord/api/auth/privacy-consent",
+        "terms": "/landlord/api/terms",
+        "termsConsent": "/landlord/api/auth/terms-consent"
       },
       "dashboard": {
         "stats": "/landlord/{landlordUuid}/api/dashboard"
@@ -22423,6 +23444,8 @@ if __name__ == "__main__":
         "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/restore",
         "changePin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/change-pin",
         "revealPin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/reveal-pin",
+        "portalAuth": "/landlord/{landlordUuid}/api/tenants/{tenantId}/portal-auth",
+        "qrKey": "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr-key",
         "receipts": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
         "recoverySnapshots": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots",
         "recoverySnapshotPreview": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/preview",
@@ -22463,6 +23486,16 @@ if __name__ == "__main__":
         "uploadSignature": "/landlord/{landlordUuid}/api/settings/upload-signature",
         "deleteSignature": "/landlord/{landlordUuid}/api/settings/delete-signature"
       },
+      "totp": {
+        "qr": "/landlord/{landlordUuid}/api/totp/qr",
+        "regenerate": "/landlord/{landlordUuid}/api/totp/regenerate",
+        "enable": "/landlord/{landlordUuid}/api/totp/enable",
+        "disable": "/landlord/{landlordUuid}/api/totp/disable"
+      },
+      "audit": {
+        "logs": "/landlord/{landlordUuid}/api/audit-logs",
+        "actions": "/landlord/{landlordUuid}/api/audit-logs/actions"
+      },
       "setup": {
         "required": "/landlord/api/setup/required",
         "create": "/landlord/api/setup/create",
@@ -22475,211 +23508,10 @@ if __name__ == "__main__":
         "update": "/landlord/{landlordUuid}/api/properties/{propertyId}",
         "delete": "/landlord/{landlordUuid}/api/properties/{propertyId}",
         "tenants": "/landlord/{landlordUuid}/api/properties/{propertyId}/tenants"
-      },
-      "totp": {
-        "qr": "/landlord/{landlordUuid}/api/totp/qr",
-        "regenerate": "/landlord/{landlordUuid}/api/totp/regenerate",
-        "enable": "/landlord/{landlordUuid}/api/totp/enable",
-        "disable": "/landlord/{landlordUuid}/api/totp/disable"
-      },
-      "audit": {
-        "logs": "/landlord/{landlordUuid}/api/audit-logs",
-        "actions": "/landlord/{landlordUuid}/api/audit-logs/actions"
       }
     }
   }
 }```
-
-### `copy.py`
-
-```python
-#!/usr/bin/env python3
-"""Generate rent.md with complete source code from the project."""
-
-import os
-import re
-import fnmatch
-
-# ---------------------------------------------------------------------------
-# User-configurable settings
-# ---------------------------------------------------------------------------
-
-SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-SOURCE_FILES = [
-    "backend/app/**/*.py",
-    "backend/app/**/*.json",
-    "backend/app/config/**",
-    "backend/Dockerfile",
-    "backend/compose.yml",
-    "backend/compose.test.yml",
-    "backend/.env.example",
-    "backend/requirements.txt",
-    "backend/shared/routes.json",
-    "backend/deploy/**/*.py",
-    "backend/scripts/**/*.py",
-    "frontend/shared/**/*",
-    "frontend/*/src/**/*.ts",
-    "frontend/*/src/**/*.tsx",
-    "frontend/*.ts",
-    "frontend/*/package.json",
-    "frontend/*/tsconfig*.json",
-    "frontend/*/vite.config.ts",
-    "frontend/package.json",
-    "frontend/build.sh",
-    "frontend-test/nginx.conf",
-    "frontend-test/compose.yml",
-    "gateway/nginx/nginx.conf",
-    "gateway/nginx/routes/rent.conf",
-    "gateway/compose.yml",
-    "copy.py",
-    ".env.example",
-    ".gitignore",
-    "README.md",
-]
-
-# ---------------------------------------------------------------------------
-# Internal constants (do not change unless you know what you are doing)
-# ---------------------------------------------------------------------------
-
-SCRIPT = os.path.abspath(__file__)
-BASE = SOURCE_DIR
-OUTPUT = os.path.join(BASE, "rent.md")
-MAX_FILE_SIZE = 500 * 1024
-INCLUDE = SOURCE_FILES
-
-IGNORE_DIRS = {
-    "node_modules", "dist", "__pycache__", ".git", ".sisyphus",
-    "storage", "build-output", "scratch", "output", ".fonts",
-    ".rent_test_assets", ".sample", "venv", ".venv",
-}
-BINARY_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".xlsx",
-              ".xls", ".db", ".pyc", ".pyd", ".so", ".woff", ".woff2",
-              ".ttf", ".eot", ".mp3", ".mp4", ".pdf"}
-
-LANG_MAP = {
-    ".py": "python",
-    ".ts": "typescript",
-    ".tsx": "typescript",
-    ".js": "javascript",
-    ".json": "json",
-    ".css": "css",
-    ".html": "html",
-    ".yml": "yaml",
-    ".yaml": "yaml",
-    ".conf": "nginx",
-    ".sh": "bash",
-    ".md": "markdown",
-    ".txt": "text",
-    ".example": "text",
-}
-
-
-def should_ignore(path):
-    parts = path.split(os.sep)
-    return any(d in IGNORE_DIRS for d in parts)
-
-
-def is_binary(name):
-    return any(name.lower().endswith(ext) for ext in BINARY_EXT)
-
-
-def guess_lang(name):
-    _, ext = os.path.splitext(name)
-    return LANG_MAP.get(ext, "")
-
-
-def walk_files():
-    matched = []
-    for root, dirs, files in os.walk(BASE):
-        dirs[:] = [d for d in dirs if d not in IGNORE_DIRS]
-
-        for f in files:
-            full = os.path.join(root, f)
-            rel = os.path.relpath(full, BASE)
-            if should_ignore(rel):
-                continue
-            if is_binary(f):
-                continue
-            for pat in INCLUDE:
-                if fnmatch.fnmatch(rel, pat):
-                    matched.append(rel)
-                    break
-    return sorted(set(matched))
-
-
-def main():
-    files = walk_files()
-
-    sections = []
-    size_total = 0
-    skipped = []
-
-    for i, rel in enumerate(files, 1):
-        full = os.path.join(BASE, rel)
-        try:
-            size = os.path.getsize(full)
-        except OSError:
-            skipped.append(f"{rel} (unreadable)")
-            continue
-        if size > MAX_FILE_SIZE:
-            skipped.append(f"{rel} ({size / 1024:.0f} KB, skipped)")
-            continue
-
-        try:
-            with open(full, "r", encoding="utf-8", errors="replace") as fh:
-                content = fh.read()
-        except Exception:
-            skipped.append(f"{rel} (read error)")
-            continue
-
-        size_kb = size / 1024
-        print(f"  [{i:3d}/{len(files)}]  {rel:70s}  {size_kb:>7.1f} KB")
-        lang = guess_lang(rel)
-        sections.append(f"### `{rel}`\n\n```{lang}\n{content}```")
-        size_total += size
-
-    print()
-
-    md = f"""# Rent — Complete Source Code
-
-Generated: 2025-07-29
-Script:   {SCRIPT}
-Source:   {BASE}
-Files:    {len(sections)}
-Size:     {size_total / 1024:.0f} KB
-Skipped:  {len(skipped)}
-
----
-
-## File Index
-
-"""
-    for s in sections:
-        line = s.split("\n", 1)[0].replace("### `", "").replace("`", "")
-        md += f"- {line}\n"
-
-    md += "\n---\n\n"
-    md += "\n\n".join(sections)
-
-    if skipped:
-        md += "\n\n---\n\n## Skipped\n\n"
-        for s in skipped:
-            md += f"- {s}\n"
-
-    with open(OUTPUT, "w", encoding="utf-8") as fh:
-        fh.write(md)
-
-    print(f"Written: {OUTPUT}")
-    print(f"Files:   {len(sections)}")
-    print(f"Size:    {size_total / 1024:.0f} KB")
-    if skipped:
-        print(f"Skip:   {len(skipped)}")
-
-
-if __name__ == "__main__":
-    main()
-```
 
 ### `compose.dev.yml`
 
@@ -24878,6 +25710,7 @@ import LandlordDetailPage from "./pages/LandlordDetailPage";
 import DataExplorerPage from "./pages/DataExplorerPage";
 import SettingsPage from "./pages/SettingsPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
+import FeedbackInboxPage from "./pages/FeedbackInboxPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { admin, loading } = useAuth();
@@ -24897,6 +25730,7 @@ function AppRoutes() {
       <Route path="/landlords" element={<RequireAuth><LandlordsPage /></RequireAuth>} />
       <Route path="/landlords/:id" element={<RequireAuth><LandlordDetailPage /></RequireAuth>} />
       <Route path="/explorer" element={<RequireAuth><DataExplorerPage /></RequireAuth>} />
+      <Route path="/feedback" element={<RequireAuth><FeedbackInboxPage /></RequireAuth>} />
       <Route path="/audit-logs" element={<RequireAuth><AuditLogsPage /></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -25242,11 +26076,14 @@ export default class ErrorBoundary extends Component<Props, State> {
 
 ```typescript
 import { Link, useLocation, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { API_BASE } from "../lib/runtime";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
   { to: "/landlords", label: "Landlords", icon: "🏠" },
+  { to: "/feedback", label: "Feedback", icon: "📬" },
   { to: "/explorer", label: "Data Explorer", icon: "🔍" },
   { to: "/audit-logs", label: "Audit Logs", icon: "📋" },
   { to: "/settings",  label: "Settings",  icon: "⚙️"  },
@@ -25256,6 +26093,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { admin, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/feedback/unread-count`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setUnread(data?.unread ?? 0))
+      .catch(() => {});
+  }, [location.pathname]);
 
   async function handleLogout() {
     await logout();
@@ -25284,6 +26129,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             const active = to === "/landlords"
               ? location.pathname.startsWith("/landlords")
               : location.pathname.startsWith(to);
+            const showBadge = to === "/feedback" && unread > 0;
             return (
               <Link
                 key={to}
@@ -25298,7 +26144,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 }}
               >
                 <span>{icon}</span>
-                {label}
+                <span style={{ flex: 1 }}>{label}</span>
+                {showBadge && (
+                  <span style={{
+                    background: "#ef4444", color: "#fff", borderRadius: 9999,
+                    fontSize: 11, fontWeight: 700, minWidth: 18, height: 18,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    padding: "0 5px",
+                  }}>
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -26208,6 +27064,7 @@ function StatCard({ icon, label, value, color }: { icon: string; label: string; 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [unread, setUnread] = useState(0);
 
   useEffect(() => {
     fetch(`${API_BASE}/stats`, { credentials: "include" })
@@ -26219,11 +27076,39 @@ export default function DashboardPage() {
       .catch((e) => setError(e.message));
   }, []);
 
+  useEffect(() => {
+    fetch(`${API_BASE}/feedback/unread-count`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setUnread(data?.unread ?? 0))
+      .catch(() => {});
+  }, []);
+
   return (
     <Layout>
       <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>
         Dashboard
       </h1>
+
+      {unread > 0 && (
+        <Link to="/feedback" style={{ textDecoration: "none", display: "block", marginBottom: 20 }}>
+          <div style={{
+            background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10,
+            padding: "14px 18px", display: "flex", alignItems: "center", gap: 12,
+            cursor: "pointer",
+          }}>
+            <span style={{ fontSize: 22 }}>📬</span>
+            <div style={{ flex: 1 }}>
+              <strong style={{ color: "#92400e", fontSize: 14 }}>
+                {unread} pending QR feedback {unread === 1 ? "item" : "items"}
+              </strong>
+              <p style={{ margin: "2px 0 0", fontSize: 13, color: "#b45309" }}>
+                Tenants reported a wrong QR key on the unlock screen. Review and provide a fix.
+              </p>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>View inbox →</span>
+          </div>
+        </Link>
+      )}
 
       {error && (
         <div style={{ background: "#fef2f2", color: "#dc2626", padding: "12px 16px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
@@ -26725,6 +27610,359 @@ export default function DataExplorerPage() {
 }
 ```
 
+### `frontend/admin-app/src/pages/FeedbackInboxPage.tsx`
+
+```typescript
+import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
+import Layout from "../components/Layout";
+import { API_BASE } from "../lib/runtime";
+
+interface FeedbackItem {
+  id: number;
+  tenant_id: number | null;
+  landlord_id: number | null;
+  property_id: number | null;
+  tenant_name: string;
+  view_token: string;
+  qr_key: string;
+  message: string;
+  diagnostics: Record<string, unknown>;
+  failed_attempts: number;
+  status: string;
+  admin_reply: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  ip_address: string;
+}
+
+function formatTs(ts: string) {
+  if (!ts) return "\u2014";
+  try {
+    const d = new Date(ts + (ts.includes("Z") ? "" : "Z"));
+    return d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+  } catch { return ts; }
+}
+
+function statusBadge(status: string) {
+  const open = status !== "resolved";
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 10px", borderRadius: 9999,
+      fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
+      background: open ? "#fef3c7" : "#dcfce7",
+      color: open ? "#b45309" : "#16a34a",
+      whiteSpace: "nowrap",
+    }}>
+      {open ? "Open" : "Resolved"}
+    </span>
+  );
+}
+
+function Diagnostics({ diagnostics }: { diagnostics: Record<string, unknown> }) {
+  const [open, setOpen] = useState(false);
+  const rows: [string, string][] = [];
+  const push = (k: string, v: unknown) => {
+    if (v === null || v === undefined || v === "") return;
+    if (typeof v === "object") {
+      try { rows.push([k, JSON.stringify(v)]); } catch { /* ignore */ }
+    } else {
+      rows.push([k, String(v)]);
+    }
+  };
+
+  push("Browser", (diagnostics as any).user_agent);
+  push("Platform", (diagnostics as any).platform);
+  push("Language", (diagnostics as any).language);
+  push("Screen", (diagnostics as any).screen);
+  push("Viewport", (diagnostics as any).viewport);
+  push("Online", (diagnostics as any).online);
+  push("Connection", (diagnostics as any).connection);
+  push("Page URL", (diagnostics as any).url);
+  push("Path", (diagnostics as any).pathname);
+  push("Reported attempts", (diagnostics as any).attempts);
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          background: "none", border: "none", padding: 0, cursor: "pointer",
+          fontSize: 12, fontWeight: 700, color: "#2563eb",
+        }}
+      >
+        {open ? "\u25be Hide device / network details" : "\u25b8 Show device / network details"}
+      </button>
+      {open && (
+        <div style={{
+          marginTop: 8, padding: "10px 12px", borderRadius: 8,
+          background: "#f8fafc", border: "1px solid #e5e7eb",
+          fontSize: 12, overflowX: "auto",
+        }}>
+          {rows.length === 0 ? (
+            <span style={{ color: "#9ca3af" }}>No diagnostics captured.</span>
+          ) : (
+            <table style={{ borderCollapse: "collapse", width: "100%" }}>
+              <tbody>
+                {rows.map(([k, v]) => (
+                  <tr key={k}>
+                    <td style={{ padding: "3px 12px 3px 0", fontWeight: 600, color: "#374151", whiteSpace: "nowrap", verticalAlign: "top" }}>{k}</td>
+                    <td style={{ padding: "3px 0", color: "#6b7280", fontFamily: "monospace", wordBreak: "break-all", maxWidth: 380 }}>{v}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function FeedbackInboxPage() {
+  const [items, setItems] = useState<FeedbackItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [limit] = useState(30);
+  const [replyText, setReplyText] = useState<Record<number, string>>({});
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const fetchFeedback = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (statusFilter) params.set("status", statusFilter);
+      if (searchFilter) params.set("search", searchFilter);
+      params.set("limit", String(limit));
+      params.set("offset", String(offset));
+
+      const res = await fetch(`${API_BASE}/feedback?${params}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load");
+      const data = await res.json();
+      setItems(data.items);
+      setTotal(data.total);
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [statusFilter, searchFilter, offset, limit]);
+
+  useEffect(() => { fetchFeedback(); }, [fetchFeedback]);
+
+  const handleReply = async (id: number) => {
+    const reply = (replyText[id] || "").trim();
+    if (!reply) {
+      toast.error("Write a reply first.");
+      return;
+    }
+    setBusyId(id);
+    try {
+      const res = await fetch(`${API_BASE}/feedback/${id}/reply`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_reply: reply }),
+      });
+      if (!res.ok) throw new Error("Reply failed");
+      toast.success("Reply saved and feedback marked resolved.");
+      setReplyText((r) => { const n = { ...r }; delete n[id]; return n; });
+      await fetchFeedback();
+    } catch {
+      toast.error("Could not save reply. Please try again.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleResolve = async (id: number) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`${API_BASE}/feedback/${id}/resolve`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Resolve failed");
+      toast.success("Feedback marked resolved.");
+      await fetchFeedback();
+    } catch {
+      toast.error("Could not resolve feedback.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const totalPages = Math.ceil(total / limit);
+
+  return (
+    <Layout>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>QR Feedback Inbox</h1>
+          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
+            Tenants reporting a wrong QR key from the unlock screen
+          </p>
+        </div>
+      </div>
+
+      <div style={{
+        display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end",
+        padding: "14px 16px", borderRadius: 10, background: "#fff", border: "1px solid #e5e7eb",
+      }}>
+        <div>
+          <label style={labelSm}>Status</label>
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setOffset(0); }}
+            style={selectStyle}
+          >
+            <option value="">All</option>
+            <option value="open">Open</option>
+            <option value="resolved">Resolved</option>
+          </select>
+        </div>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <label style={labelSm}>Search</label>
+          <input
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { setOffset(0); fetchFeedback(); } }}
+            placeholder="Tenant, message, QR key\u2026"
+            style={inputStyle}
+          />
+        </div>
+        {(statusFilter || searchFilter) && (
+          <button
+            onClick={() => { setStatusFilter(""); setSearchFilter(""); setOffset(0); }}
+            style={btnSecondary}
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      <div style={{ marginBottom: 12, fontSize: 13, color: "#6b7280" }}>
+        {total} total{statusFilter || searchFilter ? " (filtered)" : ""}
+      </div>
+
+      {loading ? (
+        <p style={{ color: "#9ca3af" }}>Loading…</p>
+      ) : items.length === 0 ? (
+        <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 40, textAlign: "center", color: "#9ca3af" }}>
+          No feedback found.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {items.map((item) => (
+            <div key={item.id} style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "18px 20px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <strong style={{ fontSize: 15, color: "#1a1d2e" }}>{item.tenant_name || `Tenant #${item.tenant_id ?? "\u2014"}`}</strong>
+                  {statusBadge(item.status)}
+                  <span style={{ fontSize: 12, color: "#9ca3af" }}>{formatTs(item.created_at)}</span>
+                </div>
+                <span style={{ fontSize: 12, color: "#6b7280" }}>
+                  {item.failed_attempts} attempts {"\u00b7"} IP: <span style={{ fontFamily: "monospace" }}>{item.ip_address || "\u2014"}</span>
+                </span>
+              </div>
+
+              <div style={{ fontSize: 13, color: "#374151", marginBottom: 6 }}>
+                {item.message || <span style={{ color: "#9ca3af" }}>No message included.</span>}
+              </div>
+              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
+                QR key: <span style={{ fontFamily: "monospace", color: "#374151" }}>{item.qr_key ? item.qr_key.slice(0, 20) + "\u2026" : "\u2014"}</span>
+                {item.property_id ? <span style={{ marginLeft: 12 }}>Property #{item.property_id}</span> : null}
+              </div>
+
+              <Diagnostics diagnostics={item.diagnostics} />
+
+              {item.admin_reply && (
+                <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 8, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 13, color: "#1e40af" }}>
+                  <strong>Your reply:</strong> {item.admin_reply}
+                </div>
+              )}
+
+              {item.status === "open" && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f3f4f6", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <input
+                    value={replyText[item.id] || ""}
+                    onChange={(e) => setReplyText((r) => ({ ...r, [item.id]: e.target.value }))}
+                    placeholder="Provide a solution / fix\u2026"
+                    disabled={busyId === item.id}
+                    style={{ ...inputStyle, flex: 1, minWidth: 220 }}
+                  />
+                  <button
+                    onClick={() => handleReply(item.id)}
+                    disabled={busyId === item.id}
+                    style={{ ...btnPrimary, opacity: busyId === item.id ? 0.6 : 1 }}
+                  >
+                    {busyId === item.id ? "Saving\u2026" : "Reply & Resolve"}
+                  </button>
+                  <button
+                    onClick={() => handleResolve(item.id)}
+                    disabled={busyId === item.id}
+                    style={{ ...btnSecondary, opacity: busyId === item.id ? 0.6 : 1 }}
+                  >
+                    Mark resolved
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {totalPages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 16 }}>
+          <button
+            onClick={() => setOffset(Math.max(0, offset - limit))}
+            disabled={offset === 0}
+            style={{ ...btnSecondary, opacity: offset === 0 ? 0.4 : 1 }}
+          >
+            Previous
+          </button>
+          <span style={{ fontSize: 13, color: "#6b7280" }}>
+            Page {Math.floor(offset / limit) + 1} of {totalPages}
+          </span>
+          <button
+            onClick={() => setOffset(offset + limit)}
+            disabled={offset + limit >= total}
+            style={{ ...btnSecondary, opacity: offset + limit >= total ? 0.4 : 1 }}
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </Layout>
+  );
+}
+
+const labelSm: React.CSSProperties = {
+  display: "block", marginBottom: 4, fontSize: 11, fontWeight: 600,
+  color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5,
+};
+const inputStyle: React.CSSProperties = {
+  width: "100%", padding: "7px 10px", borderRadius: 6,
+  border: "1.5px solid #d1d5db", fontSize: 13, outline: "none",
+};
+const selectStyle: React.CSSProperties = {
+  padding: "7px 10px", borderRadius: 6,
+  border: "1.5px solid #d1d5db", fontSize: 13, outline: "none",
+  background: "#fff", minWidth: 140,
+};
+const btnSecondary: React.CSSProperties = {
+  padding: "7px 16px", borderRadius: 6, border: "1.5px solid #d1d5db",
+  background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer",
+};
+const btnPrimary: React.CSSProperties = {
+  padding: "7px 16px", borderRadius: 6, border: "none",
+  background: "#3b4a6b", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
+};
+```
+
 ### `frontend/admin-app/src/pages/LandlordDetailPage.tsx`
 
 ```typescript
@@ -26852,6 +28090,10 @@ export default function LandlordDetailPage() {
                 ["Privacy Version", l.privacy_version ?? "—"],
                 ["Privacy Accepted At", l.privacy_accepted_at ? new Date(String(l.privacy_accepted_at)).toLocaleString() : "—"],
                 ["Privacy Accepted IP", l.privacy_accepted_ip ?? "—"],
+                ["Terms Accepted", l.terms_consented ? "Yes" : "Pending"],
+                ["Terms Version", l.terms_version ?? "—"],
+                ["Terms Accepted At", l.terms_accepted_at ? new Date(String(l.terms_accepted_at)).toLocaleString() : "—"],
+                ["Terms Accepted IP", l.terms_accepted_ip ?? "—"],
               ].map(([label, value]) => (
                 <tr key={String(label)} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 140 }}>{String(label)}</td>
@@ -26914,6 +28156,9 @@ interface Landlord {
   privacy_consented: boolean;
   privacy_version: string | null;
   privacy_accepted_at: string | null;
+  terms_consented: boolean;
+  terms_version: string | null;
+  terms_accepted_at: string | null;
   tenant_count: number;
   receipt_count: number;
   kyc_count: number;
@@ -27070,7 +28315,7 @@ export default function LandlordsPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "#f9fafb" }}>
-                  {["ID", "Name", "Username", "Status", "Privacy", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
+                  {["ID", "Name", "Username", "Status", "Privacy", "Terms", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
                     <th key={h} style={{ padding: "12px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb", fontSize: 13, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -27114,6 +28359,27 @@ export default function LandlordsPage() {
                         <span
                           style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#fef3c7", color: "#92400e", cursor: "help" }}
                           title="Privacy Policy not yet accepted"
+                        >
+                          Pending
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      {l.terms_consented ? (
+                        <span
+                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#dcfce7", color: "#16a34a", cursor: "help" }}
+                          title={[
+                            "Terms and Conditions accepted",
+                            l.terms_version ? `Version ${l.terms_version}` : null,
+                            l.terms_accepted_at ? `Accepted ${new Date(l.terms_accepted_at).toLocaleString()}` : null,
+                          ].filter(Boolean).join(" · ")}
+                        >
+                          Accepted
+                        </span>
+                      ) : (
+                        <span
+                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#fef3c7", color: "#92400e", cursor: "help" }}
+                          title="Terms and Conditions not yet accepted"
                         >
                           Pending
                         </span>
@@ -27335,10 +28601,11 @@ export default function LandlordsPage() {
 
 ```typescript
 import { useState, useEffect, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import { useAuth, OtpCooldownError } from "../contexts/AuthContext";
 import AuthLayout from "../components/AuthLayout";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
+import { API_BASE } from "../lib/runtime";
 
 type OtpMethod = "totp" | "telegram";
 
@@ -27366,6 +28633,12 @@ export default function LoginPage() {
   const [otpMsg, setOtpMsg] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [pendingFeedback, setPendingFeedback] = useState<{
+    id: number;
+    tenant_name: string;
+    message: string;
+    created_at: string;
+  }[] | null>(null);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -27375,6 +28648,20 @@ export default function LoginPage() {
 
   function useTelegram() {
     return method === "telegram" && methods.includes("telegram_otp");
+  }
+
+  async function checkPendingFeedback(): Promise<number> {
+    try {
+      const res = await fetch(`${API_BASE}/feedback?status=open&limit=10`, { credentials: "include" });
+      if (!res.ok) return 0;
+      const data = await res.json();
+      const total = data.total || 0;
+      if (total > 0) setPendingFeedback((data.items || []).slice(0, 10));
+      return total;
+    } catch {
+      // Non-critical — the dashboard banner still surfaces feedback.
+      return 0;
+    }
   }
 
   function resetSecondFactor() {
@@ -27403,7 +28690,8 @@ export default function LoginPage() {
           handleSendOtp();
         }
       } else {
-        navigate("/dashboard", { replace: true });
+        const total = await checkPendingFeedback();
+        if (total === 0) navigate("/dashboard", { replace: true });
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Login failed");
@@ -27422,7 +28710,8 @@ export default function LoginPage() {
       } else {
         await loginTOTP(code);
       }
-      navigate("/dashboard", { replace: true });
+      const total = await checkPendingFeedback();
+      if (total === 0) navigate("/dashboard", { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Verification failed");
     } finally {
@@ -27678,6 +28967,73 @@ export default function LoginPage() {
       </AuthLayout>
       {sending && <LoadingOverlay label="Sending code…" />}
       {!sending && busy && <LoadingOverlay label={totpRequired ? "Verifying…" : "Signing in…"} />}
+
+      {pendingFeedback && (
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 200,
+          background: "rgba(0,0,0,0.45)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 16,
+        }}>
+          <div style={{
+            background: "#fff", borderRadius: 16, padding: "28px 24px",
+            width: 460, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+              <span style={{ fontSize: 26 }}>📬</span>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#1a1d2e" }}>
+                  Pending QR Feedback
+                </h2>
+                <p style={{ margin: "2px 0 0", fontSize: 13, color: "#6b7280" }}>
+                  Tenants reported a wrong QR key on the unlock screen.
+                </p>
+              </div>
+            </div>
+
+            {pendingFeedback.map((f) => (
+              <div key={f.id} style={{
+                padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e7eb",
+                background: "#f8fafc", marginBottom: 8,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                  <strong style={{ fontSize: 13, color: "#1a1d2e" }}>{f.tenant_name || `Tenant #${f.id}`}</strong>
+                  <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                    {new Date(f.created_at + "Z").toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                  </span>
+                </div>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#374151" }}>
+                  {f.message || <span style={{ color: "#9ca3af" }}>No message included.</span>}
+                </p>
+              </div>
+            ))}
+
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <button
+                onClick={() => setPendingFeedback(null)}
+                style={{
+                  flex: 1, padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
+                  background: "#fff", color: "#6b7280", fontSize: 14, fontWeight: 600, cursor: "pointer",
+                }}
+              >
+                Later
+              </button>
+              <Link
+                to="/feedback"
+                onClick={() => setPendingFeedback(null)}
+                style={{
+                  flex: 1, textAlign: "center", padding: "10px 0", borderRadius: 8, border: "none",
+                  background: "#3b4a6b", color: "#fff", fontSize: 14, fontWeight: 700,
+                  textDecoration: "none", display: "inline-block",
+                }}
+              >
+                View Inbox
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -29030,7 +30386,7 @@ export default function Footer() {
           <h4 className="footer-heading">Contact</h4>
           <ul>
             <li><a href="mailto:vijaykrsha@hotmail.com">vijaykrsha@hotmail.com</a></li>
-            <li><a href="tel:+919449825584">+91 94498 25584</a></li>
+            <li><a href="tel:+91959130381">+91 95913 0381</a></li>
           </ul>
         </div>
       </div>
@@ -29038,8 +30394,8 @@ export default function Footer() {
       <div className="footer-bottom">
         <p>&copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.</p>
         <div className="footer-bottom-links">
-          <a href="#">Privacy Policy</a>
-          <a href="#">Terms of Service</a>
+          <a href="/rent/landlord/privacy-policy">Privacy Policy</a>
+          <a href="/rent/landlord/terms">Terms of Service</a>
         </div>
       </div>
     </footer>
@@ -31333,25 +32689,27 @@ import LandlordLoginPage from './pages/LandlordLoginPage';
 import LandlordSignupPage from './pages/LandlordSignupPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import PrivacyConsentPage from './pages/PrivacyConsentPage';
+import TermsConditionsPage from './pages/TermsConditionsPage';
 import Login from './pages/Login';
 import AdminSetupPage from './pages/AdminSetupPage';
 import SetupPage from './pages/SetupPage';
 import { APP_BASE } from './lib/runtime';
 
 function RequirePrivacyConsent({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, privacyConsented } = useAuth();
-  if (isAuthenticated && privacyConsented === false) {
+  const { isAuthenticated, privacyConsented, termsConsented } = useAuth();
+  if (isAuthenticated && (privacyConsented === false || termsConsented === false)) {
     return <Navigate to="/privacy-consent" replace />;
   }
   return <>{children}</>;
 }
 
 function RequireSetup({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, privacyConsented, setupCompleted, setupSkipped } = useAuth();
+  const { isAuthenticated, isLoading, privacyConsented, termsConsented, setupCompleted, setupSkipped } = useAuth();
   if (
     isAuthenticated &&
     !isLoading &&
     privacyConsented !== false &&
+    termsConsented !== false &&
     !setupCompleted &&
     !setupSkipped
   ) {
@@ -31374,6 +32732,7 @@ function App() {
             <Route path="/change-password" element={<ChangePasswordPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
             <Route path="/privacy-consent" element={<PrivacyConsentPage />} />
+            <Route path="/terms" element={<TermsConditionsPage />} />
             <Route path="/admin/login" element={<Login />} />
             <Route path="/admin/setup" element={<AdminSetupPage />} />
             
@@ -36807,6 +38166,125 @@ export default function PrivacyPolicyModal({ open, onOpenChange, onAgree }: Priv
               Close
             </Button>
             <Link to={ROUTES.LANDLORDPAGEPRIVACYPOLICY}>
+              <Button variant="outline">Open Full Page</Button>
+            </Link>
+            <Button onClick={() => onAgree()}>I Agree</Button>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+### `frontend/landlord-app/src/components/privacy/TermsConditionsModal.tsx`
+
+```typescript
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
+import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
+import { BrandWave } from '@shared/loading/BrandWave';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ROUTES } from '@/lib/routes';
+import MarkdownView from '@/components/privacy/MarkdownView';
+
+interface TermsInfo {
+  version: string;
+  effectiveDate: string;
+  url: string;
+  content: string;
+}
+
+interface TermsConditionsModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAgree: () => void;
+}
+
+export default function TermsConditionsModal({ open, onOpenChange, onAgree }: TermsConditionsModalProps) {
+  const [terms, setTerms] = useState<TermsInfo | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    fetch(ROUTES.LANDLORDAPITERMS)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!active) return;
+        if (data?.content) {
+          setTerms(data);
+          setError('');
+        } else {
+          setTerms(null);
+          setError('Terms and Conditions content is unavailable right now.');
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setTerms(null);
+        setError('Unable to load the Terms and Conditions. Please try again.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-full">
+              <FileText className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <DialogTitle>PROPAURA Terms and Conditions</DialogTitle>
+              <DialogDescription>
+                {terms
+                  ? `Version ${terms.version} — Effective ${terms.effectiveDate}`
+                  : 'Landlord Account Creation'}
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="overflow-y-auto px-6 py-4 border-y flex-1">
+          {error && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {!terms && !error && (
+            <div className="flex items-center justify-center py-16">
+              <BrandWave label="Loading terms…" />
+            </div>
+          )}
+
+          {terms?.content && <MarkdownView content={terms.content} />}
+        </div>
+
+        <DialogFooter className="px-6 py-4 items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <ShieldCheck className="h-4 w-4 text-green-600" />
+            Issued in compliance with the Digital Personal Data Protection Act, 2023
+          </div>
+          <div className="flex gap-3">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Close
+            </Button>
+            <Link to={ROUTES.LANDLORDPAGETERMS}>
               <Button variant="outline">Open Full Page</Button>
             </Link>
             <Button onClick={() => onAgree()}>I Agree</Button>
@@ -43824,6 +45302,7 @@ interface AuthContextType {
   totpEnabled: boolean;
   requiresPasswordChange: boolean;
   privacyConsented: boolean | null;
+  termsConsented: boolean | null;
   setupCompleted: boolean;
   setupSkipped: boolean;
   login: (
@@ -43863,6 +45342,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
   const [privacyConsented, setPrivacyConsented] = useState<boolean | null>(null);
+  const [termsConsented, setTermsConsented] = useState<boolean | null>(null);
   const [setupCompleted, setSetupCompleted] = useState(false);
   const [setupSkipped, setSetupSkipped] = useState(false);
 
@@ -43885,6 +45365,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTotpEnabled(data?.landlord?.totpEnabled ?? false);
       setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
       setPrivacyConsented(data?.landlord?.privacyConsented ?? true);
+      setTermsConsented(data?.landlord?.termsConsented ?? true);
       setSetupCompleted(data?.landlord?.setupCompleted ?? false);
       setSetupSkipped(data?.landlord?.setupSkipped ?? false);
       if (uuid) localStorage.setItem("landlordUuid", uuid);
@@ -43897,6 +45378,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTotpEnabled(false);
       setRequiresPasswordChange(false);
       setPrivacyConsented(null);
+      setTermsConsented(null);
       setSetupCompleted(false);
       setSetupSkipped(false);
       localStorage.removeItem("landlordUuid");
@@ -44140,7 +45622,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, privacyConsented, setupCompleted, setupSkipped, login, googleLogin, verifyTotp, logout, changePassword, refreshMe, setSetupState }}
+      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, privacyConsented, termsConsented, setupCompleted, setupSkipped, login, googleLogin, verifyTotp, logout, changePassword, refreshMe, setSetupState }}
     >
       {children}
     </AuthContext.Provider>
@@ -44878,11 +46360,13 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 ```typescript
 /**
  * src/lib/privacy.ts
- * Privacy Policy version constants for the landlord frontend.
+ * Privacy Policy + Terms and Conditions version constants for the landlord frontend.
  * Must match backend/app/app/core/privacy.py.
  */
-export const PRIVACY_POLICY_VERSION = "1.0";
+export const PRIVACY_POLICY_VERSION = "2.0";
 export const PRIVACY_POLICY_EFFECTIVE_DATE = "2026-08-28";
+export const TERMS_CONDITIONS_VERSION = "1.0";
+export const TERMS_CONDITIONS_EFFECTIVE_DATE = "2026-08-28";
 ```
 
 ### `frontend/landlord-app/src/lib/routes.ts`
@@ -45135,6 +46619,7 @@ export const ROUTES = {
     get LANDLORDPAGEDASHBOARD() { return page("landlord", "dashboard"); },
     get LANDLORDPAGELOGOUT() { return page("landlord", "logout"); },
     get LANDLORDPAGEPRIVACYPOLICY() { return page("landlord", "privacyPolicy"); },
+    get LANDLORDPAGETERMS() { return page("landlord", "terms"); },
     get LANDLORDPAGESETUP() { return page("landlord", "setup"); },
 
     // Landlord API: Setup wizard
@@ -45164,6 +46649,8 @@ export const ROUTES = {
     get LANDLORDAPIAUTHCHANGEPASSWORD() { return api("landlord", "auth", "changePassword"); },
     get LANDLORDAPIPRIVACYPOLICY() { return api("landlord", "auth", "privacyPolicy"); },
     get LANDLORDAPIAUTHPRIVACYCONSENT() { return api("landlord", "auth", "privacyConsent"); },
+    get LANDLORDAPITERMS() { return api("landlord", "auth", "terms"); },
+    get LANDLORDAPIAUTHTERMSCONSENT() { return api("landlord", "auth", "termsConsent"); },
 
     // Landlord API: Dashboard
     LANDLORDAPIDASHBOARDSTATS(landlordUuid: string) { return api("landlord", "dashboard", "stats", { landlordUuid }); },
@@ -48402,8 +49889,9 @@ import LoadingOverlay from '@shared/loading/LoadingOverlay';
 import PhoneInputField from '@shared/phone/PhoneInput';
 import { useAuth } from '@/contexts/AuthContext';
 import { Checkbox } from '@/components/ui/checkbox';
-import { PRIVACY_POLICY_VERSION } from '@/lib/privacy';
+import { PRIVACY_POLICY_VERSION, TERMS_CONDITIONS_VERSION } from '@/lib/privacy';
 import PrivacyPolicyModal from '@/components/privacy/PrivacyPolicyModal';
+import TermsConditionsModal from '@/components/privacy/TermsConditionsModal';
 
 type FieldStatus = 'idle' | 'checking' | 'available' | 'taken' | 'error';
 
@@ -48429,6 +49917,7 @@ export default function LandlordSignupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [usernameStatus, setUsernameStatus] = useState<FieldStatus>('idle');
   const [emailStatus, setEmailStatus] = useState<FieldStatus>('idle');
@@ -48436,6 +49925,7 @@ export default function LandlordSignupPage() {
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
+  const [termsModalOpen, setTermsModalOpen] = useState(false);
 
   const usernameTimer = useRef<ReturnType<typeof setTimeout>>();
   const emailTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -48518,10 +50008,10 @@ export default function LandlordSignupPage() {
 
   const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
     setError('');
-    if (!privacyAccepted) {
-      setError('Please accept the PROPAURA Privacy Policy before continuing with Google.');
-      toast.error('Privacy Policy acceptance required', {
-        description: 'Tick the acceptance box above to enable Google Sign-Up.',
+    if (!privacyAccepted || !termsAccepted) {
+      setError('Please accept the PROPAURA Privacy Policy and Terms and Conditions before continuing with Google.');
+      toast.error('Acceptance required', {
+        description: 'Tick both acceptance boxes above to enable Google Sign-Up.',
       });
       return;
     }
@@ -48574,6 +50064,13 @@ export default function LandlordSignupPage() {
       });
       return;
     }
+    if (!termsAccepted) {
+      setError('You must accept the PROPAURA Terms and Conditions to create an account.');
+      toast.error('Terms and Conditions acceptance required', {
+        description: 'Please accept the PROPAURA Terms and Conditions to continue.',
+      });
+      return;
+    }
 
     setLoading(true);
     try {
@@ -48584,6 +50081,8 @@ export default function LandlordSignupPage() {
           ...signupData,
           privacyAccepted,
           privacyVersion: PRIVACY_POLICY_VERSION,
+          termsAccepted,
+          termsVersion: TERMS_CONDITIONS_VERSION,
         }),
       });
       const data = await response.json();
@@ -48830,6 +50329,27 @@ export default function LandlordSignupPage() {
               </span>
             </label>
 
+            <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+              <Checkbox
+                checked={termsAccepted}
+                onCheckedChange={(v) => setTermsAccepted(v === true)}
+                className="mt-0.5"
+                required
+              />
+              <span className="text-sm leading-relaxed">
+                I have read and agree to the{' '}
+                <button
+                  type="button"
+                  onClick={() => setTermsModalOpen(true)}
+                  className="text-primary underline underline-offset-2"
+                >
+                  PROPAURA Terms and Conditions
+                </button>
+                , including the liability limitations in the Terms. I understand that my account cannot be
+                created unless I accept these Terms.
+              </span>
+            </label>
+
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t" />
@@ -48845,12 +50365,12 @@ export default function LandlordSignupPage() {
                 onError={() => setError("Google Sign-Up failed")}
                 size="large"
                 width={384}
-                disabled={googleLoading || !privacyAccepted}
+                disabled={googleLoading || !privacyAccepted || !termsAccepted}
               />
             </div>
 
             <p className="text-xs text-center text-muted-foreground">
-              By continuing with Google, you agree to the PROPAURA Privacy Policy.
+              By continuing with Google, you agree to the PROPAURA Privacy Policy and Terms and Conditions.
             </p>
 
             <Button type="submit" className="w-full" disabled={loading}>
@@ -48864,6 +50384,14 @@ export default function LandlordSignupPage() {
             onAgree={() => {
               setPrivacyAccepted(true);
               setPrivacyModalOpen(false);
+            }}
+          />
+          <TermsConditionsModal
+            open={termsModalOpen}
+            onOpenChange={setTermsModalOpen}
+            onAgree={() => {
+              setTermsAccepted(true);
+              setTermsModalOpen(false);
             }}
           />
         </CardContent>
@@ -49029,7 +50557,7 @@ import MarkdownView from '@/components/privacy/MarkdownView';
 import { BrandWave } from '@shared/loading/BrandWave';
 import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
-interface PolicyInfo {
+interface DocumentInfo {
   version: string;
   effectiveDate: string;
   url: string;
@@ -49039,8 +50567,10 @@ interface PolicyInfo {
 export default function PrivacyConsentPage() {
   const navigate = useNavigate();
   const { refreshMe, landlordUuid } = useAuth();
-  const [policy, setPolicy] = useState<PolicyInfo | null>(null);
-  const [agreed, setAgreed] = useState(false);
+  const [policy, setPolicy] = useState<DocumentInfo | null>(null);
+  const [terms, setTerms] = useState<DocumentInfo | null>(null);
+  const [agreedPrivacy, setAgreedPrivacy] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -49054,6 +50584,14 @@ export default function PrivacyConsentPage() {
         else if (active) setError('Privacy Policy content is unavailable right now.');
       })
       .catch(() => active && setError('Unable to load the Privacy Policy. Please try again.'));
+    fetch(ROUTES.LANDLORDAPITERMS)
+      .then((res) => res.json())
+      .then((data) => {
+        if (active && data?.content) setTerms(data);
+      })
+      .catch(() => {
+        /* Terms load failure surfaces via the privacy check below */
+      });
     return () => {
       active = false;
     };
@@ -49070,31 +50608,50 @@ export default function PrivacyConsentPage() {
   const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!agreed) {
+    if (!agreedPrivacy) {
       setError('You must read and accept the Privacy Policy to continue.');
+      return;
+    }
+    if (!agreedTerms) {
+      setError('You must read and accept the Terms and Conditions to continue.');
       return;
     }
     if (!policy) {
       setError('Privacy Policy is still loading. Please try again.');
       return;
     }
+    if (!terms) {
+      setError('Terms and Conditions are still loading. Please try again.');
+      return;
+    }
 
     setLoading(true);
     try {
-      const res = await fetch(ROUTES.LANDLORDAPIAUTHPRIVACYCONSENT, {
+      const privacyRes = await fetch(ROUTES.LANDLORDAPIAUTHPRIVACYCONSENT, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accepted: true, privacyVersion: policy.version }),
       });
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setError(data?.detail || 'Could not record your acceptance. Please try again.');
+      if (!privacyRes.ok) {
+        const data = await privacyRes.json().catch(() => null);
+        setError(data?.detail || 'Could not record your Privacy Policy acceptance. Please try again.');
         return;
       }
 
-      toast.success('Privacy Policy accepted', { description: 'Thank you. Redirecting to your dashboard...' });
+      const termsRes = await fetch(ROUTES.LANDLORDAPIAUTHTERMSCONSENT, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accepted: true, termsVersion: terms.version }),
+      });
+      if (!termsRes.ok) {
+        const data = await termsRes.json().catch(() => null);
+        setError(data?.detail || 'Could not record your Terms and Conditions acceptance. Please try again.');
+        return;
+      }
+
+      toast.success('Acceptance recorded', { description: 'Thank you. Redirecting to your dashboard...' });
       await refreshMe();
       const dest = landlordUuid ? `/${landlordUuid}/dashboard` : '/dashboard';
       setTimeout(() => navigate(dest, { replace: true }), 1200);
@@ -49116,11 +50673,11 @@ export default function PrivacyConsentPage() {
                 <ShieldCheck className="h-8 w-8 text-primary" />
               </div>
             </div>
-            <CardTitle className="text-2xl text-center">Privacy Policy Consent Required</CardTitle>
+            <CardTitle className="text-2xl text-center">Consent Required</CardTitle>
             <CardDescription className="text-center">
               {policy
-                ? `Version ${policy.version} — Effective ${policy.effectiveDate}`
-                : 'Your account cannot be used until you accept the current Privacy Policy.'}
+                ? `Privacy Policy v${policy.version} — Terms and Conditions v${terms?.version ?? '…'}`
+                : 'Your account cannot be used until you accept the current Privacy Policy and Terms and Conditions.'}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -49133,7 +50690,7 @@ export default function PrivacyConsentPage() {
 
             {!policy && !error && (
               <div className="flex items-center justify-center py-16">
-                <BrandWave label="Loading policy…" />
+                <BrandWave label="Loading documents…" />
               </div>
             )}
 
@@ -49158,8 +50715,8 @@ export default function PrivacyConsentPage() {
                 <form onSubmit={handleAccept} className="space-y-4">
                   <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
                     <Checkbox
-                      checked={agreed}
-                      onCheckedChange={(v) => setAgreed(v === true)}
+                      checked={agreedPrivacy}
+                      onCheckedChange={(v) => setAgreedPrivacy(v === true)}
                       className="mt-0.5"
                     />
                     <span className="text-sm leading-relaxed">
@@ -49167,6 +50724,22 @@ export default function PrivacyConsentPage() {
                       personal data for landlord account creation and rental-property management, and I accept the
                       responsibility and liability provisions in the Policy. I understand that my account cannot be
                       used until I accept this Policy.
+                    </span>
+                  </label>
+
+                  <label className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/50 transition-colors">
+                    <Checkbox
+                      checked={agreedTerms}
+                      onCheckedChange={(v) => setAgreedTerms(v === true)}
+                      className="mt-0.5"
+                    />
+                    <span className="text-sm leading-relaxed">
+                      I have read and agree to the PROPAURA{' '}
+                      <Link to={ROUTES.LANDLORDPAGETERMS} className="text-primary underline underline-offset-2">
+                        Terms and Conditions
+                      </Link>
+                      , including the liability limitations in the Terms. I understand that my account cannot be
+                      used until I accept these Terms.
                     </span>
                   </label>
 
@@ -49189,6 +50762,7 @@ export default function PrivacyConsentPage() {
     </>
   );
 }
+
 ```
 
 ### `frontend/landlord-app/src/pages/PrivacyPolicyPage.tsx`
@@ -52741,6 +54315,98 @@ function TenantForm({
 }
 ```
 
+### `frontend/landlord-app/src/pages/TermsConditionsPage.tsx`
+
+```typescript
+import { useEffect, useState } from 'react';
+import { useNavigate, Link } from 'react-router';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { ROUTES } from '@/lib/routes';
+import MarkdownView from '@/components/privacy/MarkdownView';
+import { BrandWave } from '@shared/loading/BrandWave';
+
+interface TermsInfo {
+  version: string;
+  effectiveDate: string;
+  url: string;
+  content: string;
+}
+
+export default function TermsConditionsPage() {
+  const navigate = useNavigate();
+  const [terms, setTerms] = useState<TermsInfo | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    fetch(ROUTES.LANDLORDAPITERMS)
+      .then((res) => res.json())
+      .then((data) => {
+        if (active && data?.content) setTerms(data);
+        else if (active) setError('Terms and Conditions content is unavailable right now.');
+      })
+      .catch(() => active && setError('Unable to load the Terms and Conditions. Please try again.'));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 py-8 px-4">
+      <div className="max-w-3xl mx-auto">
+        <Card className="shadow-xl">
+          <CardHeader className="space-y-1">
+            <div className="flex items-center justify-center mb-4">
+              <div className="p-3 bg-primary/10 rounded-full">
+                <FileText className="h-8 w-8 text-primary" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl text-center">PROPAURA Terms and Conditions</CardTitle>
+            <CardDescription className="text-center">
+              {terms
+                ? `Version ${terms.version} — Effective ${terms.effectiveDate}`
+                : 'Landlord Account Creation'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {error && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {!terms && !error && (
+              <div className="flex items-center justify-center py-16">
+                <BrandWave label="Loading terms…" />
+              </div>
+            )}
+
+            {terms?.content && <MarkdownView content={terms.content} />}
+
+            <div className="mt-8 pt-6 border-t flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <ShieldCheck className="h-4 w-4 text-green-600" />
+                Issued in compliance with the Digital Personal Data Protection Act, 2023
+              </div>
+              <div className="flex gap-3">
+                <Button variant="outline" onClick={() => navigate(-1)}>Back</Button>
+                <Link to={ROUTES.LANDLORDPAGESIGNUP}>
+                  <Button>Return to Sign Up</Button>
+                </Link>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+```
+
 ### `frontend/landlord-app/src/services/api.ts`
 
 ```typescript
@@ -53947,6 +55613,7 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   base: '/rent/landlord/',
+  envDir: '../',
   plugins: [react(), tailwindcss()],
   server: {
     port: 3000,
@@ -54578,6 +56245,7 @@ export default function PhoneInputField({
       "dashboard": "/landlord/dashboard",
       "logout": "/landlord/logout",
       "privacyPolicy": "/landlord/privacy-policy",
+      "terms": "/landlord/terms",
       "catchAll": "/landlord/*",
       "setup": "/landlord/setup"
     },
@@ -54595,7 +56263,9 @@ export default function PhoneInputField({
         "me": "/landlord/api/auth/me",
         "changePassword": "/landlord/api/auth/change-password",
         "privacyPolicy": "/landlord/api/privacy-policy",
-        "privacyConsent": "/landlord/api/auth/privacy-consent"
+        "privacyConsent": "/landlord/api/auth/privacy-consent",
+        "terms": "/landlord/api/terms",
+        "termsConsent": "/landlord/api/auth/terms-consent"
       },
       "dashboard": {
         "stats": "/landlord/{landlordUuid}/api/dashboard"
@@ -58824,6 +60494,34 @@ export async function qrLoginByPin(
   return data;
 }
 
+// ── QR Flow: report a wrong qrKey to the platform admin ──
+export async function submitQrFeedback(
+  basePath: string,
+  payload: {
+    message?: string;
+    qr_key: string;
+    diagnostics?: Record<string, unknown>;
+  }
+): Promise<{ status: string; feedback_id?: number; message?: string }> {
+  const apiBase = getApiBaseUrl();
+  const res = await fetch(`${apiBase}${basePath}/api/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      message: payload.message || "",
+      qr_key: payload.qr_key,
+      diagnostics: payload.diagnostics || {},
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.status !== "success") {
+    throw new Error(data.detail || data.message || "Could not submit feedback");
+  }
+  return data;
+}
+
 // ── Portal Flow: login via tenant_username + password (global endpoint) ──
 export async function portalLogin(
   username: string,
@@ -59523,16 +61221,23 @@ export default function PortalLoginPage() {
 ### `frontend/tenant-app/src/pages/QrUnlockPage.tsx`
 
 ```typescript
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router";
-import { Lock, ShieldCheck, Receipt, Users, ArrowRight } from "lucide-react";
+import { Lock, ShieldCheck, Receipt, Users, ArrowRight, AlertTriangle, Send } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import AuthLayout from "@/components/AuthLayout";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
-import { qrLoginByPin } from "@/lib/login-api";
+import { qrLoginByPin, submitQrFeedback } from "@/lib/login-api";
 import type { QrTenantProfile } from "@/types";
 
 interface Props {
@@ -59540,13 +61245,53 @@ interface Props {
   basePath: string;
 }
 
+const MAX_FAILURES_BEFORE_FEEDBACK = 2;
+
+function collectDiagnostics(qrKey: string, attempts: number): Record<string, unknown> {
+  const nav = typeof navigator !== "undefined" ? navigator : ({} as Navigator);
+  const con = (nav as any)?.connection;
+  return {
+    url: typeof window !== "undefined" ? window.location.href : "",
+    pathname: typeof window !== "undefined" ? window.location.pathname : "",
+    qr_key: qrKey,
+    attempts,
+    user_agent: nav.userAgent || "",
+    platform: nav.platform || "",
+    language: nav.language || "",
+    languages: Array.isArray(nav.languages) ? nav.languages : [],
+    screen: typeof window !== "undefined" && window.screen
+      ? { width: window.screen.width, height: window.screen.height }
+      : {},
+    viewport:
+      typeof window !== "undefined"
+        ? { width: window.innerWidth, height: window.innerHeight }
+        : {},
+    online: typeof nav !== "undefined" ? nav.onLine : null,
+    connection: con
+      ? {
+          effectiveType: con.effectiveType ?? null,
+          downlink: con.downlink ?? null,
+          rtt: con.rtt ?? null,
+        }
+      : {},
+  };
+}
+
 export default function QrUnlockPage({ tenant, basePath }: Props) {
   const navigate = useNavigate();
   const [pin, setPin] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [feedbackDone, setFeedbackDone] = useState(false);
+  const [feedbackError, setFeedbackError] = useState("");
+  const consecutiveFailures = useRef(0);
 
   const firstName = tenant.name?.split(" ")[0] || "Tenant";
+
+  const qrKey = new URLSearchParams(window.location.search).get("qr_key") || "";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59555,12 +61300,43 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
     setError("");
     setLoading(true);
     try {
-      await qrLoginByPin(basePath, pin);
+      // Hold the PROPAURA loading animation for at least 5 seconds while the
+      // server validates the QR key — no countdown, just the brand overlay.
+      await Promise.all([
+        qrLoginByPin(basePath, pin),
+        new Promise((resolve) => setTimeout(resolve, 5000)),
+      ]);
       window.location.reload();
     } catch (err: any) {
-      setError(err.message || "Invalid PIN. Please try again.");
+      consecutiveFailures.current += 1;
+      setError(err.message || "wrong qrKey or pin rescan the qr");
       setPin("");
       setLoading(false);
+      if (consecutiveFailures.current >= MAX_FAILURES_BEFORE_FEEDBACK) {
+        consecutiveFailures.current = 0;
+        setFeedbackDone(false);
+        setFeedbackError("");
+        setFeedbackMessage("");
+        setShowFeedback(true);
+      }
+    }
+  };
+
+  const handleSubmitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setFeedbackError("");
+    try {
+      await submitQrFeedback(basePath, {
+        message: feedbackMessage,
+        qr_key: qrKey,
+        diagnostics: collectDiagnostics(qrKey, MAX_FAILURES_BEFORE_FEEDBACK),
+      });
+      setFeedbackDone(true);
+    } catch (err: any) {
+      setFeedbackError(err.message || "Could not submit feedback. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -59655,6 +61431,82 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
       </Card>
       </AuthLayout>
       {loading && <LoadingOverlay label="Unlocking…" />}
+
+      <Dialog open={showFeedback} onOpenChange={(open) => { if (!submitting) setShowFeedback(open); }}>
+        <DialogContent className="max-w-md rounded-3xl">
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6 text-amber-600" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg">This QR key looks invalid</DialogTitle>
+                <DialogDescription className="mt-1 text-sm">
+                  Your QR key did not unlock after several tries. Report it to the
+                  admin so they can issue a fix.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {feedbackDone ? (
+            <div className="space-y-4">
+              <Alert className="rounded-xl">
+                <AlertDescription>
+                  Feedback submitted. The admin will review and fix your QR link. Please try again later.
+                </AlertDescription>
+              </Alert>
+              <Button
+                className="w-full h-11 rounded-2xl"
+                onClick={() => setShowFeedback(false)}
+              >
+                Close
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmitFeedback} className="space-y-4">
+              <label className="block">
+                <span className="text-sm font-semibold block mb-2">
+                  Anything we should know? (optional)
+                </span>
+                <textarea
+                  value={feedbackMessage}
+                  onChange={(e) => setFeedbackMessage(e.target.value.slice(0, 2000))}
+                  placeholder="e.g. My QR stopped working after the update…"
+                  rows={3}
+                  className="w-full rounded-2xl border bg-muted/30 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary resize-none"
+                />
+              </label>
+
+              {feedbackError && (
+                <Alert variant="destructive" className="rounded-xl">
+                  <AlertDescription>{feedbackError}</AlertDescription>
+                </Alert>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={submitting}
+                  className="h-11 rounded-2xl flex-1"
+                  onClick={() => setShowFeedback(false)}
+                >
+                  Not now
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="h-11 rounded-2xl flex-1 gap-2"
+                >
+                  <Send className="w-4 h-4" />
+                  {submitting ? "Sending…" : "Report to Admin"}
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

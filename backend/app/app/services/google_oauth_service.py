@@ -10,12 +10,13 @@ from app.authentication.landlord.cookies import set_landlord_auth_cookies
 from app.authentication.landlord.jwt import create_access_token
 from app.authentication.landlord.sessions import create_landlord_session
 from app.core.db import get_conn
-from app.core.privacy import PRIVACY_POLICY_VERSION
+from app.core.privacy import PRIVACY_POLICY_VERSION, TERMS_CONDITIONS_VERSION
 from app.database.landlord_repository import (
     create_landlord,
     create_landlord_audit_log,
     get_landlord_by_email,
     record_privacy_consent,
+    record_terms_consent,
 )
 
 GOOGLE_CLIENT_ID: str | None = None
@@ -84,6 +85,7 @@ def google_login(credential: str, remember_me: bool, request, response):
             password_hash=placeholder_hash,
             landlord_uuid=landlord_uuid,
             privacy_consented=1,
+            terms_consented=1,
         )
 
         with get_conn() as conn:
@@ -103,7 +105,7 @@ def google_login(credential: str, remember_me: bool, request, response):
             meta_json=json.dumps({"google_sub": google_sub, "email": email}),
         )
 
-    # ── Privacy Policy acceptance ──
+    # ── Privacy Policy + Terms and Conditions acceptance ──
     # Accepting via the Google button is an explicit affirmative action in the
     # signup/sign-in flow. Record consent for brand-new accounts and heal any
     # existing account that is still in a consent-pending state.
@@ -122,6 +124,23 @@ def google_login(credential: str, remember_me: bool, request, response):
             ip_address=consent_ip,
             meta_json=json.dumps({
                 "version": PRIVACY_POLICY_VERSION,
+                "user_agent": consent_ua,
+                "source": "google_signup" if created_new else "google_signin",
+            }),
+        )
+    if created_new or not landlord["terms_consented"]:
+        record_terms_consent(
+            landlord["id"],
+            terms_version=TERMS_CONDITIONS_VERSION,
+            ip_address=consent_ip,
+            user_agent=consent_ua,
+        )
+        create_landlord_audit_log(
+            landlord["id"],
+            "terms_conditions_accepted",
+            ip_address=consent_ip,
+            meta_json=json.dumps({
+                "version": TERMS_CONDITIONS_VERSION,
                 "user_agent": consent_ua,
                 "source": "google_signup" if created_new else "google_signin",
             }),

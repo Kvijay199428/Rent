@@ -5,6 +5,7 @@ import { defineConfig } from "vite"
 
 export default defineConfig({
   base: '/rent/landlord/',
+  envDir: '../',
   plugins: [react(), tailwindcss()],
   server: {
     port: 3000,

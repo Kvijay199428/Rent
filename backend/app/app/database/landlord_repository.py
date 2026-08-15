@@ -63,6 +63,11 @@ def create_landlord(
     privacy_accepted_at: str | None = None,
     privacy_accepted_ip: str | None = None,
     privacy_accepted_user_agent: str | None = None,
+    terms_consented: int = 1,
+    terms_version: str | None = None,
+    terms_accepted_at: str | None = None,
+    terms_accepted_ip: str | None = None,
+    terms_accepted_user_agent: str | None = None,
 ):
     """
     Insert a new landlord account and return the created row.
@@ -77,15 +82,19 @@ def create_landlord(
                 landlord_uuid, full_name, email, phone, username,
                 password_hash, status, created_at, updated_at,
                 privacy_consented, privacy_version, privacy_accepted_at,
-                privacy_accepted_ip, privacy_accepted_user_agent
+                privacy_accepted_ip, privacy_accepted_user_agent,
+                terms_consented, terms_version, terms_accepted_at,
+                terms_accepted_ip, terms_accepted_user_agent
             ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?,
-                      ?, ?, ?, ?, ?)
+                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 landlord_uuid, full_name, email, phone, username, password_hash,
                 now, now,
                 privacy_consented, privacy_version, privacy_accepted_at,
                 privacy_accepted_ip, privacy_accepted_user_agent,
+                terms_consented, terms_version, terms_accepted_at,
+                terms_accepted_ip, terms_accepted_user_agent,
             ),
         )
         conn.commit()
@@ -125,6 +134,40 @@ def record_privacy_consent(
                (landlord_id, privacy_version, accepted, accepted_at, accepted_ip, accepted_user_agent)
                VALUES (?, ?, 1, ?, ?, ?)""",
             (landlord_id, privacy_version, now, ip_address, user_agent),
+        )
+        conn.commit()
+
+
+def record_terms_consent(
+    landlord_id: int,
+    terms_version: str,
+    ip_address: str | None = None,
+    user_agent: str | None = None,
+):
+    """
+    Mark a landlord as having accepted the current Terms and Conditions.
+
+    Updates landlord_accounts terms fields and appends a row to
+    landlord_terms_consents so acceptance is auditable.
+    """
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE landlord_accounts
+               SET terms_consented = 1,
+                   terms_version = ?,
+                   terms_accepted_at = ?,
+                   terms_accepted_ip = ?,
+                   terms_accepted_user_agent = ?,
+                   updated_at = ?
+               WHERE id = ?""",
+            (terms_version, now, ip_address, user_agent, now, landlord_id),
+        )
+        conn.execute(
+            """INSERT INTO landlord_terms_consents
+               (landlord_id, terms_version, accepted, accepted_at, accepted_ip, accepted_user_agent)
+               VALUES (?, ?, 1, ?, ?, ?)""",
+            (landlord_id, terms_version, now, ip_address, user_agent),
         )
         conn.commit()
 

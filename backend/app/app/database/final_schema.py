@@ -298,7 +298,35 @@ def init_production_db():
     """)
 
     # ============================================================
-    # 11. PERFORMANCE INDEXES
+    # 11. TENANT QR FEEDBACK (wrong qrKey reports to platform admin)
+    # ============================================================
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS tenant_qr_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tenant_id INTEGER,
+        landlord_id INTEGER,
+        property_id INTEGER,
+        tenant_name TEXT,
+        view_token TEXT,
+        qr_key TEXT,
+        message TEXT,
+        diagnostics_json TEXT,
+        failed_attempts INTEGER NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'open',
+        admin_reply TEXT,
+        resolved_at TEXT,
+        resolved_by INTEGER,
+        created_at TEXT NOT NULL,
+        ip_address TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_status
+        ON tenant_qr_feedback(status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_landlord
+        ON tenant_qr_feedback(landlord_id);
+    """)
+
+    # ============================================================
+    # 12. PERFORMANCE INDEXES
     # ============================================================
     conn.executescript("""
     CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant);

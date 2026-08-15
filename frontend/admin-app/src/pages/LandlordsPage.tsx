@@ -20,6 +20,9 @@ interface Landlord {
   privacy_consented: boolean;
   privacy_version: string | null;
   privacy_accepted_at: string | null;
+  terms_consented: boolean;
+  terms_version: string | null;
+  terms_accepted_at: string | null;
   tenant_count: number;
   receipt_count: number;
   kyc_count: number;
@@ -176,7 +179,7 @@ export default function LandlordsPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
               <thead>
                 <tr style={{ background: "#f9fafb" }}>
-                  {["ID", "Name", "Username", "Status", "Privacy", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
+                  {["ID", "Name", "Username", "Status", "Privacy", "Terms", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
                     <th key={h} style={{ padding: "12px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb", fontSize: 13, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
                 </tr>
@@ -220,6 +223,27 @@ export default function LandlordsPage() {
                         <span
                           style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#fef3c7", color: "#92400e", cursor: "help" }}
                           title="Privacy Policy not yet accepted"
+                        >
+                          Pending
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: "12px 12px" }}>
+                      {l.terms_consented ? (
+                        <span
+                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#dcfce7", color: "#16a34a", cursor: "help" }}
+                          title={[
+                            "Terms and Conditions accepted",
+                            l.terms_version ? `Version ${l.terms_version}` : null,
+                            l.terms_accepted_at ? `Accepted ${new Date(l.terms_accepted_at).toLocaleString()}` : null,
+                          ].filter(Boolean).join(" · ")}
+                        >
+                          Accepted
+                        </span>
+                      ) : (
+                        <span
+                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#fef3c7", color: "#92400e", cursor: "help" }}
+                          title="Terms and Conditions not yet accepted"
                         >
                           Pending
                         </span>

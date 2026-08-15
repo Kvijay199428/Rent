@@ -9,6 +9,7 @@ import LandlordDetailPage from "./pages/LandlordDetailPage";
 import DataExplorerPage from "./pages/DataExplorerPage";
 import SettingsPage from "./pages/SettingsPage";
 import AuditLogsPage from "./pages/AuditLogsPage";
+import FeedbackInboxPage from "./pages/FeedbackInboxPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const { admin, loading } = useAuth();
@@ -28,6 +29,7 @@ function AppRoutes() {
       <Route path="/landlords" element={<RequireAuth><LandlordsPage /></RequireAuth>} />
       <Route path="/landlords/:id" element={<RequireAuth><LandlordDetailPage /></RequireAuth>} />
       <Route path="/explorer" element={<RequireAuth><DataExplorerPage /></RequireAuth>} />
+      <Route path="/feedback" element={<RequireAuth><FeedbackInboxPage /></RequireAuth>} />
       <Route path="/audit-logs" element={<RequireAuth><AuditLogsPage /></RequireAuth>} />
       <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

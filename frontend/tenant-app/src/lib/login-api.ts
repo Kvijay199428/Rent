@@ -36,6 +36,34 @@ export async function qrLoginByPin(
   return data;
 }
 
+// ── QR Flow: report a wrong qrKey to the platform admin ──
+export async function submitQrFeedback(
+  basePath: string,
+  payload: {
+    message?: string;
+    qr_key: string;
+    diagnostics?: Record<string, unknown>;
+  }
+): Promise<{ status: string; feedback_id?: number; message?: string }> {
+  const apiBase = getApiBaseUrl();
+  const res = await fetch(`${apiBase}${basePath}/api/feedback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      message: payload.message || "",
+      qr_key: payload.qr_key,
+      diagnostics: payload.diagnostics || {},
+    }),
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.status !== "success") {
+    throw new Error(data.detail || data.message || "Could not submit feedback");
+  }
+  return data;
+}
+
 // ── Portal Flow: login via tenant_username + password (global endpoint) ──
 export async function portalLogin(
   username: string,

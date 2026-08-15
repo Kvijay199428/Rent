@@ -924,6 +924,7 @@ async def list_landlords(
             la.failed_attempts, la.locked_until,
             la.requires_password_change,
             la.privacy_consented, la.privacy_version, la.privacy_accepted_at,
+            la.terms_consented, la.terms_version, la.terms_accepted_at,
             (SELECT COUNT(*) FROM tenants WHERE landlord_id = la.id) as tenant_count,
             (SELECT COUNT(*) FROM receipts WHERE landlord_id = la.id) as receipt_count,
             (SELECT COUNT(*) FROM occupants WHERE landlord_id = la.id) as kyc_count
@@ -1789,6 +1790,142 @@ async def trigger_audit_cleanup(request: Request):
     days = config.get("system.security.audit_log_retention_days", 30)
     removed = cleanup_old_audit_logs(days)
     return {"status": "success", "removed": removed, "retention_days": days}
+
+
+# ─── Tenant QR Feedback inbox ─────────────────────────────────────────────
+
+@router.get("/api/feedback")
+async def list_feedback(
+    request: Request,
+    status: str | None = None,
+    search: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+):
+    _get_platform_admin(request)
+    query = "SELECT * FROM tenant_qr_feedback WHERE 1=1"
+    params: list = []
+    if status in ("open", "resolved"):
+        query += " AND status = ?"
+        params.append(status)
+    if search:
+        query += " AND (tenant_name LIKE ? OR message LIKE ? OR qr_key LIKE ?)"
+        params.extend([f"%{search}%"] * 3)
+
+    count_query = "SELECT COUNT(*) FROM (" + query + ")"
+    with get_conn() as conn:
+        total = conn.execute(count_query, tuple(params)).fetchone()[0]
+
+    query += " ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+    with get_conn() as conn:
+        rows = conn.execute(query, tuple(params)).fetchall()
+
+    items = []
+    for r in rows:
+        diag = {}
+        if r["diagnostics_json"]:
+            try:
+                diag = json.loads(r["diagnostics_json"])
+            except Exception:
+                pass
+        items.append({
+            "id": r["id"],
+            "tenant_id": r["tenant_id"],
+            "landlord_id": r["landlord_id"],
+            "property_id": r["property_id"],
+            "tenant_name": r["tenant_name"],
+            "view_token": r["view_token"],
+            "qr_key": r["qr_key"],
+            "message": r["message"],
+            "diagnostics": diag,
+            "failed_attempts": r["failed_attempts"],
+            "status": r["status"],
+            "admin_reply": r["admin_reply"],
+            "created_at": r["created_at"],
+            "resolved_at": r["resolved_at"],
+            "ip_address": r["ip_address"],
+        })
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/api/feedback/unread-count")
+async def feedback_unread_count(request: Request):
+    _get_platform_admin(request)
+    with get_conn() as conn:
+        total = conn.execute(
+            "SELECT COUNT(*) FROM tenant_qr_feedback WHERE status = 'open'"
+        ).fetchone()[0]
+    return {"unread": total}
+
+
+class FeedbackReplyRequest(BaseModel):
+    admin_reply: str
+
+
+@router.post("/api/feedback/{feedback_id}/reply")
+async def reply_feedback(request: Request, feedback_id: int, body: FeedbackReplyRequest):
+    admin = _get_platform_admin(request)
+    if not body.admin_reply or not body.admin_reply.strip():
+        raise HTTPException(status_code=400, detail="Reply cannot be empty")
+    if len(body.admin_reply) > 5000:
+        raise HTTPException(status_code=400, detail="Reply too long")
+
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, status FROM tenant_qr_feedback WHERE id = ?", (feedback_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Feedback not found")
+        conn.execute(
+            """
+            UPDATE tenant_qr_feedback
+            SET admin_reply = ?, status = 'resolved', resolved_at = ?, resolved_by = ?
+            WHERE id = ?
+            """,
+            (body.admin_reply.strip(), now, admin["id"], feedback_id),
+        )
+        conn.commit()
+
+    create_platform_admin_audit_log(
+        admin_id=admin["id"],
+        action="tenant_qr_feedback_replied",
+        target_type="feedback",
+        target_id=feedback_id,
+        meta={"note": f"Replied to QR feedback #{feedback_id}"},
+    )
+    return {"status": "success", "message": "Reply saved."}
+
+
+@router.post("/api/feedback/{feedback_id}/resolve")
+async def resolve_feedback(request: Request, feedback_id: int):
+    admin = _get_platform_admin(request)
+    now = datetime.utcnow().isoformat()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM tenant_qr_feedback WHERE id = ?", (feedback_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Feedback not found")
+        conn.execute(
+            """
+            UPDATE tenant_qr_feedback
+            SET status = 'resolved', resolved_at = ?, resolved_by = ?
+            WHERE id = ?
+            """,
+            (now, admin["id"], feedback_id),
+        )
+        conn.commit()
+
+    create_platform_admin_audit_log(
+        admin_id=admin["id"],
+        action="tenant_qr_feedback_resolved",
+        target_type="feedback",
+        target_id=feedback_id,
+        meta={"note": f"Resolved QR feedback #{feedback_id}"},
+    )
+    return {"status": "success", "message": "Feedback marked resolved."}
 
 
 # ─── Audit Settings ─────────────────────────────────────────────────────────

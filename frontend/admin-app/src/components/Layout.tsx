@@ -1,9 +1,12 @@
 import { Link, useLocation, useNavigate } from "react-router";
+import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { API_BASE } from "../lib/runtime";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
   { to: "/landlords", label: "Landlords", icon: "🏠" },
+  { to: "/feedback", label: "Feedback", icon: "📬" },
   { to: "/explorer", label: "Data Explorer", icon: "🔍" },
   { to: "/audit-logs", label: "Audit Logs", icon: "📋" },
   { to: "/settings",  label: "Settings",  icon: "⚙️"  },
@@ -13,6 +16,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { admin, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [unread, setUnread] = useState(0);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/feedback/unread-count`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setUnread(data?.unread ?? 0))
+      .catch(() => {});
+  }, [location.pathname]);
 
   async function handleLogout() {
     await logout();
@@ -41,6 +52,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             const active = to === "/landlords"
               ? location.pathname.startsWith("/landlords")
               : location.pathname.startsWith(to);
+            const showBadge = to === "/feedback" && unread > 0;
             return (
               <Link
                 key={to}
@@ -55,7 +67,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 }}
               >
                 <span>{icon}</span>
-                {label}
+                <span style={{ flex: 1 }}>{label}</span>
+                {showBadge && (
+                  <span style={{
+                    background: "#ef4444", color: "#fff", borderRadius: 9999,
+                    fontSize: 11, fontWeight: 700, minWidth: 18, height: 18,
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    padding: "0 5px",
+                  }}>
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
               </Link>
             );
           })}

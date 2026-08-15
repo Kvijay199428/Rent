@@ -19,25 +19,27 @@ import LandlordLoginPage from './pages/LandlordLoginPage';
 import LandlordSignupPage from './pages/LandlordSignupPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import PrivacyConsentPage from './pages/PrivacyConsentPage';
+import TermsConditionsPage from './pages/TermsConditionsPage';
 import Login from './pages/Login';
 import AdminSetupPage from './pages/AdminSetupPage';
 import SetupPage from './pages/SetupPage';
 import { APP_BASE } from './lib/runtime';
 
 function RequirePrivacyConsent({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, privacyConsented } = useAuth();
-  if (isAuthenticated && privacyConsented === false) {
+  const { isAuthenticated, privacyConsented, termsConsented } = useAuth();
+  if (isAuthenticated && (privacyConsented === false || termsConsented === false)) {
     return <Navigate to="/privacy-consent" replace />;
   }
   return <>{children}</>;
 }
 
 function RequireSetup({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, privacyConsented, setupCompleted, setupSkipped } = useAuth();
+  const { isAuthenticated, isLoading, privacyConsented, termsConsented, setupCompleted, setupSkipped } = useAuth();
   if (
     isAuthenticated &&
     !isLoading &&
     privacyConsented !== false &&
+    termsConsented !== false &&
     !setupCompleted &&
     !setupSkipped
   ) {
@@ -60,6 +62,7 @@ function App() {
             <Route path="/change-password" element={<ChangePasswordPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
             <Route path="/privacy-consent" element={<PrivacyConsentPage />} />
+            <Route path="/terms" element={<TermsConditionsPage />} />
             <Route path="/admin/login" element={<Login />} />
             <Route path="/admin/setup" element={<AdminSetupPage />} />
             
