@@ -40,7 +40,7 @@ EXCLUDE_DIRS = {
 TARGETS = {
     "sshLocal": {
         "host": "192.168.1.50",
-        "port": 22,
+        "port": 22009,
         "user": "vega",
         "password": "1010",
         "label": "LAN (same Wi-Fi as the server)",
