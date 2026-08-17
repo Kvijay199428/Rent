@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 type Tab = "tenants" | "receipts" | "kyc";
 
@@ -191,7 +191,7 @@ export default function DataExplorerPage() {
 
   // Fetch landlords for dropdown
   useEffect(() => {
-    fetch(`${API_BASE}/landlords?limit=1000`, { credentials: "include" })
+    fetchApi("/landlords?limit=1000")
       .then((r) => r.json())
       .then((data) => setLandlords(Array.isArray(data) ? data : []))
       .catch(() => {});
@@ -214,7 +214,7 @@ export default function DataExplorerPage() {
     params.set("limit", "20");
     params.set("offset", String(data.offset));
     try {
-      const res = await fetch(`${API_BASE}/preview/${tab}?${params}`, { credentials: "include" });
+      const res = await fetchApi(`/preview/${tab}?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json());
     } catch {
@@ -231,7 +231,7 @@ export default function DataExplorerPage() {
     setAuthLoading(true);
     setAuthModal(null);
     try {
-      const res = await fetch(`${API_BASE}/preview/tenants/${tenantId}/auth`, { credentials: "include" });
+      const res = await fetchApi(`/preview/tenants/${tenantId}/auth`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setAuthModal(await res.json());
     } catch {

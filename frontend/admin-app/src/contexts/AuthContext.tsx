@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { API_BASE } from "../lib/runtime";
 import { useAuthSync } from "../hooks/useAuthSync";
+import { onAuthExpired } from "../api/client";
 
 interface Admin {
   id: number;
@@ -48,11 +49,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pendingCreds = useRef<{ username: string; password: string; rememberMe: boolean } | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/auth/me`, { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) setAdmin(data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const loadMe = async (): Promise<boolean> => {
+      const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      if (res.ok) {
+        setAdmin(await res.json());
+        return true;
+      }
+      if (res.status === 401) {
+        // Access token expired — try a silent refresh, then re-check.
+        const refreshed = await fetch(`${API_BASE}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+        }).then((r) => r.ok).catch(() => false);
+        if (refreshed) {
+          const retry = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+          if (retry.ok) {
+            setAdmin(await retry.json());
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    loadMe().finally(() => setLoading(false));
+  }, []);
+
+  // If any authenticated call hits a session that can't be refreshed
+  // (e.g. the access token expired and the refresh session is gone), clear
+  // admin state so the router bounces back to /login.
+  useEffect(() => {
+    return onAuthExpired(() => {
+      setAdmin(null);
+      pendingCreds.current = null;
+    });
   }, []);
 
   const login = useCallback(async (username: string, password: string, rememberMe = false): Promise<TOTPResult> => {
@@ -154,10 +184,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshMe = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      let res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      if (!res.ok && res.status === 401) {
+        // Access token expired — refresh once, then re-check identity.
+        const refreshed = await fetch(`${API_BASE}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+        }).then((r) => r.ok).catch(() => false);
+        if (!refreshed) {
+          setAdmin(null);
+          return;
+        }
+        res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      }
       if (res.ok) {
-        const data = await res.json();
-        setAdmin(data);
+        setAdmin(await res.json());
+      } else if (res.status === 401) {
+        setAdmin(null);
       }
     } catch {
       // Ignore — non-critical

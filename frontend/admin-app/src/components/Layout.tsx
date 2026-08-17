@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -19,7 +19,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    fetch(`${API_BASE}/feedback/unread-count`, { credentials: "include" })
+    fetchApi("/feedback/unread-count")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setUnread(data?.unread ?? 0))
       .catch(() => {});

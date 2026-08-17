@@ -628,7 +628,7 @@ async def platform_refresh(request: Request, response: Response):
         new_session_id, new_access_token = _create_session_token(session["admin_id"])
         new_refresh_token = _make_refresh_token()
         new_refresh_hash = hash_pin(new_refresh_token)
-        remember_me = bool(session.get("remember_me", 0))
+        remember_me = bool(session["remember_me"] or 0)
         expiry = "+180 days" if remember_me else "+30 days"
 
         conn.execute(

@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/services/api';
 import { ROUTES } from '@/lib/routes';
+import { silentRefresh } from '@/lib/auth';
 import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -162,11 +163,18 @@ export default function Settings() {
     if (!signatureFile) return;
     const form = new FormData();
     form.append("file", signatureFile);
-    const res = await fetch(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid!), {
-      method: "POST",
-      credentials: "include",
-      body: form,
-    });
+    const doUpload = () =>
+      fetch(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid!), {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+    let res = await doUpload();
+    if (res.status === 401) {
+      const result = await silentRefresh();
+      if (result.status === "ok") res = await doUpload();
+      else if (result.status === "expired") window.location.href = ROUTES.LANDLORDPAGELOGIN;
+    }
     if (!res.ok) throw new Error("Signature upload failed");
   }
 

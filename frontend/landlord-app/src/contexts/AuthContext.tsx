@@ -8,6 +8,7 @@ import {
 } from "react";
 import { ROUTES } from "@/lib/routes";
 import { extractLandlordUuid } from "@/lib/runtime";
+import { silentRefresh } from "@/lib/auth";
 import { apiPost } from "@/hooks/useApi";
 import { useAuthSync } from "@/hooks/useAuthSync";
 
@@ -76,39 +77,92 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSetupSkipped(skipped);
   }, []);
 
-  const refreshMe = useCallback(async () => {
-    try {
-      const response = await fetch(ROUTES.LANDLORDAPIAUTHME, { credentials: "include" });
-      if (!response.ok) throw new Error("Not authenticated");
-      const data = await response.json();
-      const uuid = data?.landlord?.landlordUuid ?? null;
-      setIsAuthenticated(true);
-      setLandlordUuid(uuid);
-      setUsername(data?.landlord?.username ?? null);
-      setFullName(data?.landlord?.fullName ?? null);
-      setHasTotp(data?.landlord?.hasTotp ?? false);
-      setTotpEnabled(data?.landlord?.totpEnabled ?? false);
-      setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
-      setPrivacyConsented(data?.landlord?.privacyConsented ?? true);
-      setTermsConsented(data?.landlord?.termsConsented ?? true);
-      setSetupCompleted(data?.landlord?.setupCompleted ?? false);
-      setSetupSkipped(data?.landlord?.setupSkipped ?? false);
-      if (uuid) localStorage.setItem("landlordUuid", uuid);
-    } catch {
-      setIsAuthenticated(false);
-      setLandlordUuid(null);
-      setUsername(null);
-      setFullName(null);
-      setHasTotp(false);
-      setTotpEnabled(false);
-      setRequiresPasswordChange(false);
-      setPrivacyConsented(null);
-      setTermsConsented(null);
-      setSetupCompleted(false);
-      setSetupSkipped(false);
-      localStorage.removeItem("landlordUuid");
-    }
+  const applyMeData = useCallback((data: any) => {
+    const uuid = data?.landlord?.landlordUuid ?? null;
+    setIsAuthenticated(true);
+    setLandlordUuid(uuid);
+    setUsername(data?.landlord?.username ?? null);
+    setFullName(data?.landlord?.fullName ?? null);
+    setHasTotp(data?.landlord?.hasTotp ?? false);
+    setTotpEnabled(data?.landlord?.totpEnabled ?? false);
+    setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
+    setPrivacyConsented(data?.landlord?.privacyConsented ?? true);
+    setTermsConsented(data?.landlord?.termsConsented ?? true);
+    setSetupCompleted(data?.landlord?.setupCompleted ?? false);
+    setSetupSkipped(data?.landlord?.setupSkipped ?? false);
+    if (uuid) localStorage.setItem("landlordUuid", uuid);
   }, []);
+
+  const clearAuthState = useCallback(() => {
+    setIsAuthenticated(false);
+    setLandlordUuid(null);
+    setUsername(null);
+    setFullName(null);
+    setHasTotp(false);
+    setTotpEnabled(false);
+    setRequiresPasswordChange(false);
+    setPrivacyConsented(null);
+    setTermsConsented(null);
+    setSetupCompleted(false);
+    setSetupSkipped(false);
+    localStorage.removeItem("landlordUuid");
+  }, []);
+
+  const refreshMe = useCallback(async () => {
+    let response: Response;
+    try {
+      response = await fetch(ROUTES.LANDLORDAPIAUTHME, { credentials: "include" });
+    } catch {
+      // Transient network error — keep the current session; the 60s poll retries.
+      return;
+    }
+
+    if (response.ok) {
+      applyMeData(await response.json().catch(() => null));
+      return;
+    }
+
+    // Access token expired (or the check raced a refresh elsewhere): try a
+    // silent token refresh once, then re-check identity.
+    if (response.status === 401) {
+      const result = await silentRefresh();
+      if (result.status === "ok") {
+        try {
+          const retry = await fetch(ROUTES.LANDLORDAPIAUTHME, {
+            credentials: "include",
+          });
+          if (retry.ok) {
+            applyMeData(await retry.json().catch(() => null));
+            return;
+          }
+          if (retry.status === 401 || retry.status === 303) {
+            // Refresh succeeded but the identity check still fails — the
+            // session is genuinely gone; log out.
+            clearAuthState();
+          }
+        } catch {
+          // Transient network error after a successful refresh — keep session.
+          return;
+        }
+      } else if (result.status === "unreachable") {
+        // Backend unreachable — do NOT log the user out on a network blip.
+        return;
+      } else {
+        // Refresh definitively rejected: session expired or revoked.
+        clearAuthState();
+      }
+      return;
+    }
+
+    if (response.status === 303) {
+      // Session invalid (e.g. revoked) — log out.
+      clearAuthState();
+      return;
+    }
+
+    // Any other non-OK /me response (transient 404/500, proxy interstitial,
+    // etc.) is not an auth failure — keep the session; the 60s poll retries.
+  }, [applyMeData, clearAuthState]);
 
   useEffect(() => {
     // Pre-seed UUID from URL or localStorage before /api/auth/me responds

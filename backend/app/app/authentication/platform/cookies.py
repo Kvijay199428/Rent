@@ -34,7 +34,7 @@ def set_platform_auth_cookies(
         value=refresh_token,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="none",
         path=cookie_path,
         max_age=max_age_refresh,
     )
@@ -58,7 +58,7 @@ def clear_platform_auth_cookies(
         path=cookie_path,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="none",
     )
 
 

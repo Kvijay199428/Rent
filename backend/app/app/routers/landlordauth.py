@@ -573,7 +573,7 @@ async def landlord_refresh(request: Request, response: Response):
     revoke_landlord_session_db(session_id)
 
     landlord_id = session["landlord_id"]
-    remember_me = bool(session.get("remember_me", 0))
+    remember_me = bool(session["remember_me"] or 0)
 
     new_session_id, new_refresh_token = create_landlord_session(
         landlord_id, request, remember_me=remember_me

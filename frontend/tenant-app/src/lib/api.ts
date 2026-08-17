@@ -11,12 +11,52 @@ const http = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// Single-flight silent refresh: the backend rotates the refresh cookie on
+// every successful refresh, so concurrent refreshes would race each other.
+let refreshPromise: Promise<boolean> | null = null;
+
+function refreshAccessToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = axios
+    .post(`${getApiBaseUrl()}${tenantBase}/api/auth/refresh`, undefined, {
+      withCredentials: true,
+    })
+    .then(() => true)
+    .catch(() => false)
+    .finally(() => {
+      refreshPromise = null;
+    });
+  return refreshPromise;
+}
+
+/** Public single-flight refresh for raw fetch() calls (e.g. PDF fetches). */
+export async function silentRefresh(): Promise<boolean> {
+  return refreshAccessToken();
+}
+
+interface RetriableAxiosRequestConfig {
+  _retry?: boolean;
+}
+
 http.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      window.location.reload();
+  async (err) => {
+    const original = err.config as (RetriableAxiosRequestConfig | undefined) &
+      typeof err.config;
+    if (err.response?.status !== 401 || !original || original._retry) {
+      return Promise.reject(err);
     }
+
+    // Access token expired: silently refresh once, then retry the request.
+    // The refresh call uses the bare axios instance so a failed refresh (e.g.
+    // the session itself expired) doesn't loop back through this interceptor.
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      original._retry = true;
+      return http(original);
+    }
+
+    // Session truly expired — surface the 401. The app layer routes to login.
     return Promise.reject(err);
   }
 );

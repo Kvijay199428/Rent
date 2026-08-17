@@ -45,7 +45,6 @@ def _raise_tenant_session_expired(request: Request, detail: str):
         headers={
             "X-Session-Expired": "1",
             "X-Redirect-Url": redirect_url,
-            "X-Clear-Cookies": "tenant",
         },
     )
 

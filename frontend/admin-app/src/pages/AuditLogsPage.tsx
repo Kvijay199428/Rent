@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 const ACTION_COLORS: Record<string, { bg: string; fg: string }> = {
   login_success:       { bg: "#dcfce7", fg: "#16a34a" },
@@ -113,7 +113,7 @@ export default function AuditLogsPage() {
       params.set("limit", String(limit));
       params.set("offset", String(offset));
 
-      const res = await fetch(`${API_BASE}/audit-logs?${params}`, { credentials: "include" });
+      const res = await fetchApi(`/audit-logs?${params}`);
       if (!res.ok) throw new Error("Failed to load");
       const data = await res.json();
       setLogs(data.items);
@@ -130,7 +130,7 @@ export default function AuditLogsPage() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (appFilter) params.set("app_source", appFilter);
-    fetch(`${API_BASE}/audit-logs/actions?${params}`, { credentials: "include" })
+    fetchApi(`/audit-logs/actions?${params}`)
       .then((r) => r.ok ? r.json() : [])
       .then((d) => setActionTypes(Array.isArray(d) ? d : []))
       .catch(() => {});
@@ -146,7 +146,7 @@ export default function AuditLogsPage() {
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
 
-      const res = await fetch(`${API_BASE}/audit-logs/export?${params}`, { credentials: "include" });
+      const res = await fetchApi(`/audit-logs/export?${params}`);
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

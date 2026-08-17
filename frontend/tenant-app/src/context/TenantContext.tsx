@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { tenantApi } from "@/lib/api";
+import { tenantApi, silentRefresh } from "@/lib/api";
 import { getTenantRuntime } from "@/lib/tenant-runtime";
 import type { PortalResponse, Receipt, Occupant } from "@/types";
 
@@ -35,11 +35,25 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const { data, isLoading, refetch } = useQuery<PortalResponse>({
     queryKey: ["tenant-profile", viewToken],
     queryFn: async () => {
-      const res = await tenantApi.profile.get();
-      return res.data as PortalResponse;
+      let res = await tenantApi.profile.get();
+      let portal = res.data as PortalResponse;
+      // The profile endpoint reports locked when the access token is
+      // expired even though the refresh cookie is still valid. Try a silent
+      // refresh before surfacing the lock so an active session survives
+      // (reload, window-focus refetch, reconnect). Falls through to locked
+      // when the session is genuinely gone.
+      if (!portal?.tenant?.unlocked) {
+        const refreshed = await silentRefresh();
+        if (refreshed) {
+          res = await tenantApi.profile.get();
+          portal = res.data as PortalResponse;
+        }
+      }
+      return portal;
     },
     enabled: !!viewToken,
     retry: false,
+    placeholderData: (previousData) => previousData,
   });
 
   const isUnlocked = Boolean(data?.tenant?.unlocked);

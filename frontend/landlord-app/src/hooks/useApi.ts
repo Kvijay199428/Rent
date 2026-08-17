@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { encryptPayload } from "../lib/encryption";
 import { ROUTES } from "../lib/routes";
+import { silentRefresh } from "../lib/auth";
 import { getApiUrl } from "@shared/api-config";
 
 export interface ApiResponse<T = any> {
@@ -28,6 +29,29 @@ async function getErrorMessage(res: Response): Promise<string> {
   return data?.detail || data?.message || `HTTP ${res.status}`;
 }
 
+async function fetchWithRefresh(url: string, options: RequestInit = {}): Promise<Response> {
+  const doFetch = (): Promise<Response> =>
+    fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      credentials: "include",
+    });
+
+  const res = await doFetch();
+  if (res.status !== 401) return res;
+
+  // Access token expired: silently refresh once, then retry the request.
+  const result = await silentRefresh();
+  if (result.status === "ok") {
+    const retry = await doFetch();
+    if (retry.status !== 401) return retry;
+  }
+  return res;
+}
+
 export function useApi() {
   const [response, setResponse] = useState<ApiResponse>({ status: "idle" });
 
@@ -35,13 +59,8 @@ export function useApi() {
     setResponse({ status: "loading" });
 
     try {
-      const res = await fetch(buildUrl(endpoint), {
+      const res = await fetchWithRefresh(buildUrl(endpoint), {
         ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(options.headers || {}),
-        },
-        credentials: "include",
       });
 
       const data = await readJsonSafe(res);
@@ -65,9 +84,7 @@ export function useApi() {
 }
 
 export async function apiGet(endpoint: string) {
-  const res = await fetch(buildUrl(endpoint), {
-    credentials: "include",
-  });
+  const res = await fetchWithRefresh(buildUrl(endpoint));
 
   if (!res.ok) {
     throw new Error(await getErrorMessage(res));
@@ -107,13 +124,9 @@ export async function apiPost(endpoint: string, body: any) {
     }
   }
 
-  const res = await fetch(buildUrl(endpoint), {
+  const res = await fetchWithRefresh(buildUrl(endpoint), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(finalBody),
-    credentials: "include",
   });
 
   if (!res.ok) {

@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 interface Landlord {
   id: number;
@@ -59,7 +59,7 @@ export default function LandlordsPage() {
       if (search) params.set("search", search);
       if (statusFilter) params.set("status", statusFilter);
       params.set("limit", "50");
-      const res = await fetch(`${API_BASE}/landlords?${params}`, { credentials: "include" });
+      const res = await fetchApi(`/landlords?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setLandlords(await res.json());
     } catch (e: unknown) {
@@ -74,9 +74,7 @@ export default function LandlordsPage() {
   async function toggleTOTP(l: Landlord) {
     setModal({ type: "totp", landlord: l, loading: true });
     try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/totp-toggle`, {
-        method: "POST", credentials: "include",
-      });
+      const res = await fetchApi(`/landlords/${l.id}/totp-toggle`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? "Failed");
       setModal({ type: "totp", landlord: l, result: data, loading: false });
@@ -89,7 +87,7 @@ export default function LandlordsPage() {
   async function revealPassword(l: Landlord) {
     setModal({ type: "password", landlord: l, loading: true });
     try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/reveal-password`, { credentials: "include" });
+      const res = await fetchApi(`/landlords/${l.id}/reveal-password`);
       const data = await res.json();
       if (!res.ok) {
         // Password not in vault — offer reset
@@ -106,9 +104,7 @@ export default function LandlordsPage() {
     if (!confirm(`Reset password for ${l.username}? The new password will be shown once.`)) return;
     setModal({ type: "reset", landlord: l, loading: true });
     try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/reset-password`, {
-        method: "POST", credentials: "include",
-      });
+      const res = await fetchApi(`/landlords/${l.id}/reset-password`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? "Failed");
       setModal({ type: "reset", landlord: l, result: data, loading: false });
@@ -124,9 +120,7 @@ export default function LandlordsPage() {
     }
     setModal({ type: "reset_whatsapp", landlord: l, loading: true });
     try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/reset-password`, {
-        method: "POST", credentials: "include",
-      });
+      const res = await fetchApi(`/landlords/${l.id}/reset-password`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? "Failed");
       setModal({ type: "reset_whatsapp", landlord: l, result: data, loading: false });

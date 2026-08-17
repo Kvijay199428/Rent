@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 import { useHealthStream } from "../hooks/useHealthStream";
 
 interface Profile {
@@ -54,7 +54,7 @@ export default function SettingsPage() {
   const [tgErr, setTgErr] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/settings/profile`, { credentials: "include" })
+    fetchApi("/settings/profile")
       .then((r) => r.json())
       .then((p) => {
         setProfile(p);
@@ -65,14 +65,14 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/settings/audit`, { credentials: "include" })
+    fetchApi("/settings/audit")
       .then((r) => r.json())
       .then((d) => { if (d.retention_days) setRetentionDays(d.retention_days); })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/settings/telegram/status`, { credentials: "include" })
+    fetchApi("/settings/telegram/status")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d) {
@@ -90,10 +90,8 @@ export default function SettingsPage() {
     setSaveMsg(null);
     setSaveErr(null);
     try {
-      const res = await fetch(`${API_BASE}/settings/profile`, {
+      const res = await fetchApi("/settings/profile", {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, email }),
       });
       if (!res.ok) {
@@ -115,10 +113,8 @@ export default function SettingsPage() {
     setPwMsg(null);
     setPwErr(null);
     try {
-      const res = await fetch(`${API_BASE}/settings/change-password`, {
+      const res = await fetchApi("/settings/change-password", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current_password: currentPw, new_password: newPw, confirm_password: confirmPw }),
       });
       if (!res.ok) {
@@ -152,7 +148,7 @@ export default function SettingsPage() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/auth/totp-qr`, { credentials: "include" });
+      const res = await fetchApi("/auth/totp-qr");
       if (!res.ok) throw new Error("Failed to load QR");
       const data = await res.json();
       if (data.qr_code_base64) { setTotpQr(data.qr_code_base64); setTotpSecret(data.secret ?? null); }
@@ -167,10 +163,8 @@ export default function SettingsPage() {
     setTotpErr(null);
     setTotpSuccess(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/totp-regenerate`, {
+      const res = await fetchApi("/auth/totp-regenerate", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current_password: totpPassword }),
       });
       if (!res.ok) {
@@ -183,7 +177,7 @@ export default function SettingsPage() {
       setShowTotpDialog(false);
       setTotpPassword("");
       // Refresh profile to update has_totp
-      const pRes = await fetch(`${API_BASE}/settings/profile`, { credentials: "include" });
+      const pRes = await fetchApi("/settings/profile");
       if (pRes.ok) {
         const p = await pRes.json();
         setProfile(p);
@@ -201,10 +195,8 @@ export default function SettingsPage() {
     setAuditMsg(null);
     setAuditErr(null);
     try {
-      const res = await fetch(`${API_BASE}/settings/audit`, {
+      const res = await fetchApi("/settings/audit", {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ retention_days: retentionDays }),
       });
       if (!res.ok) {
@@ -224,9 +216,8 @@ export default function SettingsPage() {
     setTgMsg(null);
     setTgErr(null);
     try {
-      const res = await fetch(`${API_BASE}/settings/telegram/${action}`, {
+      const res = await fetchApi(`/settings/telegram/${action}`, {
         method: "POST",
-        credentials: "include",
       });
       const data = await res.json().catch(() => ({ detail: "Operation failed" }));
       if (!res.ok) {

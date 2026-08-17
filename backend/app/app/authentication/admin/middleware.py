@@ -28,7 +28,6 @@ def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized")
         headers={
             "X-Session-Expired": "1",
             "X-Redirect-Url": logout_url,
-            "X-Clear-Cookies": "admin",
         },
     )
 

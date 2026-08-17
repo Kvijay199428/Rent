@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 interface LandlordDetail {
   landlord: Record<string, unknown>;
@@ -54,11 +54,11 @@ export default function LandlordDetailPage() {
   useEffect(() => {
     if (!id) return;
     Promise.all([
-      fetch(`${API_BASE}/landlords/${id}/details`, { credentials: "include" }).then((r) => {
+      fetchApi(`/landlords/${id}/details`).then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       }),
-      fetch(`${API_BASE}/landlords/${id}/creator-info`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
+      fetchApi(`/landlords/${id}/creator-info`).then((r) => r.ok ? r.json() : null),
     ])
       .then(([d, c]) => { setDetail(d); setCreator(c); })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))

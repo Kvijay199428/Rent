@@ -28,27 +28,27 @@
     },
     "api": {
       "setup": {
-        "required": "/admin/api/setup/required",
-        "create": "/admin/api/setup/create"
+        "required": "/admin/api/auth/setup-required",
+        "create": "/admin/api/auth/setup-create"
       },
       "auth": {
         "publicKey": "/admin/api/auth/public-key",
-        "login": "/admin/api/login",
-        "loginTotp": "/admin/api/login/totp",
-        "refresh": "/admin/api/refresh",
-        "logout": "/admin/api/logout/json",
-        "me": "/admin/api/me"
+        "login": "/admin/api/auth/login",
+        "loginTotp": "/admin/api/auth/login-totp",
+        "refresh": "/admin/api/auth/refresh",
+        "logout": "/admin/api/auth/logout",
+        "me": "/admin/api/auth/me"
       },
       "totp": {
-        "qr": "/admin/api/totp/qr",
-        "regenerate": "/admin/api/totp/regenerate"
+        "qr": "/admin/api/auth/totp-qr",
+        "regenerate": "/admin/api/auth/totp-regenerate"
       },
       "password": {
-        "forgotVerify": "/admin/api/forgot-password/verify",
-        "forgotReset": "/admin/api/forgot-password/reset"
+        "forgotVerify": "/admin/api/auth/password/forgot-verify",
+        "forgotReset": "/admin/api/auth/password/forgot-reset"
       },
       "dashboard": {
-        "stats": "/admin/api/dashboard"
+        "stats": "/admin/api/stats"
       },
       "config": {
         "get": "/admin/api/config",
