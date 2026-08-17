@@ -22,8 +22,6 @@ from app.api.tenant_pdf import router as tenant_pdf_api_router
 from app.routers.platform_admin import router as platform_admin_router
 from app.routers.landlordauth import router as landlordauth_router
 
-# Tenant SPA routes (tenant stays in Docker, served through backend)
-from app.pages.spa import router as spa_router
 from app.pages.errors import register_exception_handlers
 
 # Public landing page at /
@@ -101,11 +99,5 @@ def register_all_routers(app: FastAPI):
 
     # 7. WebSocket sync (no auth dependency — channel-based access control)
     app.include_router(sync_ws_router)
-
-    # 8. Tenant SPA routes (tenant stays in Docker — dynamic URL pattern
-    #    /{landlordUuid}/t/{tenantId}/{viewToken} can't be served by Cloudflare Pages)
-    #    Skipped on API-only release backend (frontend container serves the SPA).
-    if serve_frontend():
-        app.include_router(spa_router)
 
     register_exception_handlers(app)

@@ -231,8 +231,9 @@ async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, re
 
     session_id, refresh_token = create_tenant_session(tenant.id, request, remember_me=True)
     access_token = create_access_token(tenant.id, session_id)
-    
-    set_tenant_auth_cookies(response, access_token, refresh_token, True, request)
+
+    cookie_val = f"{session_id}:{refresh_token}"
+    set_tenant_auth_cookies(response, access_token, cookie_val, True, request)
     log_audit(tenant.id, "Login Success", ip)
     
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"

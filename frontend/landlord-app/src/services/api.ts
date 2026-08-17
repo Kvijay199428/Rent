@@ -1,5 +1,6 @@
 import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig } from "@/types";
 import { ROUTES } from "@/lib/routes";
+import { silentRefresh } from "@/lib/auth";
 
 export type ArchiveDataResponse = {
   tenants: Tenant[];
@@ -7,15 +8,50 @@ export type ArchiveDataResponse = {
 };
 
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-  const res = await fetch(url, {
-    ...options,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
+  const doFetch = (): Promise<Response> =>
+    fetch(url, {
+      ...options,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+
+  const res = await doFetch();
   if (res.status === 401 || res.status === 303) {
+    const result = await silentRefresh();
+    if (result.status === "ok") {
+      const retry = await doFetch();
+      if (retry.status !== 401 && retry.status !== 303) return retry;
+    }
+    if (result.status === "unreachable") {
+      // Backend unreachable — keep the session; the request surfaced a network
+      // failure, not an auth failure.
+      throw new Error("Unauthorized");
+    }
+    window.location.href = ROUTES.LANDLORDPAGELOGIN;
+    throw new Error("Unauthorized");
+  }
+  return res;
+}
+
+async function fetchFormWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  // For FormData bodies (occupant/signature uploads) the browser sets the
+  // multipart boundary itself, so we must NOT force Content-Type here.
+  const doFetch = (): Promise<Response> =>
+    fetch(url, { ...options, credentials: "include" });
+
+  const res = await doFetch();
+  if (res.status === 401 || res.status === 303) {
+    const result = await silentRefresh();
+    if (result.status === "ok") {
+      const retry = await doFetch();
+      if (retry.status !== 401 && retry.status !== 303) return retry;
+    }
+    if (result.status === "unreachable") {
+      throw new Error("Unauthorized");
+    }
     window.location.href = ROUTES.LANDLORDPAGELOGIN;
     throw new Error("Unauthorized");
   }
@@ -448,10 +484,9 @@ export const api = {
   },
 
   saveOccupant: async (landlordUuid: string, tenantId: string | number, data: FormData): Promise<{ status: string; occupantUuid: string }> => {
-    const res = await fetch(ROUTES.LANDLORDAPIOCCUPANTSCREATE(landlordUuid, Number(tenantId)), {
+    const res = await fetchFormWithAuth(ROUTES.LANDLORDAPIOCCUPANTSCREATE(landlordUuid, Number(tenantId)), {
       method: "POST",
       body: data,
-      credentials: "include",
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -531,9 +566,8 @@ export const api = {
   uploadSignature: async (landlordUuid: string, file: File): Promise<string> => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid), {
+    const res = await fetchFormWithAuth(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid), {
       method: "POST",
-      credentials: "include",
       body: form,
     });
     const data = await res.json();

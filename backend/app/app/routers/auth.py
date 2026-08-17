@@ -14,21 +14,27 @@ from app.core.routes_manifest_tenant import TenantRoutes, TenantNames
 router = APIRouter(tags=["Authentication"])
 
 
-def _tenant_viewtoken_guard(request: Request, tenantId: int, viewToken: str, propertyId: int):
+def _tenant_viewtoken_guard(request: Request, tenantId: int, viewToken: str, propertyId: int, require_token: bool = True):
     """Resolve the tenant whose viewToken matches, verify the requested
     property, and confirm the JWT-cookie identity binds to it. Raises on any
     mismatch so the URL scoping (property → tenant → viewToken → session)
-    cannot be crossed."""
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Access token missing")
+    cannot be crossed.
 
-    from app.authentication.tenant.jwt import decode_access_token
-    try:
-        payload = decode_access_token(token)
-        cookie_tenant_id = int(payload.get("tenantId") or payload.get("sub"))
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid access token")
+    When ``require_token`` is False the access-token identity binding is
+    skipped for expired/missing tokens; the caller must then bind identity
+    another way (e.g. from the refresh-cookie session). The URL-scoping
+    checks (tenant exists, viewToken and property match) are always enforced.
+    """
+    token = request.cookies.get("access_token")
+    if token:
+        from app.authentication.tenant.jwt import decode_access_token
+        try:
+            payload = decode_access_token(token)
+            cookie_tenant_id = int(payload.get("tenantId") or payload.get("sub"))
+        except Exception:
+            cookie_tenant_id = None
+    else:
+        cookie_tenant_id = None
 
     tenants = load_tenants(include_archived=True)
     tenant = next((t for t in tenants if t.id == tenantId), None)
@@ -38,8 +44,13 @@ def _tenant_viewtoken_guard(request: Request, tenantId: int, viewToken: str, pro
         raise HTTPException(status_code=403, detail="View token mismatch")
     if int(getattr(tenant, "propertyId", 0) or 0) != int(propertyId or 0):
         raise HTTPException(status_code=403, detail="Property mismatch")
-    if cookie_tenant_id != tenantId:
+    if cookie_tenant_id is not None and cookie_tenant_id != tenantId:
         raise HTTPException(status_code=403, detail="Tenant identity mismatch")
+    if require_token and cookie_tenant_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Access token missing or invalid" if not token else "Invalid access token",
+        )
     return tenant
 
 
@@ -53,8 +64,10 @@ async def auth_refresh(
     response: Response = None
 ):
     """Tenant Refresh Token Rotation Flow — now requires viewToken in path"""
-    # Security: Validate URL property/tenant/viewToken matches cookie JWT identity
-    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId)
+    # Security: Validate URL property/tenant/viewToken is self-consistent.
+    # The access token may already be expired here — identity is bound via the
+    # refresh-cookie session below.
+    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId, require_token=False)
     
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -71,6 +84,11 @@ async def auth_refresh(
         revoke_tenant_session_db(session_id)
         clear_tenant_auth_cookies(response, request)
         raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    if int(session["tenantId"] or 0) != tenantId:
+        revoke_tenant_session_db(session_id)
+        clear_tenant_auth_cookies(response, request)
+        raise HTTPException(status_code=403, detail="Tenant identity mismatch")
         
     # Rotate Refresh Token (Invalidate old, issue new)
     revoke_tenant_session_db(session_id) 
@@ -99,8 +117,10 @@ async def auth_logout(
     response: Response = None
 ):
     """Tenant logout — now requires viewToken in path"""
-    # Security: Validate URL property/tenant/viewToken matches cookie JWT identity
-    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId)
+    # Security: Validate URL property/tenant/viewToken is self-consistent.
+    # Allow logout with an expired access token so stale sessions can still be
+    # cleared; revoke the session from either cookie.
+    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId, require_token=False)
     
     token = request.cookies.get("access_token")
     if token:
@@ -111,6 +131,11 @@ async def auth_logout(
             log_audit(int(payload.get("tenantId") or payload.get("sub")), "Logout Success", request.client.host)
         except Exception:
             pass
+    else:
+        refresh_cookie = request.cookies.get("refresh_token")
+        if refresh_cookie and ":" in refresh_cookie:
+            session_id = refresh_cookie.split(":", 1)[0]
+            revoke_tenant_session_db(session_id)
             
     clear_tenant_auth_cookies(response, request)
     return {"status": "success"}

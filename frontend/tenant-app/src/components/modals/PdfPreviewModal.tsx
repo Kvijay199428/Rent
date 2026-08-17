@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { FileText, Download, X } from "lucide-react";
 import { toast } from "sonner";
-import { tenantApi } from "@/lib/api";
+import { tenantApi, silentRefresh } from "@/lib/api";
 import { BrandWave } from "@shared/loading/BrandWave";
 
 interface PdfPreviewModalProps {
@@ -36,10 +36,24 @@ export default function PdfPreviewModal({
     setLoading(true);
     setError("");
 
-    fetch(pdfViewUrl, {
-      method: "GET",
-      credentials: "include",
-    })
+    const fetchPdf = async () => {
+      let res = await fetch(pdfViewUrl, {
+        method: "GET",
+        credentials: "include",
+      });
+      if (res.status === 401) {
+        // Access token expired — refresh once, then retry.
+        if (await silentRefresh()) {
+          res = await fetch(pdfViewUrl, {
+            method: "GET",
+            credentials: "include",
+          });
+        }
+      }
+      return res;
+    };
+
+    fetchPdf()
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load PDF");
         return res.blob();
@@ -61,9 +75,16 @@ export default function PdfPreviewModal({
 
   const handleDownload = async () => {
     try {
-      const res = await fetch(pdfDownloadUrl, {
+      let res = await fetch(pdfDownloadUrl, {
         credentials: "include",
       });
+      if (res.status === 401) {
+        if (await silentRefresh()) {
+          res = await fetch(pdfDownloadUrl, {
+            credentials: "include",
+          });
+        }
+      }
       if (!res.ok) throw new Error("Download failed");
 
       const blob = await res.blob();

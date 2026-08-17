@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 interface Stats {
   total_landlords: number;
@@ -30,7 +30,7 @@ export default function DashboardPage() {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    fetch(`${API_BASE}/stats`, { credentials: "include" })
+    fetchApi("/stats")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -40,7 +40,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/feedback/unread-count`, { credentials: "include" })
+    fetchApi("/feedback/unread-count")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setUnread(data?.unread ?? 0))
       .catch(() => {});

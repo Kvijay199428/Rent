@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 interface FeedbackItem {
   id: number;
@@ -124,7 +124,7 @@ export default function FeedbackInboxPage() {
       params.set("limit", String(limit));
       params.set("offset", String(offset));
 
-      const res = await fetch(`${API_BASE}/feedback?${params}`, { credentials: "include" });
+      const res = await fetchApi(`/feedback?${params}`);
       if (!res.ok) throw new Error("Failed to load");
       const data = await res.json();
       setItems(data.items);
@@ -146,10 +146,8 @@ export default function FeedbackInboxPage() {
     }
     setBusyId(id);
     try {
-      const res = await fetch(`${API_BASE}/feedback/${id}/reply`, {
+      const res = await fetchApi(`/feedback/${id}/reply`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ admin_reply: reply }),
       });
       if (!res.ok) throw new Error("Reply failed");
@@ -166,9 +164,8 @@ export default function FeedbackInboxPage() {
   const handleResolve = async (id: number) => {
     setBusyId(id);
     try {
-      const res = await fetch(`${API_BASE}/feedback/${id}/resolve`, {
+      const res = await fetchApi(`/feedback/${id}/resolve`, {
         method: "POST",
-        credentials: "include",
       });
       if (!res.ok) throw new Error("Resolve failed");
       toast.success("Feedback marked resolved.");
