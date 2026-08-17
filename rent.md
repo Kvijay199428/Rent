@@ -1,10 +1,10 @@
 # Rent — Complete Source Code
 
-Generated: 2026-08-15
+Generated: 2026-08-17
 Script:   /root/rent/copy.py
 Source:   /root/rent
-Files:    412
-Size:     3989 KB
+Files:    414
+Size:     4015 KB
 Skipped:  0
 
 ---
@@ -105,7 +105,6 @@ Skipped:  0
 - backend/app/app/pages/landing.py
 - backend/app/app/pages/redirects.py
 - backend/app/app/pages/settings.py
-- backend/app/app/pages/spa.py
 - backend/app/app/pages/tenants.py
 - backend/app/app/routers/admin_auth.py
 - backend/app/app/routers/auth.py
@@ -118,6 +117,7 @@ Skipped:  0
 - backend/app/app/services/landlord_config_service.py
 - backend/app/app/services/pdf_service.py
 - backend/app/app/services/phone_service.py
+- backend/app/app/services/qr_service.py
 - backend/app/app/services/signature_service.py
 - backend/app/app/services/telegram_otp_service.py
 - backend/app/app/services/tenant_recovery_service.py
@@ -181,6 +181,7 @@ Skipped:  0
 - frontend/admin-app/tsconfig.node.json
 - frontend/admin-app/vite.config.js
 - frontend/admin-app/vite.config.ts
+- frontend/build-dev.sh
 - frontend/build.sh
 - frontend/functions/_middleware.js
 - frontend/landing-app/index.html
@@ -306,6 +307,7 @@ Skipped:  0
 - frontend/landlord-app/src/hooks/useSync.ts
 - frontend/landlord-app/src/hooks/useToast.ts
 - frontend/landlord-app/src/index.css
+- frontend/landlord-app/src/lib/auth.ts
 - frontend/landlord-app/src/lib/encryption.ts
 - frontend/landlord-app/src/lib/privacy.ts
 - frontend/landlord-app/src/lib/routes.ts
@@ -438,6 +440,9 @@ Skipped:  0
 APP_ENV=development
 SERVE_FRONTEND=true
 ENABLE_SWAGGER=true
+
+# Public frontend origin used for share/WhatsApp/QR links (the ngrok tunnel URL).
+PUBLIC_APP_URL=https://CHANGE_ME.ngrok-free.app
 
 # Storage root for DB, configs, backups, uploads (mounted from ./storage/dev)
 RENT_STORAGE_DIR=/code/storage
@@ -792,6 +797,9 @@ output/
 *.zip
 .gstack/
 .opencode/
+
+# runtime sqlite artifacts
+backend/app/app/database/tenant.db
 ```
 
 ### `.nvmrc`
@@ -3413,8 +3421,9 @@ async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, re
 
     session_id, refresh_token = create_tenant_session(tenant.id, request, remember_me=True)
     access_token = create_access_token(tenant.id, session_id)
-    
-    set_tenant_auth_cookies(response, access_token, refresh_token, True, request)
+
+    cookie_val = f"{session_id}:{refresh_token}"
+    set_tenant_auth_cookies(response, access_token, cookie_val, True, request)
     log_audit(tenant.id, "Login Success", ip)
     
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -6795,7 +6804,9 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
 
     background_tasks.add_task(create_full_backup, tag="regenerate_qr_key", landlord_id=principal.landlord_id)
 
-    new_key = _uuid.uuid4().hex + _uuid.uuid4().hex
+    # Single 128-bit key — matches the length used at tenant creation. A longer
+    # key bloats the QR payload into a larger matrix, which hurts scannability.
+    new_key = _uuid.uuid4().hex
     with get_conn() as conn:
         existing = conn.execute(
             "SELECT id, name FROM tenants WHERE id = ? AND landlord_id = ?", (tenantId, principal.landlord_id)
@@ -6820,6 +6831,52 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
     await _broadcast(f"landlord:{landlordUuid}", {"type": "TENANT_UPDATED", "tenantId": tenantId})
 
     return {"status": "success", "message": "QR key regenerated.", "qr_key": new_key}
+
+@router.get(Routes.LANDLORDAPITENANTSQR, name=Names.LANDLORDTENANTQR)
+async def api_tenant_qr(
+    landlordUuid: str,
+    tenantId: int,
+    size: int = Query(200, ge=100, le=1000),
+    format: str = Query("svg", pattern="^(svg|png)$"),
+    principal=Depends(get_current_landlord_api_strict),
+):
+    """Return the PROPAURA-branded tenant portal QR as a data URI.
+
+    Generated server-side at ECC H with the lockup embedded in the pattern,
+    then decode-validated before being returned.
+    """
+    from app.core.db import get_conn
+    from app.services.qr_service import QrBuildError, build_branded_qr, tenant_qr_payload
+
+    if not tenant_belongs_to_landlord(tenantId, principal.landlord_id):
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id, name, property_id, viewToken, qr_key FROM tenants WHERE id = ?",
+            (tenantId,),
+        ).fetchone()
+
+    if not row or not row["viewToken"]:
+        raise HTTPException(status_code=400, detail="Tenant portal token is missing.")
+    if not row["qr_key"]:
+        raise HTTPException(status_code=400, detail="Tenant QR key is missing.")
+
+    url = tenant_qr_payload(landlordUuid, row["property_id"], tenantId, row["viewToken"], row["qr_key"])
+    try:
+        qr, fmt, count = build_branded_qr(url, size=size, fmt=format, validate=True)
+    except QrBuildError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    return {
+        "status": "success",
+        "qr": qr,
+        "format": fmt,
+        "error_correction": "H",
+        "size": size,
+        "modules": count,
+        "url": url,
+    }
 
 @router.delete(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIDELETETENANT)
 async def api_delete_tenant(
@@ -7346,7 +7403,6 @@ def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized")
         headers={
             "X-Session-Expired": "1",
             "X-Redirect-Url": logout_url,
-            "X-Clear-Cookies": "admin",
         },
     )
 
@@ -7682,7 +7738,7 @@ def set_landlord_auth_cookies(
         value=refresh_cookie,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="none",
         path=cookie_path,
         max_age=max_age_refresh,
     )
@@ -7706,7 +7762,7 @@ def clear_landlord_auth_cookies(
         path=cookie_path,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="none",
     )
 ```
 
@@ -8112,7 +8168,7 @@ def set_platform_auth_cookies(
         value=refresh_token,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="none",
         path=cookie_path,
         max_age=max_age_refresh,
     )
@@ -8136,7 +8192,7 @@ def clear_platform_auth_cookies(
         path=cookie_path,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="none",
     )
 
 
@@ -8254,7 +8310,7 @@ def set_tenant_auth_cookies(response: Response, access_token: str, refresh_token
         value=refresh_token,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="none",
         path=refresh_path,
         max_age=max_age_refresh,
     )
@@ -8274,7 +8330,7 @@ def clear_tenant_auth_cookies(response: Response, request: Request = None):
         path=refresh_path,
         httponly=True,
         secure=True,
-        samesite="strict",
+        samesite="none",
     )
 ```
 
@@ -8374,7 +8430,6 @@ def _raise_tenant_session_expired(request: Request, detail: str):
         headers={
             "X-Session-Expired": "1",
             "X-Redirect-Url": redirect_url,
-            "X-Clear-Cookies": "tenant",
         },
     )
 
@@ -9988,8 +10043,6 @@ from app.api.tenant_pdf import router as tenant_pdf_api_router
 from app.routers.platform_admin import router as platform_admin_router
 from app.routers.landlordauth import router as landlordauth_router
 
-# Tenant SPA routes (tenant stays in Docker, served through backend)
-from app.pages.spa import router as spa_router
 from app.pages.errors import register_exception_handlers
 
 # Public landing page at /
@@ -10067,12 +10120,6 @@ def register_all_routers(app: FastAPI):
 
     # 7. WebSocket sync (no auth dependency — channel-based access control)
     app.include_router(sync_ws_router)
-
-    # 8. Tenant SPA routes (tenant stays in Docker — dynamic URL pattern
-    #    /{landlordUuid}/t/{tenantId}/{viewToken} can't be served by Cloudflare Pages)
-    #    Skipped on API-only release backend (frontend container serves the SPA).
-    if serve_frontend():
-        app.include_router(spa_router)
 
     register_exception_handlers(app)
 ```
@@ -10238,6 +10285,7 @@ class LandlordRoutes:
     LANDLORDAPITENANTSRECEIPTS = "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts"
     LANDLORDAPITENANTSPORTALAUTH = "/landlord/{landlordUuid}/api/tenants/{tenantId}/portal-auth"
     LANDLORDAPITENANTSQRKEY = "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr-key"
+    LANDLORDAPITENANTSQR = "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr"
 
     # Landlord API: Tenant Recovery Snapshots
     LANDLORDAPITENANTSNAPSHOTS = "/landlord/{landlordUuid}/api/tenant-recovery-snapshots"
@@ -10411,6 +10459,7 @@ class LandlordNames:
     LANDLORDREVEALPIN = "landlord_reveal_tenantPin"
     LANDLORDTENANTPORTALAUTH = "landlord_tenant_portal_auth"
     LANDLORDTENANTQRKEY = "landlord_tenant_qr_key"
+    LANDLORDTENANTQR = "landlord_tenant_qr"
 
 
 class LandlordTemplates:
@@ -13061,100 +13110,6 @@ async def settings_page(request: Request):
 
 ```
 
-### `backend/app/app/pages/spa.py`
-
-```python
-import os
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
-
-from app.core.api_guard import check_api_host
-
-TENANT_ASSETS_DIR = "frontend/tenant-app/dist/assets"
-
-router = APIRouter()
-
-
-@router.get("/landlord")
-async def landlord_root_redirect(request: Request):
-    check_api_host(request)
-    url = request.url
-    if not url.path.endswith("/"):
-        return RedirectResponse(url=str(url.replace(path=url.path + "/")), status_code=307)
-    return await serve_landlord_app(request, path="")
-
-
-@router.get("/landlord/{path:path}")
-async def serve_landlord_app(request: Request, path: str = ""):
-    check_api_host(request)
-    if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
-        raise HTTPException(status_code=404, detail="Not found")
-
-    parts = [p for p in path.split("/") if p]
-    if len(parts) >= 2 and len(parts[0]) >= 10 and parts[1] == "api":
-        raise HTTPException(status_code=404, detail="API route not found")
-
-    if not path:
-        try:
-            token = request.cookies.get("access_token")
-            if token:
-                from app.authentication.landlord.jwt import decode_access_token
-                from app.authentication.landlord.sessions import get_landlord_session_db
-                from app.database.landlord_repository import get_landlord_by_id
-
-                payload = decode_access_token(token)
-                if payload.get("role") == "landlord":
-                    session_id = payload.get("sid")
-                    session = get_landlord_session_db(session_id)
-                    if session:
-                        landlord_id = int(payload.get("landlord_id") or payload.get("sub"))
-                        landlord = get_landlord_by_id(landlord_id)
-                        if landlord:
-                            uuid = landlord["landlord_uuid"]
-                            root = (request.scope.get("root_path") or "").rstrip("/")
-                            return RedirectResponse(
-                                url=f"{root}/landlord/{uuid}/dashboard",
-                                status_code=307,
-                            )
-        except Exception:
-            pass
-
-        root = (request.scope.get("root_path") or "").rstrip("/")
-        return RedirectResponse(url=f"{root}/landlord/login", status_code=307)
-
-    return FileResponse("frontend/landlord-app/dist/index.html")
-
-
-@router.get("/tenant")
-@router.get("/tenant/{path:path}", include_in_schema=False)
-async def serve_tenant_app_login(request: Request, path: str = ""):
-    check_api_host(request)
-    if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
-        raise HTTPException(status_code=404, detail="Not found")
-    return FileResponse("frontend/tenant-app/dist/index.html")
-
-
-@router.get("/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/assets/{asset_path:path}", include_in_schema=False)
-async def serve_tenant_assets(request: Request, landlordUuid: str, propertyId: int, tenantId: int, viewToken: str, asset_path: str):
-    check_api_host(request)
-    safe = os.path.normpath(asset_path).lstrip("/")
-    if safe.startswith(".."):
-        raise HTTPException(status_code=404, detail="Not found")
-    fpath = os.path.join(TENANT_ASSETS_DIR, safe)
-    if os.path.isfile(fpath):
-        return FileResponse(fpath)
-    raise HTTPException(status_code=404, detail="Asset not found")
-
-
-@router.get("/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}", name="serve_tenant_app", include_in_schema=False)
-@router.get("/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/{path:path}", name="serve_tenant_app_path", include_in_schema=False)
-async def serve_tenant_app(request: Request, landlordUuid: str, propertyId: int, tenantId: int, viewToken: str, path: str = ""):
-    check_api_host(request)
-    if path.startswith("api/") or path.startswith("assets/") or "." in path.split("/")[-1]:
-        raise HTTPException(status_code=404, detail="API route not found")
-    return FileResponse("frontend/tenant-app/dist/index.html")
-```
-
 ### `backend/app/app/pages/tenants.py`
 
 ```python
@@ -13379,21 +13334,27 @@ from app.core.routes_manifest_tenant import TenantRoutes, TenantNames
 router = APIRouter(tags=["Authentication"])
 
 
-def _tenant_viewtoken_guard(request: Request, tenantId: int, viewToken: str, propertyId: int):
+def _tenant_viewtoken_guard(request: Request, tenantId: int, viewToken: str, propertyId: int, require_token: bool = True):
     """Resolve the tenant whose viewToken matches, verify the requested
     property, and confirm the JWT-cookie identity binds to it. Raises on any
     mismatch so the URL scoping (property → tenant → viewToken → session)
-    cannot be crossed."""
-    token = request.cookies.get("access_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Access token missing")
+    cannot be crossed.
 
-    from app.authentication.tenant.jwt import decode_access_token
-    try:
-        payload = decode_access_token(token)
-        cookie_tenant_id = int(payload.get("tenantId") or payload.get("sub"))
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid access token")
+    When ``require_token`` is False the access-token identity binding is
+    skipped for expired/missing tokens; the caller must then bind identity
+    another way (e.g. from the refresh-cookie session). The URL-scoping
+    checks (tenant exists, viewToken and property match) are always enforced.
+    """
+    token = request.cookies.get("access_token")
+    if token:
+        from app.authentication.tenant.jwt import decode_access_token
+        try:
+            payload = decode_access_token(token)
+            cookie_tenant_id = int(payload.get("tenantId") or payload.get("sub"))
+        except Exception:
+            cookie_tenant_id = None
+    else:
+        cookie_tenant_id = None
 
     tenants = load_tenants(include_archived=True)
     tenant = next((t for t in tenants if t.id == tenantId), None)
@@ -13403,8 +13364,13 @@ def _tenant_viewtoken_guard(request: Request, tenantId: int, viewToken: str, pro
         raise HTTPException(status_code=403, detail="View token mismatch")
     if int(getattr(tenant, "propertyId", 0) or 0) != int(propertyId or 0):
         raise HTTPException(status_code=403, detail="Property mismatch")
-    if cookie_tenant_id != tenantId:
+    if cookie_tenant_id is not None and cookie_tenant_id != tenantId:
         raise HTTPException(status_code=403, detail="Tenant identity mismatch")
+    if require_token and cookie_tenant_id is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Access token missing or invalid" if not token else "Invalid access token",
+        )
     return tenant
 
 
@@ -13418,8 +13384,10 @@ async def auth_refresh(
     response: Response = None
 ):
     """Tenant Refresh Token Rotation Flow — now requires viewToken in path"""
-    # Security: Validate URL property/tenant/viewToken matches cookie JWT identity
-    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId)
+    # Security: Validate URL property/tenant/viewToken is self-consistent.
+    # The access token may already be expired here — identity is bound via the
+    # refresh-cookie session below.
+    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId, require_token=False)
     
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
@@ -13436,6 +13404,11 @@ async def auth_refresh(
         revoke_tenant_session_db(session_id)
         clear_tenant_auth_cookies(response, request)
         raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    if int(session["tenantId"] or 0) != tenantId:
+        revoke_tenant_session_db(session_id)
+        clear_tenant_auth_cookies(response, request)
+        raise HTTPException(status_code=403, detail="Tenant identity mismatch")
         
     # Rotate Refresh Token (Invalidate old, issue new)
     revoke_tenant_session_db(session_id) 
@@ -13464,8 +13437,10 @@ async def auth_logout(
     response: Response = None
 ):
     """Tenant logout — now requires viewToken in path"""
-    # Security: Validate URL property/tenant/viewToken matches cookie JWT identity
-    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId)
+    # Security: Validate URL property/tenant/viewToken is self-consistent.
+    # Allow logout with an expired access token so stale sessions can still be
+    # cleared; revoke the session from either cookie.
+    _tenant_viewtoken_guard(request, tenantId, viewToken, propertyId, require_token=False)
     
     token = request.cookies.get("access_token")
     if token:
@@ -13476,6 +13451,11 @@ async def auth_logout(
             log_audit(int(payload.get("tenantId") or payload.get("sub")), "Logout Success", request.client.host)
         except Exception:
             pass
+    else:
+        refresh_cookie = request.cookies.get("refresh_token")
+        if refresh_cookie and ":" in refresh_cookie:
+            session_id = refresh_cookie.split(":", 1)[0]
+            revoke_tenant_session_db(session_id)
             
     clear_tenant_auth_cookies(response, request)
     return {"status": "success"}
@@ -14424,7 +14404,7 @@ async def landlord_refresh(request: Request, response: Response):
     revoke_landlord_session_db(session_id)
 
     landlord_id = session["landlord_id"]
-    remember_me = bool(session.get("remember_me", 0))
+    remember_me = bool(session["remember_me"] or 0)
 
     new_session_id, new_refresh_token = create_landlord_session(
         landlord_id, request, remember_me=remember_me
@@ -15665,7 +15645,7 @@ async def platform_refresh(request: Request, response: Response):
         new_session_id, new_access_token = _create_session_token(session["admin_id"])
         new_refresh_token = _make_refresh_token()
         new_refresh_hash = hash_pin(new_refresh_token)
-        remember_me = bool(session.get("remember_me", 0))
+        remember_me = bool(session["remember_me"] or 0)
         expiry = "+180 days" if remember_me else "+30 days"
 
         conn.execute(
@@ -19345,6 +19325,325 @@ def is_valid_phone(raw, default_region="IN"):
     return phonenumbers.is_valid_number(number)
 ```
 
+### `backend/app/app/services/qr_service.py`
+
+```python
+# app/services/qr_service.py
+"""Server-side source of truth for PROPAURA-branded tenant QR codes.
+
+Generates the QR at error-correction level H, excavates the center modules
+and embeds the PROPAURA lockup inside the pattern itself (modules blanked
+around the logo, not a floating overlay). The result is validated by
+decoding it before it is served.
+
+Only stdlib + qrcode + Pillow are required for generation; cv2 is used for
+the decode validation step (opencv-python-headless).
+"""
+from __future__ import annotations
+
+import base64
+import io
+import os
+import urllib.parse
+
+import qrcode
+import qrcode.constants
+
+from app.core.runtime import public_app_url
+
+# ── PROPAURA mark (flattened paths, fills inlined) ──────────────────────────
+# Inner content of the mark SVG (no <svg> wrapper). ViewBox 413.02 x 269.52.
+PROPAURA_MARK_PATHS = """  <path fill="#010101" d="M196.07 133.89l1.23 -0.32c-6.75,-8.54 -13.87,-22.49 -19.85,-32.66 -6.48,-11.02 -12.56,-22.32 -19.3,-33.67 -7.67,-12.93 -32.79,-59.97 -38.49,-67.16l-119.21 -0.08 97.09 67.3c11.67,7.96 87.89,61.44 98.53,66.59z"/>
+  <path fill="#010101" d="M214.59 134.6l1.76 -0.06c7.25,-5.88 15.89,-10.56 23.87,-16.08l170.99 -118.43 -119.06 -0.03 -77.56 134.59z"/>
+  <path fill="#020202" d="M410.95 15.63l-0.22 -0.37c-5.91,1.84 -173.73,118.85 -189.57,130.03l117.34 -0.26c2.53,-2.73 70.82,-124.24 72.45,-129.4z"/>
+  <path fill="#010101" d="M71.54 145.02l118.15 0.07c-4.53,-5.61 -40.66,-28.4 -47.21,-33.13l-93.97 -64.93c-9.81,-6.56 -41.31,-29.19 -48.51,-32.64 2.99,8.6 13.14,24.67 17.91,32.94 7.3,12.65 51.11,90.08 53.63,97.68z"/>
+  <path fill="#010101" d="M145.21 269.41l120.89 0.11c-1.8,-6.75 -10.88,-20.72 -14.53,-27.03 -5.28,-9.14 -10.07,-16.64 -15.43,-26.23l-30.31 -53.87 -60.63 107.02z"/>
+  <path fill="#010101" d="M274.93 258.85c9.89,-15 19.16,-34 28.64,-50.49 5.11,-8.89 26.99,-45.5 28.6,-52.2l-117.42 -0c2.62,6.95 58.87,101.59 60.19,102.69z"/>
+  <path fill="#010101" d="M136.31 259.15c4.49,-3.51 25.27,-41.37 30.11,-50.49l29.81 -52.92 -117.59 0.52 57.67 102.89z"/>
+  <path fill="#625B54" d="M216.35 134.54l-1.76 0.06 -1.79 2.34c4.9,-1.45 2.23,-0.92 3.55,-2.39z"/>
+  <path fill="#625B54" d="M197.3 133.57l-1.23 0.32 2.75 3.02c-0.7,-7.34 0.56,-0.53 -1.53,-3.35z"/>
+  <polygon fill="#625B54" points="410.95,15.63 413.02,13.15 410.72,15.26"/>"""
+
+MARK_VIEWBOX_WIDTH = 413.02
+MARK_VIEWBOX_HEIGHT = 269.52
+
+WORDMARK_PROP_COLOR = "#708498"
+WORDMARK_AURA_COLOR = "#95A58F"
+BADGE_BORDER_COLOR = "#e5e7eb"
+
+# Fraction of the QR matrix excavated for the lockup (option B: modules
+# blanked around the logo). ~4.5% of modules — far inside ECC-H capacity.
+LOCKUP_FRACTION = 0.22
+
+# ISO/IEC 18004 quiet zone: 4 modules of white around the QR. Required for
+# reliable scanning and by cv2's decoder during validation.
+QUIET_ZONE = 4
+
+# Internal render scale for the PNG pipeline: each module is drawn at
+# box_size px (clean integer grid) then downsampled to the target size so
+# sub-pixel module phases stay regular (cv2's grid sampler is sensitive).
+PNG_BOX_SIZE = 10
+
+_APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../app/app
+_STATIC_DIR = os.path.join(os.path.dirname(_APP_DIR), "static")         # .../app/static
+_MARK_PNG_PATH = os.path.join(_STATIC_DIR, "propaura_mark.png")
+_FONT_DIR = os.path.join(_APP_DIR, ".fonts")
+_WORDMARK_FONT_PATH = os.path.join(_FONT_DIR, "NotoSans-Bold.ttf")
+
+
+class QrBuildError(Exception):
+    """Raised when a branded QR could not be produced or validated."""
+
+
+def build_qr_matrix(url: str) -> tuple[list[list[bool]], int]:
+    """Generate the QR matrix at error-correction level H (no border)."""
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        border=0,
+        box_size=10,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    matrix = qr.get_matrix()
+    return matrix, len(matrix)
+
+
+def lockup_geometry(count: int, size: int, quiet_zone: int = QUIET_ZONE) -> dict:
+    """Compute excavation box + lockup placement for an NxN matrix at `size` px."""
+    box = max(7, round(count * LOCKUP_FRACTION))
+    start = (count - box) // 2
+    end = start + box
+    total = count + 2 * quiet_zone
+    module = size / total
+    qz = quiet_zone * module
+    box_px = box * module
+    badge_x = qz + start * module
+    badge_y = qz + start * module
+
+    lock_w = box_px * 0.8
+    mark_h = lock_w * (MARK_VIEWBOX_HEIGHT / MARK_VIEWBOX_WIDTH)
+    font = max(5, box_px * 0.16)
+    use_wordmark = (mark_h + font) <= box_px
+    if not use_wordmark:
+        # PROPAURA -> PA fallback: mark only, no wordmark. Never unbranded.
+        lock_w = box_px * 0.9
+        mark_h = lock_w * (MARK_VIEWBOX_HEIGHT / MARK_VIEWBOX_WIDTH)
+
+    mark_y = badge_y + (box_px - mark_h - (font if use_wordmark else 0)) / 2
+    mark_x = (size - lock_w) / 2
+
+    return {
+        "box": box,
+        "start": start,
+        "end": end,
+        "module": module,
+        "qz": qz,
+        "badge_x": badge_x,
+        "badge_y": badge_y,
+        "box_px": box_px,
+        "lock_w": lock_w,
+        "mark_h": mark_h,
+        "mark_x": mark_x,
+        "mark_y": mark_y,
+        "font": font,
+        "use_wordmark": use_wordmark,
+    }
+
+
+def _cells_svg(matrix: list[list[bool]], g: dict) -> str:
+    cells = []
+    for r in range(len(matrix)):
+        for c in range(len(matrix)):
+            if g["start"] <= r < g["end"] and g["start"] <= c < g["end"]:
+                continue
+            if matrix[r][c]:
+                x = g["qz"] + c * g["module"]
+                y = g["qz"] + r * g["module"]
+                cells.append(
+                    f'<rect x="{x:.2f}" y="{y:.2f}" '
+                    f'width="{g["module"]:.2f}" height="{g["module"]:.2f}"/>'
+                )
+    return "".join(cells)
+
+
+def _lockup_svg(g: dict, size: int) -> str:
+    scale = g["lock_w"] / MARK_VIEWBOX_WIDTH
+    mark = (
+        f'<g transform="translate({g["mark_x"]:.2f} {g["mark_y"]:.2f}) '
+        f'scale({scale:.4f})">{PROPAURA_MARK_PATHS}</g>'
+    )
+    if not g["use_wordmark"]:
+        return mark
+    text_y = g["mark_y"] + g["mark_h"] + g["font"]
+    return mark + (
+        f'<text x="{size / 2:.2f}" y="{text_y:.2f}" text-anchor="middle" '
+        'font-family="Arial, \'Segoe UI\', Roboto, Helvetica, sans-serif" '
+        f'font-size="{g["font"]:.1f}" font-weight="800" letter-spacing="1" '
+        f'fill="{WORDMARK_PROP_COLOR}">PROP<tspan fill="{WORDMARK_AURA_COLOR}">AURA</tspan></text>'
+    )
+
+
+def build_branded_qr_svg(url: str, size: int = 200) -> str:
+    """Return the branded tenant QR as an SVG string (vector, print-ready)."""
+    matrix, count = build_qr_matrix(url)
+    g = lockup_geometry(count, size)
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}" '
+        f'width="{size}" height="{size}">'
+        f'<rect width="{size}" height="{size}" fill="#ffffff"/>'
+        + _cells_svg(matrix, g)
+        + f'<rect x="{g["badge_x"]:.2f}" y="{g["badge_y"]:.2f}" width="{g["box_px"]:.2f}" '
+        f'height="{g["box_px"]:.2f}" rx="{g["box_px"] * 0.09:.2f}" '
+        f'fill="#ffffff" stroke="{BADGE_BORDER_COLOR}" stroke-width="1"/>'
+        + _lockup_svg(g, size)
+        + "</svg>"
+    )
+
+
+def _mark_png_image():
+    from PIL import Image
+
+    img = Image.open(_MARK_PNG_PATH)
+    img.load()
+    return img
+
+
+def _wordmark_font(size_px: int):
+    from PIL import ImageFont
+
+    try:
+        return ImageFont.truetype(_WORDMARK_FONT_PATH, max(4, round(size_px)))
+    except Exception:
+        return ImageFont.load_default()
+
+
+def build_branded_qr_png(url: str, size: int = 200, internal: bool = False) -> bytes:
+    """Return the branded tenant QR as PNG bytes (Pillow rasterization).
+
+    Renders the QR at a clean integer module grid (PNG_BOX_SIZE px per module,
+    incl. quiet zone), overlays the lockup at that resolution, then downsamples
+    to the target size so module phases stay regular (cv2's grid sampler is
+    sensitive to sub-pixel rounding). Pass ``internal=True`` to get the
+    pre-downsample image — used for decode validation, which is resolution-
+    dependent and reliably decodes the full-resolution render.
+    """
+    from PIL import Image, ImageDraw
+
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        border=QUIET_ZONE,
+        box_size=PNG_BOX_SIZE,
+    )
+    qr.add_data(url)
+    qr.make(fit=True)
+    total = len(qr.get_matrix())
+    count = total - 2 * QUIET_ZONE
+    internal_size = total * PNG_BOX_SIZE
+    g = lockup_geometry(count, internal_size)
+
+    img = qr.make_image(fill_color="black", back_color="white").convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    bx0 = round(g["badge_x"])
+    by0 = round(g["badge_y"])
+    bx1 = round(g["badge_x"] + g["box_px"])
+    by1 = round(g["badge_y"] + g["box_px"])
+    draw.rounded_rectangle(
+        [bx0, by0, bx1, by1],
+        radius=round(g["box_px"] * 0.09),
+        fill="white",
+        outline=BADGE_BORDER_COLOR,
+        width=max(1, round(g["module"] * 0.4)),
+    )
+
+    mark = _mark_png_image()
+    mw = max(1, round(g["lock_w"]))
+    mh = max(1, round(g["mark_h"]))
+    mark = mark.resize((mw, mh), Image.LANCZOS)
+    if mark.mode == "RGBA":
+        img.paste(mark, (round(g["mark_x"]), round(g["mark_y"])), mark)
+    else:
+        img.paste(mark, (round(g["mark_x"]), round(g["mark_y"])))
+
+    if g["use_wordmark"]:
+        font = _wordmark_font(g["font"])
+        center_x = internal_size / 2
+        baseline_y = g["mark_y"] + g["mark_h"] + g["font"]
+        prop_w = draw.textlength("PROP", font=font)
+        aura_w = draw.textlength("AURA", font=font)
+        start_x = center_x - (prop_w + aura_w) / 2
+        draw.text((start_x, baseline_y), "PROP", font=font, fill=WORDMARK_PROP_COLOR, anchor="ls")
+        draw.text((start_x + prop_w, baseline_y), "AURA", font=font, fill=WORDMARK_AURA_COLOR, anchor="ls")
+
+    if internal or size == internal_size:
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+
+    img = img.resize((size, size), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def tenant_qr_payload(landlord_uuid: str, property_id, tenant_id: int, view_token: str, qr_key: str) -> str:
+    """Canonical tenant portal URL encoded in the QR."""
+    base = (
+        f"{public_app_url()}/rent/{urllib.parse.quote(landlord_uuid)}"
+        f"/t/{int(property_id) if property_id else 0}/{tenant_id}/{urllib.parse.quote(view_token)}"
+    )
+    if qr_key:
+        base += f"?qr_key={urllib.parse.quote(qr_key)}"
+    return base
+
+
+def validate_qr_png(png_bytes: bytes, expected_url: str) -> bool:
+    """Decode the rendered PNG and confirm it matches the intended URL."""
+    import cv2
+    import numpy as np
+
+    arr = np.frombuffer(png_bytes, dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    if img is None:
+        return False
+    data, _, _ = cv2.QRCodeDetector().detectAndDecode(img)
+    return data == expected_url
+
+
+def build_branded_qr(url: str, size: int = 200, fmt: str = "svg", validate: bool = True) -> tuple[str, str, int]:
+    """Build + validate a branded tenant QR.
+
+    Returns (data_uri, format, module_count). Raises QrBuildError when the
+    generated QR does not decode back to the intended URL.
+    """
+    size = max(100, min(1000, int(size)))
+    fmt = (fmt or "svg").lower()
+    if fmt not in ("svg", "png"):
+        raise QrBuildError(f"Unsupported QR format: {fmt}")
+
+    if fmt == "png":
+        png = build_branded_qr_png(url, size)
+        if validate:
+            # Validate the full-resolution render (same matrix + excavation as
+            # the served, downsampled image). cv2's decode is resolution-
+            # dependent; the downsampled version decodes on real scanners.
+            if not validate_qr_png(build_branded_qr_png(url, size, internal=True), url):
+                raise QrBuildError("Generated QR failed decode validation")
+        data_uri = "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+    else:
+        svg = build_branded_qr_svg(url, size)
+        # Validate via the PNG build (same matrix + excavation) before serving SVG.
+        if validate:
+            if not validate_qr_png(build_branded_qr_png(url, size, internal=True), url):
+                raise QrBuildError("Generated QR failed decode validation")
+        data_uri = "data:image/svg+xml;charset=UTF-8," + urllib.parse.quote(svg)
+
+    _, count = build_qr_matrix(url)
+    return data_uri, fmt, count
+```
+
 ### `backend/app/app/services/signature_service.py`
 
 ```python
@@ -20456,7 +20755,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
         # QR key: prefer snapshot's value; regenerate a fresh key if missing.
         qr_key = t.get("qr_key") or ""
         if not qr_key:
-            qr_key = uuid.uuid4().hex + uuid.uuid4().hex
+            qr_key = uuid.uuid4().hex
         conn.execute(
             """
             INSERT INTO tenants (
@@ -20860,7 +21159,9 @@ def add_tenant(t: Tenant):
     tenantpin = t_dict.get("tenantPin") or ""
     qr_key = (t_dict.get("qr_key") or "").strip()
     if not qr_key:
-        qr_key = uuid.uuid4().hex + uuid.uuid4().hex
+        # Single 128-bit key; a longer key would bloat the QR payload into a
+        # larger matrix and hurt scannability.
+        qr_key = uuid.uuid4().hex
     
     with get_conn() as conn:
         conn.execute('''
@@ -22944,6 +23245,7 @@ num2words>=0.5.14
 openpyxl>=3.1.5
 pyotp>=2.9.0
 qrcode[pil]>=7.4.2
+opencv-python-headless>=4.10.0
 httpx>=0.27.2
 pydantic>=2.0.0
 google-auth>=2.38.0
@@ -23262,27 +23564,27 @@ if __name__ == "__main__":
     },
     "api": {
       "setup": {
-        "required": "/admin/api/setup/required",
-        "create": "/admin/api/setup/create"
+        "required": "/admin/api/auth/setup-required",
+        "create": "/admin/api/auth/setup-create"
       },
       "auth": {
         "publicKey": "/admin/api/auth/public-key",
-        "login": "/admin/api/login",
-        "loginTotp": "/admin/api/login/totp",
-        "refresh": "/admin/api/refresh",
-        "logout": "/admin/api/logout/json",
-        "me": "/admin/api/me"
+        "login": "/admin/api/auth/login",
+        "loginTotp": "/admin/api/auth/login-totp",
+        "refresh": "/admin/api/auth/refresh",
+        "logout": "/admin/api/auth/logout",
+        "me": "/admin/api/auth/me"
       },
       "totp": {
-        "qr": "/admin/api/totp/qr",
-        "regenerate": "/admin/api/totp/regenerate"
+        "qr": "/admin/api/auth/totp-qr",
+        "regenerate": "/admin/api/auth/totp-regenerate"
       },
       "password": {
-        "forgotVerify": "/admin/api/forgot-password/verify",
-        "forgotReset": "/admin/api/forgot-password/reset"
+        "forgotVerify": "/admin/api/auth/password/forgot-verify",
+        "forgotReset": "/admin/api/auth/password/forgot-reset"
       },
       "dashboard": {
-        "stats": "/admin/api/dashboard"
+        "stats": "/admin/api/stats"
       },
       "config": {
         "get": "/admin/api/config",
@@ -24022,7 +24324,7 @@ EXCLUDE_DIRS = {
 TARGETS = {
     "sshLocal": {
         "host": "192.168.1.50",
-        "port": 22,
+        "port": 22009,
         "user": "vega",
         "password": "1010",
         "label": "LAN (same Wi-Fi as the server)",
@@ -25753,8 +26055,66 @@ export default function App() {
 ```typescript
 import { getApiUrl } from "@shared/api-config";
 
-export const fetchApi = (path: string) => fetch(getApiUrl(`/rent/admin/api${path}`));
+export const API_PREFIX = "/rent/admin/api";
 
+// Single-flight silent refresh: the backend rotates the refresh cookie on each
+// successful refresh, so concurrent refreshes must share one request.
+let refreshInFlight: Promise<boolean> | null = null;
+
+function refreshAccessToken(): Promise<boolean> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = fetch(getApiUrl(`${API_PREFIX}/auth/refresh`), {
+    method: "POST",
+    credentials: "include",
+  })
+    .then((r) => r.ok)
+    .catch(() => false)
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
+/** Fired when the session is definitively expired (refresh rejected). */
+export const AUTH_EXPIRED_EVENT = "auth:expired";
+
+export function onAuthExpired(handler: () => void): () => void {
+  window.addEventListener(AUTH_EXPIRED_EVENT, handler);
+  return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handler);
+}
+
+/**
+ * Authenticated fetch with credentials + automatic silent refresh on 401.
+ * Retries the original request once after a successful refresh. If the
+ * refresh itself is rejected, dispatches AUTH_EXPIRED_EVENT so the app can
+ * clear its auth state and route back to login.
+ */
+export async function fetchApi(path: string, init: RequestInit = {}): Promise<Response> {
+  const url = /^https?:\/\//i.test(path)
+    ? path
+    : getApiUrl(`${API_PREFIX}${path.startsWith("/") ? path : `/${path}`}`);
+
+  const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+  const doFetch = (): Promise<Response> =>
+    fetch(url, {
+      ...init,
+      credentials: "include",
+      headers: {
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
+        ...(init.headers || {}),
+      },
+    });
+
+  let res = await doFetch();
+  if (res.status === 401) {
+    if (await refreshAccessToken()) {
+      const retry = await doFetch();
+      if (retry.status !== 401) return retry;
+    }
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
+  return res;
+}
 ```
 
 ### `frontend/admin-app/src/components/AuthLayout.tsx`
@@ -26078,7 +26438,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 import { Link, useLocation, useNavigate } from "react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -26096,7 +26456,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    fetch(`${API_BASE}/feedback/unread-count`, { credentials: "include" })
+    fetchApi("/feedback/unread-count")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setUnread(data?.unread ?? 0))
       .catch(() => {});
@@ -26229,6 +26589,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { API_BASE } from "../lib/runtime";
 import { useAuthSync } from "../hooks/useAuthSync";
+import { onAuthExpired } from "../api/client";
 
 interface Admin {
   id: number;
@@ -26276,11 +26637,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const pendingCreds = useRef<{ username: string; password: string; rememberMe: boolean } | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/auth/me`, { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (data) setAdmin(data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    const loadMe = async (): Promise<boolean> => {
+      const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      if (res.ok) {
+        setAdmin(await res.json());
+        return true;
+      }
+      if (res.status === 401) {
+        // Access token expired — try a silent refresh, then re-check.
+        const refreshed = await fetch(`${API_BASE}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+        }).then((r) => r.ok).catch(() => false);
+        if (refreshed) {
+          const retry = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+          if (retry.ok) {
+            setAdmin(await retry.json());
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    loadMe().finally(() => setLoading(false));
+  }, []);
+
+  // If any authenticated call hits a session that can't be refreshed
+  // (e.g. the access token expired and the refresh session is gone), clear
+  // admin state so the router bounces back to /login.
+  useEffect(() => {
+    return onAuthExpired(() => {
+      setAdmin(null);
+      pendingCreds.current = null;
+    });
   }, []);
 
   const login = useCallback(async (username: string, password: string, rememberMe = false): Promise<TOTPResult> => {
@@ -26382,10 +26772,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshMe = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      let res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      if (!res.ok && res.status === 401) {
+        // Access token expired — refresh once, then re-check identity.
+        const refreshed = await fetch(`${API_BASE}/auth/refresh`, {
+          method: "POST",
+          credentials: "include",
+        }).then((r) => r.ok).catch(() => false);
+        if (!refreshed) {
+          setAdmin(null);
+          return;
+        }
+        res = await fetch(`${API_BASE}/auth/me`, { credentials: "include" });
+      }
       if (res.ok) {
-        const data = await res.json();
-        setAdmin(data);
+        setAdmin(await res.json());
+      } else if (res.status === 401) {
+        setAdmin(null);
       }
     } catch {
       // Ignore — non-critical
@@ -26656,7 +27059,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 const ACTION_COLORS: Record<string, { bg: string; fg: string }> = {
   login_success:       { bg: "#dcfce7", fg: "#16a34a" },
@@ -26768,7 +27171,7 @@ export default function AuditLogsPage() {
       params.set("limit", String(limit));
       params.set("offset", String(offset));
 
-      const res = await fetch(`${API_BASE}/audit-logs?${params}`, { credentials: "include" });
+      const res = await fetchApi(`/audit-logs?${params}`);
       if (!res.ok) throw new Error("Failed to load");
       const data = await res.json();
       setLogs(data.items);
@@ -26785,7 +27188,7 @@ export default function AuditLogsPage() {
   useEffect(() => {
     const params = new URLSearchParams();
     if (appFilter) params.set("app_source", appFilter);
-    fetch(`${API_BASE}/audit-logs/actions?${params}`, { credentials: "include" })
+    fetchApi(`/audit-logs/actions?${params}`)
       .then((r) => r.ok ? r.json() : [])
       .then((d) => setActionTypes(Array.isArray(d) ? d : []))
       .catch(() => {});
@@ -26801,7 +27204,7 @@ export default function AuditLogsPage() {
       if (dateFrom) params.set("date_from", dateFrom);
       if (dateTo) params.set("date_to", dateTo);
 
-      const res = await fetch(`${API_BASE}/audit-logs/export?${params}`, { credentials: "include" });
+      const res = await fetchApi(`/audit-logs/export?${params}`);
       if (!res.ok) throw new Error("Export failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -27038,7 +27441,7 @@ const btnSecondary: React.CSSProperties = {
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 interface Stats {
   total_landlords: number;
@@ -27067,7 +27470,7 @@ export default function DashboardPage() {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
-    fetch(`${API_BASE}/stats`, { credentials: "include" })
+    fetchApi("/stats")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -27077,7 +27480,7 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/feedback/unread-count`, { credentials: "include" })
+    fetchApi("/feedback/unread-count")
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setUnread(data?.unread ?? 0))
       .catch(() => {});
@@ -27148,7 +27551,7 @@ export default function DashboardPage() {
 ```typescript
 import { useEffect, useState, useCallback } from "react";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 type Tab = "tenants" | "receipts" | "kyc";
 
@@ -27339,7 +27742,7 @@ export default function DataExplorerPage() {
 
   // Fetch landlords for dropdown
   useEffect(() => {
-    fetch(`${API_BASE}/landlords?limit=1000`, { credentials: "include" })
+    fetchApi("/landlords?limit=1000")
       .then((r) => r.json())
       .then((data) => setLandlords(Array.isArray(data) ? data : []))
       .catch(() => {});
@@ -27362,7 +27765,7 @@ export default function DataExplorerPage() {
     params.set("limit", "20");
     params.set("offset", String(data.offset));
     try {
-      const res = await fetch(`${API_BASE}/preview/${tab}?${params}`, { credentials: "include" });
+      const res = await fetchApi(`/preview/${tab}?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setData(await res.json());
     } catch {
@@ -27379,7 +27782,7 @@ export default function DataExplorerPage() {
     setAuthLoading(true);
     setAuthModal(null);
     try {
-      const res = await fetch(`${API_BASE}/preview/tenants/${tenantId}/auth`, { credentials: "include" });
+      const res = await fetchApi(`/preview/tenants/${tenantId}/auth`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setAuthModal(await res.json());
     } catch {
@@ -27616,7 +28019,7 @@ export default function DataExplorerPage() {
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 interface FeedbackItem {
   id: number;
@@ -27739,7 +28142,7 @@ export default function FeedbackInboxPage() {
       params.set("limit", String(limit));
       params.set("offset", String(offset));
 
-      const res = await fetch(`${API_BASE}/feedback?${params}`, { credentials: "include" });
+      const res = await fetchApi(`/feedback?${params}`);
       if (!res.ok) throw new Error("Failed to load");
       const data = await res.json();
       setItems(data.items);
@@ -27761,10 +28164,8 @@ export default function FeedbackInboxPage() {
     }
     setBusyId(id);
     try {
-      const res = await fetch(`${API_BASE}/feedback/${id}/reply`, {
+      const res = await fetchApi(`/feedback/${id}/reply`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ admin_reply: reply }),
       });
       if (!res.ok) throw new Error("Reply failed");
@@ -27781,9 +28182,8 @@ export default function FeedbackInboxPage() {
   const handleResolve = async (id: number) => {
     setBusyId(id);
     try {
-      const res = await fetch(`${API_BASE}/feedback/${id}/resolve`, {
+      const res = await fetchApi(`/feedback/${id}/resolve`, {
         method: "POST",
-        credentials: "include",
       });
       if (!res.ok) throw new Error("Resolve failed");
       toast.success("Feedback marked resolved.");
@@ -27969,7 +28369,7 @@ const btnPrimary: React.CSSProperties = {
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 interface LandlordDetail {
   landlord: Record<string, unknown>;
@@ -28022,11 +28422,11 @@ export default function LandlordDetailPage() {
   useEffect(() => {
     if (!id) return;
     Promise.all([
-      fetch(`${API_BASE}/landlords/${id}/details`, { credentials: "include" }).then((r) => {
+      fetchApi(`/landlords/${id}/details`).then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       }),
-      fetch(`${API_BASE}/landlords/${id}/creator-info`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
+      fetchApi(`/landlords/${id}/creator-info`).then((r) => r.ok ? r.json() : null),
     ])
       .then(([d, c]) => { setDetail(d); setCreator(c); })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
@@ -28137,7 +28537,7 @@ export default function LandlordDetailPage() {
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 
 interface Landlord {
   id: number;
@@ -28195,7 +28595,7 @@ export default function LandlordsPage() {
       if (search) params.set("search", search);
       if (statusFilter) params.set("status", statusFilter);
       params.set("limit", "50");
-      const res = await fetch(`${API_BASE}/landlords?${params}`, { credentials: "include" });
+      const res = await fetchApi(`/landlords?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setLandlords(await res.json());
     } catch (e: unknown) {
@@ -28210,9 +28610,7 @@ export default function LandlordsPage() {
   async function toggleTOTP(l: Landlord) {
     setModal({ type: "totp", landlord: l, loading: true });
     try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/totp-toggle`, {
-        method: "POST", credentials: "include",
-      });
+      const res = await fetchApi(`/landlords/${l.id}/totp-toggle`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? "Failed");
       setModal({ type: "totp", landlord: l, result: data, loading: false });
@@ -28225,7 +28623,7 @@ export default function LandlordsPage() {
   async function revealPassword(l: Landlord) {
     setModal({ type: "password", landlord: l, loading: true });
     try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/reveal-password`, { credentials: "include" });
+      const res = await fetchApi(`/landlords/${l.id}/reveal-password`);
       const data = await res.json();
       if (!res.ok) {
         // Password not in vault — offer reset
@@ -28242,9 +28640,7 @@ export default function LandlordsPage() {
     if (!confirm(`Reset password for ${l.username}? The new password will be shown once.`)) return;
     setModal({ type: "reset", landlord: l, loading: true });
     try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/reset-password`, {
-        method: "POST", credentials: "include",
-      });
+      const res = await fetchApi(`/landlords/${l.id}/reset-password`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? "Failed");
       setModal({ type: "reset", landlord: l, result: data, loading: false });
@@ -28260,9 +28656,7 @@ export default function LandlordsPage() {
     }
     setModal({ type: "reset_whatsapp", landlord: l, loading: true });
     try {
-      const res = await fetch(`${API_BASE}/landlords/${l.id}/reset-password`, {
-        method: "POST", credentials: "include",
-      });
+      const res = await fetchApi(`/landlords/${l.id}/reset-password`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail ?? "Failed");
       setModal({ type: "reset_whatsapp", landlord: l, result: data, loading: false });
@@ -29051,7 +29445,7 @@ const inputStyle: React.CSSProperties = {
 ```typescript
 import { useState, useEffect } from "react";
 import Layout from "../components/Layout";
-import { API_BASE } from "../lib/runtime";
+import { fetchApi } from "../api/client";
 import { useHealthStream } from "../hooks/useHealthStream";
 
 interface Profile {
@@ -29105,7 +29499,7 @@ export default function SettingsPage() {
   const [tgErr, setTgErr] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/settings/profile`, { credentials: "include" })
+    fetchApi("/settings/profile")
       .then((r) => r.json())
       .then((p) => {
         setProfile(p);
@@ -29116,14 +29510,14 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/settings/audit`, { credentials: "include" })
+    fetchApi("/settings/audit")
       .then((r) => r.json())
       .then((d) => { if (d.retention_days) setRetentionDays(d.retention_days); })
       .catch(() => {});
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/settings/telegram/status`, { credentials: "include" })
+    fetchApi("/settings/telegram/status")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d) {
@@ -29141,10 +29535,8 @@ export default function SettingsPage() {
     setSaveMsg(null);
     setSaveErr(null);
     try {
-      const res = await fetch(`${API_BASE}/settings/profile`, {
+      const res = await fetchApi("/settings/profile", {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, email }),
       });
       if (!res.ok) {
@@ -29166,10 +29558,8 @@ export default function SettingsPage() {
     setPwMsg(null);
     setPwErr(null);
     try {
-      const res = await fetch(`${API_BASE}/settings/change-password`, {
+      const res = await fetchApi("/settings/change-password", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current_password: currentPw, new_password: newPw, confirm_password: confirmPw }),
       });
       if (!res.ok) {
@@ -29203,7 +29593,7 @@ export default function SettingsPage() {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/auth/totp-qr`, { credentials: "include" });
+      const res = await fetchApi("/auth/totp-qr");
       if (!res.ok) throw new Error("Failed to load QR");
       const data = await res.json();
       if (data.qr_code_base64) { setTotpQr(data.qr_code_base64); setTotpSecret(data.secret ?? null); }
@@ -29218,10 +29608,8 @@ export default function SettingsPage() {
     setTotpErr(null);
     setTotpSuccess(null);
     try {
-      const res = await fetch(`${API_BASE}/auth/totp-regenerate`, {
+      const res = await fetchApi("/auth/totp-regenerate", {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current_password: totpPassword }),
       });
       if (!res.ok) {
@@ -29234,7 +29622,7 @@ export default function SettingsPage() {
       setShowTotpDialog(false);
       setTotpPassword("");
       // Refresh profile to update has_totp
-      const pRes = await fetch(`${API_BASE}/settings/profile`, { credentials: "include" });
+      const pRes = await fetchApi("/settings/profile");
       if (pRes.ok) {
         const p = await pRes.json();
         setProfile(p);
@@ -29252,10 +29640,8 @@ export default function SettingsPage() {
     setAuditMsg(null);
     setAuditErr(null);
     try {
-      const res = await fetch(`${API_BASE}/settings/audit`, {
+      const res = await fetchApi("/settings/audit", {
         method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ retention_days: retentionDays }),
       });
       if (!res.ok) {
@@ -29275,9 +29661,8 @@ export default function SettingsPage() {
     setTgMsg(null);
     setTgErr(null);
     try {
-      const res = await fetch(`${API_BASE}/settings/telegram/${action}`, {
+      const res = await fetchApi(`/settings/telegram/${action}`, {
         method: "POST",
-        credentials: "include",
       });
       const data = await res.json().catch(() => ({ detail: "Operation failed" }));
       if (!res.ok) {
@@ -29831,6 +30216,38 @@ export default defineConfig({
     target: "es2022",
   },
 });
+```
+
+### `frontend/build-dev.sh`
+
+```bash
+#!/bin/bash
+set -e
+
+echo "=== Building Rent Frontend Apps (dev) ==="
+echo "=== Bakes VITE_APP_URL from frontend/.env.development (ngrok tunnel) so ==="
+echo "=== share/WhatsApp/QR links point at dev instead of prod ==="
+
+if [ -f .env ]; then
+  set -a
+  . ./.env
+  set +a
+  echo "=== Loaded frontend/.env (VITE_* build vars) ==="
+fi
+
+if [ -f .env.development ]; then
+  set -a
+  . ./.env.development
+  set +a
+  echo "=== Loaded frontend/.env.development (VITE_APP_URL=${VITE_APP_URL:-<unset>}) ==="
+else
+  echo "=== WARNING: frontend/.env.development not found — VITE_APP_URL unset; ==="
+  echo "=== getPublicAppUrl() will fall back to prod (rent.vijaykrsha.online) ==="
+fi
+
+echo ""
+echo "=== Running the standard build (see build.sh) ==="
+exec bash build.sh
 ```
 
 ### `frontend/build.sh`
@@ -32512,7 +32929,6 @@ Structure:
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.70.0",
     "react-phone-number-input": "^3.4.17",
-    "react-qr-code": "^2.2.0",
     "react-resizable-panels": "^4.2.2",
     "react-router": "^8.3.0",
     "recharts": "^3.10.1",
@@ -45283,6 +45699,7 @@ import {
 } from "react";
 import { ROUTES } from "@/lib/routes";
 import { extractLandlordUuid } from "@/lib/runtime";
+import { silentRefresh } from "@/lib/auth";
 import { apiPost } from "@/hooks/useApi";
 import { useAuthSync } from "@/hooks/useAuthSync";
 
@@ -45351,39 +45768,92 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSetupSkipped(skipped);
   }, []);
 
-  const refreshMe = useCallback(async () => {
-    try {
-      const response = await fetch(ROUTES.LANDLORDAPIAUTHME, { credentials: "include" });
-      if (!response.ok) throw new Error("Not authenticated");
-      const data = await response.json();
-      const uuid = data?.landlord?.landlordUuid ?? null;
-      setIsAuthenticated(true);
-      setLandlordUuid(uuid);
-      setUsername(data?.landlord?.username ?? null);
-      setFullName(data?.landlord?.fullName ?? null);
-      setHasTotp(data?.landlord?.hasTotp ?? false);
-      setTotpEnabled(data?.landlord?.totpEnabled ?? false);
-      setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
-      setPrivacyConsented(data?.landlord?.privacyConsented ?? true);
-      setTermsConsented(data?.landlord?.termsConsented ?? true);
-      setSetupCompleted(data?.landlord?.setupCompleted ?? false);
-      setSetupSkipped(data?.landlord?.setupSkipped ?? false);
-      if (uuid) localStorage.setItem("landlordUuid", uuid);
-    } catch {
-      setIsAuthenticated(false);
-      setLandlordUuid(null);
-      setUsername(null);
-      setFullName(null);
-      setHasTotp(false);
-      setTotpEnabled(false);
-      setRequiresPasswordChange(false);
-      setPrivacyConsented(null);
-      setTermsConsented(null);
-      setSetupCompleted(false);
-      setSetupSkipped(false);
-      localStorage.removeItem("landlordUuid");
-    }
+  const applyMeData = useCallback((data: any) => {
+    const uuid = data?.landlord?.landlordUuid ?? null;
+    setIsAuthenticated(true);
+    setLandlordUuid(uuid);
+    setUsername(data?.landlord?.username ?? null);
+    setFullName(data?.landlord?.fullName ?? null);
+    setHasTotp(data?.landlord?.hasTotp ?? false);
+    setTotpEnabled(data?.landlord?.totpEnabled ?? false);
+    setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
+    setPrivacyConsented(data?.landlord?.privacyConsented ?? true);
+    setTermsConsented(data?.landlord?.termsConsented ?? true);
+    setSetupCompleted(data?.landlord?.setupCompleted ?? false);
+    setSetupSkipped(data?.landlord?.setupSkipped ?? false);
+    if (uuid) localStorage.setItem("landlordUuid", uuid);
   }, []);
+
+  const clearAuthState = useCallback(() => {
+    setIsAuthenticated(false);
+    setLandlordUuid(null);
+    setUsername(null);
+    setFullName(null);
+    setHasTotp(false);
+    setTotpEnabled(false);
+    setRequiresPasswordChange(false);
+    setPrivacyConsented(null);
+    setTermsConsented(null);
+    setSetupCompleted(false);
+    setSetupSkipped(false);
+    localStorage.removeItem("landlordUuid");
+  }, []);
+
+  const refreshMe = useCallback(async () => {
+    let response: Response;
+    try {
+      response = await fetch(ROUTES.LANDLORDAPIAUTHME, { credentials: "include" });
+    } catch {
+      // Transient network error — keep the current session; the 60s poll retries.
+      return;
+    }
+
+    if (response.ok) {
+      applyMeData(await response.json().catch(() => null));
+      return;
+    }
+
+    // Access token expired (or the check raced a refresh elsewhere): try a
+    // silent token refresh once, then re-check identity.
+    if (response.status === 401) {
+      const result = await silentRefresh();
+      if (result.status === "ok") {
+        try {
+          const retry = await fetch(ROUTES.LANDLORDAPIAUTHME, {
+            credentials: "include",
+          });
+          if (retry.ok) {
+            applyMeData(await retry.json().catch(() => null));
+            return;
+          }
+          if (retry.status === 401 || retry.status === 303) {
+            // Refresh succeeded but the identity check still fails — the
+            // session is genuinely gone; log out.
+            clearAuthState();
+          }
+        } catch {
+          // Transient network error after a successful refresh — keep session.
+          return;
+        }
+      } else if (result.status === "unreachable") {
+        // Backend unreachable — do NOT log the user out on a network blip.
+        return;
+      } else {
+        // Refresh definitively rejected: session expired or revoked.
+        clearAuthState();
+      }
+      return;
+    }
+
+    if (response.status === 303) {
+      // Session invalid (e.g. revoked) — log out.
+      clearAuthState();
+      return;
+    }
+
+    // Any other non-OK /me response (transient 404/500, proxy interstitial,
+    // etc.) is not an auth failure — keep the session; the 60s poll retries.
+  }, [applyMeData, clearAuthState]);
 
   useEffect(() => {
     // Pre-seed UUID from URL or localStorage before /api/auth/me responds
@@ -45775,6 +46245,7 @@ export function useIsMobile() {
 import { useState, useCallback } from "react";
 import { encryptPayload } from "../lib/encryption";
 import { ROUTES } from "../lib/routes";
+import { silentRefresh } from "../lib/auth";
 import { getApiUrl } from "@shared/api-config";
 
 export interface ApiResponse<T = any> {
@@ -45802,6 +46273,29 @@ async function getErrorMessage(res: Response): Promise<string> {
   return data?.detail || data?.message || `HTTP ${res.status}`;
 }
 
+async function fetchWithRefresh(url: string, options: RequestInit = {}): Promise<Response> {
+  const doFetch = (): Promise<Response> =>
+    fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      credentials: "include",
+    });
+
+  const res = await doFetch();
+  if (res.status !== 401) return res;
+
+  // Access token expired: silently refresh once, then retry the request.
+  const result = await silentRefresh();
+  if (result.status === "ok") {
+    const retry = await doFetch();
+    if (retry.status !== 401) return retry;
+  }
+  return res;
+}
+
 export function useApi() {
   const [response, setResponse] = useState<ApiResponse>({ status: "idle" });
 
@@ -45809,13 +46303,8 @@ export function useApi() {
     setResponse({ status: "loading" });
 
     try {
-      const res = await fetch(buildUrl(endpoint), {
+      const res = await fetchWithRefresh(buildUrl(endpoint), {
         ...options,
-        headers: {
-          "Content-Type": "application/json",
-          ...(options.headers || {}),
-        },
-        credentials: "include",
       });
 
       const data = await readJsonSafe(res);
@@ -45839,9 +46328,7 @@ export function useApi() {
 }
 
 export async function apiGet(endpoint: string) {
-  const res = await fetch(buildUrl(endpoint), {
-    credentials: "include",
-  });
+  const res = await fetchWithRefresh(buildUrl(endpoint));
 
   if (!res.ok) {
     throw new Error(await getErrorMessage(res));
@@ -45881,13 +46368,9 @@ export async function apiPost(endpoint: string, body: any) {
     }
   }
 
-  const res = await fetch(buildUrl(endpoint), {
+  const res = await fetchWithRefresh(buildUrl(endpoint), {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(finalBody),
-    credentials: "include",
   });
 
   if (!res.ok) {
@@ -46245,6 +46728,55 @@ export function useToast() {
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+  }
+}
+```
+
+### `frontend/landlord-app/src/lib/auth.ts`
+
+```typescript
+/**
+ * src/lib/auth.ts
+ * Silent session-refresh helpers.
+ *
+ * The backend issues short-lived access tokens (15 min) and a longer-lived
+ * refresh session (24h, or 180d with remember-me). The access token is stored
+ * in an HttpOnly cookie, so the frontend cannot read its expiry — instead we
+ * refresh lazily: whenever a request comes back 401, try the refresh endpoint
+ * once, then retry the original request. This keeps the landlord logged in
+ * until they explicitly log out or the refresh session itself expires.
+ */
+import { ROUTES } from "./routes";
+
+export type RefreshResult =
+  | { status: "ok" }
+  | { status: "expired" } // refresh rejected — session revoked/expired
+  | { status: "unreachable" }; // network/server error — keep current session
+
+let refreshInFlight: Promise<RefreshResult> | null = null;
+
+/**
+ * POST /landlord/api/auth/refresh with credentials. Single-flight: concurrent
+ * callers share one request so cookie rotation (which revokes the previous
+ * refresh token) never races itself.
+ */
+export async function silentRefresh(): Promise<RefreshResult> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = (async (): Promise<RefreshResult> => {
+    try {
+      const res = await fetch(ROUTES.LANDLORDAPIAUTHREFRESH, {
+        method: "POST",
+        credentials: "include",
+      });
+      return res.ok ? { status: "ok" } : { status: "expired" };
+    } catch {
+      return { status: "unreachable" };
+    }
+  })();
+  try {
+    return await refreshInFlight;
+  } finally {
+    refreshInFlight = null;
   }
 }
 ```
@@ -46685,6 +47217,7 @@ export const ROUTES = {
     LANDLORDAPITENANTSREVEALPIN(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "revealPin", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTSPORTALAUTH(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "portalAuth", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTSQRKEY(landlordUuid: string, tenantId: number) { return api("landlord", "tenants", "qrKey", { landlordUuid, tenantId }); },
+    LANDLORDAPITENANTSQR(landlordUuid: string, tenantId: number, size: number) { return `${api("landlord", "tenants", "qr", { landlordUuid, tenantId })}?size=${size}`; },
     LANDLORDAPITENANTSRECEIPTS(landlordUuid: string, tenantId: number | string) { return api("landlord", "tenants", "receipts", { landlordUuid, tenantId }); },
     LANDLORDAPITENANTRECOVERYSNAPSHOTS(landlordUuid: string) { return api("landlord", "tenants", "recoverySnapshots", { landlordUuid }); },
     LANDLORDAPITENANTSNAPSHOT_PREVIEW(landlordUuid: string, snapshotId: string) { return api("landlord", "tenants", "recoverySnapshotPreview", { landlordUuid, snapshotId }); },
@@ -51341,6 +51874,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/services/api';
 import { ROUTES } from '@/lib/routes';
+import { silentRefresh } from '@/lib/auth';
 import { useToast } from '@/hooks/useToast';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51493,11 +52027,18 @@ export default function Settings() {
     if (!signatureFile) return;
     const form = new FormData();
     form.append("file", signatureFile);
-    const res = await fetch(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid!), {
-      method: "POST",
-      credentials: "include",
-      body: form,
-    });
+    const doUpload = () =>
+      fetch(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid!), {
+        method: "POST",
+        credentials: "include",
+        body: form,
+      });
+    let res = await doUpload();
+    if (res.status === 401) {
+      const result = await silentRefresh();
+      if (result.status === "ok") res = await doUpload();
+      else if (result.status === "expired") window.location.href = ROUTES.LANDLORDPAGELOGIN;
+    }
     if (!res.ok) throw new Error("Signature upload failed");
   }
 
@@ -52960,7 +53501,6 @@ export default function SetupPage() {
 
 ```typescript
 import { useState, useEffect } from 'react';
-import QRCode from 'react-qr-code';
 import { BrandWave } from '@shared/loading/BrandWave';
 import PhoneInputField from '@shared/phone/PhoneInput';
 import { Card, CardContent } from '@/components/ui/card';
@@ -53042,17 +53582,16 @@ function buildQrPrintHtml({
   tenantName,
   roomNumber,
   pin,
-  url,
+  qrDataUri,
 }: {
   tenantName: string;
   roomNumber?: string;
   pin: string;
-  url: string;
+  qrDataUri: string;
 }) {
   const safeTenantName = escapeHtml(tenantName || 'Tenant');
   const safeRoom = escapeHtml(roomNumber || '-');
   const safePin = escapeHtml(pin || '----');
-  const safeUrl = escapeHtml(url);
   const displayDate = formatDisplayDate();
 
   return `<!DOCTYPE html>
@@ -53127,6 +53666,12 @@ function buildQrPrintHtml({
         padding: 14px;
       }
 
+      .qr-wrap img {
+        display: block;
+        width: 340px;
+        height: 340px;
+      }
+
       .instructions {
         margin: 10px auto 0;
         max-width: 300px;
@@ -53177,10 +53722,6 @@ function buildQrPrintHtml({
         line-height: 1.5;
         color: #6b7280;
       }
-
-      #qr {
-        line-height: 0;
-      }
     </style>
   </head>
   <body>
@@ -53190,7 +53731,7 @@ function buildQrPrintHtml({
         <div class="tenant">${safeTenantName}</div>
 
         <div class="qr-wrap">
-          <div id="qr"></div>
+          <img src="${qrDataUri}" alt="PROPAURA QR" width="340" height="340" />
         </div>
 
         <div class="instructions">
@@ -53212,18 +53753,6 @@ function buildQrPrintHtml({
         </div>
       </div>
     </div>
-
-    <script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
-    <script>
-      new QRCode(document.getElementById("qr"), {
-        text: "${safeUrl}",
-        width: 340,
-        height: 340,
-        colorDark: "#000000",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.H
-      });
-    </script>
   </body>
 </html>`;
 }
@@ -53279,6 +53808,9 @@ export default function Tenants() {
   const [qrTenant, setQrTenant] = useState<Tenant | null>(null);
   const [qrPin, setQrPin] = useState('1234');
   const [qrPinLoading, setQrPinLoading] = useState(false);
+  const [qrDataUri, setQrDataUri] = useState<string | null>(null);
+  const [qrDataLoading, setQrDataLoading] = useState(false);
+  const [qrDataError, setQrDataError] = useState<string | null>(null);
   const [showQrPinEditor, setShowQrPinEditor] = useState(false);
   const [newQrPin, setNewQrPin] = useState('');
   const [savingQrPin, setSavingQrPin] = useState(false);
@@ -53331,6 +53863,15 @@ export default function Tenants() {
     setShowQrPinEditor(false);
     setNewQrPin('');
 
+    setQrDataUri(null);
+    setQrDataError(null);
+    setQrDataLoading(true);
+    api
+      .tenantQr(landlordUuid!, tenant.id, 260)
+      .then((res) => setQrDataUri(res.qr))
+      .catch((e: any) => setQrDataError(e?.message || 'Failed to generate QR'))
+      .finally(() => setQrDataLoading(false));
+
     try {
                 const res = await api.revealTenantPin(landlordUuid!, tenant.id);
       setQrPin(res.pin || '----');
@@ -53347,6 +53888,14 @@ export default function Tenants() {
       setRegeneratingQr(true);
       const res = await api.regenerateQrKey(landlordUuid!, qrTenant.id);
       setQrTenant({ ...qrTenant, qr_key: res.qr_key });
+      setQrDataUri(null);
+      setQrDataError(null);
+      setQrDataLoading(true);
+      api
+        .tenantQr(landlordUuid!, qrTenant.id, 260)
+        .then((qrRes) => setQrDataUri(qrRes.qr))
+        .catch((e: any) => setQrDataError(e?.message || 'Failed to generate QR'))
+        .finally(() => setQrDataLoading(false));
       toast.success(res.message || 'QR key regenerated');
       loadTenants();
     } catch (e: any) {
@@ -53595,6 +54144,9 @@ export default function Tenants() {
         setQrTenant(null);
         setShowQrPinEditor(false);
         setNewQrPin('');
+        setQrDataUri(null);
+        setQrDataError(null);
+        setQrDataLoading(false);
       }}>
         <DialogContent className="max-w-[420px] p-4">
           <DialogHeader className="pb-1">
@@ -53613,11 +54165,43 @@ export default function Tenants() {
                 </div>
 
                 <div className="mt-4 flex justify-center bg-white p-2">
-                  <QRCode
-                    value={buildTenantUrl(landlordUuid!, qrTenant)}
-                    size={200}
-                    level="H"
-                  />
+                  {qrDataLoading ? (
+                    <div className="flex h-[200px] w-[200px] items-center justify-center text-sm text-gray-400">
+                      Generating QR...
+                    </div>
+                  ) : qrDataUri ? (
+                    <img
+                      src={qrDataUri}
+                      alt={`${qrTenant.name} PROPAURA QR`}
+                      width={200}
+                      height={200}
+                      className="block h-[200px] w-[200px]"
+                    />
+                  ) : (
+                    <div className="flex h-[200px] w-[200px] flex-col items-center justify-center gap-2 text-center">
+                      <span className="text-sm text-red-600">
+                        {qrDataError || 'Failed to generate QR'}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (!qrTenant.id) return;
+                          setQrDataUri(null);
+                          setQrDataError(null);
+                          setQrDataLoading(true);
+                          api
+                            .tenantQr(landlordUuid!, qrTenant.id, 260)
+                            .then((res) => setQrDataUri(res.qr))
+                            .catch((e: any) => setQrDataError(e?.message || 'Failed to generate QR'))
+                            .finally(() => setQrDataLoading(false));
+                        }}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="my-4 border-t border-dashed border-gray-200" />
@@ -53904,8 +54488,6 @@ function TenantCard({
             onClick={async () => {
               if (!tenant.viewToken || !tenant.id) return;
 
-              const url = buildTenantUrl(landlordUuid!, tenant);
-
               let pin = '----';
               try {
       const res = await api.revealTenantPin(landlordUuid!, tenant.id);
@@ -53914,11 +54496,21 @@ function TenantCard({
                 console.error('Failed to fetch tenant PIN', e);
               }
 
+              let qrDataUri = '';
+              try {
+                const qrRes = await api.tenantQr(landlordUuid!, tenant.id, 340);
+                qrDataUri = qrRes.qr;
+              } catch (e) {
+                console.error('Failed to generate tenant QR', e);
+                toast.error('Failed to generate QR. Please try again.');
+                return;
+              }
+
               const htmlContent = buildQrPrintHtml({
                 tenantName: tenant.name,
                 roomNumber: tenant.roomNumber || '-',
                 pin,
-                url,
+                qrDataUri,
               });
 
               try {
@@ -54412,6 +55004,7 @@ export default function TermsConditionsPage() {
 ```typescript
 import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig } from "@/types";
 import { ROUTES } from "@/lib/routes";
+import { silentRefresh } from "@/lib/auth";
 
 export type ArchiveDataResponse = {
   tenants: Tenant[];
@@ -54419,15 +55012,50 @@ export type ArchiveDataResponse = {
 };
 
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
-  const res = await fetch(url, {
-    ...options,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-  });
+  const doFetch = (): Promise<Response> =>
+    fetch(url, {
+      ...options,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+
+  const res = await doFetch();
   if (res.status === 401 || res.status === 303) {
+    const result = await silentRefresh();
+    if (result.status === "ok") {
+      const retry = await doFetch();
+      if (retry.status !== 401 && retry.status !== 303) return retry;
+    }
+    if (result.status === "unreachable") {
+      // Backend unreachable — keep the session; the request surfaced a network
+      // failure, not an auth failure.
+      throw new Error("Unauthorized");
+    }
+    window.location.href = ROUTES.LANDLORDPAGELOGIN;
+    throw new Error("Unauthorized");
+  }
+  return res;
+}
+
+async function fetchFormWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
+  // For FormData bodies (occupant/signature uploads) the browser sets the
+  // multipart boundary itself, so we must NOT force Content-Type here.
+  const doFetch = (): Promise<Response> =>
+    fetch(url, { ...options, credentials: "include" });
+
+  const res = await doFetch();
+  if (res.status === 401 || res.status === 303) {
+    const result = await silentRefresh();
+    if (result.status === "ok") {
+      const retry = await doFetch();
+      if (retry.status !== 401 && retry.status !== 303) return retry;
+    }
+    if (result.status === "unreachable") {
+      throw new Error("Unauthorized");
+    }
     window.location.href = ROUTES.LANDLORDPAGELOGIN;
     throw new Error("Unauthorized");
   }
@@ -54527,6 +55155,17 @@ export const api = {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Failed to regenerate QR key");
+    return data;
+  },
+
+  tenantQr: async (
+    landlordUuid: string,
+    tenantId: number,
+    size: number,
+  ): Promise<{ qr: string; format: string; error_correction: string; size: number; modules: number; url: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSQR(landlordUuid, tenantId, size));
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || "Failed to generate tenant QR");
     return data;
   },
 
@@ -54849,10 +55488,9 @@ export const api = {
   },
 
   saveOccupant: async (landlordUuid: string, tenantId: string | number, data: FormData): Promise<{ status: string; occupantUuid: string }> => {
-    const res = await fetch(ROUTES.LANDLORDAPIOCCUPANTSCREATE(landlordUuid, Number(tenantId)), {
+    const res = await fetchFormWithAuth(ROUTES.LANDLORDAPIOCCUPANTSCREATE(landlordUuid, Number(tenantId)), {
       method: "POST",
       body: data,
-      credentials: "include",
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -54932,9 +55570,8 @@ export const api = {
   uploadSignature: async (landlordUuid: string, file: File): Promise<string> => {
     const form = new FormData();
     form.append("file", file);
-    const res = await fetch(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid), {
+    const res = await fetchFormWithAuth(ROUTES.LANDLORDAPISETTINGSUPLOADSIGNATURE(landlordUuid), {
       method: "POST",
-      credentials: "include",
       body: form,
     });
     const data = await res.json();
@@ -56116,27 +56753,27 @@ export default function PhoneInputField({
     },
     "api": {
       "setup": {
-        "required": "/admin/api/setup/required",
-        "create": "/admin/api/setup/create"
+        "required": "/admin/api/auth/setup-required",
+        "create": "/admin/api/auth/setup-create"
       },
       "auth": {
         "publicKey": "/admin/api/auth/public-key",
-        "login": "/admin/api/login",
-        "loginTotp": "/admin/api/login/totp",
-        "refresh": "/admin/api/refresh",
-        "logout": "/admin/api/logout/json",
-        "me": "/admin/api/me"
+        "login": "/admin/api/auth/login",
+        "loginTotp": "/admin/api/auth/login-totp",
+        "refresh": "/admin/api/auth/refresh",
+        "logout": "/admin/api/auth/logout",
+        "me": "/admin/api/auth/me"
       },
       "totp": {
-        "qr": "/admin/api/totp/qr",
-        "regenerate": "/admin/api/totp/regenerate"
+        "qr": "/admin/api/auth/totp-qr",
+        "regenerate": "/admin/api/auth/totp-regenerate"
       },
       "password": {
-        "forgotVerify": "/admin/api/forgot-password/verify",
-        "forgotReset": "/admin/api/forgot-password/reset"
+        "forgotVerify": "/admin/api/auth/password/forgot-verify",
+        "forgotReset": "/admin/api/auth/password/forgot-reset"
       },
       "dashboard": {
-        "stats": "/admin/api/dashboard"
+        "stats": "/admin/api/stats"
       },
       "config": {
         "get": "/admin/api/config",
@@ -56300,6 +56937,7 @@ export default function PhoneInputField({
         "revealPin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/reveal-pin",
         "portalAuth": "/landlord/{landlordUuid}/api/tenants/{tenantId}/portal-auth",
         "qrKey": "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr-key",
+        "qr": "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr",
         "receipts": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
         "recoverySnapshots": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots",
         "recoverySnapshotPreview": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/preview",
@@ -58477,7 +59115,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { FileText, Download, X } from "lucide-react";
 import { toast } from "sonner";
-import { tenantApi } from "@/lib/api";
+import { tenantApi, silentRefresh } from "@/lib/api";
 import { BrandWave } from "@shared/loading/BrandWave";
 
 interface PdfPreviewModalProps {
@@ -58504,10 +59142,24 @@ export default function PdfPreviewModal({
     setLoading(true);
     setError("");
 
-    fetch(pdfViewUrl, {
-      method: "GET",
-      credentials: "include",
-    })
+    const fetchPdf = async () => {
+      let res = await fetch(pdfViewUrl, {
+        method: "GET",
+        credentials: "include",
+      });
+      if (res.status === 401) {
+        // Access token expired — refresh once, then retry.
+        if (await silentRefresh()) {
+          res = await fetch(pdfViewUrl, {
+            method: "GET",
+            credentials: "include",
+          });
+        }
+      }
+      return res;
+    };
+
+    fetchPdf()
       .then((res) => {
         if (!res.ok) throw new Error("Failed to load PDF");
         return res.blob();
@@ -58529,9 +59181,16 @@ export default function PdfPreviewModal({
 
   const handleDownload = async () => {
     try {
-      const res = await fetch(pdfDownloadUrl, {
+      let res = await fetch(pdfDownloadUrl, {
         credentials: "include",
       });
+      if (res.status === 401) {
+        if (await silentRefresh()) {
+          res = await fetch(pdfDownloadUrl, {
+            credentials: "include",
+          });
+        }
+      }
       if (!res.ok) throw new Error("Download failed");
 
       const blob = await res.blob();
@@ -60040,7 +60699,7 @@ import {
   type ReactNode,
 } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { tenantApi } from "@/lib/api";
+import { tenantApi, silentRefresh } from "@/lib/api";
 import { getTenantRuntime } from "@/lib/tenant-runtime";
 import type { PortalResponse, Receipt, Occupant } from "@/types";
 
@@ -60069,11 +60728,25 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const { data, isLoading, refetch } = useQuery<PortalResponse>({
     queryKey: ["tenant-profile", viewToken],
     queryFn: async () => {
-      const res = await tenantApi.profile.get();
-      return res.data as PortalResponse;
+      let res = await tenantApi.profile.get();
+      let portal = res.data as PortalResponse;
+      // The profile endpoint reports locked when the access token is
+      // expired even though the refresh cookie is still valid. Try a silent
+      // refresh before surfacing the lock so an active session survives
+      // (reload, window-focus refetch, reconnect). Falls through to locked
+      // when the session is genuinely gone.
+      if (!portal?.tenant?.unlocked) {
+        const refreshed = await silentRefresh();
+        if (refreshed) {
+          res = await tenantApi.profile.get();
+          portal = res.data as PortalResponse;
+        }
+      }
+      return portal;
     },
     enabled: !!viewToken,
     retry: false,
+    placeholderData: (previousData) => previousData,
   });
 
   const isUnlocked = Boolean(data?.tenant?.unlocked);
@@ -60257,12 +60930,52 @@ const http = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
+// Single-flight silent refresh: the backend rotates the refresh cookie on
+// every successful refresh, so concurrent refreshes would race each other.
+let refreshPromise: Promise<boolean> | null = null;
+
+function refreshAccessToken(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = axios
+    .post(`${getApiBaseUrl()}${tenantBase}/api/auth/refresh`, undefined, {
+      withCredentials: true,
+    })
+    .then(() => true)
+    .catch(() => false)
+    .finally(() => {
+      refreshPromise = null;
+    });
+  return refreshPromise;
+}
+
+/** Public single-flight refresh for raw fetch() calls (e.g. PDF fetches). */
+export async function silentRefresh(): Promise<boolean> {
+  return refreshAccessToken();
+}
+
+interface RetriableAxiosRequestConfig {
+  _retry?: boolean;
+}
+
 http.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      window.location.reload();
+  async (err) => {
+    const original = err.config as (RetriableAxiosRequestConfig | undefined) &
+      typeof err.config;
+    if (err.response?.status !== 401 || !original || original._retry) {
+      return Promise.reject(err);
     }
+
+    // Access token expired: silently refresh once, then retry the request.
+    // The refresh call uses the bare axios instance so a failed refresh (e.g.
+    // the session itself expired) doesn't loop back through this interceptor.
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      original._retry = true;
+      return http(original);
+    }
+
+    // Session truly expired — surface the 401. The app layer routes to login.
     return Promise.reject(err);
   }
 );
@@ -112181,6 +112894,39 @@ http {
         # breaking StaticFiles lookup (UPLOADS_DIR/static/uploads/... -> 404).
         location ^~ /rent/static/ {
             rewrite ^/rent(/.*)$ $1 break;
+            proxy_pass http://backend_dev_upstream;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Request-ID $request_id;
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+
+        # Root-level tenant portal API: /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/...
+        # Mirrors gateway/nginx/routes/api.conf so the page deep-link location
+        # below never swallows API calls. Passed through unchanged (no /rent
+        # prefix to strip — backend registers these at the root level).
+        location ~ ^/[^/]+/t/[0-9]+/[0-9]+/[^/]+/api/ {
+            proxy_pass http://backend_dev_upstream;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Request-ID $request_id;
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+
+        # Root-level tenant portal deep links (legacy share links without the /rent
+        # prefix): /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken} → tenant SPA.
+        # Mirrors gateway/nginx/routes/frontend.conf — rewrite to the /rent/t/index.html
+        # entry point that the dev frontend router (app/pages/frontend.py) serves.
+        location ~ ^/[^/]+/t/[0-9]+/[0-9]+/[^/]+(/.*)?$ {
+            rewrite ^ /rent/t/index.html break;
             proxy_pass http://backend_dev_upstream;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
