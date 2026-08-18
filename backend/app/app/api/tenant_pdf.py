@@ -45,14 +45,30 @@ async def tenant_view_pdf(
         formatted_date = receipt.get("Date", "").replace(" ", "")
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
+    from app.services.cacheservice import cache_get, cache_set
+    pdf_cache_key = f"pdf:{tenantId}:{billNo}"
+    cached_pdf = cache_get(pdf_cache_key)
+    if cached_pdf is not None:
+        response = StreamingResponse(
+            iter([cached_pdf]),
+            media_type='application/pdf'
+        )
+        response.headers["Content-Disposition"] = f"inline; filename={custom_filename}"
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
     landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
 
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
+    pdf_bytes = pdf_stream.getvalue()
+    cache_set(pdf_cache_key, pdf_bytes, ttl=300)
 
     response = StreamingResponse(
-        iter([pdf_stream.getvalue()]),
+        iter([pdf_bytes]),
         media_type='application/pdf'
     )
     response.headers["Content-Disposition"] = f"inline; filename={custom_filename}"
@@ -97,14 +113,27 @@ async def tenant_download_pdf(
         formatted_date = receipt.get("Date", "").replace(" ", "")
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
+    from app.services.cacheservice import cache_get, cache_set
+    pdf_cache_key = f"pdf:{tenantId}:{billNo}"
+    cached_pdf = cache_get(pdf_cache_key)
+    if cached_pdf is not None:
+        response = StreamingResponse(
+            iter([cached_pdf]),
+            media_type='application/pdf'
+        )
+        response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
+        return response
+
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
     landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
 
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
+    pdf_bytes = pdf_stream.getvalue()
+    cache_set(pdf_cache_key, pdf_bytes, ttl=300)
 
     response = StreamingResponse(
-        iter([pdf_stream.getvalue()]),
+        iter([pdf_bytes]),
         media_type='application/pdf'
     )
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'

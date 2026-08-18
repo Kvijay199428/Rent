@@ -1,10 +1,10 @@
 # Rent — Complete Source Code
 
-Generated: 2026-08-17
+Generated: 2026-08-18
 Script:   /root/rent/copy.py
 Source:   /root/rent
 Files:    414
-Size:     4015 KB
+Size:     4026 KB
 Skipped:  0
 
 ---
@@ -113,6 +113,7 @@ Skipped:  0
 - backend/app/app/routers/platform_admin.py
 - backend/app/app/services/backup_service.py
 - backend/app/app/services/billing_service.py
+- backend/app/app/services/cacheservice.py
 - backend/app/app/services/google_oauth_service.py
 - backend/app/app/services/landlord_config_service.py
 - backend/app/app/services/pdf_service.py
@@ -414,7 +415,6 @@ Skipped:  0
 - gateway/nginx/routes/redirect.conf
 - gateway/nginx/routes/rent.conf
 - gateway/nginx/routes/tenant-api.conf
-- gateway/nginx/routes/vks.conf
 - gateway/nginx/upstream/active.conf
 - gateway/nginx/upstream/inactive.conf
 - logs.py
@@ -2890,6 +2890,8 @@ router = APIRouter(tags=["Health"])
 
 @router.get(Routes.HEALTHCHECK, name=Names.HEALTHCHECK)
 async def health_check():
+    from app.services.cacheservice import cache_stats
+    redis_info = cache_stats()
     return {
         "status": "ok",
         "application": APP_INFO["name"],
@@ -2899,6 +2901,7 @@ async def health_check():
         "storage_ready": True,
         "database": "SQLite (rent.db)",
         "database_ready": True,
+        "cache": redis_info,
         "uptime": "N/A",
         "broadcast": ConfigService().get("broadcast", {"enabled": False, "message": "", "type": "info", "dismissible": True})
     }
@@ -3147,14 +3150,24 @@ async def download_pdf(landlordUuid: str, tenantId: int, billNo: str, principal=
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
+
+    from app.services.cacheservice import cache_get, cache_set
+    pdf_cache_key = f"pdf:{tenantId}:{billNo}"
+    cached_pdf = cache_get(pdf_cache_key)
+    if cached_pdf is not None:
+        response = StreamingResponse(iter([cached_pdf]), media_type='application/pdf')
+        response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
+        return response
         
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
     landlord_conf = get_effective_landlord_config(principal.landlord_id)
     
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
+    pdf_bytes = pdf_stream.getvalue()
+    cache_set(pdf_cache_key, pdf_bytes, ttl=300)
     
-    response = StreamingResponse(iter([pdf_stream.getvalue()]), media_type='application/pdf')
+    response = StreamingResponse(iter([pdf_bytes]), media_type='application/pdf')
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
     return response
 
@@ -3170,14 +3183,27 @@ async def view_pdf(landlordUuid: str, tenantId: int, billNo: str, principal=Depe
     except:
         formatted_date = receipt.get("Date", "").replace(" ", "")
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
+
+    from app.services.cacheservice import cache_get, cache_set
+    pdf_cache_key = f"pdf:{tenantId}:{billNo}"
+    cached_pdf = cache_get(pdf_cache_key)
+    if cached_pdf is not None:
+        response = StreamingResponse(iter([cached_pdf]), media_type='application/pdf')
+        response.headers["Content-Disposition"] = f"inline; filename={custom_filename}"
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
         
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
     landlord_conf = get_effective_landlord_config(principal.landlord_id)
     
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
+    pdf_bytes = pdf_stream.getvalue()
+    cache_set(pdf_cache_key, pdf_bytes, ttl=300)
 
-    response = StreamingResponse(iter([pdf_stream.getvalue()]), media_type='application/pdf')
+    response = StreamingResponse(iter([pdf_bytes]), media_type='application/pdf')
     response.headers["Content-Disposition"] = f"inline; filename={custom_filename}"
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
@@ -3760,7 +3786,6 @@ async def tenant_view_pdf(propertyId: int, tenantId: int, viewToken: str, billNo
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
     
-    # Verify tenant owns this receipt by ID (name-based check breaks after a rename)
     tenants = load_tenants()
     tenant = next((t for t in tenants if t.id == principal.id), None)
     if not tenant or int(receipt.get("TenantId", 0) or 0) != tenant.id:
@@ -3768,13 +3793,24 @@ async def tenant_view_pdf(propertyId: int, tenantId: int, viewToken: str, billNo
     if not _property_belongs_to_tenant(tenant, propertyId):
         raise HTTPException(status_code=403, detail="Property mismatch.")
         
+    from app.services.cacheservice import cache_get, cache_set
+    pdf_cache_key = f"pdf:{tenantId}:{billNo}"
+    cached_pdf = cache_get(pdf_cache_key)
+    if cached_pdf is not None:
+        response = StreamingResponse(iter([cached_pdf]), media_type='application/pdf')
+        response.headers["Content-Disposition"] = f"inline; filename=receipt_{billNo}.pdf"
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
     landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
     
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
+    pdf_bytes = pdf_stream.getvalue()
+    cache_set(pdf_cache_key, pdf_bytes, ttl=300)
     
-    response = StreamingResponse(iter([pdf_stream.getvalue()]), media_type='application/pdf')
+    response = StreamingResponse(iter([pdf_bytes]), media_type='application/pdf')
     response.headers["Content-Disposition"] = f"inline; filename=receipt_{billNo}.pdf"
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
@@ -3785,7 +3821,6 @@ async def tenant_download_pdf(propertyId: int, tenantId: int, viewToken: str, bi
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
     
-    # Verify tenant owns this receipt by ID (name-based check breaks after a rename)
     tenants = load_tenants()
     tenant = next((t for t in tenants if t.id == principal.id), None)
     if not tenant or int(receipt.get("TenantId", 0) or 0) != tenant.id:
@@ -3800,13 +3835,23 @@ async def tenant_download_pdf(propertyId: int, tenantId: int, viewToken: str, bi
         formatted_date = receipt.get("Date", "").replace(" ", "")
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
+    from app.services.cacheservice import cache_get, cache_set
+    pdf_cache_key = f"pdf:{tenantId}:{billNo}"
+    cached_pdf = cache_get(pdf_cache_key)
+    if cached_pdf is not None:
+        response = StreamingResponse(iter([cached_pdf]), media_type='application/pdf')
+        response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
+        return response
+
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
     landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
     
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
+    pdf_bytes = pdf_stream.getvalue()
+    cache_set(pdf_cache_key, pdf_bytes, ttl=300)
     
-    response = StreamingResponse(iter([pdf_stream.getvalue()]), media_type='application/pdf')
+    response = StreamingResponse(iter([pdf_bytes]), media_type='application/pdf')
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
     return response
 
@@ -6377,14 +6422,30 @@ async def tenant_view_pdf(
         formatted_date = receipt.get("Date", "").replace(" ", "")
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
+    from app.services.cacheservice import cache_get, cache_set
+    pdf_cache_key = f"pdf:{tenantId}:{billNo}"
+    cached_pdf = cache_get(pdf_cache_key)
+    if cached_pdf is not None:
+        response = StreamingResponse(
+            iter([cached_pdf]),
+            media_type='application/pdf'
+        )
+        response.headers["Content-Disposition"] = f"inline; filename={custom_filename}"
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
     landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
 
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
+    pdf_bytes = pdf_stream.getvalue()
+    cache_set(pdf_cache_key, pdf_bytes, ttl=300)
 
     response = StreamingResponse(
-        iter([pdf_stream.getvalue()]),
+        iter([pdf_bytes]),
         media_type='application/pdf'
     )
     response.headers["Content-Disposition"] = f"inline; filename={custom_filename}"
@@ -6429,14 +6490,27 @@ async def tenant_download_pdf(
         formatted_date = receipt.get("Date", "").replace(" ", "")
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
 
+    from app.services.cacheservice import cache_get, cache_set
+    pdf_cache_key = f"pdf:{tenantId}:{billNo}"
+    cached_pdf = cache_get(pdf_cache_key)
+    if cached_pdf is not None:
+        response = StreamingResponse(
+            iter([cached_pdf]),
+            media_type='application/pdf'
+        )
+        response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
+        return response
+
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
     landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
 
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
+    pdf_bytes = pdf_stream.getvalue()
+    cache_set(pdf_cache_key, pdf_bytes, ttl=300)
 
     response = StreamingResponse(
-        iter([pdf_stream.getvalue()]),
+        iter([pdf_bytes]),
         media_type='application/pdf'
     )
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
@@ -6817,6 +6891,10 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
         conn.commit()
 
     revoke_all_tenant_sessions(tenantId)
+
+    from app.services.cacheservice import cache_delete_pattern
+    cache_delete_pattern(f"qr:{tenantId}:*")
+
     ip = request.client.host if request.client else "Unknown IP"
     log_audit(tenantId, "QR Key Regenerated", ip)
 
@@ -6863,12 +6941,19 @@ async def api_tenant_qr(
         raise HTTPException(status_code=400, detail="Tenant QR key is missing.")
 
     url = tenant_qr_payload(landlordUuid, row["property_id"], tenantId, row["viewToken"], row["qr_key"])
+
+    from app.services.cacheservice import cache_get, cache_set
+    qr_cache_key = f"qr:{tenantId}:{size}:{format}"
+    cached_qr = cache_get(qr_cache_key)
+    if cached_qr is not None:
+        return cached_qr
+
     try:
         qr, fmt, count = build_branded_qr(url, size=size, fmt=format, validate=True)
     except QrBuildError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    return {
+    result = {
         "status": "success",
         "qr": qr,
         "format": fmt,
@@ -6877,6 +6962,8 @@ async def api_tenant_qr(
         "modules": count,
         "url": url,
     }
+    cache_set(qr_cache_key, result, ttl=3600)
+    return result
 
 @router.delete(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIDELETETENANT)
 async def api_delete_tenant(
@@ -17481,6 +17568,7 @@ from datetime import datetime
 from app.core.config_service import config
 from app.services.tenant_service import load_tenants, update_tenant
 from app.services.pdf_service import generate_professional_pdf
+from app.services.cacheservice import cache_get, cache_set, cache_delete_pattern
 
 from app.core.paths import DB_DIR, BACKUPS_DIR as BACKUP_DIR, RECEIPTS_DIR
 
@@ -17618,6 +17706,10 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
     
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
     return finalStatus
     
 def _safe_float(val, default=0.0) -> float:
@@ -17770,6 +17862,11 @@ def get_active_tenant_ids(landlord_id=None) -> set:
     return {t.id for t in tenants}
 
 def get_all_receipts(include_archived_tenants: bool = False, landlord_id=None):
+    cache_key = f"receipts:all:{include_archived_tenants}:{landlord_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     clauses = []
     params: list = []
     if landlord_id is not None:
@@ -17785,6 +17882,7 @@ def get_all_receipts(include_archived_tenants: bool = False, landlord_id=None):
         active_ids = get_active_tenant_ids(landlord_id=landlord_id)
         receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) in active_ids]
     
+    cache_set(cache_key, receipts, ttl=15)
     return receipts
 
 def get_receipts_for_tenant(tenant_id: int, include_archived: bool = False, landlord_id=None) -> list:
@@ -17990,6 +18088,10 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
         recompute_tenant_arrear_chain(conn, tenant.id)
         conn.commit()
 
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
     return receipt_dict
 def update_bill(tenantId, billNo, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
                 MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING",
@@ -18105,6 +18207,10 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
 
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
     return updated_dict
 def archive_bill(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
@@ -18126,6 +18232,10 @@ def archive_bill(tenantId, billNo, landlord_id=None):
         """, (datetime.now().strftime("%Y-%m-%d"), tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
     return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
 def restore_bill(tenantId, billNo, landlord_id=None):
@@ -18147,6 +18257,10 @@ def restore_bill(tenantId, billNo, landlord_id=None):
         """, (tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
     return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
 def delete_bill(tenantId, billNo, landlord_id=None):
@@ -18170,10 +18284,18 @@ def delete_bill(tenantId, billNo, landlord_id=None):
 
         conn.execute("DELETE FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo))
         conn.commit()
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
 
 
 def get_dashboard_stats(landlord_id=None):
-    
+    cache_key = f"dashboard:stats:{landlord_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     billing_conf = config.get("billing", {})
     receipts = get_all_receipts(include_archived_tenants=False, landlord_id=landlord_id)
     tenants = load_tenants(include_archived=False, landlord_id=landlord_id)
@@ -18320,7 +18442,7 @@ def get_dashboard_stats(landlord_id=None):
     revenue_list = [revenue_chart_data[m] for m in chart_months]
     electricity_list = [electricity_chart_data[m] for m in chart_months]
 
-    return {
+    result = {
         "next_bill": next_bill,
         "current_month": current_month_str,
 
@@ -18346,7 +18468,7 @@ def get_dashboard_stats(landlord_id=None):
         "pending_payments_count": pending_payments_count,
         "pending_payments_amount": pending_payments_amount,
         "pending_receipts_count": pending_receipts_count,
-        "pending_amount": pending_payments_amount,  # backward compat alias
+        "pending_amount": pending_payments_amount,
 
         "amount_collected": amount_collected,
         "paid_bills_count": paid_bills_count,
@@ -18358,6 +18480,8 @@ def get_dashboard_stats(landlord_id=None):
         "chart_revenue": revenue_list,
         "chart_electricity": electricity_list,
     }
+    cache_set(cache_key, result, ttl=30)
+    return result
 
 
 def save_all_receipts(receipts_list):
@@ -18450,6 +18574,157 @@ def save_all_receipts(receipts_list):
 
         conn.commit()
 
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
+
+```
+
+### `backend/app/app/services/cacheservice.py`
+
+```python
+"""
+Propaura Cache Service — Redis-backed with fail-open design.
+
+If Redis is unavailable, all operations silently fall through.
+Caching can never break the app.
+"""
+import os
+import json
+import hashlib
+import functools
+import logging
+from typing import Any, Optional, Callable
+
+logger = logging.getLogger(__name__)
+
+_redis = None
+_prefix = "propaura:"
+
+
+def _get_redis():
+    """Lazy-init Redis connection. Returns None if unavailable."""
+    global _redis
+    if _redis is not None:
+        return _redis
+    url = os.environ.get("REDIS_URL")
+    if not url:
+        return None
+    try:
+        import redis as _r
+        _redis = _r.from_url(
+            url,
+            decode_responses=True,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+        _redis.ping()
+        logger.info("Redis connected: %s", url)
+        return _redis
+    except Exception as e:
+        logger.warning("Redis unavailable (fail-open): %s", e)
+        _redis = None
+        return None
+
+
+def cache_get(key: str) -> Optional[Any]:
+    r = _get_redis()
+    if not r:
+        return None
+    try:
+        val = r.get(_prefix + key)
+        return json.loads(val) if val else None
+    except Exception:
+        return None
+
+
+def cache_set(key: str, value: Any, ttl: int = 30) -> None:
+    r = _get_redis()
+    if not r:
+        return
+    try:
+        r.setex(_prefix + key, ttl, json.dumps(value, default=str))
+    except Exception:
+        pass
+
+
+def cache_delete(key: str) -> None:
+    r = _get_redis()
+    if not r:
+        return
+    try:
+        r.delete(_prefix + key)
+    except Exception:
+        pass
+
+
+def cache_delete_pattern(pattern: str) -> None:
+    """Delete all keys matching pattern. Uses SCAN for safety."""
+    r = _get_redis()
+    if not r:
+        return
+    try:
+        cursor = 0
+        full = _prefix + pattern
+        while True:
+            cursor, keys = r.scan(cursor, match=full, count=100)
+            if keys:
+                r.delete(*keys)
+            if cursor == 0:
+                break
+    except Exception:
+        pass
+
+
+def cache_stats() -> dict:
+    """Return Redis connection status and key count for health checks."""
+    r = _get_redis()
+    if not r:
+        return {"connected": False, "provider": "in-memory"}
+    try:
+        info = r.info("keyspace")
+        db_keys = 0
+        for db, db_info in info.items():
+            if db.startswith("db"):
+                db_keys += db_info.get("keys", 0)
+        ping = r.ping()
+        return {"connected": bool(ping), "provider": "redis", "key_count": db_keys}
+    except Exception:
+        return {"connected": False, "provider": "redis", "key_count": 0}
+
+
+def cached(prefix: str, ttl: int = 30, key_fn: Optional[Callable] = None):
+    """Decorator: cache function result in Redis.
+
+    key_fn: optional callable(*args, **kwargs) -> str for custom cache keys.
+    If not provided, uses hashlib of args+kwargs.
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if key_fn:
+                cache_key = f"{prefix}:{key_fn(*args, **kwargs)}"
+            else:
+                raw = json.dumps(
+                    {"a": str(args), "k": str(kwargs)}, default=str
+                )
+                cache_key = f"{prefix}:{hashlib.md5(raw.encode()).hexdigest()}"
+
+            result = cache_get(cache_key)
+            if result is not None:
+                return result
+
+            result = func(*args, **kwargs)
+            if result is not None:
+                cache_set(cache_key, result, ttl)
+            return result
+
+        wrapper.invalidate = lambda: cache_delete_pattern(f"{prefix}:*")
+        return wrapper
+
+    return decorator
 ```
 
 ### `backend/app/app/services/google_oauth_service.py`
@@ -21014,8 +21289,14 @@ import uuid
 
 from app.models.tenant import Tenant
 from app.core.db import get_conn
+from app.services.cacheservice import cache_get, cache_set, cache_delete_pattern
 
 def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = None) -> List[Tenant]:
+    cache_key = f"tenants:all:{include_archived}:{landlord_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return [Tenant(**t) for t in cached]
+
     clauses = []
     params: list = []
     if not include_archived:
@@ -21027,6 +21308,7 @@ def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = No
     with get_conn() as conn:
         rows = conn.execute(f"SELECT * FROM tenants{where} ORDER BY id", params).fetchall()
     tenants = []
+    tenant_dicts = []
     for row in rows:
         t = Tenant(
             id=int(row["id"]),
@@ -21056,12 +21338,20 @@ def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = No
             property_id=row["property_id"],
         )
         tenants.append(t)
+        tenant_dicts.append(t.model_dump(mode="json"))
+    cache_set(cache_key, tenant_dicts, ttl=30)
     return tenants
 
 def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Tenant]:
     """Get a single tenant by ID. Optionally scoped to a landlord. Returns None if not found."""
     if tenantId is None:
         return None
+
+    cache_key = f"tenant:id:{tenantId}:{landlord_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return Tenant(**cached)
+
     clauses = ["id = ?"]
     params: list = [tenantId]
     if landlord_id is not None:
@@ -21073,7 +21363,7 @@ def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Ten
         ).fetchone()
     if not row:
         return None
-    return Tenant(
+    tenant = Tenant(
         id=int(row["id"]),
         name=row["name"],
         company=row["company"],
@@ -21098,6 +21388,8 @@ def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Ten
         landlord_id=row["landlord_id"],
         property_id=row["property_id"],
     )
+    cache_set(cache_key, tenant.model_dump(mode="json"), ttl=300)
+    return tenant
 
 def tenant_belongs_to_landlord(tenantId: int, landlord_id: Optional[int]) -> bool:
     """True if the tenant exists and is owned by the given landlord."""
@@ -21181,6 +21473,8 @@ def add_tenant(t: Tenant):
         if t.id is None:
             t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         conn.commit()
+    cache_delete_pattern("tenants:*")
+    cache_delete_pattern("tenant:id:*")
     return t.id
 
 def update_tenant(t: Tenant):
@@ -21234,6 +21528,11 @@ def update_tenant(t: Tenant):
             ),
         )
         conn.commit()
+    cache_delete_pattern("tenants:*")
+    cache_delete_pattern("tenant:id:*")
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
 
 def _tenant_row_to_dict(row) -> dict:
     return {
@@ -21319,6 +21618,11 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
             conn.execute("DELETE FROM receipts WHERE tenantId = ?", (tenantId,))
             conn.execute("DELETE FROM tenants WHERE id = ?", (tenantId,))
             conn.commit()
+            cache_delete_pattern("tenants:*")
+            cache_delete_pattern("tenant:id:*")
+            cache_delete_pattern("receipts:*")
+            cache_delete_pattern("dashboard:*")
+            cache_delete_pattern("portal:profile:*")
             return {"tenantId": tenantId, "deleted": True, "archived": False, "restored": False}
 
         if action == "archive":
@@ -21342,6 +21646,11 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
                 (archived_at, tenantId),
             )
             conn.commit()
+            cache_delete_pattern("tenants:*")
+            cache_delete_pattern("tenant:id:*")
+            cache_delete_pattern("receipts:*")
+            cache_delete_pattern("dashboard:*")
+            cache_delete_pattern("portal:profile:*")
 
             tenant_after = conn.execute(
                 "SELECT * FROM tenants WHERE id = ?", (tenantId,)
@@ -21381,6 +21690,11 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
                 (tenantId,),
             )
             conn.commit()
+            cache_delete_pattern("tenants:*")
+            cache_delete_pattern("tenant:id:*")
+            cache_delete_pattern("receipts:*")
+            cache_delete_pattern("dashboard:*")
+            cache_delete_pattern("portal:profile:*")
 
             tenant_after = conn.execute(
                 "SELECT * FROM tenants WHERE id = ?", (tenantId,)
@@ -21406,11 +21720,21 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
                 ("Inactive", now_iso, tenantId)
             )
             conn.commit()
+            cache_delete_pattern("tenants:*")
+            cache_delete_pattern("tenant:id:*")
+            cache_delete_pattern("receipts:*")
+            cache_delete_pattern("dashboard:*")
+            cache_delete_pattern("portal:profile:*")
             return {"tenantId": tenantId, "inactive": True, "archived": False, "restored": False}
 
         raise ValueError(f"Unsupported action: {action}")
 
 def get_occupants(tenantId: int) -> List[dict]:
+    cache_key = f"occupants:{tenantId}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM occupants WHERE tenantId = ?", (tenantId,)).fetchall()
 
@@ -21426,6 +21750,7 @@ def get_occupants(tenantId: int) -> List[dict]:
         # Keep "Occupant UUID" alias for admin-app backwards compatibility
         row["Occupant UUID"] = row.get("occupantUuid", "")
         result.append(row)
+    cache_set(cache_key, result, ttl=60)
     return result
 
 def save_occupant(tenantId: int, occ_data: dict):
@@ -21476,16 +21801,26 @@ def save_occupant(tenantId: int, occ_data: dict):
                 occ_data.get("uploaddate", ""), occ_data.get("uploadmonth", "")
             ))
         conn.commit()
+    cache_delete(f"occupants:{tenantId}")
+    cache_delete_pattern("portal:profile:*")
 
 def update_occupant_status(occupantUuid: str, status: str):
     with get_conn() as conn:
+        row = conn.execute("SELECT tenantId FROM occupants WHERE occupantUuid = ?", (occupantUuid,)).fetchone()
         conn.execute("UPDATE occupants SET status = ? WHERE occupantUuid = ?", (status, occupantUuid))
         conn.commit()
+    if row:
+        cache_delete(f"occupants:{row['tenantId']}")
+        cache_delete_pattern("portal:profile:*")
 
 def delete_occupant(occupantUuid: str):
     with get_conn() as conn:
+        row = conn.execute("SELECT tenantId FROM occupants WHERE occupantUuid = ?", (occupantUuid,)).fetchone()
         conn.execute("DELETE FROM occupants WHERE occupantUuid = ?", (occupantUuid,))
         conn.commit()
+    if row:
+        cache_delete(f"occupants:{row['tenantId']}")
+        cache_delete_pattern("portal:profile:*")
 
 ```
 
@@ -23251,6 +23586,7 @@ pydantic>=2.0.0
 google-auth>=2.38.0
 requests>=2.32.0
 phonenumbers>=8.13.0
+redis[hiredis]>=5.0.0
 ```
 
 ### `backend/scripts/backfill_tenant_ids.py`
@@ -23819,30 +24155,26 @@ if __name__ == "__main__":
 
 ```yaml
 # Development stack — isolated from production.
-#   backend_dev   API on port 28001 (hot reload), tunneled by ngrok
-#   frontend_dev  Vite dev server for tenant-app on port 28003
-#   ngrok         tunnels to backend_dev:28001, dashboard on 4041 (profile: ngrok)
+#   propaura-dev-backend   API on port 28001 (hot reload), tunneled by ngrok
+#   propaura-dev-frontend  Vite dev server for tenant-app on port 28003
+#   propaura-dev-gateway   nginx reverse proxy on port 28080
+#   propaura-dev-ngrok     tunnels to propaura-dev-backend:28001 (profile: ngrok)
 #
 # Usage:
 #   docker compose --env-file .env.development -f compose.dev.yml up -d
-#   docker compose --env-file .env.development -f compose.dev.yml --profile ngrok up -d  # + docker ngrok
+#   docker compose --env-file .env.development -f compose.dev.yml --profile ngrok up -d
 #
-# The ngrok service is behind a compose profile because on the server a
-# systemd-hosted ngrok already owns the account's reserved URL (and is the one
-# documented in NGROK_API_BASE_URL / VITE_API_BASE_URL). Start it explicitly if
-# you run the dev stack somewhere without a host ngrok.
-#
-# Separate network (dev-net) and separate storage (./storage/dev) so dev
+# Separate network (propaura-dev-net) and separate storage (./storage/dev) so dev
 # changes can never touch release traffic.
 
-name: rent-dev
+name: propaura-dev
 
 services:
-  backend_dev:
+  propaura-dev-backend:
     build:
       context: ./backend
-    image: rent-backend-dev
-    container_name: backend_dev
+    image: propaura-dev-backend
+    container_name: propaura-dev-backend
     restart: unless-stopped
     ports:
       - "${BACKEND_DEV_PORT:-28001}:28001"
@@ -23866,7 +24198,10 @@ services:
       - ./storage/dev:/code/storage
       - ./frontend:/code/frontend
     networks:
-      - dev-net
+      - propaura-dev-net
+    depends_on:
+      propaura-dev-redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28001/health', timeout=5)"]
       interval: 30s
@@ -23874,12 +24209,10 @@ services:
       retries: 3
       start_period: 60s
 
-  frontend_dev:
+  propaura-dev-frontend:
     image: node:22-alpine
-    container_name: frontend_dev
+    container_name: propaura-dev-frontend
     restart: unless-stopped
-    # Mount the whole frontend/ tree so tenant-app's `@shared` alias
-    # (../shared) resolves inside the container, mirroring local dev layout.
     working_dir: /app/tenant-app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
     environment:
@@ -23891,54 +24224,75 @@ services:
     volumes:
       - ./frontend:/app
     networks:
-      - dev-net
+      - propaura-dev-net
     depends_on:
-      - backend_dev
+      propaura-dev-backend:
+        condition: service_healthy
+      propaura-dev-redis:
+        condition: service_healthy
 
-  nginx_gateway_dev:
+  propaura-dev-gateway:
     image: nginx:alpine
-    container_name: rent-nginx-gateway-dev
+    container_name: propaura-dev-gateway
     restart: unless-stopped
     depends_on:
-      - backend_dev
+      - propaura-dev-backend
     ports:
-      - "127.0.0.1:28080:80"
+      - "127.0.0.1:${GATEWAY_DEV_PORT:-28080}:80"
     volumes:
       - ./nginx/dev-gateway.conf:/etc/nginx/nginx.conf:ro
     networks:
-      - dev-net
+      - propaura-dev-net
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    container_name: ngrok_dev
+  propaura-dev-redis:
+    image: redis:7-alpine
+    container_name: propaura-dev-redis
     restart: unless-stopped
-    # Off by default: the server exposes dev via a systemd-hosted ngrok that owns
-    # the reserved URL. Opt in with: docker compose --profile ngrok up -d
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --save ""
+    ports:
+      - "127.0.0.1:28086:6379"
+    volumes:
+      - redis-dev-data:/data
+    networks:
+      - propaura-dev-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  propaura-dev-ngrok:
+    image: ngrok/ngrok:latest
+    container_name: propaura-dev-ngrok
+    restart: unless-stopped
     profiles:
       - ngrok
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTH_TOKEN}
-    command: http backend_dev:28001
+    command: http propaura-dev-backend:28001
     ports:
       - "${NGROK_DASHBOARD_PORT:-4040}:4040"
     networks:
-      - dev-net
+      - propaura-dev-net
     depends_on:
-      - backend_dev
+      - propaura-dev-backend
 
 networks:
-  dev-net:
+  propaura-dev-net:
     driver: bridge
+
+volumes:
+  redis-dev-data:
 ```
 
 ### `compose.prod.yml`
 
 ```yaml
 # Production (release) stack — blue-green zero-downtime deployment.
-#   backend_release_blue   upstream slot A (28002)
-#   backend_release_green  upstream slot B (28012)
-#   frontend_release       static SPA build (host 28004)
-#   nginx_gateway          edge: api.vijaykrsha.online / app.vijaykrsha.online
+#   propaura-prod-backend-blue   upstream slot A (28002)
+#   propaura-prod-backend-green  upstream slot B (28012)
+#   propaura-prod-frontend       static SPA build (host 28004)
+#   propaura-prod-gateway        edge: api.vijaykrsha.online / app.vijaykrsha.online
 #
 # Usage:
 #   docker compose --env-file .env.release -f compose.prod.yml up -d
@@ -23948,17 +24302,15 @@ networks:
 # (SQLite) so the standby always has current data when it is promoted.
 # The nginx edge only ever proxies to the active slot (set in
 # gateway/nginx/upstream/active.conf), flipped with `nginx -s reload`.
-#
-# Requires external network: docker network create vega-gateway
 
-name: rent-prod
+name: propaura-prod
 
 services:
-  backend_release_blue:
+  propaura-prod-backend-blue:
     build:
       context: ./backend
-    image: rent-backend-release
-    container_name: backend_release_blue
+    image: propaura-prod-backend
+    container_name: propaura-prod-backend-blue
     restart: unless-stopped
     expose:
       - "28002"
@@ -23977,7 +24329,10 @@ services:
     volumes:
       - ./storage/release:/code/storage
     networks:
-      - vega-gateway
+      - propaura-prod-net
+    depends_on:
+      propaura-prod-redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28002/health', timeout=5)"]
       interval: 30s
@@ -23993,11 +24348,11 @@ services:
           cpus: '0.5'
           memory: 128M
 
-  backend_release_green:
+  propaura-prod-backend-green:
     build:
       context: ./backend
-    image: rent-backend-release
-    container_name: backend_release_green
+    image: propaura-prod-backend
+    container_name: propaura-prod-backend-green
     restart: unless-stopped
     expose:
       - "28012"
@@ -24016,7 +24371,10 @@ services:
     volumes:
       - ./storage/release:/code/storage
     networks:
-      - vega-gateway
+      - propaura-prod-net
+    depends_on:
+      propaura-prod-redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28012/health', timeout=5)"]
       interval: 30s
@@ -24032,9 +24390,26 @@ services:
           cpus: '0.5'
           memory: 128M
 
-  frontend_release:
+  propaura-prod-redis:
+    image: redis:7-alpine
+    container_name: propaura-prod-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --save ""
+    ports:
+      - "127.0.0.1:28087:6379"
+    volumes:
+      - redis-prod-data:/data
+    networks:
+      - propaura-prod-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  propaura-prod-frontend:
     image: nginx:1.27-alpine
-    container_name: frontend_release
+    container_name: propaura-prod-frontend
     restart: unless-stopped
     ports:
       - "${FRONTEND_RELEASE_PORT:-28004}:80"
@@ -24042,23 +24417,22 @@ services:
       - ./gateway/nginx/frontend_release.conf:/etc/nginx/conf.d/default.conf:ro
       - ./frontend/build-output:/usr/share/nginx/html:ro
     networks:
-      - vega-gateway
+      - propaura-prod-net
     depends_on:
-      - backend_release_blue
+      - propaura-prod-backend-blue
 
-  nginx_gateway:
+  propaura-prod-gateway:
     image: nginx:1.27-alpine
-    container_name: nginx_gateway
+    container_name: propaura-prod-gateway
     restart: unless-stopped
     ports:
       - "28005:8080"
     volumes:
       - ./gateway/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./gateway/nginx/conf.d:/etc/nginx/conf.d:ro
       - ./gateway/nginx/routes:/etc/nginx/routes:ro
       - ./gateway/nginx/upstream:/etc/nginx/upstream:ro
     networks:
-      - vega-gateway
+      - propaura-prod-net
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/health"]
       interval: 30s
@@ -24067,8 +24441,11 @@ services:
       start_period: 10s
 
 networks:
-  vega-gateway:
-    external: true
+  propaura-prod-net:
+    driver: bridge
+
+volumes:
+  redis-prod-data:
 ```
 
 ### `copy.py`
@@ -24459,10 +24836,10 @@ SCOPE_INFRA_ENV_PREFIXES = (".env",)
 # Dev compose service targeted by each scope (backend restarts pick up schema
 # init_db() and config reload). `all` keeps the existing full build+up.
 SCOPE_SERVICES = {
-    "frontend": "frontend_dev",
-    "backend": "backend_dev",
-    "storage": "backend_dev",
-    "database": "backend_dev",
+    "frontend": "propaura-dev-frontend",
+    "backend": "propaura-dev-backend",
+    "storage": "propaura-dev-backend",
+    "database": "propaura-dev-backend",
 }
 
 # Transport. --main/--release (branch self-pull) default to running locally on
@@ -25467,8 +25844,8 @@ COMPOSE="compose.prod.yml"
 ACTIVE_FILE="gateway/nginx/upstream/active.conf"
 INACTIVE_FILE="gateway/nginx/upstream/inactive.conf"
 
-BLUE="backend_release_blue"
-GREEN="backend_release_green"
+BLUE="propaura-prod-backend-blue"
+GREEN="propaura-prod-backend-green"
 BLUE_PORT=28002
 GREEN_PORT=28012
 
@@ -25521,16 +25898,12 @@ wait_health() {
 
 reload_edge() {
   local reloaded=0
-  if docker exec vega_gateway nginx -s reload >/dev/null 2>&1; then
-    ok "reloaded edge nginx (vega_gateway)"
-    reloaded=1
-  fi
-  if docker exec nginx_gateway nginx -s reload >/dev/null 2>&1; then
-    ok "reloaded edge nginx (nginx_gateway)"
+  if docker exec propaura-prod-gateway nginx -s reload >/dev/null 2>&1; then
+    ok "reloaded edge nginx (propaura-prod-gateway)"
     reloaded=1
   fi
   if [ "$reloaded" -eq 0 ]; then
-    warn "no edge nginx container found to reload — is compose.prod.yml nginx_gateway running?"
+    warn "no edge nginx container found to reload — is compose.prod.yml propaura-prod-gateway running?"
     warn "the upstream toggle file was still updated: $ACTIVE_FILE"
   fi
 }
@@ -25551,7 +25924,7 @@ smoke_test() {
 build_frontend() {
   if ! command -v node >/dev/null 2>&1; then
     warn "node not found on server — skipping frontend build"
-    warn "frontend_release (28004) needs frontend/build-output; build it locally and scp it,"
+    warn "propaura-prod-frontend (28004) needs frontend/build-output; build it locally and scp it,"
     warn "or install node on the server and rerun the deploy"
     return 0
   fi
@@ -25605,10 +25978,10 @@ main() {
     wait_health "$BLUE"
 
     # Retire the legacy edge + single backend only AFTER the new slot is healthy.
-    # One-time migration: the old gateway and rent-backend on the same network
-    # are superseded by nginx_gateway + the blue/green slots.
-    if docker inspect vega_gateway >/dev/null 2>&1 && ! docker inspect nginx_gateway >/dev/null 2>&1; then
-      warn "stopping legacy vega_gateway edge (replaced by nginx_gateway)"
+    # One-time migration: the old gateway and backend on the same network
+    # are superseded by propaura-prod-gateway + the blue/green slots.
+    if docker inspect vega_gateway >/dev/null 2>&1 && ! docker inspect propaura-prod-gateway >/dev/null 2>&1; then
+      warn "stopping legacy vega_gateway edge (replaced by propaura-prod-gateway)"
       docker stop vega_gateway >/dev/null 2>&1 || true
     fi
     if docker inspect rent-backend >/dev/null 2>&1; then
@@ -25616,7 +25989,7 @@ main() {
       docker stop rent-backend >/dev/null 2>&1 || true
     fi
 
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps frontend_release nginx_gateway
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps propaura-prod-frontend propaura-prod-gateway
     sleep 3
     reload_edge
     smoke_test
@@ -25669,7 +26042,7 @@ main() {
   ok "release deploy complete — active: $NEXT on port $NEXT_PORT"
   echo ""
   echo "  Rollback:"
-  echo "    sed -i 's/$NEXT/$ACTIVE/' $ACTIVE_FILE && docker exec nginx_gateway nginx -s reload"
+  echo "    sed -i 's/$NEXT/$ACTIVE/' $ACTIVE_FILE && docker exec propaura-prod-gateway nginx -s reload"
   echo "    docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps $ACTIVE"
 }
 
@@ -25712,9 +26085,9 @@ RELEASE_READY_FILE="${RELEASE_READY_FILE:-$SECRETS_DIR/RELEASE_READY}"
 
 log() { printf '\033[36m[self-pull]\033[0m %s\n' "$*"; }
 
-# Release deploys retire the legacy vega_gateway/rent-backend edge on first run.
+# Release deploys retire legacy edge containers on first run.
 # Gate them behind a marker so that only happens once the operator has switched
-# the cloudflared tunnel ingress to nginx_gateway (port 28005).
+# the cloudflared tunnel ingress to propaura-prod-gateway (port 28005).
 if [ "$BRANCH" = "release" ] && [ ! -f "$RELEASE_READY_FILE" ]; then
   log "release deploy gated — create $RELEASE_READY_FILE to enable"
   exit 0
@@ -62573,7 +62946,6 @@ http {
 
         include /etc/nginx/routes/api.conf;
         include /etc/nginx/routes/tenant-api.conf;
-        include /etc/nginx/routes/vks.conf;
         include /etc/nginx/routes/redirect.conf;
 
         # Bare API domain → the public frontend app
@@ -62586,7 +62958,7 @@ http {
         }
     }
 
-    # Frontend edge — app.vijaykrsha.online (served by frontend_release:28004)
+    # Frontend edge — app.vijaykrsha.online (served by propaura-prod-frontend:28004)
     server {
         listen 8080;
         server_name app.vijaykrsha.online;
@@ -62720,7 +63092,7 @@ location ^~ /static/ {
 ### `gateway/nginx/routes/frontend.conf`
 
 ```nginx
-# Frontend routes → frontend_release container (serves frontend/build-output).
+# Frontend routes → propaura-prod-frontend container (serves frontend/build-output).
 # Included after api.conf so API locations win; this file only serves pages.
 
 location = /rent {
@@ -62729,7 +63101,7 @@ location = /rent {
 
 # SPA build under /rent/ — landing, admin, landlord, tenant apps
 location ^~ /rent/ {
-    proxy_pass http://frontend_release;
+    proxy_pass http://propaura-prod-frontend;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -62747,7 +63119,7 @@ location ^~ /rent/ {
 # non-API deep links reach here. Serve the tenant SPA entry point.
 location ~ ^/[^/]+/t/[0-9]+/[0-9]+/[^/]+(/.*)?$ {
     rewrite ^ /rent/t/index.html break;
-    proxy_pass http://frontend_release;
+    proxy_pass http://propaura-prod-frontend;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -62934,73 +63306,16 @@ location ^~ /rent/static/ {
 }
 ```
 
-### `gateway/nginx/routes/vks.conf`
-
-```nginx
-# Vijay Kumar Sharma admin app — /vks/ routes → vijaykrsha-admin backend
-# (container vijaykrsha-28008:28008, shared vega-gateway network).
-# Additive block: does not touch rent/tenant routes. Included before
-# redirect.conf by the routes/*.conf glob in nginx.conf.
-
-# Variable-based upstream (requires resolver 127.0.0.11, already in nginx.conf).
-# Literal container names would resolve at config load and break on restart.
-set $vks_backend "vijaykrsha-28008:28008";
-
-# Admin app API
-location ^~ /vks/api/ {
-    proxy_pass http://$vks_backend;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_connect_timeout 10s;
-    proxy_send_timeout 60s;
-    proxy_read_timeout 60s;
-}
-
-# Liveness
-location = /vks/health {
-    access_log off;
-    proxy_pass http://$vks_backend;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
-
-# Admin SPA (HashRouter — all real paths land on /vks/admin/)
-location ^~ /vks/admin/ {
-    proxy_pass http://$vks_backend;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_connect_timeout 10s;
-    proxy_send_timeout 60s;
-    proxy_read_timeout 60s;
-}
-
-# /vks/ → admin SPA (absolute_redirect off so TLS-terminated upstreams don't
-# emit a Location with the internal :8080 port)
-location = /vks {
-    absolute_redirect off;
-    return 307 /vks/admin/;
-}
-
-location = /vks/ {
-    absolute_redirect off;
-    return 307 /vks/admin/;
-}
-```
-
 ### `gateway/nginx/upstream/active.conf`
 
 ```nginx
-set $release_backend "backend_release_green:28012";
+set $release_backend "propaura-prod-backend-green:28012";
 ```
 
 ### `gateway/nginx/upstream/inactive.conf`
 
 ```nginx
-set $release_backend "backend_release_blue:28002";
+set $release_backend "propaura-prod-backend-blue:28002";
 ```
 
 ### `logs.py`
@@ -112734,7 +113049,7 @@ if __name__ == "__main__":
 # Development Nginx gateway — mirrors gateway/nginx/routes/tenant-api.conf so the
 # dev stack behaves like production when reached through the ngrok tunnel.
 #
-# The frontend apps build API URLs as <origin>/rent/... while backend_dev
+# The frontend apps build API URLs as <origin>/rent/... while propaura-dev-backend
 # registers the same endpoints at the root level. These locations strip the
 # /rent prefix before proxying and pass X-Forwarded-Prefix /rent so auth cookie
 # paths are set under /rent (see forwarded_prefix_middleware in backend main.py).
@@ -112758,7 +113073,7 @@ http {
     }
 
     upstream backend_dev_upstream {
-        server backend_dev:28001;
+        server propaura-dev-backend:28001;
     }
 
     server {
@@ -112939,7 +113254,7 @@ http {
         }
 
         # Everything else (pages, SPA assets, deep links) — pass through unchanged
-        # so the dev frontend router on backend_dev serves them.
+        # so the dev frontend router on propaura-dev-backend serves them.
         location / {
             proxy_pass http://backend_dev_upstream;
             proxy_http_version 1.1;

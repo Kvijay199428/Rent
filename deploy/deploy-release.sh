@@ -22,8 +22,8 @@ COMPOSE="compose.prod.yml"
 ACTIVE_FILE="gateway/nginx/upstream/active.conf"
 INACTIVE_FILE="gateway/nginx/upstream/inactive.conf"
 
-BLUE="backend_release_blue"
-GREEN="backend_release_green"
+BLUE="propaura-prod-backend-blue"
+GREEN="propaura-prod-backend-green"
 BLUE_PORT=28002
 GREEN_PORT=28012
 
@@ -76,16 +76,12 @@ wait_health() {
 
 reload_edge() {
   local reloaded=0
-  if docker exec vega_gateway nginx -s reload >/dev/null 2>&1; then
-    ok "reloaded edge nginx (vega_gateway)"
-    reloaded=1
-  fi
-  if docker exec nginx_gateway nginx -s reload >/dev/null 2>&1; then
-    ok "reloaded edge nginx (nginx_gateway)"
+  if docker exec propaura-prod-gateway nginx -s reload >/dev/null 2>&1; then
+    ok "reloaded edge nginx (propaura-prod-gateway)"
     reloaded=1
   fi
   if [ "$reloaded" -eq 0 ]; then
-    warn "no edge nginx container found to reload — is compose.prod.yml nginx_gateway running?"
+    warn "no edge nginx container found to reload — is compose.prod.yml propaura-prod-gateway running?"
     warn "the upstream toggle file was still updated: $ACTIVE_FILE"
   fi
 }
@@ -106,7 +102,7 @@ smoke_test() {
 build_frontend() {
   if ! command -v node >/dev/null 2>&1; then
     warn "node not found on server — skipping frontend build"
-    warn "frontend_release (28004) needs frontend/build-output; build it locally and scp it,"
+    warn "propaura-prod-frontend (28004) needs frontend/build-output; build it locally and scp it,"
     warn "or install node on the server and rerun the deploy"
     return 0
   fi
@@ -160,10 +156,10 @@ main() {
     wait_health "$BLUE"
 
     # Retire the legacy edge + single backend only AFTER the new slot is healthy.
-    # One-time migration: the old gateway and rent-backend on the same network
-    # are superseded by nginx_gateway + the blue/green slots.
-    if docker inspect vega_gateway >/dev/null 2>&1 && ! docker inspect nginx_gateway >/dev/null 2>&1; then
-      warn "stopping legacy vega_gateway edge (replaced by nginx_gateway)"
+    # One-time migration: the old gateway and backend on the same network
+    # are superseded by propaura-prod-gateway + the blue/green slots.
+    if docker inspect vega_gateway >/dev/null 2>&1 && ! docker inspect propaura-prod-gateway >/dev/null 2>&1; then
+      warn "stopping legacy vega_gateway edge (replaced by propaura-prod-gateway)"
       docker stop vega_gateway >/dev/null 2>&1 || true
     fi
     if docker inspect rent-backend >/dev/null 2>&1; then
@@ -171,7 +167,7 @@ main() {
       docker stop rent-backend >/dev/null 2>&1 || true
     fi
 
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps frontend_release nginx_gateway
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps propaura-prod-frontend propaura-prod-gateway
     sleep 3
     reload_edge
     smoke_test
@@ -224,7 +220,7 @@ main() {
   ok "release deploy complete — active: $NEXT on port $NEXT_PORT"
   echo ""
   echo "  Rollback:"
-  echo "    sed -i 's/$NEXT/$ACTIVE/' $ACTIVE_FILE && docker exec nginx_gateway nginx -s reload"
+  echo "    sed -i 's/$NEXT/$ACTIVE/' $ACTIVE_FILE && docker exec propaura-prod-gateway nginx -s reload"
   echo "    docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps $ACTIVE"
 }
 
