@@ -3,7 +3,7 @@ import { Toaster } from '@/components/ui/sonner';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import { useAuth } from '@/contexts/AuthContext';
-import BroadcastBanner from '@/components/BroadcastBanner';
+import BroadcastBanner from '@shared/BroadcastBanner';
 import LoadingScreen from '@shared/loading/LoadingScreen';
 import { ROUTES } from '@/lib/routes';
 
@@ -23,7 +23,7 @@ export default function MainLayout() {
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <Header />
-        <BroadcastBanner healthUrl={ROUTES.HEALTHCHECK} />
+        <BroadcastBanner />
         <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
           <Outlet />
         </main>

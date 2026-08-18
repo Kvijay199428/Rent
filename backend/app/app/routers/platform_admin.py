@@ -1558,10 +1558,14 @@ async def system_health(request: Request):
 
 # ─── Broadcast / Maintenance Message ────────────────────────────────────────
 
+import os
+MAINTENANCE_SECRET = os.environ.get("MAINTENANCE_SECRET", "")
+
+
 @router.get("/api/broadcast")
 async def get_broadcast():
-    config = ConfigService()
-    return config.get("broadcast", {"enabled": False, "message": "", "type": "info", "dismissible": True})
+    from app.services.broadcastservice import get_broadcast as _get_broadcast
+    return _get_broadcast()
 
 
 class BroadcastUpdateModel(BaseModel):
@@ -1572,16 +1576,34 @@ class BroadcastUpdateModel(BaseModel):
 
 
 @router.post("/api/broadcast")
-async def update_broadcast(data: BroadcastUpdateModel):
-    config = ConfigService()
-    broadcast = {
-        "enabled": data.enabled,
-        "message": data.message,
-        "type": data.type,
-        "dismissible": data.dismissible
-    }
-    config.save("broadcast", broadcast)
-    return {"status": "success", "broadcast": broadcast}
+async def update_broadcast(data: BroadcastUpdateModel, request: Request):
+    _get_platform_admin(request)
+    from app.services.broadcastservice import set_broadcast
+    payload = await set_broadcast(
+        enabled=data.enabled, message=data.message,
+        type=data.type, dismissible=data.dismissible,
+    )
+    return {"status": "success", "broadcast": payload}
+
+
+@router.post("/api/maintenance/on")
+async def maintenance_on_endpoint(request: Request):
+    from app.services.broadcastservice import maintenance_on
+    secret = request.headers.get("X-Maintenance-Secret", "")
+    if not (secret and MAINTENANCE_SECRET and secret == MAINTENANCE_SECRET):
+        _get_platform_admin(request)
+    payload = await maintenance_on()
+    return {"status": "success", "broadcast": payload}
+
+
+@router.post("/api/maintenance/off")
+async def maintenance_off_endpoint(request: Request):
+    from app.services.broadcastservice import maintenance_off
+    secret = request.headers.get("X-Maintenance-Secret", "")
+    if not (secret and MAINTENANCE_SECRET and secret == MAINTENANCE_SECRET):
+        _get_platform_admin(request)
+    payload = await maintenance_off()
+    return {"status": "success", "broadcast": payload}
 
 
 # ─── Audit Logs (unified across all 3 apps) ────────────────────────────────

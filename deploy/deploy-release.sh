@@ -201,6 +201,16 @@ main() {
   fi
   ok "$NEXT confirmed running"
 
+  # ── Enable maintenance banner while traffic flips ─────────────────────
+  MAINTENANCE_SECRET="${MAINTENANCE_SECRET:-}"
+  if [ -n "$MAINTENANCE_SECRET" ]; then
+    log "enabling maintenance banner during deploy..."
+    curl -s -X POST "http://127.0.0.1:28005/api/maintenance/on" \
+      -H "Content-Type: application/json" \
+      -H "X-Maintenance-Secret: ${MAINTENANCE_SECRET}" || true
+    sleep 3
+  fi
+
   # ── Flip traffic ────────────────────────────────────────────────────────
   printf 'set $release_backend "%s:%s";\n' "$NEXT" "$NEXT_PORT" > "$ACTIVE_FILE"
   printf 'set $release_backend "%s:%s";\n' "$ACTIVE" "$ACTIVE_PORT" > "$INACTIVE_FILE"
@@ -208,6 +218,14 @@ main() {
   reload_edge
   sleep 2
   smoke_test
+
+  # ── Clear maintenance banner ───────────────────────────────────────────
+  if [ -n "$MAINTENANCE_SECRET" ]; then
+    log "clearing maintenance banner..."
+    curl -s -X POST "http://127.0.0.1:28005/api/maintenance/off" \
+      -H "Content-Type: application/json" \
+      -H "X-Maintenance-Secret: ${MAINTENANCE_SECRET}" || true
+  fi
 
   # ── Stop the old slot (kept as the rollback target) ─────────────────────
   log "stopping old slot $ACTIVE (still available for rollback via its image)"
