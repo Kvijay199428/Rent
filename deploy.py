@@ -175,10 +175,10 @@ SCOPE_INFRA_ENV_PREFIXES = (".env",)
 # Dev compose service targeted by each scope (backend restarts pick up schema
 # init_db() and config reload). `all` keeps the existing full build+up.
 SCOPE_SERVICES = {
-    "frontend": "frontend_dev",
-    "backend": "backend_dev",
-    "storage": "backend_dev",
-    "database": "backend_dev",
+    "frontend": "propaura-dev-frontend",
+    "backend": "propaura-dev-backend",
+    "storage": "propaura-dev-backend",
+    "database": "propaura-dev-backend",
 }
 
 # Transport. --main/--release (branch self-pull) default to running locally on
