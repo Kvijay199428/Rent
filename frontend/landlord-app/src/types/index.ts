@@ -22,6 +22,7 @@ export interface Tenant {
   viewToken?: string;
   tenantPin?: string | null;
   qr_key?: string;
+  portalUrl?: string;
   tenantUsername?: string;
   arrears: number;
   propertyId?: number | null;

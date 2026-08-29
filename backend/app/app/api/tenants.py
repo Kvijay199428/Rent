@@ -54,9 +54,19 @@ def _validate_property_ownership(landlord_id: int, property_id):
 async def api_get_tenants(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
     tenants = load_tenants(include_archived=False, landlord_id=principal.landlord_id)
     from app.services.payment_service import get_tenant_settlement_state, get_tenant_outstanding_balance
+    from app.services.qr_service import tenant_qr_payload
     result = []
     for t in tenants:
         d = t.dict()
+        # Canonical tenant portal URL — identical to the one embedded in the QR
+        # so the landlord "Public Profile" button and the printed QR always agree.
+        d["portalUrl"] = tenant_qr_payload(
+            landlordUuid,
+            getattr(t, "propertyId", None),
+            t.id,
+            getattr(t, "viewToken", "") or "",
+            getattr(t, "qr_key", "") or "",
+        )
         try:
             d["outstandingBalance"] = get_tenant_outstanding_balance(t.id)
             st = get_tenant_settlement_state(t.id)
