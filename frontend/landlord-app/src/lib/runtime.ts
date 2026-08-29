@@ -9,7 +9,13 @@ function getAppBase(): string {
   // Match /{prefix}/landlord/{uuid} when accessed through proxy (e.g. /rent/landlord/abc-123/dashboard)
   // Match /landlord/{uuid} when accessed directly (e.g. /landlord/abc-123/dashboard)
   // Falls back to /{prefix}/landlord or /landlord for login/signup (no UUID in URL)
-  const match = path.match(/^(\/[^/]+)?\/landlord(\/[a-f0-9-]+)?/);
+  // Match /landlord/{uuid} only when a real UUID follows — route names like
+  // /billing, /dashboard, /backups, /archive start with a-f/digits and would
+  // otherwise be (wrongly) captured as a UUID, breaking the router basename on
+  // hard refresh. Requiring the full UUID shape avoids that.
+  const match = path.match(
+    /^(\/[^/]+)?\/landlord(\/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})?/
+  );
   return match ? match[0] : '/rent/landlord';
 }
 
