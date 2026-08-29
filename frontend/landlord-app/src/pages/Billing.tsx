@@ -112,19 +112,27 @@ export default function Billing() {
       let arrears = 0;
 
       if (receipts.length > 0) {
-        previousReading = Number(receipts[0].Current || 0);
-        receipts.forEach((r) => {
+        const seqOf = (r: { Bill: string }) => {
           const parts = r.Bill.split('-');
-          const seq = parts.length > 1 ? parseInt(parts[parts.length - 1]) : parseInt(r.Bill);
-          if (!isNaN(seq)) maxSeq = Math.max(maxSeq, seq);
+          const s = parts.length > 1 ? parseInt(parts[parts.length - 1]) : parseInt(r.Bill);
+          return isNaN(s) ? -1 : s;
+        };
+        receipts.forEach((r) => {
+          maxSeq = Math.max(maxSeq, seqOf(r));
         });
 
-        const last = receipts[0];
-        const lastTotal = parseFloat(String(last.Total)) || 0;
-        const lastPrevArr = parseFloat(String(last.previousArrears)) || 0;
+        // The previous reading is the current reading of the MOST RECENT bill
+        // (highest sequence). The receipts endpoint returns bills oldest-first,
+        // so receipts[0] would be the first bill — use the bill matching maxSeq
+        // (robust to any ordering), falling back to the last array element.
+        const last =
+          receipts.find((r) => seqOf(r) === maxSeq) || receipts[receipts.length - 1];
+        previousReading = Number(last.Current || 0);
+        const lastTotal = parseFloat(String(last?.Total)) || 0;
+        const lastPrevArr = parseFloat(String(last?.previousArrears)) || 0;
         const grandTotal = lastTotal + lastPrevArr;
-        const lastRecv = last.amountReceived !== null && last.amountReceived !== undefined
-          ? parseFloat(String(last.amountReceived))
+        const lastRecv = last?.amountReceived !== null && last?.amountReceived !== undefined
+          ? parseFloat(String(last?.amountReceived))
           : grandTotal;
         if (!isNaN(lastRecv)) {
           arrears = grandTotal - lastRecv;
