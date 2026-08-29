@@ -396,6 +396,10 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
         conn.commit()
 
     revoke_all_tenant_sessions(tenantId)
+
+    from app.services.cacheservice import cache_delete_pattern
+    cache_delete_pattern(f"qr:{tenantId}:*")
+
     ip = request.client.host if request.client else "Unknown IP"
     log_audit(tenantId, "QR Key Regenerated", ip)
 
@@ -442,12 +446,19 @@ async def api_tenant_qr(
         raise HTTPException(status_code=400, detail="Tenant QR key is missing.")
 
     url = tenant_qr_payload(landlordUuid, row["property_id"], tenantId, row["viewToken"], row["qr_key"])
+
+    from app.services.cacheservice import cache_get, cache_set
+    qr_cache_key = f"qr:{tenantId}:{size}:{format}"
+    cached_qr = cache_get(qr_cache_key)
+    if cached_qr is not None:
+        return cached_qr
+
     try:
         qr, fmt, count = build_branded_qr(url, size=size, fmt=format, validate=True)
     except QrBuildError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 
-    return {
+    result = {
         "status": "success",
         "qr": qr,
         "format": fmt,
@@ -456,6 +467,8 @@ async def api_tenant_qr(
         "modules": count,
         "url": url,
     }
+    cache_set(qr_cache_key, result, ttl=3600)
+    return result
 
 @router.delete(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIDELETETENANT)
 async def api_delete_tenant(

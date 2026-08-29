@@ -581,7 +581,6 @@ async def tenant_view_pdf(propertyId: int, tenantId: int, viewToken: str, billNo
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
     
-    # Verify tenant owns this receipt by ID (name-based check breaks after a rename)
     tenants = load_tenants()
     tenant = next((t for t in tenants if t.id == principal.id), None)
     if not tenant or int(receipt.get("TenantId", 0) or 0) != tenant.id:
@@ -589,13 +588,24 @@ async def tenant_view_pdf(propertyId: int, tenantId: int, viewToken: str, billNo
     if not _property_belongs_to_tenant(tenant, propertyId):
         raise HTTPException(status_code=403, detail="Property mismatch.")
         
+    from app.services.cacheservice import cache_get, cache_set
+    pdf_cache_key = f"pdf:{tenantId}:{billNo}"
+    cached_pdf = cache_get(pdf_cache_key)
+    if cached_pdf is not None:
+        response = StreamingResponse(iter([cached_pdf]), media_type='application/pdf')
+        response.headers["Content-Disposition"] = f"inline; filename=receipt_{billNo}.pdf"
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return response
+
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
     landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
     
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
+    pdf_bytes = pdf_stream.getvalue()
+    cache_set(pdf_cache_key, pdf_bytes, ttl=300)
     
-    response = StreamingResponse(iter([pdf_stream.getvalue()]), media_type='application/pdf')
+    response = StreamingResponse(iter([pdf_bytes]), media_type='application/pdf')
     response.headers["Content-Disposition"] = f"inline; filename=receipt_{billNo}.pdf"
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return response
@@ -606,7 +616,6 @@ async def tenant_download_pdf(propertyId: int, tenantId: int, viewToken: str, bi
     if not receipt:
         raise HTTPException(status_code=404, detail="PDF not found")
     
-    # Verify tenant owns this receipt by ID (name-based check breaks after a rename)
     tenants = load_tenants()
     tenant = next((t for t in tenants if t.id == principal.id), None)
     if not tenant or int(receipt.get("TenantId", 0) or 0) != tenant.id:
@@ -621,13 +630,23 @@ async def tenant_download_pdf(propertyId: int, tenantId: int, viewToken: str, bi
         formatted_date = receipt.get("Date", "").replace(" ", "")
     custom_filename = f"{tenantName}_{formatted_date}_{billNo}.pdf"
         
+    from app.services.cacheservice import cache_get, cache_set
+    pdf_cache_key = f"pdf:{tenantId}:{billNo}"
+    cached_pdf = cache_get(pdf_cache_key)
+    if cached_pdf is not None:
+        response = StreamingResponse(iter([cached_pdf]), media_type='application/pdf')
+        response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
+        return response
+
     from app.services.pdf_service import generate_professional_pdf
     from app.services.landlord_config_service import get_effective_landlord_config
     landlord_conf = get_effective_landlord_config(getattr(tenant, "landlord_id", None))
     
     pdf_stream = generate_professional_pdf(receipt, landlord_conf)
+    pdf_bytes = pdf_stream.getvalue()
+    cache_set(pdf_cache_key, pdf_bytes, ttl=300)
     
-    response = StreamingResponse(iter([pdf_stream.getvalue()]), media_type='application/pdf')
+    response = StreamingResponse(iter([pdf_bytes]), media_type='application/pdf')
     response.headers["Content-Disposition"] = f'attachment; filename="{custom_filename}"'
     return response
 

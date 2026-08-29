@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { Routes, Route, Navigate } from "react-router";
 import { TenantProvider } from "@/context/TenantContext";
 import { useTenant } from "@/context/TenantContext";
-import BroadcastBanner from "@/components/BroadcastBanner";
+import BroadcastBanner from "@shared/BroadcastBanner";
 import LoadingScreen from "@shared/loading/LoadingScreen";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ReceiptRoller } from "@/components/receipts";
@@ -89,7 +89,6 @@ function TenantPortalInner() {
 
   return (
     <div className="min-h-screen bg-muted/30">
-      <BroadcastBanner healthUrl={`${getApiBaseUrl()}/health`} />
       <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <div>
@@ -258,19 +257,22 @@ function TenantPortalInner() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/tenant" element={<Navigate to="/tenant/login" replace />} />
-      <Route path="/tenant/login" element={<PortalLoginPage />} />
-      <Route path="/login" element={<PortalLoginPage />} />
-      <Route
-        path="/:landlordUuid/t/:propertyId/:tenantId/:viewToken"
-        element={
-          <TenantProvider>
-            <TenantPortalInner />
-          </TenantProvider>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <>
+      <BroadcastBanner />
+      <Routes>
+        <Route path="/tenant" element={<Navigate to="/tenant/login" replace />} />
+        <Route path="/tenant/login" element={<PortalLoginPage />} />
+        <Route path="/login" element={<PortalLoginPage />} />
+        <Route
+          path="/:landlordUuid/t/:propertyId/:tenantId/:viewToken"
+          element={
+            <TenantProvider>
+              <TenantPortalInner />
+            </TenantProvider>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   );
 }

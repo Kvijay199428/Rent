@@ -106,6 +106,7 @@ async def auth_websocket(
 # ─── /ws/health — live system health ────────────────────────────────────────
 
 def _build_health_snapshot() -> dict:
+    from app.services.broadcastservice import get_broadcast
     uptime_secs = int(time.time() - _START_TIME)
     hours, remainder = divmod(uptime_secs, 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -118,6 +119,7 @@ def _build_health_snapshot() -> dict:
         "active_connections": sync_manager.get_total_count(),
         "uptime": uptime_str,
         "timestamp": datetime.utcnow().isoformat(),
+        "broadcast": get_broadcast(),
     }
 
 

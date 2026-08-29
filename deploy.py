@@ -52,6 +52,13 @@ TARGETS = {
         "password": "1010",
         "label": "Tailscale (public IP 100.107.83.28)",
     },
+    "Local": {
+        "host": "192.168.1.50",
+        "port": 24,
+        "user": "vega",
+        "password": "1010",
+        "label": "Local machine (192.168.1.50:24)",
+    },
 }
 
 DOCKERIGNORE = """\
@@ -102,8 +109,9 @@ parser = argparse.ArgumentParser(
 )
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--local", action="store_true", help="Deploy locally (restart Docker on this machine).")
-group.add_argument("--sshLocal", action="store_true", help="Deploy via SSH to LAN (192.168.1.50).")
+group.add_argument("--sshLocal", action="store_true", help="Deploy via SSH to LAN (192.168.1.50:22009).")
 group.add_argument("--sshPublic", action="store_true", help="Deploy via SSH to public IP over Tailscale (100.107.83.28:22009).")
+group.add_argument("--Local", action="store_true", help="Deploy via SSH to local machine (192.168.1.50:24).")
 
 env_group = parser.add_mutually_exclusive_group()
 env_group.add_argument("--dev", action="store_true", help="Deploy development environment (compose.dev.yml + .env.development, ngrok). Default when no env flag is given.")
@@ -175,10 +183,10 @@ SCOPE_INFRA_ENV_PREFIXES = (".env",)
 # Dev compose service targeted by each scope (backend restarts pick up schema
 # init_db() and config reload). `all` keeps the existing full build+up.
 SCOPE_SERVICES = {
-    "frontend": "frontend_dev",
-    "backend": "backend_dev",
-    "storage": "backend_dev",
-    "database": "backend_dev",
+    "frontend": "propaura-dev-frontend",
+    "backend": "propaura-dev-backend",
+    "storage": "propaura-dev-backend",
+    "database": "propaura-dev-backend",
 }
 
 # Transport. --main/--release (branch self-pull) default to running locally on
@@ -186,10 +194,17 @@ SCOPE_SERVICES = {
 if github_mode:
     if not (args.local or args.sshLocal or args.sshPublic):
         args.local = True
-elif not args.local and not args.sshLocal and not args.sshPublic:
+elif not args.local and not args.sshLocal and not args.sshPublic and not args.Local:
     args.sshLocal = True  # backward compatibility
 
-target_name = "local" if args.local else ("sshPublic" if args.sshPublic else "sshLocal")
+if args.Local:
+    target_name = "Local"
+elif args.local:
+    target_name = "local"
+elif args.sshPublic:
+    target_name = "sshPublic"
+else:
+    target_name = "sshLocal"
 
 build_enabled = (env == ENV_PROD) and not args.no_build and scope in ("all", "frontend")
 
@@ -230,6 +245,12 @@ def target_hints(target_name):
             "This machine must be on the same Wi-Fi/LAN as the server (192.168.1.50).",
             "The server's LAN IP may have changed via DHCP — check your router's DHCP client list.",
             "If the IP changed, update TARGETS['sshLocal'] at the top of deploy.py.",
+        ]
+    if target_name == "Local":
+        return [
+            "This machine must be on the same Wi-Fi/LAN as 192.168.1.50.",
+            "SSH port 24 must be open on the target (192.168.1.50).",
+            "Ensure vega user has password-based SSH login enabled.",
         ]
     return []
 

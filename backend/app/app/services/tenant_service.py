@@ -7,8 +7,14 @@ import uuid
 
 from app.models.tenant import Tenant
 from app.core.db import get_conn
+from app.services.cacheservice import cache_get, cache_set, cache_delete_pattern
 
 def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = None) -> List[Tenant]:
+    cache_key = f"tenants:all:{include_archived}:{landlord_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return [Tenant(**t) for t in cached]
+
     clauses = []
     params: list = []
     if not include_archived:
@@ -20,6 +26,7 @@ def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = No
     with get_conn() as conn:
         rows = conn.execute(f"SELECT * FROM tenants{where} ORDER BY id", params).fetchall()
     tenants = []
+    tenant_dicts = []
     for row in rows:
         t = Tenant(
             id=int(row["id"]),
@@ -49,12 +56,20 @@ def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = No
             property_id=row["property_id"],
         )
         tenants.append(t)
+        tenant_dicts.append(t.model_dump(mode="json"))
+    cache_set(cache_key, tenant_dicts, ttl=30)
     return tenants
 
 def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Tenant]:
     """Get a single tenant by ID. Optionally scoped to a landlord. Returns None if not found."""
     if tenantId is None:
         return None
+
+    cache_key = f"tenant:id:{tenantId}:{landlord_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return Tenant(**cached)
+
     clauses = ["id = ?"]
     params: list = [tenantId]
     if landlord_id is not None:
@@ -66,7 +81,7 @@ def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Ten
         ).fetchone()
     if not row:
         return None
-    return Tenant(
+    tenant = Tenant(
         id=int(row["id"]),
         name=row["name"],
         company=row["company"],
@@ -91,6 +106,8 @@ def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Ten
         landlord_id=row["landlord_id"],
         property_id=row["property_id"],
     )
+    cache_set(cache_key, tenant.model_dump(mode="json"), ttl=300)
+    return tenant
 
 def tenant_belongs_to_landlord(tenantId: int, landlord_id: Optional[int]) -> bool:
     """True if the tenant exists and is owned by the given landlord."""
@@ -174,6 +191,8 @@ def add_tenant(t: Tenant):
         if t.id is None:
             t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         conn.commit()
+    cache_delete_pattern("tenants:*")
+    cache_delete_pattern("tenant:id:*")
     return t.id
 
 def update_tenant(t: Tenant):
@@ -227,6 +246,11 @@ def update_tenant(t: Tenant):
             ),
         )
         conn.commit()
+    cache_delete_pattern("tenants:*")
+    cache_delete_pattern("tenant:id:*")
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
 
 def _tenant_row_to_dict(row) -> dict:
     return {
@@ -312,6 +336,11 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
             conn.execute("DELETE FROM receipts WHERE tenantId = ?", (tenantId,))
             conn.execute("DELETE FROM tenants WHERE id = ?", (tenantId,))
             conn.commit()
+            cache_delete_pattern("tenants:*")
+            cache_delete_pattern("tenant:id:*")
+            cache_delete_pattern("receipts:*")
+            cache_delete_pattern("dashboard:*")
+            cache_delete_pattern("portal:profile:*")
             return {"tenantId": tenantId, "deleted": True, "archived": False, "restored": False}
 
         if action == "archive":
@@ -335,6 +364,11 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
                 (archived_at, tenantId),
             )
             conn.commit()
+            cache_delete_pattern("tenants:*")
+            cache_delete_pattern("tenant:id:*")
+            cache_delete_pattern("receipts:*")
+            cache_delete_pattern("dashboard:*")
+            cache_delete_pattern("portal:profile:*")
 
             tenant_after = conn.execute(
                 "SELECT * FROM tenants WHERE id = ?", (tenantId,)
@@ -374,6 +408,11 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
                 (tenantId,),
             )
             conn.commit()
+            cache_delete_pattern("tenants:*")
+            cache_delete_pattern("tenant:id:*")
+            cache_delete_pattern("receipts:*")
+            cache_delete_pattern("dashboard:*")
+            cache_delete_pattern("portal:profile:*")
 
             tenant_after = conn.execute(
                 "SELECT * FROM tenants WHERE id = ?", (tenantId,)
@@ -399,11 +438,21 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
                 ("Inactive", now_iso, tenantId)
             )
             conn.commit()
+            cache_delete_pattern("tenants:*")
+            cache_delete_pattern("tenant:id:*")
+            cache_delete_pattern("receipts:*")
+            cache_delete_pattern("dashboard:*")
+            cache_delete_pattern("portal:profile:*")
             return {"tenantId": tenantId, "inactive": True, "archived": False, "restored": False}
 
         raise ValueError(f"Unsupported action: {action}")
 
 def get_occupants(tenantId: int) -> List[dict]:
+    cache_key = f"occupants:{tenantId}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     with get_conn() as conn:
         rows = conn.execute("SELECT * FROM occupants WHERE tenantId = ?", (tenantId,)).fetchall()
 
@@ -419,6 +468,7 @@ def get_occupants(tenantId: int) -> List[dict]:
         # Keep "Occupant UUID" alias for admin-app backwards compatibility
         row["Occupant UUID"] = row.get("occupantUuid", "")
         result.append(row)
+    cache_set(cache_key, result, ttl=60)
     return result
 
 def save_occupant(tenantId: int, occ_data: dict):
@@ -469,14 +519,24 @@ def save_occupant(tenantId: int, occ_data: dict):
                 occ_data.get("uploaddate", ""), occ_data.get("uploadmonth", "")
             ))
         conn.commit()
+    cache_delete(f"occupants:{tenantId}")
+    cache_delete_pattern("portal:profile:*")
 
 def update_occupant_status(occupantUuid: str, status: str):
     with get_conn() as conn:
+        row = conn.execute("SELECT tenantId FROM occupants WHERE occupantUuid = ?", (occupantUuid,)).fetchone()
         conn.execute("UPDATE occupants SET status = ? WHERE occupantUuid = ?", (status, occupantUuid))
         conn.commit()
+    if row:
+        cache_delete(f"occupants:{row['tenantId']}")
+        cache_delete_pattern("portal:profile:*")
 
 def delete_occupant(occupantUuid: str):
     with get_conn() as conn:
+        row = conn.execute("SELECT tenantId FROM occupants WHERE occupantUuid = ?", (occupantUuid,)).fetchone()
         conn.execute("DELETE FROM occupants WHERE occupantUuid = ?", (occupantUuid,))
         conn.commit()
+    if row:
+        cache_delete(f"occupants:{row['tenantId']}")
+        cache_delete_pattern("portal:profile:*")
 

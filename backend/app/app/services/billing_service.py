@@ -9,6 +9,7 @@ from datetime import datetime
 from app.core.config_service import config
 from app.services.tenant_service import load_tenants, update_tenant
 from app.services.pdf_service import generate_professional_pdf
+from app.services.cacheservice import cache_get, cache_set, cache_delete_pattern
 
 from app.core.paths import DB_DIR, BACKUPS_DIR as BACKUP_DIR, RECEIPTS_DIR
 
@@ -163,6 +164,11 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
         finalState = get_tenant_settlement_state(tenantId)
     except Exception:
         finalState = None
+
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
 
     if finalState is not None:
         return {"status": finalStatus, "settlement": finalState}
@@ -349,6 +355,11 @@ def get_active_tenant_ids(landlord_id=None) -> set:
     return {t.id for t in tenants}
 
 def get_all_receipts(include_archived_tenants: bool = False, landlord_id=None):
+    cache_key = f"receipts:all:{include_archived_tenants}:{landlord_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     clauses = []
     params: list = []
     if landlord_id is not None:
@@ -364,7 +375,9 @@ def get_all_receipts(include_archived_tenants: bool = False, landlord_id=None):
         active_ids = get_active_tenant_ids(landlord_id=landlord_id)
         receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) in active_ids]
     
-    return _attach_payment_facts(receipts)
+    receipts = _attach_payment_facts(receipts)
+    cache_set(cache_key, receipts, ttl=15)
+    return receipts
 
 def get_receipts_for_tenant(tenant_id: int, include_archived: bool = False, landlord_id=None) -> list:
     """Fetch all receipts for a single tenant by ID.
@@ -577,6 +590,10 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
     except Exception:
         pass
 
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
     return receipt_dict
 def update_bill(tenantId, billNo, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
                 MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING",
@@ -701,6 +718,10 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     except Exception:
         pass
 
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
     return updated_dict
 def archive_bill(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
@@ -722,6 +743,10 @@ def archive_bill(tenantId, billNo, landlord_id=None):
         """, (datetime.now().strftime("%Y-%m-%d"), tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
     return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
 def restore_bill(tenantId, billNo, landlord_id=None):
@@ -743,6 +768,10 @@ def restore_bill(tenantId, billNo, landlord_id=None):
         """, (tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
     return get_receipt(tenantId, billNo, landlord_id=landlord_id)
 
 def delete_bill(tenantId, billNo, landlord_id=None):
@@ -766,10 +795,18 @@ def delete_bill(tenantId, billNo, landlord_id=None):
 
         conn.execute("DELETE FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo))
         conn.commit()
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
 
 
 def get_dashboard_stats(landlord_id=None):
-    
+    cache_key = f"dashboard:stats:{landlord_id}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return cached
+
     billing_conf = config.get("billing", {})
     receipts = get_all_receipts(include_archived_tenants=False, landlord_id=landlord_id)
     tenants = load_tenants(include_archived=False, landlord_id=landlord_id)
@@ -953,7 +990,7 @@ def get_dashboard_stats(landlord_id=None):
     revenue_list = [revenue_chart_data[m] for m in chart_months]
     electricity_list = [electricity_chart_data[m] for m in chart_months]
 
-    return {
+    result = {
         "next_bill": next_bill,
         "current_month": current_month_str,
 
@@ -992,6 +1029,8 @@ def get_dashboard_stats(landlord_id=None):
         "chart_revenue": revenue_list,
         "chart_electricity": electricity_list,
     }
+    cache_set(cache_key, result, ttl=30)
+    return result
 
 
 def save_all_receipts(receipts_list):
@@ -1097,4 +1136,9 @@ def save_all_receipts(receipts_list):
                 sync_bill_payment_from_receipt(tid, billNo, amt)
     except Exception:
         pass
+
+    cache_delete_pattern("receipts:*")
+    cache_delete_pattern("dashboard:*")
+    cache_delete_pattern("portal:profile:*")
+    cache_delete_pattern("pdf:*")
 

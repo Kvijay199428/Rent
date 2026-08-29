@@ -1,28 +1,24 @@
 # Development stack — isolated from production.
-#   backend_dev   API on port 28001 (hot reload), tunneled by ngrok
-#   frontend_dev  Vite dev server for tenant-app on port 28003
-#   ngrok         tunnels to backend_dev:28001, dashboard on 4041 (profile: ngrok)
+#   propaura-dev-backend   API on port 28001 (hot reload), tunneled by ngrok
+#   propaura-dev-frontend  Vite dev server for tenant-app on port 28003
+#   propaura-dev-gateway   nginx reverse proxy on port 28080
+#   propaura-dev-ngrok     tunnels to propaura-dev-backend:28001 (profile: ngrok)
 #
 # Usage:
 #   docker compose --env-file .env.development -f compose.dev.yml up -d
-#   docker compose --env-file .env.development -f compose.dev.yml --profile ngrok up -d  # + docker ngrok
+#   docker compose --env-file .env.development -f compose.dev.yml --profile ngrok up -d
 #
-# The ngrok service is behind a compose profile because on the server a
-# systemd-hosted ngrok already owns the account's reserved URL (and is the one
-# documented in NGROK_API_BASE_URL / VITE_API_BASE_URL). Start it explicitly if
-# you run the dev stack somewhere without a host ngrok.
-#
-# Separate network (dev-net) and separate storage (./storage/dev) so dev
+# Separate network (propaura-dev-net) and separate storage (./storage/dev) so dev
 # changes can never touch release traffic.
 
-name: rent-dev
+name: propaura-dev
 
 services:
-  backend_dev:
+  propaura-dev-backend:
     build:
       context: ./backend
-    image: rent-backend-dev
-    container_name: backend_dev
+    image: propaura-dev-backend
+    container_name: propaura-dev-backend
     restart: unless-stopped
     ports:
       - "${BACKEND_DEV_PORT:-28001}:28001"
@@ -46,7 +42,10 @@ services:
       - ./storage/dev:/code/storage
       - ./frontend:/code/frontend
     networks:
-      - dev-net
+      - propaura-dev-net
+    depends_on:
+      propaura-dev-redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28001/health', timeout=5)"]
       interval: 30s
@@ -54,12 +53,10 @@ services:
       retries: 3
       start_period: 60s
 
-  frontend_dev:
+  propaura-dev-frontend:
     image: node:22-alpine
-    container_name: frontend_dev
+    container_name: propaura-dev-frontend
     restart: unless-stopped
-    # Mount the whole frontend/ tree so tenant-app's `@shared` alias
-    # (../shared) resolves inside the container, mirroring local dev layout.
     working_dir: /app/tenant-app
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
     environment:
@@ -71,41 +68,62 @@ services:
     volumes:
       - ./frontend:/app
     networks:
-      - dev-net
+      - propaura-dev-net
     depends_on:
-      - backend_dev
+      propaura-dev-backend:
+        condition: service_healthy
+      propaura-dev-redis:
+        condition: service_healthy
 
-  nginx_gateway_dev:
+  propaura-dev-gateway:
     image: nginx:alpine
-    container_name: rent-nginx-gateway-dev
+    container_name: propaura-dev-gateway
     restart: unless-stopped
     depends_on:
-      - backend_dev
+      - propaura-dev-backend
     ports:
-      - "127.0.0.1:28080:80"
+      - "127.0.0.1:${GATEWAY_DEV_PORT:-28080}:80"
     volumes:
       - ./nginx/dev-gateway.conf:/etc/nginx/nginx.conf:ro
     networks:
-      - dev-net
+      - propaura-dev-net
 
-  ngrok:
-    image: ngrok/ngrok:latest
-    container_name: ngrok_dev
+  propaura-dev-redis:
+    image: redis:7-alpine
+    container_name: propaura-dev-redis
     restart: unless-stopped
-    # Off by default: the server exposes dev via a systemd-hosted ngrok that owns
-    # the reserved URL. Opt in with: docker compose --profile ngrok up -d
+    command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru --save ""
+    ports:
+      - "127.0.0.1:28086:6379"
+    volumes:
+      - redis-dev-data:/data
+    networks:
+      - propaura-dev-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  propaura-dev-ngrok:
+    image: ngrok/ngrok:latest
+    container_name: propaura-dev-ngrok
+    restart: unless-stopped
     profiles:
       - ngrok
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTH_TOKEN}
-    command: http backend_dev:28001
+    command: http propaura-dev-backend:28001
     ports:
       - "${NGROK_DASHBOARD_PORT:-4040}:4040"
     networks:
-      - dev-net
+      - propaura-dev-net
     depends_on:
-      - backend_dev
+      - propaura-dev-backend
 
 networks:
-  dev-net:
+  propaura-dev-net:
     driver: bridge
+
+volumes:
+  redis-dev-data:

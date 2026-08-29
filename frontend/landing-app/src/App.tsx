@@ -1,6 +1,6 @@
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
-import BroadcastBanner from "./components/BroadcastBanner";
+import BroadcastBanner from "@shared/BroadcastBanner";
 import TrustBadges from "./components/TrustBadges";
 import Features from "./components/Features";
 import WhyChoose from "./components/WhyChoose";

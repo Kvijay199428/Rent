@@ -36,6 +36,12 @@
 .broadcast-maintenance {
   background: #991b1b;
   color: #fff;
+  animation: broadcast-slide-in 0.3s ease-out, maintenance-pulse 2s ease-in-out infinite;
+}
+
+@keyframes maintenance-pulse {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.15); }
 }
 
 .broadcast-banner-content {
@@ -52,6 +58,13 @@
 
 .broadcast-banner-message {
   flex: 1;
+}
+
+.broadcast-banner-retry {
+  font-size: 11px;
+  opacity: 0.75;
+  font-style: italic;
+  white-space: nowrap;
 }
 
 .broadcast-banner-close {
