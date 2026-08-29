@@ -413,13 +413,16 @@ export default function Tenants() {
       const receipts = await api.getTenantReceipts(landlordUuid!, tenant.id as number);      const active = (receipts ?? [])
         .filter((r: any) => r.Status !== 'ARCHIVED')
         .map((r: any) => ({
-          Bill: r.Bill,
-          Month: r.Month,
-          Status: r.Status,
-          PaymentStatus: r.paymentStatus,
-          Total: r.Total,
-          PreviousArrears: r.previousArrears,
-          AmountReceived: r.amountReceived,
+          Bill: r?.Bill,
+          Month: r?.Month,
+          Status: r?.Status,
+          PaymentStatus: r?.paymentStatus,
+          Total: r?.Total,
+          PreviousArrears: r?.previousArrears,
+          AmountReceived: r?.amountReceived,
+          SettledByBill: r?.settledByBill,
+          SettlementType: r?.settlementType,
+          SettlementAmount: r?.settlementAmount,
         }));
       setTenantBills(active);
       setSelectedBill(null);
@@ -439,13 +442,20 @@ export default function Tenants() {
       const data = await api.getTenants(landlordUuid!);
 
       for (const t of data) {
+        // Backend is the source of truth for the tenant's current outstanding
+        // balance (Σ current charges − Σ payments). Use it when present;
+        // otherwise fall back to the latest active bill for legacy safety.
+        if (t.outstandingBalance != null) {
+          t.arrears = Number(t.outstandingBalance);
+          continue;
+        }
         try {
           const receipts = await api.getTenantReceipts(landlordUuid!, t.id as number);
           const active = receipts.filter((r: any) => r.Status !== 'ARCHIVED');
           if (active.length > 0) {
             const latest = active[0];
-            const grandTotal = Number(latest.Total || 0) + Number(latest.previousArrears || 0);
-            const amtRecv = latest.amountReceived != null ? Number(latest.amountReceived) : grandTotal;
+            const grandTotal = Number(latest?.Total || 0) + Number(latest?.previousArrears || 0);
+            const amtRecv = latest?.amountReceived != null ? Number(latest?.amountReceived) : grandTotal;
             t.arrears = grandTotal - amtRecv;
           } else {
             t.arrears = 0;

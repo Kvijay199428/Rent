@@ -7,7 +7,7 @@ from app.core.route_builder import RouteBuilder
 
 from typing import Optional
 from app.models.tenant import Tenant
-from app.models.receipt import BillRequest, PaymentStatusUpdate
+from app.models.receipt import BillRequest, PaymentStatusUpdate, PaymentEntryCreate, PaymentEntryUpdate
 import os, io, re, json, datetime
 import shutil, logging
 
@@ -28,6 +28,9 @@ from app.services.billing_service import (
     get_all_receipts, get_receipt, get_billing_months,
     calculate_charges, create_bill, update_bill, delete_bill,
     get_dashboard_stats, archive_bill, restore_bill, update_paymentStatus
+)
+from app.services.payment_service import (
+    get_payment_entries, create_payment_entry, update_payment_entry, delete_payment_entry
 )
 from app.services.backup_service import create_full_backup
 from app.authentication.landlord.middleware import get_current_landlord_api_strict
@@ -205,9 +208,92 @@ async def api_update_payment(landlordUuid: str, tenantId: int, billNo: str, data
         if amount is not None and amount < 0:
             raise HTTPException(status_code=400, detail="Amount received cannot be negative.")
 
-        update_paymentStatus(tenantId, billNo, status, amount, landlord_id=principal.landlord_id)
+        result = update_paymentStatus(tenantId, billNo, status, amount, landlord_id=principal.landlord_id)
         background_tasks.add_task(create_full_backup, tag="paymentStatus", landlord_id=principal.landlord_id)
+        if isinstance(result, dict):
+            return {"status": "success", **result}
         return {"status": "success"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get(Routes.LANDLORDAPIBILLINGPAYMENTS, name=Names.APIGETPAYMENTS)
+async def api_get_payments(landlordUuid: str, tenantId: int, billNo: str, principal=Depends(get_current_landlord_api_strict)):
+    try:
+        return get_payment_entries(tenantId, billNo, landlord_id=principal.landlord_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.post(Routes.LANDLORDAPIBILLINGPAYMENTS, name=Names.APICREATEPAYMENT)
+async def api_create_payment(landlordUuid: str, tenantId: int, billNo: str, data: PaymentEntryCreate, http_request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
+    from app.database.landlord_repository import create_landlord_audit_log
+    try:
+        result = create_payment_entry(
+            tenantId, billNo, data.paymentDate, data.amount,
+            landlord_id=principal.landlord_id, source="MANUAL",
+        )
+        background_tasks.add_task(create_full_backup, tag="payment_entry_create", landlord_id=principal.landlord_id)
+        landlord_id = principal.landlord_id
+        if landlord_id:
+            create_landlord_audit_log(
+                landlord_id, "payment_entry_created",
+                ip_address=http_request.client.host if http_request.client else None,
+                meta_json=json.dumps({"tenant_id": tenantId, "bill_no": billNo, "amount": data.amount}),
+            )
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "PAYMENT_UPDATED", "tenantId": tenantId, "billNo": billNo})
+        return {"status": "success", "data": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.put(Routes.LANDLORDAPIBILLINGPAYMENT, name=Names.APIUPDATEPAYMENTENTRY)
+async def api_update_payment_entry(landlordUuid: str, tenantId: int, billNo: str, paymentId: int, data: PaymentEntryUpdate, http_request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
+    from app.database.landlord_repository import create_landlord_audit_log
+    from app.services.billing_service import get_receipt as _gr
+    old = get_payment_entries(tenantId, billNo, landlord_id=principal.landlord_id)
+    _old_amount = next((p["amount"] for p in old.get("payments", []) if int(p["id"]) == int(paymentId)), None)
+    try:
+        result = update_payment_entry(
+            tenantId, billNo, paymentId, data.paymentDate, data.amount,
+            landlord_id=principal.landlord_id,
+        )
+        background_tasks.add_task(create_full_backup, tag="payment_entry_update", landlord_id=principal.landlord_id)
+        landlord_id = principal.landlord_id
+        if landlord_id:
+            create_landlord_audit_log(
+                landlord_id, "payment_entry_updated",
+                ip_address=http_request.client.host if http_request.client else None,
+                meta_json=json.dumps({
+                    "tenant_id": tenantId, "bill_no": billNo, "payment_id": paymentId,
+                    "old_amount": _old_amount, "new_amount": data.amount,
+                }),
+            )
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "PAYMENT_UPDATED", "tenantId": tenantId, "billNo": billNo})
+        return {"status": "success", "data": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete(Routes.LANDLORDAPIBILLINGPAYMENT, name=Names.APIDELETEPAYMENTENTRY)
+async def api_delete_payment_entry(landlordUuid: str, tenantId: int, billNo: str, paymentId: int, http_request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api_strict)):
+    from app.database.landlord_repository import create_landlord_audit_log
+    try:
+        result = delete_payment_entry(tenantId, billNo, paymentId, landlord_id=principal.landlord_id)
+        background_tasks.add_task(create_full_backup, tag="payment_entry_delete", landlord_id=principal.landlord_id)
+        landlord_id = principal.landlord_id
+        if landlord_id:
+            create_landlord_audit_log(
+                landlord_id, "payment_entry_deleted",
+                ip_address=http_request.client.host if http_request.client else None,
+                meta_json=json.dumps({"tenant_id": tenantId, "bill_no": billNo, "payment_id": paymentId}),
+            )
+        await _broadcast(f"landlord:{landlordUuid}", {"type": "PAYMENT_UPDATED", "tenantId": tenantId, "billNo": billNo})
+        return {"status": "success", "data": result}
     except HTTPException:
         raise
     except Exception as e:

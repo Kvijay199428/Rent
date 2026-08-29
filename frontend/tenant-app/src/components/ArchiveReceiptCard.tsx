@@ -10,6 +10,7 @@ import {
   getGrandTotal,
   getAmountReceived,
   formatCurrency,
+  isSettled,
   daysInMonth,
   formatResidentSince,
 } from "@/lib/utils";
@@ -71,8 +72,8 @@ export default function ArchiveReceiptCard({
               </div>
             </div>
           </div>
-          <Badge variant="outline" className={cn("shrink-0", statusStyles[state])}>
-            {statusLabels[state]}
+          <Badge variant="outline" className={cn("shrink-0", statusStyles[isSettled(receipt) ? "PAID" : state])}>
+            {isSettled(receipt) ? "Settled" : statusLabels[state]}
           </Badge>
         </div>
 

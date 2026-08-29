@@ -25,6 +25,17 @@ export interface Tenant {
   tenantUsername?: string;
   arrears: number;
   propertyId?: number | null;
+  outstandingBalance?: number;
+  currentBillDue?: number;
+  advance?: number;
+  currentBill?: {
+    billNo?: string;
+    month?: string;
+    currentAmount?: number;
+    previousArrears?: number;
+    grandTotal?: number;
+    amountReceived?: number;
+  } | null;
 }
 
 export interface Receipt {
@@ -60,6 +71,11 @@ export interface Receipt {
   MaintenanceDesc: string;
   previousArrears: number;
   amountReceived: number;
+  paymentCount?: number;
+  lastPaymentDate?: string;
+  settledByBill?: string;
+  settlementType?: string;
+  settlementAmount?: number;
 }
 
 export interface BillRequest {
@@ -78,6 +94,31 @@ export interface BillRequest {
 export interface PaymentStatusUpdate {
   paymentStatus: string;
   amountReceived?: number;
+}
+
+export interface PaymentEntry {
+  id: number;
+  billNo: string;
+  tenantId: number;
+  paymentDate: string;
+  amount: number;
+  createdAt?: string;
+  updatedAt?: string;
+  status: string;
+  paymentType?: string;
+  source?: string;
+}
+
+export interface PaymentState {
+  billNo: string;
+  tenantId: number;
+  grandTotal: number;
+  totalReceived: number;
+  balanceDue: number;
+  advanceAmount: number;
+  paymentStatus: string;
+  paymentCount: number;
+  payments: PaymentEntry[];
 }
 
 export interface ConfigUpdate {
@@ -161,6 +202,8 @@ export interface RecentBill {
   month: string;
   paymentStatus: string;
   previousArrears: number;
+  paymentCount?: number;
+  lastPaymentDate?: string;
 }
 
 export interface ImportPreviewResponse {

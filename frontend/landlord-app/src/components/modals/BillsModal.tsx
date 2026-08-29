@@ -25,6 +25,9 @@ export type TenantBill = {
     Total: number;
     PreviousArrears: number;
     AmountReceived: number | null;
+    SettledByBill?: string;
+    SettlementType?: string;
+    SettlementAmount?: number;
 };
 
 type BillsModalProps = {
@@ -50,10 +53,22 @@ function getBillAmounts(bill: TenantBill | null) {
     const due = Math.max(total - received, 0);
     const advance = Math.max(received - total, 0);
 
-    return { total, received, due, advance };
+    // A bill that was cleared by a later payment (settled_by_bill_no set) has no
+    // currently-due amount even though it may still carry PARTIAL historically.
+    const settled =
+        !!bill?.SettledByBill &&
+        (bill.SettlementType === 'CURRENT_PAYMENT' || bill.SettlementType === 'ARREAR');
+
+    return { total, received, due, advance, settled };
 }
 
-function getBillTone(status: string) {
+function isSettled(bill: TenantBill | null) {
+    const s = (bill?.SettlementType || '').toUpperCase();
+    return !!bill?.SettledByBill && (s === 'CURRENT_PAYMENT' || s === 'ARREAR');
+}
+
+function getBillTone(status: string, settled = false) {
+    if (settled) return 'bg-slate-100 text-slate-600 border-slate-200';
     switch ((status || '').toUpperCase()) {
         case 'PAID':
             return 'bg-green-50 text-green-700 border-green-200';
@@ -89,6 +104,10 @@ function getStatusBuckets(bills: TenantBill[]) {
     for (const bill of bills) {
         const status = (bill.PaymentStatus || 'PENDING').toUpperCase();
         const amt = getBillAmounts(bill);
+
+        if (isSettled(bill)) {
+            continue; // cleared by a later payment, no longer currently due
+        }
 
         if (status === 'ADVANCE' || amt.advance > 0) {
             advance += amt.advance;
@@ -211,6 +230,7 @@ export default function BillsModal({
                                     filteredBills.map((bill) => {
                                         const status = (bill.PaymentStatus || 'PENDING').toUpperCase();
                                         const amt = getBillAmounts(bill);
+                                        const settled = isSettled(bill);
                                         const active = selectedBill?.Bill === bill.Bill;
 
                                         return (
@@ -234,13 +254,18 @@ export default function BillsModal({
                                                         </div>
                                                     </div>
 
-                                                    <Badge className={cn(getBillTone(status), "text-[10px] h-5 px-1.5")}>
-                                                        {status}
+                                                    <Badge className={cn(getBillTone(status, settled), "text-[10px] h-5 px-1.5")}>
+                                                        {settled ? 'SETTLED' : status}
                                                     </Badge>
                                                 </div>
 
                                                 <div className="mt-2 space-y-1">
-                                                    {amt.due > 0 ? (
+                                                    {settled ? (
+                                                        <div className="text-sm font-medium text-slate-600">
+                                                            Cleared by {bill.SettledByBill}
+                                                            {bill.SettlementAmount ? ` • ₹${Number(bill.SettlementAmount).toFixed(2)}` : ''}
+                                                        </div>
+                                                    ) : amt.due > 0 ? (
                                                         <div className="text-sm font-medium text-red-600">
                                                             Due ₹{amt.due.toFixed(2)}
                                                         </div>
@@ -293,11 +318,11 @@ export default function BillsModal({
                                         </div>
                                         <Badge
                                             className={cn(
-                                                getBillTone(selectedBill.PaymentStatus || 'PENDING'),
+                                                getBillTone(selectedBill.PaymentStatus || 'PENDING', isSettled(selectedBill)),
                                                 "text-[10px] h-5 px-1.5"
                                             )}
                                         >
-                                            {(selectedBill.PaymentStatus || 'PENDING').toUpperCase()}
+                                            {isSettled(selectedBill) ? 'SETTLED' : (selectedBill.PaymentStatus || 'PENDING').toUpperCase()}
                                         </Badge>
                                     </div>
                                 </div>

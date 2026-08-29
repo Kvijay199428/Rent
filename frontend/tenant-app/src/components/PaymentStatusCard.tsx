@@ -55,7 +55,13 @@ const statusConfig: Record<
   },
 };
 
-export default function PaymentStatusCard({ receipts }: { receipts: Receipt[] }) {
+export default function PaymentStatusCard({
+  receipts,
+  outstandingBalance,
+}: {
+  receipts: Receipt[];
+  outstandingBalance?: number;
+}) {
   const active = receipts.filter((r) => r.Status !== "ARCHIVED");
 
   if (active.length === 0) {
@@ -82,12 +88,15 @@ export default function PaymentStatusCard({ receipts }: { receipts: Receipt[] })
   const remaining = getRemainingAmount(latest);
   const progress = grandTotal > 0 ? Math.min(100, (received / grandTotal) * 100) : 0;
 
-  const totalOutstanding = active
-    .filter((r) => {
-      const s = getPaymentState(r);
-      return s === "PENDING" || s === "PARTIAL";
-    })
-    .reduce((sum, r) => sum + getRemainingAmount(r), 0);
+  const totalOutstanding =
+    outstandingBalance !== undefined
+      ? outstandingBalance
+      : active
+          .filter((r) => {
+            const s = getPaymentState(r);
+            return s === "PENDING" || s === "PARTIAL";
+          })
+          .reduce((sum, r) => sum + getRemainingAmount(r), 0);
 
   return (
     <Card className={cn("rounded-2xl border shadow-sm", config.bg, config.border)}>

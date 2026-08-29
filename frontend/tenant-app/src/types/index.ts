@@ -11,6 +11,9 @@ export interface TenantProfile {
   roomNumber?: string;
   occupation?: string;
   company?: string;
+  outstandingBalance?: number;
+  currentBillDue?: number;
+  advance?: number;
 }
 
 export interface Receipt {
@@ -35,6 +38,9 @@ export interface Receipt {
   Status: "ACTIVE" | "ARCHIVED";
   MaintenanceCharge: number;
   MaintenanceDesc: string;
+  settledByBill?: string;
+  settlementType?: string;
+  settlementAmount?: number;
 }
 
 export interface Occupant {

@@ -52,7 +52,24 @@ def _validate_property_ownership(landlord_id: int, property_id):
 
 @router.get(Routes.LANDLORDAPITENANTSLIST, name=Names.APIGETTENANTS)
 async def api_get_tenants(landlordUuid: str, principal=Depends(get_current_landlord_api_strict)):
-    return load_tenants(include_archived=False, landlord_id=principal.landlord_id)
+    tenants = load_tenants(include_archived=False, landlord_id=principal.landlord_id)
+    from app.services.payment_service import get_tenant_settlement_state, get_tenant_outstanding_balance
+    result = []
+    for t in tenants:
+        d = t.dict()
+        try:
+            d["outstandingBalance"] = get_tenant_outstanding_balance(t.id)
+            st = get_tenant_settlement_state(t.id)
+            d["currentBillDue"] = st.get("currentBillDue", 0.0)
+            d["advance"] = st.get("advance", 0.0)
+            d["currentBill"] = st.get("currentBill")
+        except Exception:
+            d["outstandingBalance"] = 0.0
+            d["currentBillDue"] = 0.0
+            d["advance"] = 0.0
+            d["currentBill"] = None
+        result.append(d)
+    return result
 
 @router.get(Routes.LANDLORDAPITENANTSUPDATE, name=Names.APIGETTENANT)
 async def api_get_tenant(landlordUuid: str, tenantId: int, principal=Depends(get_current_landlord_api_strict)):

@@ -838,6 +838,171 @@ def init_db():
                      "ON tenant_qr_feedback(landlord_id)")
         conn.commit()
 
+        # ─── Payment entries (transaction-level source of truth) ───────
+        # receipts.amountreceived remains the derived cumulative value:
+        #     amountreceived == SUM(payment_entries.amount WHERE status='ACTIVE')
+        # This is a separate table so every individual payment transaction is
+        # preserved while the existing billing/arrears engine keeps reading the
+        # single amountreceived column.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS payment_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                billNo TEXT NOT NULL,
+                tenantId INTEGER NOT NULL,
+                landlord_id TEXT,
+                payment_date TEXT NOT NULL,
+                amount REAL NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                created_by TEXT,
+                updated_by TEXT,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                payment_type TEXT NOT NULL DEFAULT 'BILL',
+                source TEXT NOT NULL DEFAULT 'MANUAL',
+                FOREIGN KEY (billNo) REFERENCES receipts(billNo) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_bill "
+                     "ON payment_entries(billNo)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_tenant "
+                     "ON payment_entries(tenantId)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_date "
+                     "ON payment_entries(payment_date)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_landlord "
+                     "ON payment_entries(landlord_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_status "
+                     "ON payment_entries(status)")
+        conn.commit()
+
+        # ─── Payment allocations (settlement ledger) ────────────────────
+        # Connects each payment transaction to the bills it actually cleared.
+        # A payment recorded against the current bill can economically clear
+        # earlier arrears; allocation_type records the split:
+        #     CURRENT_BILL | ARREAR | ADVANCE
+        # This separates HISTORICAL bill payment status (a bill may stay
+        # 'PARTIAL' as a matter of record) from the tenant's CURRENT outstanding
+        # balance (Σ current charges − Σ payments, never double-counting arrears
+        # carried into later bills' previous_arrears).
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS payment_allocations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                payment_entry_id INTEGER NOT NULL,
+                tenant_id INTEGER NOT NULL,
+                bill_no TEXT NOT NULL,
+                allocated_amount REAL NOT NULL,
+                allocation_type TEXT NOT NULL DEFAULT 'CURRENT_BILL',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (payment_entry_id) REFERENCES payment_entries(id) ON DELETE CASCADE
+            )
+        """)
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_allocations_tenant "
+                     "ON payment_allocations(tenant_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_allocations_bill "
+                     "ON payment_allocations(tenant_id, bill_no)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_allocations_payment "
+                     "ON payment_allocations(payment_entry_id)")
+        conn.commit()
+
+        # ─── Receipts: settlement fields ────────────────────────────────
+        # Mark how/when a historical bill's unpaid balance was later settled
+        # by a payment recorded on a subsequent (current) bill, without
+        # rewriting the bill's original paymentstatus.
+        if not _column_exists(conn, "receipts", "settled_by_bill_no"):
+            conn.execute("ALTER TABLE receipts ADD COLUMN settled_by_bill_no TEXT")
+            conn.commit()
+        if not _column_exists(conn, "receipts", "settlement_type"):
+            conn.execute("ALTER TABLE receipts ADD COLUMN settlement_type TEXT NOT NULL DEFAULT 'NONE'")
+            conn.commit()
+        if not _column_exists(conn, "receipts", "settled_at"):
+            conn.execute("ALTER TABLE receipts ADD COLUMN settled_at TEXT")
+            conn.commit()
+        if not _column_exists(conn, "receipts", "settlement_amount"):
+            conn.execute("ALTER TABLE receipts ADD COLUMN settlement_amount REAL NOT NULL DEFAULT 0")
+            conn.commit()
+
+        # ─── Legacy amountReceived backfill into payment_entries ───────
+        # One-time, idempotent: only runs if payment_entries is empty and there
+        # are existing receipts with amountreceived > 0. Each legacy receipt
+        # becomes a single LEGACY_MIGRATION entry stamped with today's date (the
+        # landlord can later correct the actual paid date + amount per
+        # paymentId), so the invariant amountreceived == SUM(active entries)
+        # holds going forward.
+        payment_backfilled = conn.execute(
+            "SELECT 1 FROM app_metadata WHERE key = 'payment_entries_backfill_v1'"
+        ).fetchone()
+        if not payment_backfilled:
+            entries_exist = conn.execute(
+                "SELECT 1 FROM payment_entries LIMIT 1"
+            ).fetchone()
+            if not entries_exist:
+                legacy_rows = conn.execute(
+                    "SELECT billNo, tenantId, landlord_id, date, amountreceived "
+                    "FROM receipts WHERE amountreceived > 0"
+                ).fetchall()
+                for _p in legacy_rows:
+                    # Legacy payments are stamped with today's date so the
+                    # landlord can open each bill, see the carried-over payment,
+                    # and correct the actual paid date + amount per paymentId.
+                    conn.execute(
+                        """
+                        INSERT INTO payment_entries
+                            (billNo, tenantId, landlord_id, payment_date, amount,
+                             created_at, updated_at, created_by, status,
+                             payment_type, source)
+                        VALUES (?, ?, ?, date('now'), ?, datetime('now'), datetime('now'),
+                                'LEGACY_MIGRATION', 'ACTIVE', 'BILL', 'LEGACY_MIGRATION')
+                        """,
+                        (
+                            _p["billNo"],
+                            _p["tenantId"],
+                            _p["landlord_id"],
+                            float(_p["amountreceived"] or 0),
+                        ),
+                    )
+            conn.execute(
+                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES "
+                "('payment_entries_backfill_v1', 'done')"
+            )
+            conn.commit()
+
+        # Reconciliation: databases that already ran v1 with the receipt date
+        # keep carried-over LEGACY_MIGRATION entries at today's date so the
+        # landlord can open each bill, see the payment, and correct the actual
+        # paid date + amount per paymentId. Runs every boot; idempotent and does
+        # not change the amountreceived SUM (the arrears engine is unaffected).
+        conn.execute(
+            "UPDATE payment_entries "
+            "SET payment_date = date('now'), updated_at = datetime('now'), "
+            "updated_by = 'LEGACY_MIGRATION_RECONCILE' "
+            "WHERE source = 'LEGACY_MIGRATION' AND status = 'ACTIVE'"
+        )
+        conn.commit()
+
+        # ─── Seed payment allocations / settlement markers ────────────
+        # Backfill the settlement ledger for existing tenants. Runs once
+        # (key-guarded, idempotent). Recomputes each tenant's allocation and
+        # settlement markers from the current receipts + payment_entries state.
+        alloc_backfilled = conn.execute(
+            "SELECT 1 FROM app_metadata WHERE key = 'payment_allocations_backfill_v1'"
+        ).fetchone()
+        if not alloc_backfilled:
+            try:
+                from app.services.payment_service import _recompute_tenant_settlement
+                tids = [r["id"] for r in conn.execute("SELECT id FROM tenants").fetchall()]
+                for _tid in tids:
+                    try:
+                        _recompute_tenant_settlement(conn, _tid)
+                    except Exception:
+                        pass
+                conn.commit()
+            except Exception:
+                conn.rollback()
+            conn.execute(
+                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES "
+                "('payment_allocations_backfill_v1', 'done')"
+            )
+            conn.commit()
+
         # ─── Seed default platform admin ───────────────────────────────
         # Ensure at least one platform admin exists (admin/admin)
         from app.authentication.common.utils import hash_pin

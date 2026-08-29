@@ -272,8 +272,79 @@ def init_production_db():
         maintenancecharge REAL NOT NULL DEFAULT 0,
         maintenancedesc TEXT,
         previousarrears REAL NOT NULL DEFAULT 0,
-        amountreceived REAL NOT NULL DEFAULT 0
+        amountreceived REAL NOT NULL DEFAULT 0,
+        settled_by_bill_no TEXT,
+        settlement_type TEXT NOT NULL DEFAULT 'NONE',
+        settled_at TEXT,
+        settlement_amount REAL NOT NULL DEFAULT 0
     );
+    """)
+
+    # ============================================================
+    # 9b. PAYMENT ENTRIES (transaction-level payment source of truth)
+    # ============================================================
+    # receipts.amountreceived is the derived cumulative sum of active payment
+    # entries (amountreceived == SUM(amount WHERE status='ACTIVE')), so the
+    # existing billing/arrears engine can keep reading amountreceived while
+    # preserving every individual payment transaction here.
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS payment_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        billNo TEXT NOT NULL,
+        tenantId INTEGER NOT NULL,
+        landlord_id TEXT,
+        payment_date TEXT NOT NULL,
+        amount REAL NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        created_by TEXT,
+        updated_by TEXT,
+        status TEXT NOT NULL DEFAULT 'ACTIVE',
+        payment_type TEXT NOT NULL DEFAULT 'BILL',
+        source TEXT NOT NULL DEFAULT 'MANUAL',
+        FOREIGN KEY (billNo) REFERENCES receipts(billNo) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_payment_entries_bill
+        ON payment_entries(billNo);
+    CREATE INDEX IF NOT EXISTS idx_payment_entries_tenant
+        ON payment_entries(tenantId);
+    CREATE INDEX IF NOT EXISTS idx_payment_entries_date
+        ON payment_entries(payment_date);
+    CREATE INDEX IF NOT EXISTS idx_payment_entries_landlord
+        ON payment_entries(landlord_id);
+    CREATE INDEX IF NOT EXISTS idx_payment_entries_status
+        ON payment_entries(status);
+    """)
+
+    # ============================================================
+    # 9c. PAYMENT ALLOCATIONS (settlement ledger)
+    # ============================================================
+    # Connects each payment transaction to the bills it actually cleared. A
+    # payment recorded against the current bill can economically clear earlier
+    # arrears; allocation_type records the split:
+    #     CURRENT_BILL | ARREAR | ADVANCE
+    # This separates HISTORICAL bill payment status from the tenant's CURRENT
+    # outstanding balance (Σ current charges − Σ payments — never double
+    # counting arrears carried into later bills' previousarrears).
+    conn.executescript("""
+    CREATE TABLE IF NOT EXISTS payment_allocations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        payment_entry_id INTEGER NOT NULL,
+        tenant_id INTEGER NOT NULL,
+        bill_no TEXT NOT NULL,
+        allocated_amount REAL NOT NULL,
+        allocation_type TEXT NOT NULL DEFAULT 'CURRENT_BILL',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (payment_entry_id) REFERENCES payment_entries(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_payment_allocations_tenant
+        ON payment_allocations(tenant_id);
+    CREATE INDEX IF NOT EXISTS idx_payment_allocations_bill
+        ON payment_allocations(tenant_id, bill_no);
+    CREATE INDEX IF NOT EXISTS idx_payment_allocations_payment
+        ON payment_allocations(payment_entry_id);
     """)
 
     # ============================================================

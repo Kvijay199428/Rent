@@ -119,8 +119,19 @@ async def public_tenant_profile_json(propertyId: int, tenantId: int, viewToken: 
     tenant_receipts = tenant_receipts[:config.get("system.limits.public_history_months", 12)]
     occupants = get_occupants(tenant.id)
 
+    from app.services.payment_service import get_tenant_outstanding_balance, get_tenant_settlement_state
+    try:
+        outstandingBalance = get_tenant_outstanding_balance(tenant.id)
+        st = get_tenant_settlement_state(tenant.id)
+        currentBillDue = st.get("currentBillDue", 0.0)
+        advance = st.get("advance", 0.0)
+    except Exception:
+        outstandingBalance = 0.0
+        currentBillDue = 0.0
+        advance = 0.0
+
     return {
-        "tenant": base_info,
+        "tenant": {**base_info, "outstandingBalance": outstandingBalance, "currentBillDue": currentBillDue, "advance": advance},
         "receipts": tenant_receipts,
         "occupants": occupants
     }

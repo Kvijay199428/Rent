@@ -23,7 +23,6 @@ interface ReceiptRowProps {
   onPreview: (data: { billNo: string; tenantId: number }) => void;
   onEdit: (data: { billNo: string; tenantId: number }) => void;
   variant?: 'history' | 'archive';
-  onUpdatePayment?: (billNo: string, status: "PENDING" | "PARTIAL" | "PAID" | "ADVANCE", amount: number) => void;
   /** When true the receipt belongs to a tenant whose profile is currently archived.
    *  Restore is blocked and a prompt directs the admin to restore the tenant first. */
   ownerTenantIsArchived?: boolean;
@@ -31,36 +30,22 @@ interface ReceiptRowProps {
   ownerTenantName?: string;
 }
 
-export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, variant = 'history', onUpdatePayment, ownerTenantIsArchived = false, ownerTenantName }: ReceiptRowProps) {
+export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, variant = 'history', ownerTenantIsArchived = false, ownerTenantName }: ReceiptRowProps) {
   const toast = useToast();
   const { landlordUuid } = useAuth();
   const [confirmAction, setConfirmAction] = useState<string | null>(null);
 
-  const currTotal = receipt.Total || 0;
-  const prevArr = receipt.previousArrears || 0;
+  const currTotal = receipt?.Total || 0;
+  const prevArr = receipt?.previousArrears || 0;
   const grandTotal = currTotal + prevArr;
-  const amtRecv = receipt.amountReceived || 0;
+  const amtRecv = receipt?.amountReceived || 0;
   const balance = grandTotal - amtRecv;
   const advanceAmount = balance < 0 ? Math.abs(balance) : 0;
 
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const settledType = (receipt?.settlementType || 'NONE').toUpperCase();
+  const isSettled = !!receipt?.settledByBill && (settledType === 'CURRENT_PAYMENT' || settledType === 'ARREAR');
 
-  const handleUpdatePayment = async (status: "PENDING" | "PARTIAL" | "PAID" | "ADVANCE", amount: number) => {
-    try {
-      if (onUpdatePayment) {
-        onUpdatePayment(receipt.Bill, status, amount);
-      } else {
-        await api.updatePaymentStatus(landlordUuid!, receipt.TenantId, receipt.Bill, {
-          paymentStatus: status,
-          amountReceived: amount,
-        });
-        toast.success(`Payment updated to ${status}`);
-        onAction();
-      }
-    } catch {
-      toast.error('Failed to update payment status');
-    }
-  };
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
 
   const handleArchive = async () => {
     try {
@@ -152,13 +137,21 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
             <div className="font-bold text-base">₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             <div className="text-xs text-green-600 dark:text-green-400">
               Paid: ₹{amtRecv.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {receipt.paymentCount !== undefined && receipt.paymentCount > 0 && (
+                <span className="text-muted-foreground"> ({receipt.paymentCount} payment{receipt.paymentCount === 1 ? '' : 's'})</span>
+              )}
             </div>
-            {balance > 0 && (
+            {isSettled ? (
+              <div className="text-xs text-slate-500 font-medium">
+                Cleared by {receipt.settledByBill}
+                {receipt.settlementAmount ? ` • ₹${Number(receipt.settlementAmount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ''}
+              </div>
+            ) : balance > 0 ? (
               <div className="text-xs text-red-500 font-medium">
                 Due: ₹{balance.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-            )}
-            {balance < 0 && (
+            ) : null}
+            {!isSettled && balance < 0 && (
               <div className="text-xs text-cyan-500 font-medium">
                 Advance: ₹{advanceAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
@@ -322,14 +315,8 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
       <PaymentModal
         open={paymentModalOpen}
         onOpenChange={setPaymentModalOpen}
-        bill={{
-          Bill: receipt.Bill,
-          Total: receipt.Total,
-          PreviousArrears: receipt.previousArrears,
-          AmountReceived: receipt.amountReceived,
-          PaymentStatus: receipt.paymentStatus,
-        }}
-        onUpdate={handleUpdatePayment}
+        receipt={receipt}
+        onChange={onAction}
       />
     </>
   );

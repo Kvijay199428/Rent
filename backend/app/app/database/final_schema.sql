@@ -236,7 +236,11 @@ CREATE TABLE IF NOT EXISTS receipts (
     maintenancecharge REAL NOT NULL DEFAULT 0,
     maintenancedesc TEXT,
     previousarrears REAL NOT NULL DEFAULT 0,
-    amountreceived REAL NOT NULL DEFAULT 0
+    amountreceived REAL NOT NULL DEFAULT 0,
+    settled_by_bill_no TEXT,
+    settlement_type TEXT NOT NULL DEFAULT 'NONE',
+    settled_at TEXT,
+    settlement_amount REAL NOT NULL DEFAULT 0
 );
 
 -- ============================================================

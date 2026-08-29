@@ -24,6 +24,7 @@ import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Receipt, Tenant } from '@/types';
 import PDFPreviewModal from '@/components/shared/PDFPreviewModal';
+import PaymentModal from '@/components/modals/PaymentModal';
 import { AlertCircle, Eye, Pencil, Search, User } from 'lucide-react';
 import { BrandWave } from '@shared/loading/BrandWave';
 
@@ -37,6 +38,7 @@ type DueReceipt = Receipt & {
   grandTotal: number;
   received: number;
   due: number;
+  settled: boolean;
 };
 
 type DueGroup = {
@@ -48,6 +50,9 @@ type DueGroup = {
 function getReceiptAmounts(receipt: Receipt) {
   const total = Number(receipt.Total || 0) + Number(receipt.previousArrears || 0);
   const status = String(receipt.paymentStatus || 'PENDING').toUpperCase();
+  const settled =
+    !!receipt.settledByBill &&
+    ['CURRENT_PAYMENT', 'ARREAR'].includes(String(receipt.settlementType || '').toUpperCase());
   const received =
     receipt.amountReceived !== null && receipt.amountReceived !== undefined
       ? Number(receipt.amountReceived)
@@ -55,111 +60,7 @@ function getReceiptAmounts(receipt: Receipt) {
         ? total
         : 0;
   const due = Math.max(total - received, 0);
-  return { total, received, due };
-}
-
-function PaymentUpdateDialog({
-  open,
-  onOpenChange,
-  receipt,
-  onSaved,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  receipt: DueReceipt | null;
-  onSaved: () => void;
-}) {
-  const toast = useToast();
-  const { landlordUuid } = useAuth();
-  const [submitting, setSubmitting] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState('PENDING');
-  const [amountReceived, setAmountReceived] = useState('0');
-
-  useEffect(() => {
-    if (!receipt) return;
-    setPaymentStatus(String(receipt.paymentStatus || 'PENDING').toUpperCase());
-    setAmountReceived(String(Number(receipt.received || 0)));
-  }, [receipt]);
-
-  const handleSave = async () => {
-    if (!receipt) return;
-
-    let finalAmount: number | undefined = Number(amountReceived || 0);
-    if (paymentStatus === 'PAID') finalAmount = receipt.grandTotal;
-    if (paymentStatus === 'PENDING') finalAmount = 0;
-
-    try {
-      setSubmitting(true);
-      await api.updatePaymentStatus(landlordUuid!, receipt.TenantId, receipt.Bill, {
-        paymentStatus,
-        amountReceived: finalAmount,
-      });
-      toast.success('Payment updated');
-      onSaved();
-      onOpenChange(false);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update payment');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Update Payment</DialogTitle>
-          <DialogDescription>
-            {receipt ? `${receipt.Tenant} • ${receipt.Bill}` : 'Update receipt payment'}
-          </DialogDescription>
-        </DialogHeader>
-
-        {receipt ? (
-          <div className="space-y-4">
-            <Card>
-              <CardContent className="p-4 space-y-1 text-sm">
-                <div className="flex justify-between"><span>Grand Total</span><span>₹{receipt.grandTotal.toFixed(2)}</span></div>
-                <div className="flex justify-between"><span>Received</span><span>₹{receipt.received.toFixed(2)}</span></div>
-                <div className="flex justify-between text-red-600 font-medium"><span>Due</span><span>₹{receipt.due.toFixed(2)}</span></div>
-              </CardContent>
-            </Card>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Payment Status</label>
-              <select
-                value={paymentStatus}
-                onChange={(e) => setPaymentStatus(e.target.value)}
-                className="w-full h-10 rounded-md border bg-background px-3 text-sm"
-              >
-                <option value="PENDING">PENDING</option>
-                <option value="PARTIAL">PARTIAL</option>
-                <option value="PAID">PAID</option>
-                <option value="ADVANCE">ADVANCE</option>
-              </select>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Amount Received</label>
-              <Input
-                type="number"
-                step="0.01"
-                value={amountReceived}
-                onChange={(e) => setAmountReceived(e.target.value)}
-                disabled={paymentStatus === 'PAID' || paymentStatus === 'PENDING'}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-              <Button onClick={handleSave} disabled={submitting}>
-                {submitting ? 'Saving...' : 'Save'}
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </DialogContent>
-    </Dialog>
-  );
+  return { total, received, due, settled };
 }
 
 export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Props) {
@@ -184,9 +85,11 @@ export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Prop
       const dueReceipts: DueReceipt[] = receipts
         .map((receipt) => {
           const amounts = getReceiptAmounts(receipt);
-          return { ...receipt, grandTotal: amounts.total, received: amounts.received, due: amounts.due };
+          return { ...receipt, grandTotal: amounts.total, received: amounts.received, due: amounts.due, settled: amounts.settled };
         })
         .filter((receipt) => {
+          // Exclude bills that were cleared by a later payment (settled) — they are no longer due.
+          if (receipt.settled) return false;
           const status = String(receipt.paymentStatus || 'PENDING').toUpperCase();
           return ['PENDING', 'PARTIAL'].includes(status) && receipt.due > 0;
         });
@@ -217,7 +120,12 @@ export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Prop
 
         const current = grouped.get(tenantId)!;
         current.receipts.push(receipt);
-        current.totalDue += receipt.due;
+        // Prefer the backend's authoritative outstanding balance when present.
+        if (tenant.outstandingBalance != null) {
+          current.totalDue = Number(tenant.outstandingBalance);
+        } else {
+          current.totalDue += receipt.due;
+        }
       }
 
       const finalGroups = Array.from(grouped.values()).sort((a, b) => b.totalDue - a.totalDue);
@@ -450,16 +358,17 @@ export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Prop
         onClose={() => setPreviewBill(null)}
       />
 
-      <PaymentUpdateDialog
-        open={!!editingReceipt}
-        onOpenChange={(value) => { if (!value) setEditingReceipt(null); }}
-        receipt={editingReceipt}
-        onSaved={async () => {
-          await loadData();
-          onChanged();
-          setEditingReceipt(null);
-        }}
-      />
+      {editingReceipt && (
+        <PaymentModal
+          open
+          onOpenChange={(value) => { if (!value) setEditingReceipt(null); }}
+          receipt={editingReceipt}
+          onChange={async () => {
+            await loadData();
+            onChanged();
+          }}
+        />
+      )}
     </>
   );
 }

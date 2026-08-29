@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { api } from '@/services/api';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSync } from '@/hooks/useSync';
 import type { DashboardStats, Tenant } from '@/types';
 import { BrandWave } from '@shared/loading/BrandWave';
 import {
@@ -70,6 +71,16 @@ export default function Dashboard() {
     api.getTenants(landlordUuid).then(setAllTenants).catch(() => {});
     api.getActivityLogs(landlordUuid, { limit: 5 }).then((d) => setRecentActivity(d.items)).catch(() => {});
   }, [landlordUuid]);
+
+  useSync(
+    `landlord:${landlordUuid ?? ''}`,
+    (event) => {
+      if (event.type === 'PAYMENT_UPDATED' || event.type === 'BILL_UPDATED') {
+        loadStats();
+      }
+    },
+    !!landlordUuid,
+  );
 
   const formatValue = (key: string, value: number) => {
     if (key.includes('revenue') || key.includes('amount') || key.includes('collected')) {
@@ -309,6 +320,8 @@ export default function Dashboard() {
                     const grandTotal = Number(b.total || 0) + Number(b.previousArrears || 0);
                     const amtRecv = Number(b.amountReceived || 0);
                     const balanceDue = Math.max(grandTotal - amtRecv, 0);
+                    const settledType = String(b.settlementType || 'NONE').toUpperCase();
+                    const isSettled = !!b.settledByBill && (settledType === 'CURRENT_PAYMENT' || settledType === 'ARREAR');
                     const tenantId = Number(b.tenantId || 0);
                     const billNo = String(b.billNo || '');
                     const canAct = tenantId > 0 && !!billNo;
@@ -346,12 +359,21 @@ export default function Dashboard() {
                           </span>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             Recv: ₹{amtRecv.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            {(b as { paymentCount?: number }).paymentCount !== undefined && (
+                              <span className="ml-1 text-muted-foreground/70">
+                                ({((b as { paymentCount?: number }).paymentCount ?? 0)} payment{((b as { paymentCount?: number }).paymentCount ?? 0) === 1 ? '' : 's'})
+                              </span>
+                            )}
                           </div>
-                          {balanceDue > 0 && (
+                          {isSettled ? (
+                            <div className="text-xs text-slate-500 font-medium">
+                              Cleared by {b.settledByBill}
+                            </div>
+                          ) : balanceDue > 0 ? (
                             <div className="text-xs text-red-500 font-medium">
                               Rem: ₹{balanceDue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                             </div>
-                          )}
+                          ) : null}
                         </td>
                         <td className="px-4 py-2">
                           <div className="flex items-center justify-end gap-1">

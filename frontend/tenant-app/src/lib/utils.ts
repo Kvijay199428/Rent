@@ -89,6 +89,12 @@ export function getRemainingAmount(receipt: Receipt): number {
   return Math.max(0, getGrandTotal(receipt) - getAmountReceived(receipt));
 }
 
+/** True when a bill was cleared by a later payment (settled_by_bill_no set). */
+export function isSettled(receipt: Receipt): boolean {
+  const s = String(receipt.settlementType ?? "").toUpperCase();
+  return !!receipt.settledByBill && (s === "CURRENT_PAYMENT" || s === "ARREAR");
+}
+
 export function formatResidentSince(dateStr: string): string {
   if (!dateStr) return "—";
   const d = new Date(`${dateStr}T00:00:00`);

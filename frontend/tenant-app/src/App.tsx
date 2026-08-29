@@ -185,7 +185,7 @@ function TenantPortalInner() {
           </TabsList>
 
           <TabsContent value="receipts" className="space-y-6 mt-2">
-            <PaymentStatusCard receipts={receipts} />
+            <PaymentStatusCard receipts={receipts} outstandingBalance={profile?.tenant?.outstandingBalance} />
 
             <div>
               <h2 className="text-lg font-bold mb-3">Recent Receipts</h2>

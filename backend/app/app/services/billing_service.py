@@ -145,8 +145,28 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
         """, (finalStatus, amountReceived, tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
-    
-    return finalStatus
+
+    # Keep the payment_entries ledger authoritative: ensure a payment entry
+    # exists covering the amount set here, so the invariant
+    # amountreceived == SUM(active payment_entries) holds and the settlement
+    # engine sees the actual transaction.
+    try:
+        from app.services.payment_service import sync_bill_payment_from_receipt
+        sync_bill_payment_from_receipt(tenantId, billNo, amountReceived)
+    except Exception:
+        pass
+
+    # Ensure settlement/allocation markers reflect the latest state for the
+    # whole tenant (a PAID on this bill may have cleared earlier arrears).
+    try:
+        from app.services.payment_service import get_tenant_settlement_state
+        finalState = get_tenant_settlement_state(tenantId)
+    except Exception:
+        finalState = None
+
+    if finalState is not None:
+        return {"status": finalStatus, "settlement": finalState}
+    return {"status": finalStatus}
     
 def _safe_float(val, default=0.0) -> float:
     try:
@@ -199,10 +219,31 @@ def _row_to_dict(row):
         "MaintenanceDesc": row.get("maintenancedesc", "") or "",
         "previousArrears": _safe_float(row.get("previousarrears")),
         "amountReceived": _safe_float(row.get("amountreceived")),
+        "settledByBill": row.get("settled_by_bill_no", "") or "",
+        "settlementType": row.get("settlement_type", "") or "NONE",
+        "settledAt": row.get("settled_at", "") or "",
+        "settlementAmount": _safe_float(row.get("settlement_amount")),
     }
 
 _MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
                 "July", "August", "September", "October", "November", "December"]
+
+def _attach_payment_facts(receipts: list) -> list:
+    """Attach paymentCount / lastPaymentDate to a list of receipt dicts."""
+    try:
+        with get_conn() as conn:
+            rows = conn.execute(
+                "SELECT billNo, COUNT(*) AS cnt, MAX(payment_date) AS last_date "
+                "FROM payment_entries WHERE status = 'ACTIVE' GROUP BY billNo"
+            ).fetchall()
+        facts = {r["billNo"]: (int(r["cnt"] or 0), r["last_date"] or "") for r in rows}
+    except Exception:
+        return receipts
+    for r in receipts:
+        cnt, last = facts.get(r.get("Bill"), (0, ""))
+        r["paymentCount"] = cnt
+        r["lastPaymentDate"] = last
+    return receipts
 
 def _month_sort_key(month_str: str):
     """Sort key for 'January 2026' style month strings; unknown months sort last."""
@@ -289,6 +330,16 @@ def recompute_tenant_arrear_chain(conn, tenant_id: int) -> list:
         except Exception:
             pass
 
+    # Keep the settlement/allocation ledger in sync with the (possibly changed)
+    # running balances. A payment recorded on a later bill may have cleared
+    # earlier arrears; this marks those historical bills as settled so they stop
+    # contributing to current dues without rewriting their original status.
+    try:
+        from app.services.payment_service import _recompute_tenant_settlement
+        _recompute_tenant_settlement(conn, tenant_id)
+    except Exception:
+        pass
+
     return changed
 
 def get_active_tenant_ids(landlord_id=None) -> set:
@@ -313,7 +364,7 @@ def get_all_receipts(include_archived_tenants: bool = False, landlord_id=None):
         active_ids = get_active_tenant_ids(landlord_id=landlord_id)
         receipts = [r for r in receipts if int(r.get("TenantId", 0) or 0) in active_ids]
     
-    return receipts
+    return _attach_payment_facts(receipts)
 
 def get_receipts_for_tenant(tenant_id: int, include_archived: bool = False, landlord_id=None) -> list:
     """Fetch all receipts for a single tenant by ID.
@@ -518,6 +569,14 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
         recompute_tenant_arrear_chain(conn, tenant.id)
         conn.commit()
 
+    # Maintain payment-entry invariant: if the new bill carries a payment but
+    # has no active payment entries yet, record one.
+    try:
+        from app.services.payment_service import sync_bill_payment_from_receipt
+        sync_bill_payment_from_receipt(tenant.id, billNo, amountReceived)
+    except Exception:
+        pass
+
     return receipt_dict
 def update_bill(tenantId, billNo, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
                 MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING",
@@ -633,6 +692,15 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
 
+    # Maintain payment-entry invariant: editing a bill's owned amount should
+    # reconcile a single payment entry when none exist yet (legacy bills or
+    # bills created before the entries feature). Does not duplicate entries.
+    try:
+        from app.services.payment_service import sync_bill_payment_from_receipt
+        sync_bill_payment_from_receipt(tenantId, billNo, amountReceived)
+    except Exception:
+        pass
+
     return updated_dict
 def archive_bill(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
@@ -737,8 +805,9 @@ def get_dashboard_stats(landlord_id=None):
     lifetime_revenue = 0.0
 
     pending_payments_count = 0          # unique tenants with dues
-    pending_payments_amount = 0.0       # total due amount across PENDING/PARTIAL receipts
-    pending_receipts_count = 0          # number of due receipts
+    pending_payments_amount = 0.0       # Σ current outstanding balance per due tenant
+    pending_receipts_count = 0          # number of due tenants (one per tenant)
+    arrears_total = 0.0                 # Σ unresolved carried-forward balance
 
     amount_collected = 0.0
     electricity_consumed_this_month = 0.0
@@ -787,10 +856,18 @@ def get_dashboard_stats(landlord_id=None):
         if r.get("Month") == prev_month_str:
             prev_monthly_revenue += received
 
-        if status in ("PENDING", "PARTIAL") and outstanding > 0:
+        # Skip bills that were fully settled by a later payment — they are no
+        # longer currently due even though their stored status is PARTIAL.
+        settled_type = str(r.get("settlementType", "NONE")).upper()
+        settled = bool(r.get("settledByBill")) and settled_type in ("CURRENT_PAYMENT", "ARREAR")
+
+        if not settled and status in ("PENDING", "PARTIAL") and outstanding > 0:
             pending_receipts_count += 1
-            pending_payments_amount += outstanding
             due_tenant_ids.add(int(r.get("TenantId", 0) or 0))
+            # Unresolved arrears attributed to prior periods (excluding the
+            # current bill's own contribution) — used by the arrears card.
+            if previous_arrears > 0 and outstanding > 0:
+                arrears_total += min(outstanding, previous_arrears)
 
         if status in ("PAID", "ADVANCE"):
             paid_bills_count += 1
@@ -798,6 +875,16 @@ def get_dashboard_stats(landlord_id=None):
                 advance_bills_count += 1
             
     pending_payments_count = len(due_tenant_ids)
+    # The authoritative pending amount is Σ per-tenant current outstanding
+    # balance (never the sum of per-receipt grand totals, which would double
+    # count carried-forward arrears). One due entry per tenant, not per bill.
+    pending_payments_amount = 0.0
+    if due_tenant_ids:
+        from app.services.payment_service import get_tenant_outstanding_balance
+        for _tid in due_tenant_ids:
+            pending_payments_amount += get_tenant_outstanding_balance(_tid)
+    pending_payments_amount = round(pending_payments_amount, 2)
+    pending_receipts_count = pending_payments_count  # one due entry per tenant
 
     revenue_change_str = ""
     if prev_monthly_revenue == 0.0:
@@ -813,7 +900,20 @@ def get_dashboard_stats(landlord_id=None):
         collection_rate = (paid_bills_count / total_active_receipts) * 100
         
     recent_bills = []
+    payment_facts = {}
+    try:
+        from app.core.db import get_conn as _gconn
+        with _gconn() as conn:
+            for row in conn.execute(
+                "SELECT billNo, COUNT(*) AS cnt, MAX(payment_date) AS last_date "
+                "FROM payment_entries WHERE status = 'ACTIVE' GROUP BY billNo"
+            ).fetchall():
+                payment_facts[row["billNo"]] = (row["cnt"], row["last_date"])
+    except Exception:
+        pass
+
     for r in active_receipts[-5:][::-1]:
+        _cnt, _last = payment_facts.get(r.get("Bill"), (0, None))
         recent_bills.append({
             "billNo": r.get("Bill"),
             "tenantName": r.get("Tenant"),
@@ -823,6 +923,11 @@ def get_dashboard_stats(landlord_id=None):
             "month": r.get("Month"),
             "paymentStatus": r.get("paymentStatus", "PENDING"),
             "previousArrears": float(r.get("previousArrears", 0) or 0),
+            "settledByBill": r.get("settledByBill", "") or "",
+            "settlementType": r.get("settlementType", "") or "NONE",
+            "settlementAmount": float(r.get("settlementAmount", 0) or 0),
+            "paymentCount": int(_cnt or 0) if _cnt else 0,
+            "lastPaymentDate": _last or "",
         })
         
     revenue_chart_data = {m: 0.0 for m in months_names}
@@ -875,6 +980,7 @@ def get_dashboard_stats(landlord_id=None):
         "pending_payments_amount": pending_payments_amount,
         "pending_receipts_count": pending_receipts_count,
         "pending_amount": pending_payments_amount,  # backward compat alias
+        "arrears_amount": round(arrears_total, 2),  # Σ unresolved carried-forward balance
 
         "amount_collected": amount_collected,
         "paid_bills_count": paid_bills_count,
@@ -977,4 +1083,18 @@ def save_all_receipts(receipts_list):
                 recompute_tenant_arrear_chain(conn, tid)
 
         conn.commit()
+
+    # Maintain payment-entry invariant for imported receipts that carried an
+    # amountReceived (record one entry per such bill when none exists yet).
+    try:
+        from app.services.payment_service import sync_bill_payment_from_receipt
+        for r in receipts_list:
+            billNo = r.get("Bill")
+            raw_tid = r.get("TenantId") or r.get("tenantId")
+            tid = int(raw_tid) if raw_tid is not None else None
+            amt = r.get("amountReceived", 0)
+            if billNo and tid and tid in valid_tenant_ids and float(amt or 0) > 0:
+                sync_bill_payment_from_receipt(tid, billNo, amt)
+    except Exception:
+        pass
 
