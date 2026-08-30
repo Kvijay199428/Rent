@@ -16,8 +16,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOCAL_DIR = BASE_DIR
 ZIP_FILE = os.path.join(BASE_DIR, "update.zip")
 REMOTE_ZIP = "/home/vega/update.zip"
-REMOTE_DIR_DEV = "/home/vega/rent-app-20081"
-REMOTE_DIR_PROD = "/home/vega/rent-app"
+REMOTE_DIR_DEV = "/home/vega/propaura-dev"
+REMOTE_DIR_PROD = "/home/vega/propaura-prod"
 
 FRONTEND_DIRS = [
     "frontend/admin-app",
@@ -35,6 +35,7 @@ EXCLUDE_DIRS = {
     "node_modules",
     "dist-ssr",
     ".opencode",
+    ".env",
 }
 
 TARGETS = {
@@ -84,7 +85,7 @@ parser = argparse.ArgumentParser(
     epilog="Examples:\n"
            "  python deploy.py --dev --sshPublic --clean   # dev stack, full wipe+rebuild, via SSH to public IP\n"
            "  python deploy.py --dev --sshPublic           # dev stack via SSH to public IP\n"
-           "  python deploy.py --prod --sshPublic          # blue-green production deploy\n"
+           "  python deploy.py --prod --sshPublic          # single-slot production deploy\n"
            "  python deploy.py --release                   # release branch deploy (self-pull, runs here)\n"
            "  python deploy.py --main                      # main branch deploy (self-pull, runs here)\n"
            "  python deploy.py --dev --self-test           # check SSH connectivity to the target only\n"
@@ -107,7 +108,7 @@ group.add_argument("--sshPublic", action="store_true", help="Deploy via SSH to p
 
 env_group = parser.add_mutually_exclusive_group()
 env_group.add_argument("--dev", action="store_true", help="Deploy development environment (compose.dev.yml + .env.development, ngrok). Default when no env flag is given.")
-env_group.add_argument("--prod", action="store_true", help="Deploy production environment (blue-green zero-downtime via deploy/deploy-release.sh).")
+env_group.add_argument("--prod", action="store_true", help="Deploy production environment (single backend slot via deploy/deploy-release.sh).")
 
 gh_group = parser.add_mutually_exclusive_group()
 gh_group.add_argument("--main", action="store_true", help="Deploy the main (development) branch. Defaults to running here (server self-pull); combine with --sshLocal/--sshPublic to push from a machine.")
@@ -175,10 +176,10 @@ SCOPE_INFRA_ENV_PREFIXES = (".env",)
 # Dev compose service targeted by each scope (backend restarts pick up schema
 # init_db() and config reload). `all` keeps the existing full build+up.
 SCOPE_SERVICES = {
-    "frontend": "frontend_dev",
-    "backend": "backend_dev",
-    "storage": "backend_dev",
-    "database": "backend_dev",
+    "frontend": "propaura_frontend_dev",
+    "backend": "propaura_backend_dev",
+    "storage": "propaura_backend_dev",
+    "database": "propaura_backend_dev",
 }
 
 # Transport. --main/--release (branch self-pull) default to running locally on
@@ -356,6 +357,47 @@ def check_node_version():
         print("WARNING: Could not detect Node version.")
 
 
+def _load_barsep_env(path):
+    """Read a dotenv file into a dict (VITE_* vars are what we care about)."""
+    data = {}
+    if not os.path.isfile(path):
+        return data
+    with open(path, "r", encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            data[key.strip()] = value.strip().strip('"').strip("'")
+    return data
+
+
+def provision_frontend_env(env_source):
+    """Write the canonical frontend/.env used by the vite builds (all apps read
+    it via `envDir: '../'`). Only VITE_GOOGLE_CLIENT_ID and VITE_APP_BASE_PATH
+    are drawn from the .env/ source of truth. VITE_API_BASE_URL is forced EMPTY
+    so the frontend calls same-origin (/rent/...) and the nginx/backend proxy
+    routes it — this is the working behavior for both dev and prod."""
+    env_file = os.path.join(LOCAL_DIR, "frontend", ".env")
+    client_id = ""
+    app_base = "/rent"
+    if os.path.isfile(env_source):
+        env_map = _load_barsep_env(env_source)
+        client_id = env_map.get("VITE_GOOGLE_CLIENT_ID", "")
+        app_base = env_map.get("VITE_APP_BASE_PATH", "/rent")
+    if not client_id:
+        print(f"  WARNING: VITE_GOOGLE_CLIENT_ID not found in {env_source} — Google login will break")
+    lines = [
+        "VITE_APP_BASE_PATH=" + app_base,
+        "VITE_API_BASE_URL=",
+        "VITE_GOOGLE_CLIENT_ID=" + client_id,
+        "",
+    ]
+    with open(env_file, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+    print(f"  Provisioned frontend/.env (Google client id set: {bool(client_id)})")
+
+
 def build_frontends():
     if env == ENV_DEV:
         print("Skipping frontend builds (development env runs Vite live on the server).")
@@ -368,6 +410,7 @@ def build_frontends():
         return
     check_node_version()
     print("Building frontend applications...")
+    provision_frontend_env(os.path.join(LOCAL_DIR, ".env.release"))
     for rel_dir in FRONTEND_DIRS:
         app_dir = os.path.join(LOCAL_DIR, *rel_dir.split("/"))
         if os.path.exists(app_dir):
@@ -414,7 +457,31 @@ def _zip_roots():
     return roots
 
 
+def sync_env_files():
+    """Copy the single-source-of-truth env credentials from .env/ into the
+    root .env.development / .env.release files that deploy.py ships (and that
+    compose loads via --env-file). If a source file is missing, the matching
+    root file is left untouched (keeps existing server-side behavior intact)."""
+    env_dir = os.path.join(LOCAL_DIR, ".env")
+    pairs = {
+        ".env.development": ".env.development",
+        ".env.release": ".env.release",
+    }
+    if not os.path.isdir(env_dir):
+        return
+    for src_name, dst_name in pairs.items():
+        src = os.path.join(env_dir, src_name)
+        dst = os.path.join(LOCAL_DIR, dst_name)
+        if os.path.isfile(src):
+            with open(src, "r", encoding="utf-8") as f:
+                content = f.read()
+            with open(dst, "w", encoding="utf-8") as f:
+                f.write(content)
+            print(f"  Synced env: .env/{src_name} -> {dst_name}")
+
+
 def create_zip():
+    sync_env_files()
     if os.path.exists(ZIP_FILE):
         try:
             os.remove(ZIP_FILE)

@@ -1,4 +1,4 @@
 services:
-  rent-backend:
+  legacy-backend:
     ports:
       - "28001:28001"

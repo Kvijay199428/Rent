@@ -2,5 +2,8 @@
   "private": true,
   "scripts": {
     "build": "cd frontend && npm run build"
+  },
+  "devDependencies": {
+    "wrangler": "^4.127.1"
   }
 }

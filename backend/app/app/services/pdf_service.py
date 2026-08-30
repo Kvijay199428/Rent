@@ -187,7 +187,7 @@ def _build_info_card(title, rows, width, title_style, label_style, value_style):
     return card
 
 
-def generate_professional_pdf(data, landlord_config, output_path=None):
+def generate_professional_pdf(data, landlord_config, output_path=None, payment_entries=None):
     tenant_id = data.get("TenantId") or data.get("tenantId")
     current_tenant = _get_tenant(tenant_id) if tenant_id and _get_tenant else None
 
@@ -449,6 +449,38 @@ def generate_professional_pdf(data, landlord_config, output_path=None):
 
     bank_acc_no = str(landlord_config.get("bank_account_number") or "").strip()
     show_bank_details = bool(_config_get("receipt", "toggles.show_bank_details", True))
+    # ── Payment History (individual transactions, when payment_entries supplied)
+    if payment_entries:
+        pay_history = [e for e in payment_entries if (e.get("amount") or 0) > 0]
+        if pay_history:
+            y -= 20
+            c.setFont(FONT_BOLD, 10)
+            c.drawString(60, y, "PAYMENT HISTORY")
+            hist_rows = []
+            for e in pay_history:
+                pdate = str(e.get("paymentDate") or "")
+                try:
+                    pd = datetime.strptime(pdate, "%Y-%m-%d").strftime("%d %b %Y")
+                except Exception:
+                    pd = pdate
+                hist_rows.append((pd, f"{_safe_float(e.get('amount')):,.2f}"))
+            row_h = 15
+            hdr_h = 15
+            box_h = hdr_h + row_h * len(hist_rows) + 12
+            box_y = y - box_h
+            c.setLineWidth(1)
+            c.rect(50, box_y, width - 100, box_h)
+            c.setFont(FONT_BOLD, 9)
+            c.drawString(60, box_y + box_h - hdr_h + 4, "Date")
+            c.drawString(width - 150, box_y + box_h - hdr_h + 4, "Amount")
+            c.line(50, box_y + box_h - hdr_h - 3, width - 50, box_y + box_h - hdr_h - 3)
+            c.setFont(FONT_REGULAR, 9)
+            cy = box_y + box_h - hdr_h - row_h
+            for (pd, amtstr) in hist_rows:
+                c.drawString(60, cy, pd)
+                c.drawRightString(width - 60, cy, amtstr)
+                cy -= row_h
+            y = box_y
 
     if bank_acc_no and show_bank_details:
         y -= 25

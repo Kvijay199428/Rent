@@ -1,4 +1,4 @@
-import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig } from "@/types";
+import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, PaymentState, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig } from "@/types";
 import { ROUTES } from "@/lib/routes";
 import { silentRefresh } from "@/lib/auth";
 
@@ -6,6 +6,13 @@ export type ArchiveDataResponse = {
   tenants: Tenant[];
   receipts: Receipt[];
 };
+
+function sanitizeReceiptList(data: unknown): Receipt[] {
+  if (!Array.isArray(data)) throw new Error("Invalid receipts response");
+  return data.filter(
+    (r): r is Receipt => r !== null && r !== undefined && typeof r === "object"
+  );
+}
 
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const doFetch = (): Promise<Response> =>
@@ -176,20 +183,20 @@ export const api = {
   getTenantReceipts: async (landlordUuid: string, tenantId: number): Promise<Receipt[]> => {
     const res = await fetchWithAuth(ROUTES.LANDLORDAPITENANTSRECEIPTS(landlordUuid, tenantId));
     if (!res.ok) throw new Error("Failed to fetch tenant receipts");
-    return res.json();
+    return sanitizeReceiptList(await res.json());
   },
 
   // Bills / Receipts
   getAllReceipts: async (landlordUuid: string): Promise<Receipt[]> => {
     const res = await fetchWithAuth(`${ROUTES.LANDLORDAPIBILLINGFILTER(landlordUuid)}?status=all`);
     if (!res.ok) throw new Error("Failed to fetch receipts");
-    return res.json();
+    return sanitizeReceiptList(await res.json());
   },
 
   getActiveReceipts: async (landlordUuid: string): Promise<Receipt[]> => {
     const res = await fetchWithAuth(`${ROUTES.LANDLORDAPIBILLINGFILTER(landlordUuid)}?status=active`);
     if (!res.ok) throw new Error("Failed to fetch receipts");
-    return res.json();
+    return sanitizeReceiptList(await res.json());
   },
 
   getArchiveData: async (landlordUuid: string): Promise<ArchiveDataResponse> => {
@@ -206,7 +213,7 @@ export const api = {
     const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGARCHIVEDATA(landlordUuid));
     if (!res.ok) throw new Error("Failed to fetch receipts");
     const data = await res.json();
-    return Array.isArray(data.receipts) ? data.receipts : [];
+    return sanitizeReceiptList((data as { receipts?: unknown })?.receipts ?? []);
   },
 
   archiveTenant: async (landlordUuid: string, tenantId: number): Promise<{ status: string }> => {
@@ -297,6 +304,36 @@ export const api = {
       body: JSON.stringify(data),
     });
     if (!res.ok) throw new Error("Failed to update payment status");
+    return res.json();
+  },
+
+  getPayments: async (landlordUuid: string, tenantId: number, billNo: string): Promise<PaymentState> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGPAYMENTS(landlordUuid, tenantId, billNo), { method: "GET" });
+    if (!res.ok) throw new Error("Failed to load payments");
+    return res.json();
+  },
+
+  createPayment: async (landlordUuid: string, tenantId: number, billNo: string, data: { paymentDate: string; amount: number }): Promise<{ status: string; data: PaymentState }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGPAYMENTS(landlordUuid, tenantId, billNo), {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to record payment");
+    return res.json();
+  },
+
+  updatePayment: async (landlordUuid: string, tenantId: number, billNo: string, paymentId: number, data: { paymentDate: string; amount: number }): Promise<{ status: string; data: PaymentState }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGPAYMENT(landlordUuid, tenantId, billNo, paymentId), {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error("Failed to update payment");
+    return res.json();
+  },
+
+  deletePayment: async (landlordUuid: string, tenantId: number, billNo: string, paymentId: number): Promise<{ status: string; data: PaymentState }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGPAYMENT(landlordUuid, tenantId, billNo, paymentId), { method: "DELETE" });
+    if (!res.ok) throw new Error("Failed to delete payment");
     return res.json();
   },
 

@@ -1,15 +1,28 @@
 #!/bin/bash
 set -e
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
 echo "=== Building Rent Frontend Apps ==="
 
-if [ -f .env ]; then
+load_env() {
+  local f="$1"
+  [ -f "$f" ] || return 1
   set -a
-  . ./.env
+  . "$f"
   set +a
-  echo "=== Loaded frontend/.env (VITE_* build vars) ==="
-else
-  echo "=== WARNING: frontend/.env not found — VITE_* build vars unset ==="
+  echo "=== Loaded $f (VITE_* build vars) ==="
+  return 0
+}
+
+# Priority: incoming env vars > frontend/.env > the .env/ source of truth.
+if ! load_env .env; then
+  if load_env ../.env/.env.release; then
+    :
+  elif load_env ../.env/.env.development; then
+    :
+  else
+    echo "=== WARNING: no env found — VITE_* build vars unset ==="
+  fi
 fi
 
 APPS="landing-app admin-app landlord-app tenant-app"

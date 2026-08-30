@@ -1,129 +1,254 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Pencil, Trash2, Plus, Check } from "lucide-react";
+import { api } from "@/services/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/hooks/useToast";
+import type { Receipt, PaymentState, PaymentEntry } from "@/types";
 
 interface PaymentModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    bill: {
-        Bill: string;
-        Total: number;
-        PreviousArrears: number;
-        AmountReceived: number | null;
-        PaymentStatus: string;
-    };
-    onUpdate: (status: "PENDING" | "PARTIAL" | "PAID" | "ADVANCE", amount: number) => void;
+    receipt: Receipt | null;
+    /** Optional callback invoked after any payment mutation so parent can refresh. */
+    onChange?: () => void;
 }
 
-export default function PaymentModal({ open, onOpenChange, bill, onUpdate }: PaymentModalProps) {
-    const grandTotal = Number(bill.Total || 0) + Number(bill.PreviousArrears || 0);
-    const currentReceived = bill.AmountReceived != null ? Number(bill.AmountReceived) : 0;
+function todayISO(): string {
+    const d = new Date();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${m}-${day}`;
+}
 
-    const [amount, setAmount] = useState<string>(currentReceived.toString());
-    const [selectedStatus, setSelectedStatus] = useState<string>(bill.PaymentStatus || "PENDING");
+const statusConfig: Record<string, { label: string; color: string }> = {
+    PAID: { label: "PAID", color: "bg-green-100 text-green-700" },
+    PARTIAL: { label: "PARTIAL", color: "bg-amber-100 text-amber-700" },
+    ADVANCE: { label: "ADVANCE", color: "bg-emerald-100 text-emerald-700" },
+    PENDING: { label: "PENDING", color: "bg-red-100 text-red-700" },
+};
+
+export default function PaymentModal({ open, onOpenChange, receipt, onChange }: PaymentModalProps) {
+    const { landlordUuid } = useAuth();
+    const toast = useToast();
+
+    const grandTotal = Number(receipt?.Total || 0) + Number(receipt?.previousArrears || 0);
+
+    const [state, setState] = useState<PaymentState | null>(null);
+    const [loading, setLoading] = useState(false);
+
+    const [amount, setAmount] = useState<string>("");
+    const [paymentDate, setPaymentDate] = useState<string>(todayISO());
+    const [editingId, setEditingId] = useState<number | null>(null);
+
+    const loadPayments = useCallback(async () => {
+        if (!landlordUuid || !receipt) return;
+        try {
+            const data = await api.getPayments(landlordUuid, receipt.TenantId, receipt.Bill);
+            setState(data);
+        } catch {
+            toast.error("Failed to load payments");
+        }
+    }, [landlordUuid, receipt?.TenantId, receipt?.Bill, toast]);
 
     useEffect(() => {
-        setAmount(currentReceived.toString());
-        setSelectedStatus(bill.PaymentStatus || "PENDING");
-    }, [bill, open]);
+        if (open) {
+            loadPayments();
+        }
+    }, [open, loadPayments]);
 
-    // Auto-calculate status based on amount
-    const calculateStatus = (amt: number): "PENDING" | "PARTIAL" | "PAID" | "ADVANCE" => {
-        if (amt <= 0) return "PENDING";
-        if (amt < grandTotal) return "PARTIAL";
-        if (amt === grandTotal) return "PAID";
-        return "ADVANCE";
+    if (!receipt) {
+        return null;
+    }
+
+    const startEdit = (entry: PaymentEntry) => {
+        setEditingId(entry.id);
+        setAmount(entry.amount.toString());
+        setPaymentDate(entry.paymentDate || todayISO());
     };
 
-    const handleAmountChange = (val: string) => {
-        setAmount(val);
-        const num = parseFloat(val) || 0;
-        setSelectedStatus(calculateStatus(num));
+    const resetForm = () => {
+        setEditingId(null);
+        setAmount("");
+        setPaymentDate(todayISO());
     };
 
-    const handleStatusClick = (status: "PENDING" | "PARTIAL" | "PAID" | "ADVANCE") => {
-        setSelectedStatus(status);
-        // Set default amount based on status
-        switch (status) {
-            case "PENDING": setAmount("0"); break;
-            case "PARTIAL": setAmount(Math.min(currentReceived || grandTotal / 2, grandTotal - 1).toString()); break;
-            case "PAID": setAmount(grandTotal.toString()); break;
-            case "ADVANCE": setAmount(Math.max(currentReceived, grandTotal + 100).toString()); break;
+    const handleSubmit = async () => {
+        if (!landlordUuid || !receipt) return;
+        const numAmount = parseFloat(amount) || 0;
+        if (numAmount <= 0) {
+            toast.error("Enter a valid payment amount");
+            return;
+        }
+        if (paymentDate > todayISO()) {
+            toast.error("Payment date cannot be in the future");
+            return;
+        }
+        try {
+            if (editingId != null) {
+                await api.updatePayment(landlordUuid, receipt.TenantId, receipt.Bill, editingId, {
+                    paymentDate,
+                    amount: numAmount,
+                });
+                toast.success("Payment updated");
+            } else {
+                await api.createPayment(landlordUuid, receipt.TenantId, receipt.Bill, {
+                    paymentDate,
+                    amount: numAmount,
+                });
+                toast.success("Payment recorded");
+            }
+            resetForm();
+            await loadPayments();
+            onChange?.();
+        } catch {
+            toast.error("Failed to save payment");
         }
     };
 
-    const handleSubmit = () => {
-        const numAmount = parseFloat(amount) || 0;
-        const finalStatus = calculateStatus(numAmount);
-        onUpdate(finalStatus, numAmount);
-        onOpenChange(false);
+    const handleDelete = async (paymentId: number) => {
+        if (!landlordUuid || !receipt) return;
+        try {
+            await api.deletePayment(landlordUuid, receipt.TenantId, receipt.Bill, paymentId);
+            toast.success("Payment deleted");
+            await loadPayments();
+            onChange?.();
+        } catch {
+            toast.error("Failed to delete payment");
+        }
     };
 
-    const statusOptions: { value: "PENDING" | "PARTIAL" | "PAID" | "ADVANCE"; label: string; color: string }[] = [
-        { value: "PENDING", label: "PENDING", color: "bg-red-100 text-red-700" },
-        { value: "PARTIAL", label: "PARTIAL", color: "bg-amber-100 text-amber-700" },
-        { value: "PAID", label: "PAID", color: "bg-green-100 text-green-700" },
-        { value: "ADVANCE", label: "ADVANCE", color: "bg-emerald-100 text-emerald-700" },
-    ];
+    const numAmount = parseFloat(amount) || 0;
+    const afterReceived = numAmount > 0
+        ? (state ? state.totalReceived : Number(receipt.amountReceived || 0)) + numAmount
+        : (state ? state.totalReceived : Number(receipt.amountReceived || 0));
+    const afterBalance = Math.max(grandTotal - afterReceived, 0);
+    const afterAdvance = Math.max(afterReceived - grandTotal, 0);
+
+    const status = statusConfig[state?.paymentStatus || receipt.paymentStatus] || statusConfig.PENDING;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Update Payment - Bill {bill.Bill}</DialogTitle>
+                    <DialogTitle>Manage Payments - Bill {receipt.Bill}</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
-                    {/* Grand Total Display */}
-                    <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                        <span className="text-sm font-medium">Grand Total:</span>
-                        <span className="text-lg font-bold">₹{grandTotal.toFixed(2)}</span>
+                {/* Summary */}
+                <div className="space-y-2 p-3 bg-muted rounded-lg text-sm">
+                    <div className="flex justify-between items-center">
+                        <span className="font-medium">Grand Total</span>
+                        <span className="font-bold text-base">₹{grandTotal.toFixed(2)}</span>
                     </div>
-
-                    {/* Status Selection */}
-                    <div className="grid grid-cols-2 gap-2">
-                        {statusOptions.map((opt) => (
-                            <button
-                                key={opt.value}
-                                onClick={() => handleStatusClick(opt.value)}
-                                className={`p-3 rounded-lg border-2 text-sm font-medium transition-all ${selectedStatus === opt.value
-                                        ? "border-primary ring-2 ring-primary/20"
-                                        : "border-border hover:border-primary/50"
-                                    }`}
-                            >
-                                <Badge className={opt.color}>{opt.label}</Badge>
-                            </button>
-                        ))}
+                    <div className="flex justify-between items-center">
+                        <span className="font-medium">Received{state && state.paymentCount > 0 ? ` (${state.paymentCount})` : ""}</span>
+                        <span className="text-green-600 font-medium">₹{(state ? state.totalReceived : Number(receipt.amountReceived || 0)).toFixed(2)}</span>
                     </div>
-
-                    {/* Amount Input */}
-                    <div className="space-y-2">
-                        <Label htmlFor="amount">Amount Received (₹)</Label>
-                        <Input
-                            id="amount"
-                            type="number"
-                            step="0.01"
-                            value={amount}
-                            onChange={(e) => handleAmountChange(e.target.value)}
-                            placeholder="Enter amount received"
-                        />
-                        <p className="text-xs text-muted-foreground">
-                            {selectedStatus === "PENDING" && "No payment received"}
-                            {selectedStatus === "PARTIAL" && `Balance due: ₹${(grandTotal - parseFloat(amount || "0")).toFixed(2)}`}
-                            {selectedStatus === "PAID" && "Payment complete"}
-                            {selectedStatus === "ADVANCE" && `Advance: ₹${(parseFloat(amount || "0") - grandTotal).toFixed(2)}`}
-                        </p>
+                    <div className="flex justify-between items-center">
+                        <span className="font-medium">Balance Due</span>
+                        <span className="text-red-500 font-medium">₹{(state ? state.balanceDue : Math.max(grandTotal - Number(receipt.amountReceived || 0), 0)).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="font-medium">Status</span>
+                        <Badge className={status.color}>{status.label}</Badge>
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-                    <Button onClick={handleSubmit}>
-                        Update to {selectedStatus}
-                    </Button>
+                {/* Add / Edit form */}
+                <div className="space-y-3 pt-2">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                            <Label>Payment Date</Label>
+                            <Input
+                                type="date"
+                                max={todayISO()}
+                                value={paymentDate}
+                                onChange={(e) => setPaymentDate(e.target.value)}
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>Amount (₹)</Label>
+                            <Input
+                                type="number"
+                                step="0.01"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                placeholder="Enter amount"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Live preview after this payment */}
+                    {numAmount > 0 && (
+                        <div className="text-xs text-muted-foreground space-y-0.5 bg-accent/40 rounded p-2">
+                            <div>After this payment → Received: <span className="font-semibold text-green-600">₹{afterReceived.toFixed(2)}</span></div>
+                            <div>
+                                {afterBalance > 0
+                                    ? <>Balance due: <span className="font-semibold text-red-500">₹{afterBalance.toFixed(2)}</span></>
+                                    : afterAdvance > 0
+                                        ? <>Advance: <span className="font-semibold text-emerald-600">₹{afterAdvance.toFixed(2)}</span></>
+                                        : <span className="font-semibold text-green-600">Fully paid</span>}
+                            </div>
+                            <div className="font-medium">
+                                Status will be{" "}
+                                {numAmount <= 0 ? "PENDING" : afterReceived < grandTotal ? "PARTIAL" : afterReceived === grandTotal ? "PAID" : "ADVANCE"}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-2">
+                        {editingId != null && (
+                            <Button variant="outline" onClick={resetForm}>Cancel Edit</Button>
+                        )}
+                        <Button onClick={handleSubmit}>
+                            {editingId != null ? <><Check size={14} /> Update Payment</> : <><Plus size={14} /> Add Payment</>}
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Payment history */}
+                {state && state.payments.length > 0 && (
+                    <div className="pt-2">
+                        <div className="text-sm font-semibold mb-2">Payment History</div>
+                        <div className="border rounded-lg divide-y">
+                            {state.payments.map((p) => (
+                                <div key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                                    <div>
+                                        <div className="font-mono text-xs text-muted-foreground">{p.paymentDate}</div>
+                                        <div className="font-semibold">₹{p.amount.toFixed(2)}</div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-yellow-500"
+                                            onClick={() => startEdit(p)}
+                                            title="Edit"
+                                        >
+                                            <Pencil size={14} />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 text-red-500"
+                                            onClick={() => handleDelete(p.id)}
+                                            title="Delete"
+                                        >
+                                            <Trash2 size={14} />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                    <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
                 </div>
             </DialogContent>
         </Dialog>

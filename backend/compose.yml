@@ -1,8 +1,8 @@
 services:
-  rent-backend:
+  legacy-backend:
     build:
       context: .
-    container_name: rent-backend
+    container_name: propaura_legacy_backend
     restart: unless-stopped
     expose:
       - "28001"
@@ -11,7 +11,7 @@ services:
     volumes:
       - ../storage:/code/storage
     networks:
-      - vega-gateway
+      - propaura-network
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28001/health', timeout=5)"]
       interval: 30s
@@ -33,5 +33,5 @@ services:
         window: 120s
 
 networks:
-  vega-gateway:
+  propaura-network:
     external: true

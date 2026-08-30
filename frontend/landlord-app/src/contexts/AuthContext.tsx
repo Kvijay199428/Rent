@@ -170,8 +170,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUuid = localStorage.getItem("landlordUuid");
     const initialUuid = urlUuid || storedUuid;
     if (initialUuid) {
+      // UUID is only a routing/data hint — authentication is established by
+      // /api/auth/me (applyMeData) so pages never render as pre-authenticated.
       setLandlordUuid(initialUuid);
-      setIsAuthenticated(true);
     }
 
     refreshMe().finally(() => setIsLoading(false));

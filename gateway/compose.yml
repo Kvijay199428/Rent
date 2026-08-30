@@ -1,7 +1,7 @@
 services:
   gateway:
     image: nginx:1.27-alpine
-    container_name: vega_gateway
+    container_name: propaura_legacy_gateway
     restart: unless-stopped
     ports:
       - "80:80"
@@ -10,7 +10,7 @@ services:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./html:/usr/share/nginx/html:ro
     networks:
-      - vega_gateway_net
+      - propaura_net
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
       interval: 30s
@@ -20,7 +20,7 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    container_name: vega-cloudflared
+    container_name: propaura_cloudflared
     restart: unless-stopped
     network_mode: host
     command:
@@ -31,5 +31,5 @@ services:
       - ${CLOUDFLARE_TUNNEL_TOKEN}
 
 networks:
-  vega_gateway_net:
+  propaura_net:
     external: true

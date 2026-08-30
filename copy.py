@@ -44,7 +44,7 @@ EXCLUDE_FILES = [
 
 SCRIPT = os.path.abspath(__file__)
 BASE = SOURCE_DIR
-OUTPUT = os.path.join(BASE, "rent.md")
+OUTPUT = os.path.join(BASE, "propaura.md")
 MAX_FILE_SIZE = 3 * 1024 * 1024
 INCLUDE = SOURCE_FILES
 
@@ -55,7 +55,7 @@ IGNORE_DIRS = {
     "storage", "build-output", "scratch", "output", ".fonts",
     ".rent_test_assets", ".sample", "venv", ".venv",
     ".opencode", ".gstack",
-    ".restore_backup_*",
+    ".restore_backup_*",".env",
 }
 BINARY_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".xlsx",
               ".xls", ".db", ".pyc", ".pyd", ".so", ".woff", ".woff2",

@@ -295,6 +295,8 @@ export const ROUTES = {
     LANDLORDAPIBILLINGGET(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "get", { landlordUuid, tenantId, billNo }); },
     LANDLORDAPIBILLINGUPDATE(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "update", { landlordUuid, tenantId, billNo }); },
     LANDLORDAPIBILLINGUPDATEPAYMENT(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "updatePayment", { landlordUuid, tenantId, billNo }); },
+    LANDLORDAPIBILLINGPAYMENTS(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "payments", { landlordUuid, tenantId, billNo }); },
+    LANDLORDAPIBILLINGPAYMENT(landlordUuid: string, tenantId: number, billNo: string, paymentId: number) { return api("landlord", "billing", "payment", { landlordUuid, tenantId, billNo, paymentId }); },
     LANDLORDAPIBILLINGARCHIVE(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "archive", { landlordUuid, tenantId, billNo }); },
     LANDLORDAPIBILLINGRESTORE(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "restore", { landlordUuid, tenantId, billNo }); },
     LANDLORDAPIBILLINGDELETE(landlordUuid: string, tenantId: number, billNo: string) { return api("landlord", "billing", "delete", { landlordUuid, tenantId, billNo }); },

@@ -4,14 +4,15 @@ export default function FeaturesGrid() {
   return (
     <section className="features-grid-section">
       <div className="section-container">
-        <div className="section-badge">Capabilities</div>
-        <h2 className="section-title">
-          A full-stack rent management solution
-        </h2>
-        <p className="section-subtitle">
-          Property management, tenant tracking, financial tools, alerts,
-          documents, and admin — all unified under one roof.
-        </p>
+        <div className="section-header">
+          <span className="section-badge">03 — Capabilities</span>
+          <h2 className="section-title">A full-stack rent management solution</h2>
+          <div className="section-rule" />
+          <p className="section-subtitle">
+            Property management, tenant tracking, financial tools, alerts,
+            documents, and admin — all unified under one roof.
+          </p>
+        </div>
         <div className="feature-cat-grid">
           {featureCategories.map((cat) => (
             <div key={cat.title} className="feature-cat-card">

@@ -55,16 +55,16 @@ export default function History() {
     const s = search.toLowerCase();
     return receipts.filter(
       (r) =>
-        r.Tenant.toLowerCase().includes(s) ||
-        r.Bill.toLowerCase().includes(s) ||
-        r.Month.toLowerCase().includes(s)
+        r?.Tenant?.toLowerCase().includes(s) ||
+        r?.Bill?.toLowerCase().includes(s) ||
+        r?.Month?.toLowerCase().includes(s)
     );
   }, [receipts, search]);
 
   const grouped = useMemo(() => {
     const g: GroupedReceipts = {};
     filteredReceipts.forEach((r) => {
-      const parts = r.Month.split(' ');
+      const parts = (r?.Month ?? 'Unknown').split(' ');
       const month = parts[0] || 'Unknown';
       const year = parts[1] || 'Unknown';
       if (!g[year]) g[year] = {};
@@ -111,7 +111,7 @@ export default function History() {
         </Card>
       ) : (
         yearEntries.map(([year, months]) => {
-          const yearTotal = Object.values(months).flat().reduce((s, r) => s + (r.Total || 0), 0);
+          const yearTotal = Object.values(months).flat().reduce((s, r) => s + (Number(r?.Total) || 0), 0);
           const yearCount = Object.values(months).flat().length;
 
           return (

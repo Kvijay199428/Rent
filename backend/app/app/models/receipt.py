@@ -80,3 +80,42 @@ class PaymentStatusUpdate(BaseModel):
             return None
         return float(v)
 
+
+class PaymentEntryCreate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    paymentDate: str = Field(..., alias="payment_date")
+    amount: float = Field(..., gt=0)
+
+    @field_validator("paymentDate", mode="before")
+    @classmethod
+    def normalize_date(cls, v):
+        return "" if v is None else str(v).strip()
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def normalize_amount(cls, v):
+        if v in ("", None):
+            return 0.0
+        return float(v)
+
+
+class PaymentEntryUpdate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    paymentDate: str = Field(..., alias="payment_date")
+    amount: float = Field(..., gt=0)
+
+    @field_validator("paymentDate", mode="before")
+    @classmethod
+    def normalize_date(cls, v):
+        return "" if v is None else str(v).strip()
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def normalize_amount(cls, v):
+        if v in ("", None):
+            return 0.0
+        return float(v)
+
+

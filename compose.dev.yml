@@ -1,7 +1,8 @@
 # Development stack — isolated from production.
-#   backend_dev   API on port 28001 (hot reload), tunneled by ngrok
-#   frontend_dev  Vite dev server for tenant-app on port 28003
-#   ngrok         tunnels to backend_dev:28001, dashboard on 4041 (profile: ngrok)
+#   propaura_backend_dev   API on container port 28001 (hot reload), tunneled by ngrok
+#   propaura_frontend_dev  Vite dev server for tenant-app, container port 28002 (host 28003)
+#   propaura_ngrok_dev     tunnels to propaura_backend_dev:28001, dashboard on host 28004 (profile: ngrok)
+#   propaura_nginx_gateway_dev  dev edge nginx, container port 28003 (host 28080)
 #
 # Usage:
 #   docker compose --env-file .env.development -f compose.dev.yml up -d
@@ -15,14 +16,14 @@
 # Separate network (dev-net) and separate storage (./storage/dev) so dev
 # changes can never touch release traffic.
 
-name: rent-dev
+name: propaura-dev
 
 services:
   backend_dev:
     build:
       context: ./backend
-    image: rent-backend-dev
-    container_name: backend_dev
+    image: propaura-backend-dev
+    container_name: propaura_backend_dev
     restart: unless-stopped
     ports:
       - "${BACKEND_DEV_PORT:-28001}:28001"
@@ -56,18 +57,18 @@ services:
 
   frontend_dev:
     image: node:22-alpine
-    container_name: frontend_dev
+    container_name: propaura_frontend_dev
     restart: unless-stopped
     # Mount the whole frontend/ tree so tenant-app's `@shared` alias
     # (../shared) resolves inside the container, mirroring local dev layout.
     working_dir: /app/tenant-app
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 28002"
     environment:
       - VITE_API_BASE_URL=${VITE_API_BASE_URL}
       - VITE_APP_BASE_PATH=${VITE_APP_BASE_PATH}
       - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
     ports:
-      - "${FRONTEND_DEV_PORT:-28003}:5173"
+      - "${FRONTEND_DEV_PORT:-28003}:28002"
     volumes:
       - ./frontend:/app
     networks:
@@ -77,12 +78,12 @@ services:
 
   nginx_gateway_dev:
     image: nginx:alpine
-    container_name: rent-nginx-gateway-dev
+    container_name: propaura_nginx_gateway_dev
     restart: unless-stopped
     depends_on:
       - backend_dev
     ports:
-      - "127.0.0.1:28080:80"
+      - "127.0.0.1:28080:28003"
     volumes:
       - ./nginx/dev-gateway.conf:/etc/nginx/nginx.conf:ro
     networks:
@@ -90,7 +91,7 @@ services:
 
   ngrok:
     image: ngrok/ngrok:latest
-    container_name: ngrok_dev
+    container_name: propaura_ngrok_dev
     restart: unless-stopped
     # Off by default: the server exposes dev via a systemd-hosted ngrok that owns
     # the reserved URL. Opt in with: docker compose --profile ngrok up -d
@@ -98,9 +99,9 @@ services:
       - ngrok
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTH_TOKEN}
-    command: http backend_dev:28001
+    command: http propaura_backend_dev:28001
     ports:
-      - "${NGROK_DASHBOARD_PORT:-4040}:4040"
+      - "${NGROK_DASHBOARD_PORT:-28004}:4040"
     networks:
       - dev-net
     depends_on:

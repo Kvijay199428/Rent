@@ -7,6 +7,8 @@ __pycache__/
 
 # Environment / secrets
 .env
+.env/
+.env/admin.txt
 .env.local
 .env.*.local
 .env.release

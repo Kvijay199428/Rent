@@ -7,11 +7,14 @@ export default function FAQ() {
   return (
     <section className="faq-section" id="faq">
       <div className="section-container">
-        <div className="section-badge">FAQ</div>
-        <h2 className="section-title">Frequently asked questions</h2>
-        <p className="section-subtitle">
-          Quick answers to common questions about the platform.
-        </p>
+        <div className="section-header">
+          <span className="section-badge">05 — FAQ</span>
+          <h2 className="section-title">Frequently asked questions</h2>
+          <div className="section-rule" />
+          <p className="section-subtitle">
+            Quick answers to common questions about the platform.
+          </p>
+        </div>
         <div className="faq-list">
           {faqItems.map((item, i) => (
             <div key={i} className={`faq-item ${openIndex === i ? "open" : ""}`}>
@@ -21,7 +24,7 @@ export default function FAQ() {
                 aria-expanded={openIndex === i}
               >
                 <span>{item.question}</span>
-                <span className="faq-chevron">{openIndex === i ? "−" : "+"}</span>
+                <span className="faq-chevron" aria-hidden="true">{openIndex === i ? "−" : "+"}</span>
               </button>
               {openIndex === i && (
                 <div className="faq-answer">

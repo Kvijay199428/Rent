@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# Blue-green zero-downtime release deploy.
+# Release deploy — single active backend slot.
 #
-# Strategy: the ACTIVE slot keeps serving while the INACTIVE slot is built and
-# brought up. Once the inactive slot passes /health, the edge nginx is atomically
-# reloaded to point at it, and only then is the old slot stopped. Only one slot
-# runs at a time, so the shared SQLite database is never written by two
-# containers simultaneously.
+# Strategy: the backend image is built, the existing propaura_backend_prod
+# container is force-recreated (brief restart), waited on via /health, then the
+# edge nginx is reloaded and smoke-tested. SQLite lives in ./storage/release and
+# is only ever written by this one container.
 #
 # Usage:
 #   ./deploy/deploy-release.sh [--no-frontend] [--no-build]
@@ -19,13 +18,15 @@ cd "$REPO_DIR"
 
 ENV_FILE=".env.release"
 COMPOSE="compose.prod.yml"
-ACTIVE_FILE="gateway/nginx/upstream/active.conf"
-INACTIVE_FILE="gateway/nginx/upstream/inactive.conf"
-
-BLUE="backend_release_blue"
-GREEN="backend_release_green"
-BLUE_PORT=28002
-GREEN_PORT=28012
+# Compose service names (used with `docker compose build/up`).
+BACKEND_SVC="backend_prod"
+FRONTEND_SVC="frontend_prod"
+EDGE_SVC="nginx_gateway_prod"
+# Container names (used with `docker exec/inspect`).
+BACKEND="propaura_backend_prod"
+FRONTEND="propaura_frontend_prod"
+EDGE_NGINX="propaura_nginx_gateway_prod"
+BACKEND_PORT=28005
 
 WITH_FRONTEND=1
 WITH_BUILD=1
@@ -42,26 +43,10 @@ ok()   { printf '\033[32m[deploy]\033[0m %s\n' "$*"; }
 warn() { printf '\033[33m[deploy]\033[0m %s\n' "$*"; }
 fail() { printf '\033[31m[deploy]\033[0m %s\n' "$*"; }
 
-slot_port() {
-  case "$1" in
-    "$BLUE") echo "$BLUE_PORT" ;;
-    "$GREEN") echo "$GREEN_PORT" ;;
-    *) return 1 ;;
-  esac
-}
-
-active_slot() {
-  if grep -q "$BLUE" "$ACTIVE_FILE" 2>/dev/null; then
-    echo "$BLUE"
-  else
-    echo "$GREEN"
-  fi
-}
-
 wait_health() {
   local container="$1" port tries i
-  port="$(slot_port "$container")"
-  tries="${2:-30}"
+  port="${2:-$BACKEND_PORT}"
+  tries="${3:-30}"
   for i in $(seq 1 "$tries"); do
     if docker exec "$container" python -c "import urllib.request; urllib.request.urlopen('http://localhost:${port}/health', timeout=5)" >/dev/null 2>&1; then
       ok "$container healthy (try $i/$tries)"
@@ -76,17 +61,16 @@ wait_health() {
 
 reload_edge() {
   local reloaded=0
-  if docker exec vega_gateway nginx -s reload >/dev/null 2>&1; then
-    ok "reloaded edge nginx (vega_gateway)"
+  if docker exec "$EDGE_NGINX" nginx -s reload >/dev/null 2>&1; then
+    ok "reloaded edge nginx ($EDGE_NGINX)"
     reloaded=1
   fi
-  if docker exec nginx_gateway nginx -s reload >/dev/null 2>&1; then
-    ok "reloaded edge nginx (nginx_gateway)"
+  if docker exec propaura_legacy_gateway nginx -s reload >/dev/null 2>&1; then
+    ok "reloaded legacy edge nginx (propaura_legacy_gateway)"
     reloaded=1
   fi
   if [ "$reloaded" -eq 0 ]; then
-    warn "no edge nginx container found to reload — is compose.prod.yml nginx_gateway running?"
-    warn "the upstream toggle file was still updated: $ACTIVE_FILE"
+    warn "no edge nginx container found to reload — is compose.prod.yml $EDGE_NGINX running?"
   fi
 }
 
@@ -99,14 +83,14 @@ smoke_test() {
     ok "edge smoke test passed (/health via https://api.vijaykrsha.online)"
     return 0
   fi
-  warn "edge smoke test could not reach /health (network/firewall?) — backend slots verified directly"
+  warn "edge smoke test could not reach /health (network/firewall?) — backend verified directly"
   return 0
 }
 
 build_frontend() {
   if ! command -v node >/dev/null 2>&1; then
     warn "node not found on server — skipping frontend build"
-    warn "frontend_release (28004) needs frontend/build-output; build it locally and scp it,"
+    warn "propaura_frontend_prod (host 28004) needs frontend/build-output; build it locally and scp it,"
     warn "or install node on the server and rerun the deploy"
     return 0
   fi
@@ -121,7 +105,7 @@ frontend_missing() {
 main() {
   # ── Lock: prevent overlapping runs ─────────────────────────────────────
   # The systemd timer fires every 2 min; an image build can take longer, so
-  # a second run would otherwise race the first on slot lifecycle + active.conf.
+  # a second run would otherwise race the first on the container lifecycle.
   LOCK_FILE="${LOCK_FILE:-/tmp/rent-deploy-release.lock}"
   exec 9>"$LOCK_FILE"
   if ! flock -n 9; then
@@ -139,93 +123,36 @@ main() {
   VITE_API_BASE_URL="$(grep -E '^VITE_API_BASE_URL=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"')"
   VITE_API_BASE_URL="${VITE_API_BASE_URL:-https://api.vijaykrsha.online}"
 
-  docker network create vega-gateway 2>/dev/null || true
+  docker network create propaura-network 2>/dev/null || true
 
-  ACTIVE="$(active_slot)"
-  if [ "$ACTIVE" = "$BLUE" ]; then NEXT="$GREEN"; else NEXT="$BLUE"; fi
-  ACTIVE_PORT="$(slot_port "$ACTIVE")"
-  NEXT_PORT="$(slot_port "$NEXT")"
-  log "active slot: $ACTIVE ($ACTIVE_PORT) -> deploying $NEXT ($NEXT_PORT)"
-
-  # ── Initial deployment? ─────────────────────────────────────────────────
-  if ! docker inspect "$BLUE" >/dev/null 2>&1 && ! docker inspect "$GREEN" >/dev/null 2>&1; then
-    warn "no release backend slots found — running INITIAL deployment"
-    if [ "$WITH_FRONTEND" -eq 1 ] && frontend_missing; then
-      build_frontend
-    fi
-    if [ "$WITH_BUILD" -eq 1 ]; then
-      docker compose --env-file "$ENV_FILE" -f "$COMPOSE" build "$BLUE" "$GREEN"
-    fi
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps "$BLUE"
-    wait_health "$BLUE"
-
-    # Retire the legacy edge + single backend only AFTER the new slot is healthy.
-    # One-time migration: the old gateway and rent-backend on the same network
-    # are superseded by nginx_gateway + the blue/green slots.
-    if docker inspect vega_gateway >/dev/null 2>&1 && ! docker inspect nginx_gateway >/dev/null 2>&1; then
-      warn "stopping legacy vega_gateway edge (replaced by nginx_gateway)"
-      docker stop vega_gateway >/dev/null 2>&1 || true
-    fi
-    if docker inspect rent-backend >/dev/null 2>&1; then
-      warn "stopping legacy rent-backend container (replaced by blue/green slots)"
-      docker stop rent-backend >/dev/null 2>&1 || true
-    fi
-
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps frontend_release nginx_gateway
-    sleep 3
-    reload_edge
-    smoke_test
-    ok "initial deployment complete — active: $BLUE"
-    exit 0
-  fi
-
-  # ── Standard blue-green deploy ──────────────────────────────────────────
   if [ "$WITH_FRONTEND" -eq 1 ] && frontend_missing; then
-    warn "frontend/build-output missing — building (release frontend for port 28004)"
+    warn "frontend/build-output missing — building (release frontend for host port 28004)"
     build_frontend
   fi
 
   if [ "$WITH_BUILD" -eq 1 ]; then
     log "building backend image"
-    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" build "$BLUE" "$GREEN"
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" build "$BACKEND_SVC"
   else
     warn "--no-build: using existing image"
   fi
 
-  log "starting inactive slot $NEXT"
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps "$NEXT"
-  wait_health "$NEXT"
-
-  # ── Verify the inactive slot is running before flipping ────────────────
-  # Guards against the flip writing an upstream that points at a container
-  # that died during startup (nginx then returns 502 until the next deploy).
-  if [ "$(docker inspect -f '{{.State.Running}}' "$NEXT" 2>/dev/null)" != "true" ]; then
-    fail "$NEXT is not running — aborting before flipping traffic"
-    exit 1
+  # ── Deploy the backend slot (brief restart) ──────────────────────────────
+  if docker inspect "$BACKEND" >/dev/null 2>&1; then
+    log "recreating $BACKEND"
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --force-recreate --no-deps "$BACKEND_SVC"
+  else
+    log "starting $BACKEND (first deployment)"
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps "$BACKEND_SVC"
   fi
-  ok "$NEXT confirmed running"
+  wait_health "$BACKEND" "$BACKEND_PORT"
 
-  # ── Flip traffic ────────────────────────────────────────────────────────
-  printf 'set $release_backend "%s:%s";\n' "$NEXT" "$NEXT_PORT" > "$ACTIVE_FILE"
-  printf 'set $release_backend "%s:%s";\n' "$ACTIVE" "$ACTIVE_PORT" > "$INACTIVE_FILE"
-  log "traffic flipped: $NEXT is now active ($ACTIVE_FILE updated)"
+  # ── Bring up the edge + frontend if they are not already running ────────
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps "$FRONTEND_SVC" "$EDGE_SVC"
+  sleep 3
   reload_edge
-  sleep 2
   smoke_test
-
-  # ── Stop the old slot (kept as the rollback target) ─────────────────────
-  log "stopping old slot $ACTIVE (still available for rollback via its image)"
-  if ! docker compose --env-file "$ENV_FILE" -f "$COMPOSE" stop "$ACTIVE"; then
-    warn "failed to stop $ACTIVE — continuing (it will be retired on the next deploy)"
-  fi
-  sleep 2
-  smoke_test
-
-  ok "release deploy complete — active: $NEXT on port $NEXT_PORT"
-  echo ""
-  echo "  Rollback:"
-  echo "    sed -i 's/$NEXT/$ACTIVE/' $ACTIVE_FILE && docker exec nginx_gateway nginx -s reload"
-  echo "    docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps $ACTIVE"
+  ok "release deploy complete — $BACKEND on port $BACKEND_PORT"
 }
 
 main "$@"

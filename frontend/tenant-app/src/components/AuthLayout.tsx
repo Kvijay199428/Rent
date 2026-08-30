@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 
 const NAV_LINKS = [
   { label: "Home", href: "/rent/", icon: "🌍" },
-  { label: "Platform Admin", href: "/rent/admin/login", icon: "⚙️" },
-  { label: "Landlord Portal", href: "/rent/landlord/login", icon: "🏠" },
+  // { label: "Platform Admin", href: "/rent/admin/login", icon: "⚙️" },
+  // { label: "Landlord Portal", href: "/rent/landlord/login", icon: "🏠" },
 ];
 
 export default function AuthLayout({ children }: { children: ReactNode }) {

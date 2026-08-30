@@ -196,6 +196,8 @@
         "get": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
         "update": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
         "updatePayment": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/payment-status",
+        "payments": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/payments",
+        "payment": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/payments/{paymentId}",
         "archive": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/archive",
         "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/restore",
         "delete": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",

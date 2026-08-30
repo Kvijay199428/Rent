@@ -1,6 +1,7 @@
 import Navbar from "./components/Navbar";
 import Hero from "./components/Hero";
 import BroadcastBanner from "./components/BroadcastBanner";
+import RoleLoginStrip from "./components/RoleLoginStrip";
 import TrustBadges from "./components/TrustBadges";
 import Features from "./components/Features";
 import WhyChoose from "./components/WhyChoose";
@@ -15,14 +16,11 @@ import Footer from "./components/Footer";
 export default function App() {
   return (
     <>
-      <div className="orb orb-1" />
-      <div className="orb orb-2" />
-      <div className="orb orb-3" />
-
       <BroadcastBanner />
       <Navbar />
       <main>
         <Hero />
+        <RoleLoginStrip />
         <TrustBadges />
         <Features />
         <WhyChoose />

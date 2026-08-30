@@ -8,9 +8,10 @@ export default function WhyChoose() {
     <section className="why-section" id="benefits">
       <div className="why-grid">
         <div className="why-content">
-          <div className="section-badge">Why Rent</div>
+          <span className="section-badge">Why Rent</span>
           <h2 className="section-title">Built for modern landlords</h2>
-          <p className="section-subtitle" style={{ textAlign: "left" }}>
+          <div className="section-rule" />
+          <p className="section-subtitle">
             Stop chasing payments and chasing paperwork. The platform automates
             the tedious parts of rent management so you can focus on what
             matters.
@@ -37,22 +38,21 @@ export default function WhyChoose() {
             ))}
           </div>
           <div className="screenshot-placeholder">
-            <div className="screenshot-mockup">
-              <div className="mockup-header">
+            <div className="mockup-header">
+              <div className="mockup-dots">
                 <span className="mockup-dot red" />
                 <span className="mockup-dot yellow" />
                 <span className="mockup-dot green" />
               </div>
-              <div className="mockup-body">
-                <div className="mockup-label">
-                  {screenshotTabs[activeTab]} — Live
-                </div>
-                <div className="mockup-bars">
-                  <div className="mockup-bar" style={{ width: "80%" }} />
-                  <div className="mockup-bar" style={{ width: "60%" }} />
-                  <div className="mockup-bar" style={{ width: "90%" }} />
-                  <div className="mockup-bar" style={{ width: "45%" }} />
-                </div>
+              <span className="mockup-title">PROPAURA — {screenshotTabs[activeTab]}</span>
+            </div>
+            <div className="mockup-body">
+              <div className="mockup-label">{screenshotTabs[activeTab]} — Live</div>
+              <div className="mockup-bars">
+                <div className="mockup-bar" style={{ width: "80%" }} />
+                <div className="mockup-bar" style={{ width: "60%" }} />
+                <div className="mockup-bar" style={{ width: "90%" }} />
+                <div className="mockup-bar" style={{ width: "45%" }} />
               </div>
             </div>
           </div>

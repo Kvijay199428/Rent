@@ -1,15 +1,24 @@
 import { useState } from "react";
 import { navLinks } from "../data";
+import { ArrowUpRightIcon, HomeIcon, ShieldIcon, UserIcon } from "./Icons";
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const logins = [
+    { label: "Landlord", href: "/rent/landlord/login", icon: HomeIcon },
+    { label: "Tenant", href: "/rent/tenant/login", icon: UserIcon },
+    { label: "Admin", href: "/rent/admin/login", icon: ShieldIcon },
+  ];
 
   return (
     <nav className="navbar">
       <div className="navbar-inner">
         <a href="#" className="navbar-logo" aria-label="Home">
-          <span className="logo-icon" style={{width: 36, height: 36, fontSize: 18}}>P</span>
-          <span className="logo-text"><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></span>
+          <span className="logo-icon" style={{ width: 38, height: 38, fontSize: 15 }}>PA</span>
+          <span className="logo-text">
+            <span>PROP</span><span style={{ color: "var(--accent)" }}>AURA</span>
+          </span>
         </a>
 
         <ul className={`navbar-links ${mobileOpen ? "open" : ""}`}>
@@ -23,15 +32,39 @@ export default function Navbar() {
               </a>
             </li>
           ))}
+          {logins.map((login) => {
+            const IconCmp = login.icon;
+            return (
+              <li key={login.label} className="navbar-mobile-login">
+                <a
+                  href={login.href}
+                  onClick={() => setMobileOpen(false)}
+                  style={{ display: "flex", alignItems: "center", gap: 8 }}
+                >
+                  <IconCmp size={18} />
+                  {login.label} Login
+                </a>
+              </li>
+            );
+          })}
         </ul>
 
-        <a href="#contact" className="navbar-cta">
-          Get Started
-        </a>
+        <div className="navbar-logins">
+          <a href="/rent/landlord/login" className="btn btn-ghost btn-sm">
+            <HomeIcon size={14} /> Landlord
+          </a>
+          <a href="/rent/tenant/login" className="btn btn-ghost btn-sm">
+            <UserIcon size={14} /> Tenant
+          </a>
+          <a href="/rent/admin/login" className="btn btn-primary btn-sm">
+            Admin <ArrowUpRightIcon size={14} />
+          </a>
+        </div>
 
         <button
           className="navbar-toggle"
           aria-label="Toggle menu"
+          aria-expanded={mobileOpen}
           onClick={() => setMobileOpen(!mobileOpen)}
         >
           <span className={`hamburger ${mobileOpen ? "open" : ""}`} />

@@ -47,8 +47,8 @@ export default function BroadcastBanner({ healthUrl }: BroadcastBannerProps) {
   return (
     <div className={`broadcast-banner broadcast-${typeClass}`}>
       <div className="broadcast-banner-content">
-        <span className="broadcast-banner-icon">
-          {typeClass === "maintenance" ? "🔧" : typeClass === "warning" ? "⚠️" : "ℹ️"}
+        <span className="broadcast-banner-icon" aria-hidden="true">
+          {typeClass === "maintenance" ? "M" : typeClass === "warning" ? "!" : "i"}
         </span>
         <span className="broadcast-banner-message">{broadcast.message}</span>
       </div>
