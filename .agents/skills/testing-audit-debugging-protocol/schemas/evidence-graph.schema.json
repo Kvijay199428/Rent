@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Evidence Graph",
+  "type": "object",
+  "required": ["finding_id", "evidence_chain"],
+  "properties": {
+    "finding_id": { "type": "string", "pattern": "^F-\\d+$" },
+    "evidence_chain": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "producer_execution_id", "skill_or_tool", "files_touched"],
+        "properties": {
+          "evidence_id": { "type": "string", "pattern": "^E-\\d+$" },
+          "producer_execution_id": { "type": "string", "pattern": "^(SU|TU)-\\d+$" },
+          "skill_or_tool": { "type": "string" },
+          "files_touched": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Skill Selection Record",
+  "type": "object",
+  "required": ["selection_id", "finding_id", "phase", "candidates", "selected", "mode", "why_this_skill", "rejected_alternatives", "timestamp"],
+  "properties": {
+    "selection_id": { "type": "string", "pattern": "^SS-\\d+$" },
+    "finding_id": { "type": "string", "pattern": "^F-\\d+$" },
+    "phase": { "type": "string", "enum": ["DISCOVERY", "AUDIT", "SPECIALIST", "ROOT-CAUSE", "ANALYSIS-APPROVAL", "FIX", "VERIFICATION", "DEPLOY-GATE"] },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "source", "domain_match", "risk_match", "task_native_fit", "precedent", "reputation", "minimalism"],
+        "properties": {
+          "name": { "type": "string" },
+          "source": { "type": "string" },
+          "domain_match": { "type": "boolean" },
+          "risk_match": { "type": "boolean" },
+          "task_native_fit": { "type": "boolean" },
+          "precedent": { "type": "boolean" },
+          "reputation": { "type": "string", "enum": ["Low", "Medium", "High", "Trusted"] },
+          "minimalism": { "type": "boolean" }
+        }
+      }
+    },
+    "selected": { "type": "string" },
+    "mode": { "type": "string", "enum": ["Automatic", "User Directed", "User Approved"] },
+    "why_this_skill": { "type": "string" },
+    "rejected_alternatives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "why_not"],
+        "properties": {
+          "name": { "type": "string" },
+          "why_not": { "type": "string" }
+        }
+      }
+    },
+    "execution_record_id": { "type": "string", "pattern": "^SU-\\d+$" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Tool Execution Record",
+  "type": "object",
+  "required": ["execution_id", "tool_name", "call_type", "type", "approval_gate", "command", "inputs", "outputs", "evidence_produced", "outcome", "duration_ms", "timestamp"],
+  "properties": {
+    "execution_id": { "type": "string", "pattern": "^TU-\\d+$" },
+    "tool_name": { "type": "string" },
+    "call_type": { "type": "string" },
+    "type": { "type": "string", "enum": ["read-only", "change-making"] },
+    "approval_gate": { "type": ["string", "null"], "enum": ["none", "Gate 1", "Gate 2"] },
+    "command": { "type": "string" },
+    "inputs": { "type": "object" },
+    "outputs": { "type": "object" },
+    "evidence_produced": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "outcome": { "type": "string", "enum": ["success", "error", "inconclusive"] },
+    "error_details": { "type": "string" },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

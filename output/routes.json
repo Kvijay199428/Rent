@@ -8,7 +8,7 @@
     "static": "/static",
     "adminAssets": "/admin/assets",
     "tenantAssets": "/tenant/assets",
-    "favicon": "/admin/favicon.svg"
+    "favicon": "/admin/favicon.ico"
   },
   "admin": {
     "pages": {

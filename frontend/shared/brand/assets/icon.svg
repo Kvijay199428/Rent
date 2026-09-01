@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Creator: CorelDRAW 2021 (64-Bit) -->
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="3300px" height="3300px" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 1993.96 1993.96"
+ xmlns:xlink="http://www.w3.org/1999/xlink"
+ xmlns:xodm="http://www.corel.com/coreldraw/odm/2003">
+ <defs>
+  <font id="FontID0" horiz-adv-x="752" font-variant="normal" style="fill-rule:nonzero" font-weight="400">
+	<font-face 
+		font-family="Nevan RUS">
+		<font-face-src>
+			<font-face-name name="Nevan RUS"/>
+		</font-face-src>
+	</font-face>
+   <missing-glyph><path d="M0 0z"/></missing-glyph>
+   <glyph unicode="." horiz-adv-x="267" d="M133.001 -10.9998c23.3333,0 42.833,8.00048 58.5006,24.0001 15.6662,15.9996 23.4993,34.9999 23.4993,56.9995 0,23.3333 -7.8331,42.8344 -23.4993,58.5006 -15.6676,15.6662 -35.1673,23.5007 -58.5006,23.5007 -22.001,0 -40.9999,-7.83445 -57.0009,-23.5007 -15.9996,-15.6662 -24.0001,-35.1673 -24.0001,-58.5006 0,-21.9996 8.00048,-40.9999 24.0001,-56.9995 16.001,-15.9996 34.9999,-24.0001 57.0009,-24.0001z"/>
+   <glyph unicode="A" horiz-adv-x="752" d="M746.002 0l-156.999 0 -214.002 558.002 -218 -558.002 -151.001 0 288.001 700.002 114 0c33.3329,0 57.9998,-16.6664 73.9994,-50.0006l264.001 -650.002z"/>
+   <glyph unicode="P" horiz-adv-x="718" d="M229.001 0l-145.001 0 0 384.001 338.002 0c29.3333,0.666819 53.4994,9.16674 72.4997,25.4998 19.0003,16.333 28.5004,39.5003 28.5004,69.5004 0,30.0001 -9.50015,53.3334 -28.5004,69.9998 -19.0003,16.6678 -43.1664,25.3337 -72.4997,26.0006l-288.001 0c-14.0005,0 -25.8345,4.83376 -35.5007,14.4999 -9.66618,9.66618 -14.4999,21.5002 -14.4999,35.5007l0 74.9996 351.001 0c68.0007,0 124.167,-20.3339 168.501,-61.0005 44.3327,-40.6665 66.4997,-93.6665 66.4997,-159 0,-62.6675 -21.9996,-114.334 -66.0003,-155 -44.0006,-40.6665 -100.333,-61.0005 -169.001,-61.0005l-206 0 0 -264.001z"/>
+  </font>
+  <style type="text/css">
+   <![CDATA[
+    @font-face { font-family:"Nevan RUS";font-variant:normal;font-weight:normal;src:url("#FontID0") format(svg)}
+    .fil2 {fill:none}
+    .fil1 {fill:#151B54}
+    .fil0 {fill:#E5611B}
+    .fnt0 {font-weight:normal;font-size:1057.4px;font-family:'Nevan RUS'}
+   ]]>
+  </style>
+ </defs>
+ <g id="Layer_x0020_1">
+  <metadata id="CorelCorpID_0Corel-Layer"/>
+  <g id="_2814477173552">
+   <path class="fil0" d="M996.98 996.98l0 996.98c-550.62,0 -996.98,-446.36 -996.98,-996.98 0,-550.62 446.36,-996.98 996.98,-996.98l0 996.98z"/>
+   <path class="fil1" d="M996.98 996.98l0 -996.98c550.62,0 996.98,446.36 996.98,996.98 0,550.62 -446.36,996.98 -996.98,996.98l0 -996.98z"/>
+   <text x="51.66" y="1367.07"  class="fil1 fnt0">P</text>
+   <text x="810.88" y="1367.07"  class="fil2 fnt0">.</text>
+   <text x="1093.2" y="1367.07"  class="fil0 fnt0">A</text>
+  </g>
+ </g>
+</svg>

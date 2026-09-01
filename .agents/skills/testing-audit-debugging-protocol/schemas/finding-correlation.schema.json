@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Finding Correlation Record",
+  "type": "object",
+  "required": ["correlation_id", "type", "x_finding", "y_finding", "status", "timestamp"],
+  "properties": {
+    "correlation_id": { "type": "string", "pattern": "^CR-\\d+$" },
+    "type": { "type": "string", "enum": ["same-root-cause", "duplicate", "related-distinct", "contradicts", "blocks", "blocked-by"] },
+    "x_finding": { "type": "string", "pattern": "^F-\\d+$" },
+    "y_finding": { "type": "string", "pattern": "^F-\\d+$" },
+    "status": { "type": "string", "enum": ["open", "resolved", "masked"] },
+    "resolution": { "type": "string" },
+    "cluster_id": { "type": ["string", "null"], "pattern": "^CL-\\d+$" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

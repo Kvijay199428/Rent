@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Finding Record",
+  "type": "object",
+  "required": ["finding_id", "severity", "confidence", "root_cause_status", "observed", "expected", "reproduction_steps", "evidence_refs", "affected_files", "status", "timestamp"],
+  "properties": {
+    "finding_id": { "type": "string", "pattern": "^F-\\d+$" },
+    "severity": { "type": "string", "enum": ["P0", "P1", "P2", "P3"] },
+    "confidence": { "type": "string", "enum": ["INSUFFICIENT", "LOW", "MEDIUM", "HIGH", "VERY HIGH"] },
+    "root_cause_status": { "type": "string", "enum": ["CONFIRMED", "LIKELY", "SUSPECTED"] },
+    "observed": { "type": "string" },
+    "expected": { "type": "string" },
+    "reproduction_steps": { "type": "array", "items": { "type": "string" } },
+    "evidence_refs": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^E-\\d+$" }
+    },
+    "affected_files": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "cluster_id": { "type": ["string", "null"], "pattern": "^CL-\\d+$" },
+    "status": { "type": "string", "enum": ["OPEN", "APPROVED", "FIXED", "VERIFIED", "REJECTED", "WONT-FIX"] },
+    "gate1_approved": { "type": "boolean" },
+    "gate2_approved": { "type": "boolean" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

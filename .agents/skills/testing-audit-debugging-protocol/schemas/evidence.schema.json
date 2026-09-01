@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Evidence Record",
+  "type": "object",
+  "required": ["evidence_id", "captured_at", "kind", "producer_execution_id", "location", "content_hash", "description"],
+  "properties": {
+    "evidence_id": { "type": "string", "pattern": "^E-\\d+$" },
+    "captured_at": { "type": "string", "format": "date-time" },
+    "kind": { "type": "string", "enum": ["log", "screenshot", "capture", "test_output", "db_result", "manual_observation", "api_response", "file_content"] },
+    "producer_execution_id": { "type": "string", "pattern": "^(SU|TU)-\\d+$" },
+    "location": { "type": "string" },
+    "content_hash": { "type": "string" },
+    "description": { "type": "string" }
+  }
+}
