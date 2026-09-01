@@ -18,6 +18,7 @@ import { isOlderThan12Months } from "@/lib/utils";
 import QrUnlockPage from "@/pages/QrUnlockPage";
 import PortalLoginPage from "@/pages/PortalLoginPage";
 import { getApiBaseUrl } from "@shared/api-config";
+import { Logo } from "@shared/brand/Logo";
 import type { Receipt, QrTenantProfile } from "@/types";
 
 function TenantPortalInner() {
@@ -94,7 +95,7 @@ function TenantPortalInner() {
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between gap-3">
           <div>
             <h1 className="text-xl font-bold">Welcome, {tenant.name}</h1>
-            <p className="text-base text-muted-foreground"><span style={{color:"#708498", fontWeight: 600}}>PROP</span><span style={{color:"#95A58F", fontWeight: 600}}>AURA</span> — Tenant</p>
+            <p className="text-base text-muted-foreground flex items-center gap-1.5"><Logo height={20} /> — Tenant</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <a
@@ -249,7 +250,7 @@ function TenantPortalInner() {
 
       <footer className="py-4 text-center border-t bg-background/50">
         <p className="text-[10px] text-muted-foreground m-0">
-          &copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.
+          &copy; {new Date().getFullYear()} <Logo height={10} /> by Vijay Kumar Sharma. All rights reserved.
         </p>
       </footer>
     </div>

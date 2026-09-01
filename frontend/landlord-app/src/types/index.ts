@@ -72,6 +72,8 @@ export interface Receipt {
   MaintenanceDesc: string;
   previousArrears: number;
   amountReceived: number;
+  Property?: string;
+  propertyId?: number | null;
   paymentCount?: number;
   lastPaymentDate?: string;
   settledByBill?: string;
@@ -90,6 +92,11 @@ export interface BillRequest {
   previousArrears: number;
   amountReceived?: number;
   paymentStatus: string;
+  rent?: number;
+  water?: number;
+  electricityRate?: number;
+  additionalPersonRate?: number;
+  property_id?: number | null;
 }
 
 export interface PaymentStatusUpdate {

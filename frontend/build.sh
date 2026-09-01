@@ -27,6 +27,18 @@ fi
 
 APPS="landing-app admin-app landlord-app tenant-app"
 
+echo ""
+echo "=== Mirroring canonical brand assets into app public dirs ==="
+# Pure copy from the canonical assets/ tree (see scripts/sync_brand_assets.py).
+for app in $APPS; do
+  if [ -f "../assets/fevicon/fevicon.ico" ]; then
+    cp "../assets/fevicon/fevicon.ico" "$app/public/favicon.ico"
+    echo "  favicon.ico -> $app/public/"
+  fi
+  # Retire any stale fevicon.svg left by an older build.
+  rm -f "$app/public/fevicon.svg"
+done
+
 for app in $APPS; do
   echo ""
   echo "=== $app ==="

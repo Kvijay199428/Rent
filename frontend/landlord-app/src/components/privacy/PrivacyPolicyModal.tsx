@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ShieldCheck } from 'lucide-react';
 import { BrandWave } from '@shared/loading/BrandWave';
+import { Logo } from '@shared/brand/Logo';
 import {
   Dialog,
   DialogContent,
@@ -62,11 +63,9 @@ export default function PrivacyPolicyModal({ open, onOpenChange, onAgree }: Priv
       <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-full">
-              <FileText className="h-5 w-5 text-primary" />
-            </div>
+            <Logo height={28} />
             <div>
-              <DialogTitle>PROPAURA Privacy Policy</DialogTitle>
+              <DialogTitle>Privacy Policy</DialogTitle>
               <DialogDescription>
                 {policy
                   ? `Version ${policy.version} — Effective ${policy.effectiveDate}`

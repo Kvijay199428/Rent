@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Logo } from "@shared/brand/Logo";
 
 const NAV_LINKS = [
   { label: "Home", href: "/rent/", icon: "🌍" },
@@ -19,16 +20,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         padding: "16px 32px", flexWrap: "wrap", gap: 12,
       }}>
         <a href="/rent/admin/login" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
-          <span style={{
-            width: 36, height: 36, borderRadius: 10, display: "flex",
-            alignItems: "center", justifyContent: "center",
-            background: "rgba(255,255,255,0.15)", color: "#fff",
-            fontSize: 18, fontWeight: 700,
-          }}>P</span>
-          <span style={{ fontSize: 18, fontWeight: 700 }}>
-            <span style={{ color: "#a0b4c8" }}>PROP</span>
-            <span style={{ color: "#95A58F" }}>AURA</span>
-          </span>
+          <Logo variant="light" height={22} />
         </a>
         <nav style={{ display: "flex", gap: 10 }}>
           {NAV_LINKS.map((link) => (
@@ -60,7 +52,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       {/* Footer */}
       <footer style={{ borderTop: "1px solid rgba(255,255,255,0.08)", padding: "16px 32px", textAlign: "center" }}>
         <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
-          &copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.
+          &copy; {new Date().getFullYear()} <Logo variant="light" height={10} /> by Vijay Kumar Sharma. All rights reserved.
         </p>
       </footer>
     </div>

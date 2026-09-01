@@ -1,3 +1,5 @@
+import { Logo } from "@shared/brand/Logo";
+
 export default function Footer() {
   const year = new Date().getFullYear();
 
@@ -44,11 +46,7 @@ export default function Footer() {
       <div className="footer-inner">
         <div className="footer-brand">
           <div className="footer-logo">
-            <span className="logo-icon" style={{ width: 38, height: 38, fontSize: 15 }}>PA</span>
-            <span className="logo-text">
-              <span style={{ color: "#fff" }}>PROP</span>
-              <span style={{ color: "var(--accent)" }}>AURA</span>
-            </span>
+            <Logo variant="light" height={24} />
           </div>
           <p className="footer-tagline">
             A complete digital platform for landlords, tenants, and administrators.
@@ -71,7 +69,7 @@ export default function Footer() {
       </div>
 
       <div className="footer-bottom">
-        <p>&copy; {year} PROPAURA by Vijay Kumar Sharma. All rights reserved.</p>
+        <p>&copy; {year} <Logo variant="light" height={12} /> by Vijay Kumar Sharma. All rights reserved.</p>
         <div className="footer-bottom-links">
           <a href="/rent/landlord/privacy-policy">Privacy Policy</a>
           <a href="/rent/landlord/terms">Terms of Service</a>

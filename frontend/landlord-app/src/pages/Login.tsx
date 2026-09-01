@@ -9,6 +9,7 @@ import { APP_BASE } from '@/lib/runtime';
 import { ROUTES } from '@/lib/routes';
 import AuthLayout from '@/components/layout/AuthLayout';
 import LoadingOverlay from '@shared/loading/LoadingOverlay';
+import { Logo } from '@shared/brand/Logo';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -115,7 +116,7 @@ export default function Login() {
         </div>
 
         <div className="text-center mt-4">
-          <span className="text-xs text-muted-foreground">PROPAURA v3.0.0</span>
+          <span className="text-xs text-muted-foreground inline-flex items-center gap-1"><Logo height={12} /> v3.0.0</span>
         </div>
       </div>
       </AuthLayout>

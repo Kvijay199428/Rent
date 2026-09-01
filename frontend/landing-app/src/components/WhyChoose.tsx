@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { whyChooseFeatures, screenshotTabs } from "../data";
+import { Logo } from "@shared/brand/Logo";
 
 export default function WhyChoose() {
   const [activeTab, setActiveTab] = useState(0);
@@ -44,7 +45,7 @@ export default function WhyChoose() {
                 <span className="mockup-dot yellow" />
                 <span className="mockup-dot green" />
               </div>
-              <span className="mockup-title">PROPAURA — {screenshotTabs[activeTab]}</span>
+              <span className="mockup-title"><Logo height={13} /> — {screenshotTabs[activeTab]}</span>
             </div>
             <div className="mockup-body">
               <div className="mockup-label">{screenshotTabs[activeTab]} — Live</div>

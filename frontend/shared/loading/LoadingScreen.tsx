@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import BrandWave from "./BrandWave";
+import Logo from "../brand/Logo";
+import "./BrandLoading.css";
 
 interface LoadingScreenProps {
   isLoading: boolean;
@@ -21,7 +22,9 @@ export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
 
   return (
     <div className={`loading-screen ${fading ? "loading-fade-out" : ""}`}>
-      <BrandWave size="lg" />
+      <div className="loading-splash">
+        <Logo height={64} className="loading-mark" />
+      </div>
     </div>
   );
 }

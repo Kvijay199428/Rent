@@ -10,10 +10,10 @@ import {
   Settings,
   Menu,
   X,
-  ReceiptIcon,
   Shield,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { Logo } from '@shared/brand/Logo';
 
 const menuItems = [
   { name: 'Dashboard', icon: LayoutDashboard, path: '/' },
@@ -65,8 +65,7 @@ export default function Sidebar() {
       >
         {/* Logo */}
         <div className="flex items-center gap-2 px-4 h-14 border-b">
-          <ReceiptIcon className="h-5 w-5 text-primary" />
-          <span className="font-bold text-xl"><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></span>
+          <Logo height={20} />
           <button
             onClick={() => setMobileOpen(false)}
             className="lg:hidden ml-auto p-1 rounded hover:bg-accent"
@@ -135,7 +134,7 @@ export default function Sidebar() {
               Logout
             </button>
             <p className="text-center mt-2 text-[10px] text-muted-foreground">
-              &copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.
+              &copy; {new Date().getFullYear()} <Logo height={10} /> by Vijay Kumar Sharma. All rights reserved.
             </p>
           </div>
         </div>

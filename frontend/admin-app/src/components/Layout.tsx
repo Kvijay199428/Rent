@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { fetchApi } from "../api/client";
+import { Logo } from "@shared/brand/Logo";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: "📊" },
@@ -44,7 +45,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         zIndex: 100,
       }}>
         <div style={{ padding: "0 20px 24px", borderBottom: "1px solid #2c2f3f" }}>
-          <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, textTransform: "uppercase", letterSpacing: 1 }}><span style={{color:"#708498"}}>PROP</span><span style={{color:"#95A58F"}}>AURA</span></p>
+          <p style={{ marginBottom: 4 }}><Logo variant="light" height={20} /></p>
           <p style={{ fontSize: 14, fontWeight: 600, color: "#e9ecf2", margin: 0 }}>Control Panel</p>
         </div>
         <nav style={{ flex: 1, padding: "16px 12px" }}>
@@ -133,7 +134,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </button>
           </div>
           <p style={{ margin: "10px 0 0", fontSize: 10, color: "#4b5563", textAlign: "center" }}>
-            &copy; {new Date().getFullYear()} PROPAURA by Vijay Kumar Sharma. All rights reserved.
+            &copy; {new Date().getFullYear()} <Logo variant="light" height={10} /> by Vijay Kumar Sharma. All rights reserved.
           </p>
         </div>
       </aside>

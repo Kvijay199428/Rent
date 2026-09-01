@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { navLinks } from "../data";
 import { ArrowUpRightIcon, HomeIcon, ShieldIcon, UserIcon } from "./Icons";
+import { Logo } from "@shared/brand/Logo";
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -15,10 +16,7 @@ export default function Navbar() {
     <nav className="navbar">
       <div className="navbar-inner">
         <a href="#" className="navbar-logo" aria-label="Home">
-          <span className="logo-icon" style={{ width: 38, height: 38, fontSize: 15 }}>PA</span>
-          <span className="logo-text">
-            <span>PROP</span><span style={{ color: "var(--accent)" }}>AURA</span>
-          </span>
+          <Logo height={22} />
         </a>
 
         <ul className={`navbar-links ${mobileOpen ? "open" : ""}`}>

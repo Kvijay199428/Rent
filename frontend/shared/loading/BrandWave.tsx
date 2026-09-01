@@ -1,4 +1,6 @@
 import "./BrandLoading.css";
+import logoSvgUrl from "../brand/assets/logo.svg";
+import logoPngUrl from "../brand/assets/logo.png";
 
 export type BrandWaveSize = "sm" | "md" | "lg";
 
@@ -9,30 +11,24 @@ interface BrandWaveProps {
   className?: string;
 }
 
-const BRAND = "PROPAURA";
+const SIZES: Record<BrandWaveSize, number> = { lg: 48, md: 16, sm: 13 };
 
 export function BrandWave({ label, size = "md", stacked = false, className = "" }: BrandWaveProps) {
-  const sizeClass =
-    size === "lg" ? "loading-letters--lg" : size === "sm" ? "loading-letters--sm" : "loading-letters--md";
   return (
     <span
       className={`brand-wave ${stacked ? "brand-wave--stacked" : "brand-wave--row"} ${className}`}
       role="status"
-      aria-label="PROPAURA loading"
+      aria-label="PropAura loading"
     >
-      <span className={`loading-letters ${sizeClass}`}>
-        {BRAND.split("").map((ch, i) => (
-          <span
-            key={i}
-            style={{
-              color: i < 4 ? "#708498" : "#95A58F",
-              animationDelay: `${i * 0.12}s`,
-            }}
-          >
-            {ch}
-          </span>
-        ))}
-      </span>
+      <picture className="brand-wave-logo">
+        <source type="image/svg+xml" srcSet={logoSvgUrl} />
+        <img
+          src={logoPngUrl}
+          alt="PropAura"
+          draggable={false}
+          style={{ height: SIZES[size], width: "auto", display: "block" }}
+        />
+      </picture>
       {label && <span className="brand-wave-label">{label}</span>}
     </span>
   );

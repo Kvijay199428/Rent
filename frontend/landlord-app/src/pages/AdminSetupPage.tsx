@@ -11,6 +11,7 @@ import { Shield, Eye, EyeOff, Copy, CheckCircle2, AlertTriangle } from 'lucide-r
 import { ROUTES } from '@/lib/routes';
 import AuthLayout from '@/components/layout/AuthLayout';
 import LoadingOverlay from '@shared/loading/LoadingOverlay';
+import { Logo } from '@shared/brand/Logo';
 
 interface SetupResponse {
   status: string;
@@ -121,7 +122,7 @@ export default function AdminSetupPage() {
           </div>
           <CardTitle className="text-2xl text-center">Initial Setup</CardTitle>
           <CardDescription className="text-center">
-            Create your admin account to get started with PROPAURA
+            Create your admin account to get started with <Logo height={13} />
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -1,4 +1,5 @@
 import { heroInlineBadges } from "../data";
+import { Logo } from "@shared/brand/Logo";
 
 export default function Hero() {
   return (
@@ -6,7 +7,7 @@ export default function Hero() {
       <div className="hero-left">
         <div className="hero-badge">
           <span className="pulse-dot" />
-          Now in Early Access — PROPAURA
+          Now in Early Access — <Logo height={14} />
         </div>
 
         <h1 className="hero-title">

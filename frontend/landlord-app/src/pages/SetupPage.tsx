@@ -13,6 +13,7 @@ import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
 import PhoneInputField from "@shared/phone/PhoneInput";
+import { Logo } from "@shared/brand/Logo";
 
 interface PropertyRow {
   property_name: string;
@@ -196,7 +197,7 @@ export default function SetupPage() {
                   <Building2 className="h-8 w-8 text-primary" />
                 </div>
               </div>
-              <CardTitle className="text-2xl text-center">Welcome to PROPAURA</CardTitle>
+              <CardTitle className="text-2xl text-center">Welcome to <Logo height={22} /></CardTitle>
               <CardDescription className="text-center">
                 Let us set up your account. Add your details and properties so billing is ready to use.
               </CardDescription>

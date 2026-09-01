@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, FileText, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ROUTES } from '@/lib/routes';
 import MarkdownView from '@/components/privacy/MarkdownView';
 import { BrandWave } from '@shared/loading/BrandWave';
+import { Logo } from '@shared/brand/Logo';
 
 interface TermsInfo {
   version: string;
@@ -40,11 +41,9 @@ export default function TermsConditionsPage() {
         <Card className="shadow-xl">
           <CardHeader className="space-y-1">
             <div className="flex items-center justify-center mb-4">
-              <div className="p-3 bg-primary/10 rounded-full">
-                <FileText className="h-8 w-8 text-primary" />
-              </div>
+              <Logo height={36} />
             </div>
-            <CardTitle className="text-2xl text-center">PROPAURA Terms and Conditions</CardTitle>
+            <CardTitle className="text-2xl text-center">Terms and Conditions</CardTitle>
             <CardDescription className="text-center">
               {terms
                 ? `Version ${terms.version} — Effective ${terms.effectiveDate}`

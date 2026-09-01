@@ -1,4 +1,4 @@
-/* PROPAURA brand loading — single source of truth for all frontend apps. */
+/* PropAura brand loading — single source of truth for all frontend apps. */
 
 /* Full-screen splash overlay */
 .loading-screen {
@@ -20,6 +20,18 @@
   pointer-events: none;
 }
 
+/* Splash column: logo mark above wordmark */
+.loading-splash {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+}
+
+.loading-splash .loading-mark {
+  animation: mark-pulse 1.8s ease-in-out infinite;
+}
+
 /* Form-submit overlay — translucent veil, wave centered on screen */
 .loading-overlay {
   position: fixed;
@@ -32,41 +44,15 @@
   backdrop-filter: blur(2px);
 }
 
-/* PROPAURA letter-wave wordmark */
-.loading-letters {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-weight: 800;
-  letter-spacing: 3px;
-  line-height: 1;
-}
-
-.loading-letters span {
-  animation: letter-wave 1.8s ease-in-out infinite;
-}
-
-.loading-letters--lg {
-  font-size: 48px;
-}
-
-.loading-letters--md {
-  font-size: 16px;
-}
-
-.loading-letters--sm {
-  font-size: 13px;
-}
-
-@keyframes letter-wave {
+@keyframes mark-pulse {
   0%,
   100% {
-    opacity: 0.1;
-    transform: translateY(4px);
+    opacity: 0.85;
+    transform: scale(0.98);
   }
   50% {
     opacity: 1;
-    transform: translateY(-2px);
+    transform: scale(1);
   }
 }
 
