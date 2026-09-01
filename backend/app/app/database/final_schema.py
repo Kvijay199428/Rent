@@ -246,6 +246,7 @@ def init_production_db():
         month TEXT NOT NULL,
         tenantId INTEGER,
         tenant TEXT NOT NULL,
+        property_id INTEGER,
         previous REAL NOT NULL DEFAULT 0,
         current REAL NOT NULL DEFAULT 0,
         units REAL NOT NULL DEFAULT 0,

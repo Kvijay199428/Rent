@@ -27,7 +27,7 @@ class Routes:
     STATICSTATIC = "/static"
     STATICADMINASSETS = "/admin/assets"
     STATICTENANTASSETS = "/tenant/assets"
-    STATICFAVICON = "/admin/favicon.svg"
+    STATICFAVICON = "/admin/favicon.ico"
 
 
 class Names:

@@ -9,7 +9,7 @@ Output structure:
     build-output/
     └── rent/
         ├── index.html              ← landing-app
-        ├── favicon.svg
+        ├── favicon.ico
         ├── assets/                 ← landing-app assets
         ├── admin/
         │   ├── index.html          ← admin-app

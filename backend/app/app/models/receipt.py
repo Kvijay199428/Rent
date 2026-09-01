@@ -30,6 +30,11 @@ class BillRequest(BaseModel):
     previousarrears: float = Field(0.0, alias="previousArrears")
     amountreceived: Optional[float] = Field(None, alias="amountReceived")
     paymentstatus: str = Field("PENDING", alias="paymentStatus")
+    rent: Optional[float] = Field(None, alias="rent")
+    water: Optional[float] = Field(None, alias="water")
+    electricity_rate: Optional[float] = Field(None, alias="electricityRate")
+    additional_person_rate: Optional[float] = Field(None, alias="additionalPersonRate")
+    property_id: Optional[int] = Field(None, alias="property_id")
 
     @field_validator("tenant", "month", "maintenancedesc", mode="before")
     @classmethod
@@ -56,6 +61,20 @@ class BillRequest(BaseModel):
         if v in ("", None):
             return None
         return float(v)
+
+    @field_validator("rent", "water", "electricity_rate", "additional_person_rate", mode="before")
+    @classmethod
+    def normalize_optional_rate_floats(cls, v):
+        if v in ("", None):
+            return None
+        return float(v)
+
+    @field_validator("property_id", mode="before")
+    @classmethod
+    def normalize_optional_property_id(cls, v):
+        if v in ("", None):
+            return None
+        return int(v)
 
     @field_validator("paymentstatus", mode="before")
     @classmethod

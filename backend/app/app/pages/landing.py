@@ -22,7 +22,7 @@ async def public_landing(request: Request):
     return RedirectResponse(url="/rent/", status_code=301)
 
 
-@router.get("/favicon.svg", include_in_schema=False)
+@router.get("/favicon.ico", include_in_schema=False)
 async def landing_favicon(request: Request):
     check_api_host(request)
-    return FileResponse("frontend/landing-app/dist/favicon.svg")
+    return FileResponse("frontend/landing-app/dist/favicon.ico")

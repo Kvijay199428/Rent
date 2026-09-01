@@ -211,6 +211,7 @@ def init_db():
             month TEXT NOT NULL,
             tenantId INTEGER,
             tenant TEXT NOT NULL,
+            property_id INTEGER,
             previous REAL NOT NULL DEFAULT 0,
             current REAL NOT NULL DEFAULT 0,
             units REAL NOT NULL DEFAULT 0,
@@ -808,6 +809,43 @@ def init_db():
             )
             conn.execute(
                 "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('tenant_property_id_backfill_v2', 'done')"
+            )
+            conn.commit()
+
+        # ─── receipts.property_id (per-receipt property snapshot) ───────
+        # Property is editable at the receipt level and is INDEPENDENT of
+        # tenants.property_id. Once set, receipts.property_id is NEVER
+        # auto-synced with the tenant's property — each receipt keeps its own
+        # historical property association when the landlord edits a bill.
+        if not _column_exists(conn, "receipts", "property_id"):
+            conn.execute("ALTER TABLE receipts ADD COLUMN property_id INTEGER REFERENCES landlord_properties(id)")
+            conn.commit()
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_receipts_property_id ON receipts(property_id)")
+        conn.commit()
+
+        # One-time backfill: assign each existing receipt its tenant's current
+        # property so historical bills carry a sensible default going forward.
+        receipt_prop_backfilled = conn.execute(
+            "SELECT 1 FROM app_metadata WHERE key = 'receipt_property_id_backfill_v1'"
+        ).fetchone()
+        if not receipt_prop_backfilled:
+            conn.execute(
+                """
+                UPDATE receipts
+                SET property_id = (
+                    SELECT t.property_id FROM tenants t WHERE t.id = receipts.tenantId
+                )
+                WHERE property_id IS NULL
+                  AND EXISTS (
+                      SELECT 1 FROM landlord_properties lp
+                      WHERE lp.id = (
+                          SELECT t.property_id FROM tenants t WHERE t.id = receipts.tenantId
+                      )
+                  )
+                """
+            )
+            conn.execute(
+                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('receipt_property_id_backfill_v1', 'done')"
             )
             conn.commit()
 

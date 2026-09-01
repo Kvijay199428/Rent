@@ -81,10 +81,10 @@ async def landing_app(request: Request):
     return FileResponse(os.path.join(LANDING_DIST, "index.html"))
 
 
-@router.get("/rent/favicon.svg", include_in_schema=False)
+@router.get("/rent/favicon.ico", include_in_schema=False)
 async def landing_favicon(request: Request):
     check_api_host(request)
-    return FileResponse(os.path.join(LANDING_DIST, "favicon.svg"))
+    return FileResponse(os.path.join(LANDING_DIST, "favicon.ico"))
 
 
 @router.get("/rent/assets/{asset_path:path}", include_in_schema=False)

@@ -292,6 +292,9 @@ def generate_professional_pdf(data, landlord_config, output_path=None, payment_e
     company = data.get("Tenant_Company", "")
     if company:
         tenant_rows.append(("Company", company))
+    prop = data.get("Property", "")
+    if prop:
+        tenant_rows.append(("Property", prop))
     tenant_rows.append(("Address", data.get("Tenant_Address", "")))
 
     card_width = (width - 100 - 20) / 2.0

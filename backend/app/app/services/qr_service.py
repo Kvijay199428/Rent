@@ -22,23 +22,30 @@ import qrcode.constants
 from app.core.runtime import public_app_url
 
 # ── PROPAURA mark (flattened paths, fills inlined) ──────────────────────────
-# Inner content of the mark SVG (no <svg> wrapper). ViewBox 413.02 x 269.52.
-PROPAURA_MARK_PATHS = """  <path fill="#010101" d="M196.07 133.89l1.23 -0.32c-6.75,-8.54 -13.87,-22.49 -19.85,-32.66 -6.48,-11.02 -12.56,-22.32 -19.3,-33.67 -7.67,-12.93 -32.79,-59.97 -38.49,-67.16l-119.21 -0.08 97.09 67.3c11.67,7.96 87.89,61.44 98.53,66.59z"/>
-  <path fill="#010101" d="M214.59 134.6l1.76 -0.06c7.25,-5.88 15.89,-10.56 23.87,-16.08l170.99 -118.43 -119.06 -0.03 -77.56 134.59z"/>
-  <path fill="#020202" d="M410.95 15.63l-0.22 -0.37c-5.91,1.84 -173.73,118.85 -189.57,130.03l117.34 -0.26c2.53,-2.73 70.82,-124.24 72.45,-129.4z"/>
-  <path fill="#010101" d="M71.54 145.02l118.15 0.07c-4.53,-5.61 -40.66,-28.4 -47.21,-33.13l-93.97 -64.93c-9.81,-6.56 -41.31,-29.19 -48.51,-32.64 2.99,8.6 13.14,24.67 17.91,32.94 7.3,12.65 51.11,90.08 53.63,97.68z"/>
-  <path fill="#010101" d="M145.21 269.41l120.89 0.11c-1.8,-6.75 -10.88,-20.72 -14.53,-27.03 -5.28,-9.14 -10.07,-16.64 -15.43,-26.23l-30.31 -53.87 -60.63 107.02z"/>
-  <path fill="#010101" d="M274.93 258.85c9.89,-15 19.16,-34 28.64,-50.49 5.11,-8.89 26.99,-45.5 28.6,-52.2l-117.42 -0c2.62,6.95 58.87,101.59 60.19,102.69z"/>
-  <path fill="#010101" d="M136.31 259.15c4.49,-3.51 25.27,-41.37 30.11,-50.49l29.81 -52.92 -117.59 0.52 57.67 102.89z"/>
-  <path fill="#625B54" d="M216.35 134.54l-1.76 0.06 -1.79 2.34c4.9,-1.45 2.23,-0.92 3.55,-2.39z"/>
-  <path fill="#625B54" d="M197.3 133.57l-1.23 0.32 2.75 3.02c-0.7,-7.34 0.56,-0.53 -1.53,-3.35z"/>
-  <polygon fill="#625B54" points="410.95,15.63 413.02,13.15 410.72,15.26"/>"""
+# Inner content of the mark SVG (no <svg> wrapper). Authoring viewBox is
+# 1832.86 x 1566.89, but the deployed raster (propaura_mark.png) is a square
+# 1024x1024 crop of the vertical disc span — the safe render target for the
+# excavated center badge. Canonical sources: assets/favicon/icon.svg (SVG)
+# and assets/qr/qr1024.png (raster, distributed to app/static).
+PROPAURA_MARK_PATHS = """  <path d="M783.45 783.45l0 783.45c-432.69,0 -783.45,-350.76 -783.45,-783.45 0,-432.69 350.76,-783.45 783.45,-783.45l0 783.45z" fill="#E5611B"/>
+  <path d="M783.45 783.45l0 -783.45c432.69,0 783.45,350.76 783.45,783.45 0,432.69 -350.76,783.45 -783.45,783.45l0 -783.45z" fill="#151B54"/>
+  <g transform="translate(279.02 1038.19) scale(0.72541 -0.72541)">
+    <path d="M229 0l-144.999 0 0 384.001 338 0c29.3329,0.666141 53.4997,9.16582 72.4989,25.499 19.0006,16.3332 28.5009,39.5008 28.5009,69.4998 0,30.0005 -9.50031,53.3338 -28.5009,70.0001 -18.9992,16.6677 -43.166,25.3332 -72.4989,26.0008l-288 0c-14.0003,0 -25.8335,4.83307 -35.5011,14.4992 -9.66614,9.66755 -14.4992,21.5008 -14.4992,35.5011l0 74.999 351 0c68.0003,0 124.166,-20.3329 168.5,-61.0001 44.3338,-40.6658 66.5007,-93.6666 66.5007,-158.999 0,-62.6669 -22.0011,-114.334 -66.0004,-155 -44.0008,-40.6672 -100.334,-61.0001 -169,-61.0001l-206.001 0 0 -264z" fill="#151B54"/>
+  </g>
+  <g transform="translate(799.87 1038.19) scale(0.72541 -0.72541)">
+    <path d="M746 0l-157.001 0 -213.999 558 -218.001 -558 -151 0 288 700 114.001 0c33.3326,0 57.9996,-16.6663 73.9998,-50.0003l264 -649.999z" fill="#E5611B"/>
+  </g>"""
 
-MARK_VIEWBOX_WIDTH = 413.02
-MARK_VIEWBOX_HEIGHT = 269.52
+MARK_VIEWBOX_WIDTH = 1832.86
+MARK_VIEWBOX_HEIGHT = 1566.89
 
-WORDMARK_PROP_COLOR = "#708498"
-WORDMARK_AURA_COLOR = "#95A58F"
+# Version contract for the PROPAURA brand raster embedded in tenant QRs
+# (backend/app/static/propaura_mark.png <- assets/qr/qr1024.png). Bump this
+# whenever the canonical artwork source changes so downstream consumers can
+# detect a stale lockup without diffing pixels.
+QR_BRAND_VERSION = 1
+QR_BRAND_VERSION_TAG = "propaura-qr-version"
+
 BADGE_BORDER_COLOR = "#e5e7eb"
 
 # Fraction of the QR matrix excavated for the lockup (option B: modules
@@ -57,8 +64,6 @@ PNG_BOX_SIZE = 10
 _APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # .../app/app
 _STATIC_DIR = os.path.join(os.path.dirname(_APP_DIR), "static")         # .../app/static
 _MARK_PNG_PATH = os.path.join(_STATIC_DIR, "propaura_mark.png")
-_FONT_DIR = os.path.join(_APP_DIR, ".fonts")
-_WORDMARK_FONT_PATH = os.path.join(_FONT_DIR, "NotoSans-Bold.ttf")
 
 
 class QrBuildError(Exception):
@@ -91,16 +96,10 @@ def lockup_geometry(count: int, size: int, quiet_zone: int = QUIET_ZONE) -> dict
     badge_x = qz + start * module
     badge_y = qz + start * module
 
-    lock_w = box_px * 0.8
+    lock_w = box_px * 0.9
     mark_h = lock_w * (MARK_VIEWBOX_HEIGHT / MARK_VIEWBOX_WIDTH)
-    font = max(5, box_px * 0.16)
-    use_wordmark = (mark_h + font) <= box_px
-    if not use_wordmark:
-        # PROPAURA -> PA fallback: mark only, no wordmark. Never unbranded.
-        lock_w = box_px * 0.9
-        mark_h = lock_w * (MARK_VIEWBOX_HEIGHT / MARK_VIEWBOX_WIDTH)
 
-    mark_y = badge_y + (box_px - mark_h - (font if use_wordmark else 0)) / 2
+    mark_y = badge_y + (box_px - mark_h) / 2
     mark_x = (size - lock_w) / 2
 
     return {
@@ -116,8 +115,6 @@ def lockup_geometry(count: int, size: int, quiet_zone: int = QUIET_ZONE) -> dict
         "mark_h": mark_h,
         "mark_x": mark_x,
         "mark_y": mark_y,
-        "font": font,
-        "use_wordmark": use_wordmark,
     }
 
 
@@ -139,18 +136,9 @@ def _cells_svg(matrix: list[list[bool]], g: dict) -> str:
 
 def _lockup_svg(g: dict, size: int) -> str:
     scale = g["lock_w"] / MARK_VIEWBOX_WIDTH
-    mark = (
+    return (
         f'<g transform="translate({g["mark_x"]:.2f} {g["mark_y"]:.2f}) '
         f'scale({scale:.4f})">{PROPAURA_MARK_PATHS}</g>'
-    )
-    if not g["use_wordmark"]:
-        return mark
-    text_y = g["mark_y"] + g["mark_h"] + g["font"]
-    return mark + (
-        f'<text x="{size / 2:.2f}" y="{text_y:.2f}" text-anchor="middle" '
-        'font-family="Arial, \'Segoe UI\', Roboto, Helvetica, sans-serif" '
-        f'font-size="{g["font"]:.1f}" font-weight="800" letter-spacing="1" '
-        f'fill="{WORDMARK_PROP_COLOR}">PROP<tspan fill="{WORDMARK_AURA_COLOR}">AURA</tspan></text>'
     )
 
 
@@ -179,13 +167,13 @@ def _mark_png_image():
     return img
 
 
-def _wordmark_font(size_px: int):
-    from PIL import ImageFont
+def _save_png(img, buf) -> None:
+    """Encode img to buf as PNG, embedding the PROPAURA brand version tag."""
+    from PIL import PngImagePlugin
 
-    try:
-        return ImageFont.truetype(_WORDMARK_FONT_PATH, max(4, round(size_px)))
-    except Exception:
-        return ImageFont.load_default()
+    meta = PngImagePlugin.PngInfo()
+    meta.add_text(QR_BRAND_VERSION_TAG, str(QR_BRAND_VERSION))
+    img.save(buf, format="PNG", pnginfo=meta)
 
 
 def build_branded_qr_png(url: str, size: int = 200, internal: bool = False) -> bytes:
@@ -237,24 +225,14 @@ def build_branded_qr_png(url: str, size: int = 200, internal: bool = False) -> b
     else:
         img.paste(mark, (round(g["mark_x"]), round(g["mark_y"])))
 
-    if g["use_wordmark"]:
-        font = _wordmark_font(g["font"])
-        center_x = internal_size / 2
-        baseline_y = g["mark_y"] + g["mark_h"] + g["font"]
-        prop_w = draw.textlength("PROP", font=font)
-        aura_w = draw.textlength("AURA", font=font)
-        start_x = center_x - (prop_w + aura_w) / 2
-        draw.text((start_x, baseline_y), "PROP", font=font, fill=WORDMARK_PROP_COLOR, anchor="ls")
-        draw.text((start_x + prop_w, baseline_y), "AURA", font=font, fill=WORDMARK_AURA_COLOR, anchor="ls")
-
     if internal or size == internal_size:
         buf = io.BytesIO()
-        img.save(buf, format="PNG")
+        _save_png(img, buf)
         return buf.getvalue()
 
     img = img.resize((size, size), Image.LANCZOS)
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    _save_png(img, buf)
     return buf.getvalue()
 
 

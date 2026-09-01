@@ -175,7 +175,12 @@ async def api_update_bill(landlordUuid: str, tenantId: int, billNo: str, bill_re
             bill_req.previousarrears or 0.0,
             bill_req.amountreceived,
             (bill_req.paymentstatus or "PENDING").upper(),
-            landlord_id=principal.landlord_id
+            landlord_id=principal.landlord_id,
+            rent=bill_req.rent,
+            water=bill_req.water,
+            electricity_rate=bill_req.electricity_rate,
+            additional_person_rate=bill_req.additional_person_rate,
+            property_id=bill_req.property_id
         )
         background_tasks.add_task(create_full_backup, tag="edit_bill", landlord_id=principal.landlord_id)
 
