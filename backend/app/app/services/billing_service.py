@@ -391,6 +391,42 @@ def get_receipt(tenantId, billNo, landlord_id=None):
         return _row_to_dict(row)
     return None
 
+def _bill_sequence(bill_no: str):
+    """Return the numeric sequence of a bill number for chain ordering.
+
+    Bill numbers are formatted T{tenantId}-{sequence:03d} (e.g. T1-001, T1-002).
+    The sequence is the trailing numeric component; unknown/unparseable bill
+    numbers sort last so they never shadow a valid predecessor.
+    """
+    s = str(bill_no or "").split("-")[-1].strip()
+    if s.isdigit():
+        return int(s)
+    return 1 << 60
+
+def _get_bill_predecessor(conn, tenant_id: int, target_bill_no: str):
+    """Return the active receipt immediately preceding a target bill.
+
+    The chain rule: a bill's `previous` reading is the current reading of the
+    bill with the highest sequence strictly below the target's own sequence.
+    The target bill is excluded from the candidate set so an edit cannot resolve
+    its predecessor from itself. Returns None when the target has no
+    predecessor (i.e. it is the tenant's first bill), in which case the caller
+    falls back to tenant.previousMeter.
+    """
+    rows = conn.execute(
+        "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+        (tenant_id,),
+    ).fetchall()
+    target_seq = _bill_sequence(target_bill_no)
+    candidates = [
+        r for r in rows
+        if r["billNo"] != target_bill_no and _bill_sequence(r["billNo"]) < target_seq
+    ]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda r: _bill_sequence(r["billNo"]))
+    return candidates[-1]
+
 def get_latest_receipt(tenantId: int, exclude_BillNo: str = None):
     with get_conn() as conn:
         query = "SELECT * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'"
@@ -398,10 +434,13 @@ def get_latest_receipt(tenantId: int, exclude_BillNo: str = None):
         if exclude_BillNo:
             query += " AND billNo != ?"
             params.append(exclude_BillNo)
-        query += " ORDER BY rowid DESC LIMIT 1"
-        row = conn.execute(query, tuple(params)).fetchone()
-    if row:
-        return _row_to_dict(row)
+        rows = conn.execute(query, tuple(params)).fetchall()
+    # Order by bill sequence (T{n}-{seq}) so chain resolution and create-bill
+    # fallbacks follow the same canonical ordering as bill edits, rather than
+    # insertion order (rowid) which can diverge.
+    if rows:
+        rows.sort(key=lambda r: _bill_sequence(r["billNo"]))
+        return _row_to_dict(rows[-1])
     return None
 
 def resolve_previous_reading(tenantId: int, exclude_BillNo: str = None) -> float:
@@ -413,6 +452,99 @@ def resolve_previous_reading(tenantId: int, exclude_BillNo: str = None) -> float
     if tenant:
         return float(getattr(tenant, "previousMeter", 0) or 0)
     return 0.0
+
+def _rebuild_meter_chain(conn, tenant_id: int, starting_bill_no: str,
+                         landlord_id=None) -> list:
+    """Recompute every billing field for bills downstream of an edited bill.
+
+    Maintains the meter-reading chain invariant:
+        bill[n].previous == bill[n-1].current    (n > 1)
+        bill[1].previous  == tenant.previousMeter
+
+    When a bill's current reading changes, every subsequent bill must have its
+    `previous`, `units`, `electricity`, and `total` recalculated so the chain
+    stays internally consistent. Each downstream bill's previous is resolved
+    from its own immediate predecessor (the single canonical rule).
+
+    Returns the list of bill numbers whose persisted charges changed, so the
+    caller can regenerate their PDFs.
+    """
+    from app.services.landlord_config_service import get_effective_landlord_config
+
+    rows = conn.execute(
+        "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+        (tenant_id,),
+    ).fetchall()
+    if not rows:
+        return []
+
+    rows.sort(key=lambda r: _bill_sequence(r["billNo"]))
+    bills = {r["billNo"]: r for r in rows}
+
+    if starting_bill_no not in bills:
+        return []
+
+    changed = []
+    idx = next(i for i, r in enumerate(rows) if r["billNo"] == starting_bill_no)
+
+    for r in rows[idx + 1:]:
+        prev_bill = _get_bill_predecessor(conn, tenant_id, r["billNo"])
+        if prev_bill is not None:
+            new_prev = float(prev_bill["current"] or 0)
+        else:
+            from app.services.tenant_service import get_tenant
+            tenant = get_tenant(tenant_id, landlord_id)
+            new_prev = float(getattr(tenant, "previousMeter", 0) or 0) if tenant else 0.0
+
+        current = float(r["current"] or 0)
+        units = max(0.0, current - new_prev)
+        electricity = units * float(r["rate"] or 0)
+        total = (float(r["rent"] or 0) + float(r["additional"] or 0)
+                 + float(r["water"] or 0) + float(r["tankWater"] or 0)
+                 + float(r["maintenancecharge"] or 0) + electricity)
+
+        changed_fields = (
+            abs(float(r["previous"] or 0) - new_prev) > 0.001
+            or abs(float(r["units"] or 0) - units) > 0.001
+            or abs(float(r["electricity"] or 0) - electricity) > 0.001
+            or abs(float(r["total"] or 0) - total) > 0.001
+        )
+        if changed_fields:
+            conn.execute(
+                "UPDATE receipts SET previous = ?, units = ?, electricity = ?, total = ? "
+                "WHERE billNo = ? AND tenantId = ?",
+                (new_prev, units, electricity, total, r["billNo"], tenant_id),
+            )
+            changed.append(r["billNo"])
+
+    # Regenerate PDFs for every bill whose persisted values changed.
+    if changed:
+        try:
+            _lid = landlord_id
+            if _lid is None:
+                _lrow = conn.execute(
+                    "SELECT landlord_id FROM tenants WHERE id = ?", (tenant_id,)
+                ).fetchone()
+                _lid = _lrow["landlord_id"] if _lrow else None
+            conf = get_effective_landlord_config(_lid) if _lid else {}
+            for bill_no in changed:
+                fresh = conn.execute(
+                    "SELECT rowid, * FROM receipts WHERE billNo = ? AND tenantId = ?",
+                    (bill_no, tenant_id),
+                ).fetchone()
+                if fresh is None:
+                    continue
+                try:
+                    pdf_name = fresh["pdf"] or f"{bill_no}.pdf"
+                    pdf_path = os.path.join(RECEIPTS_DIR, pdf_name)
+                    generate_professional_pdf(_row_to_dict(fresh), conf, pdf_path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    return changed
+
 
 def get_billing_months():
     now = datetime.now()
@@ -580,10 +712,12 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
     return receipt_dict
 def update_bill(tenantId, billNo, month, current_reading, additional_persons, tankWater, MaintenanceCharge, 
                 MaintenanceDesc, previousArrears=0.0, amountReceived=None, paymentStatus="PENDING",
-                landlord_id=None):
+                landlord_id=None, rent=None, water=None, electricity_rate=None,
+                additional_person_rate=None, property_id=None):
     from app.core.db import get_conn
     from app.services.tenant_service import get_tenant
     from app.services.pdf_service import generate_professional_pdf
+    from app.database.property_repository import get_property
     import os
     from app.core.paths import RECEIPTS_DIR
     
@@ -602,15 +736,40 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     if not tenant:
         raise ValueError("Tenant not found")
     tenantName = tenant.name
-        
-    prev = float(old_receipt["previous"])
+
+    # Per-receipt snapshot rates: use the edited values when provided, otherwise
+    # fall back to the tenant's current billing profile (keeps existing callers
+    # and legacy workflows working unchanged).
+    rent = tenant.rent if rent is None else float(rent)
+    water = tenant.water if water is None else float(water)
+    electricity_rate = tenant.electricityRate if electricity_rate is None else float(electricity_rate)
+    additional_person_rate = tenant.additionalPersonCharge if additional_person_rate is None else float(additional_person_rate)
+
+    # Property ownership validation: only accept a property that belongs to the
+    # authenticated landlord (rejects arbitrary other-landlord property IDs).
+    if landlord_id is not None and property_id is not None:
+        if not get_property(landlord_id, int(property_id)):
+            raise ValueError("Property not found or does not belong to this landlord")
+
+    # The previous reading is resolved from the chain — the current reading of
+    # the bill immediately preceding this one — NOT the receipt's stored
+    # snapshot. This preserves the invariant bill[n].previous == bill[n-1].current.
+    # The bill being edited is excluded so it cannot resolve its predecessor
+    # from itself; if it is the tenant's first bill, we fall back to the
+    # tenant.previousMeter baseline.
+    with get_conn() as conn:
+        pred = _get_bill_predecessor(conn, tenantId, billNo)
+    if pred is not None:
+        prev = float(pred["current"])
+    else:
+        prev = float(tenant.previousMeter or 0)
     if prev > 0 and current_reading < prev:
         raise ValueError("Current meter reading cannot be less than previous reading.")
         
     charges = calculate_charges(
         current_reading, additional_persons, prev,
-        tenant.rent, tenant.water, tankWater, MaintenanceCharge,
-        tenant.electricityRate, tenant.additionalPersonCharge
+        rent, water, tankWater, MaintenanceCharge,
+        electricity_rate, additional_person_rate
     )
 
     # Arrears are auto-computed: normalize the chain so this bill's
@@ -631,17 +790,32 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     pdf_filename = old_receipt.get("pdf") or f"{billNo}_{tenantName.replace(' ', '_')}_{month.replace(' ', '_')}.pdf"
     pdf_path = os.path.join(RECEIPTS_DIR, pdf_filename)
     
+    # Resolve the receipt-level property snapshot: prefer the submitted
+    # property_id (validated above), otherwise keep the receipt's existing
+    # property, otherwise fall back to the tenant's current property.
+    receipt_property_id = property_id if property_id is not None else old_receipt.get("property_id")
+    if receipt_property_id is None:
+        receipt_property_id = tenant.propertyId
+    receipt_property_id = int(receipt_property_id) if receipt_property_id is not None else None
+
+    _property_name = ""
+    if receipt_property_id is not None and landlord_id is not None:
+        _prop = get_property(landlord_id, receipt_property_id)
+        if _prop:
+            _property_name = _prop.get("property_name") or ""
+
     updated_dict = {
         "Bill": billNo,
         "Date": old_receipt["date"],
         "Month": month,
         "Tenant": tenantName,
-        "Previous": old_receipt["previous"],
+        "Property": _property_name,
+        "Previous": prev,
         "Current": current_reading,
         "Units": charges["units"],
-        "Rent": tenant.rent,
+        "Rent": rent,
         "Additional": charges["additional"],
-        "Water": tenant.water,
+        "Water": water,
         "tankWater": tankWater,
         "Electricity": charges["electricity"],
         "Total": charges["total"],
@@ -649,13 +823,13 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         "Tenant_Phone": tenant.phone,
         "Tenant_Company": tenant.company,
         "Tenant_Address": tenant.address,
-        "Rate": tenant.electricityRate,
+        "Rate": electricity_rate,
         "Status": old_receipt["status"],
         "Archived_Date": old_receipt["archiveddate"],
         "Archived_By": old_receipt["archivedby"],
         "Deleted_Date": old_receipt["deleteddate"],
         "Additional_Persons": additional_persons,
-        "additionalPersonRate": tenant.additionalPersonCharge,
+        "additionalPersonRate": additional_person_rate,
         "Receipt_Version": old_receipt.get("receiptversion", 8),
         "Generated_By": old_receipt.get("generatedby", "Admin"),
         "paymentStatus": paymentStatus,
@@ -672,23 +846,45 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     except BaseException as e:
         print(f"Error generating PDF: {e}")
 
+    # Single atomic transaction: update the receipt snapshot (including the
+    # chain-resolved previous reading), rebuild any downstream meter readings,
+    # update the tenant's billing profile, and recompute the arrears chain —
+    # all in one transaction so either every change commits or none does.
+    old_current = float(old_receipt["current"] or 0)
+    new_current = float(current_reading or 0)
     with get_conn() as conn:
         conn.execute("""
             UPDATE receipts SET
-                month = ?, tenantId = ?, tenant = ?, current = ?, units = ?, rent = ?,
+                month = ?, tenantId = ?, tenant = ?, previous = ?, current = ?, units = ?, rent = ?,
                 additional = ?, water = ?, tankWater = ?, electricity = ?, total = ?,
                 pdf = ?, tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?,
                 additionalpersons = ?, additionalpersonrate = ?, paymentstatus = ?,
-                maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
+                maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?,
+                property_id = ?
             WHERE billNo = ?
         """, (
-            month, tenant.id, tenantName, current_reading, charges["units"], tenant.rent,
-            charges["additional"], tenant.water, tankWater, charges["electricity"], charges["total"],
-            pdf_filename, tenant.phone, tenant.company, tenant.address, tenant.electricityRate,
-            additional_persons, tenant.additionalPersonCharge, paymentStatus,
+            month, tenant.id, tenantName, prev, current_reading, charges["units"], rent,
+            charges["additional"], water, tankWater, charges["electricity"], charges["total"],
+            pdf_filename, tenant.phone, tenant.company, tenant.address, electricity_rate,
+            additional_persons, additional_person_rate, paymentStatus,
             MaintenanceCharge, MaintenanceDesc, previousArrears, amountReceived,
+            receipt_property_id,
             billNo
         ))
+        # Persist the edited rates onto the tenant's billing profile so future
+        # bills inherit them. This intentionally does NOT cascade onto existing
+        # receipt snapshots (those keep the per-bill values written above) and
+        # does NOT touch tenants.property_id.
+        conn.execute(
+            "UPDATE tenants SET rent = ?, water = ?, electricityrate = ?, additionalpersoncharge = ? WHERE id = ?",
+            (rent, water, electricity_rate, additional_person_rate, tenantId),
+        )
+        # If the edited bill's current reading changed, every downstream bill
+        # must have its previous/units/electricity/total recalculated so the
+        # meter chain stays consistent. Runs inside the same transaction.
+        if abs(old_current - new_current) > 0.001:
+            _rebuild_meter_chain(conn, tenantId, billNo, landlord_id=landlord_id)
+        # Recompute arrears AFTER the meter chain so downstream totals are final.
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
 

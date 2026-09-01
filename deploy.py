@@ -574,17 +574,23 @@ def get_deploy_commands():
             f"cd {REMOTE_DIR} && {base} build",
             f"cd {REMOTE_DIR} && {base} up -d",
         ])
-    elif scope == "storage":
-        # No backend code changed — the storage volume is overlaid and the
-        # backend restarts so the in-memory config cache reloads from disk.
+    elif scope == "frontend":
+        # Dev frontend is a live bind-mounted Vite container (image-only, no
+        # build context). Target the exact container with a docker restart so the
+        # newly synced frontend/ tree is picked up; avoids `no such service`
+        # that would come from passing a container_name to a compose command.
         cmds = extract_zip_cmds()
-        cmds.append(f"cd {REMOTE_DIR} && {base} restart {svc}")
+        cmds.append("docker restart propaura_frontend_dev")
     else:
+        # Unified path for backend/storage/database dev scopes. The dev backend
+        # is a bind-mounted image with uvicorn --reload, so code and config
+        # changes are picked up live. Target the exact container with a docker
+        # restart instead of `compose build/restart <container_name>`, which
+        # would fail because compose subcommands expect the service name, not
+        # the container_name (SCOPE_SERVICES holds container names). For storage
+        # scope the restart also reloads the in-memory config cache from disk.
         cmds = extract_zip_cmds()
-        cmds.extend([
-            f"cd {REMOTE_DIR} && {base} build {svc}",
-            f"cd {REMOTE_DIR} && {base} up -d --no-deps {svc}",
-        ])
+        cmds.append("docker restart propaura_backend_dev")
     return cmds
 
 
@@ -753,13 +759,16 @@ def main():
                     f"cd {LOCAL_DIR} && {base} build",
                     f"cd {LOCAL_DIR} && {base} up -d",
                 ])
-            elif scope == "storage":
-                commands.append(f"cd {LOCAL_DIR} && {base} restart {svc}")
+            elif scope == "frontend":
+                commands.append("docker restart propaura_frontend_dev")
             else:
-                commands.extend([
-                    f"cd {LOCAL_DIR} && {base} build {svc}",
-                    f"cd {LOCAL_DIR} && {base} up -d --no-deps {svc}",
-                ])
+                # Unified path for backend/storage/database dev scopes. The dev
+                # backend is a bind-mounted image with uvicorn --reload. Target
+                # the exact container with a docker restart instead of
+                # `compose build/restart <container_name>`, which would fail
+                # because compose subcommands expect the service name, not the
+                # container_name (SCOPE_SERVICES holds container names).
+                commands.append("docker restart propaura_backend_dev")
 
         for cmd in commands:
             if not run_local(cmd):
