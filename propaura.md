@@ -1,2634 +1,436 @@
 # Rent — Complete Source Code
 
-Generated: 2026-08-31
+Generated: 2026-09-02
 Script:   D:\VEGA\RENT\copy.py
 Source:   D:\VEGA\RENT
-Files:    441
-Size:     4424 KB
-Skipped:  1
+Files:    418
+Size:     4155 KB
+Skipped:  0
 
 ---
 
 ## File Index
 
-- .agents\skills\api-security-testing\SKILL.md
-- .agents\skills\application-security-testing\SKILL.md
-- .agents\skills\ci-security-scanning-with-strix\SKILL.md
-- .agents\skills\find-security-vulnerabilities-in-code\SKILL.md
-- .agents\skills\fix-security-vulnerabilities-with-strix\SKILL.md
-- .agents\skills\managed-pentesting-with-strix\SKILL.md
-- .agents\skills\owasp-top-10-testing\SKILL.md
-- .agents\skills\penetration-testing-with-strix\SKILL.md
-- .agents\skills\testing-audit-debugging-protocol\SKILL.md
-- .agents\skills\testing-audit-debugging-protocol\references\audit-documents.md
-- .agents\skills\testing-audit-debugging-protocol\references\deployment-gate.md
-- .agents\skills\testing-audit-debugging-protocol\references\root-cause-and-approval.md
-- .agents\skills\testing-audit-debugging-protocol\references\testing-strategies.md
-- .agents\skills\web-app-penetration-testing\SKILL.md
 - .env.development.example
 - .env.example
 - .env.release.example
 - .gitattributes
-- .github\workflows\create-github-release.yml
-- .github\workflows\deploy-cloudflare-pages.yml
-- .github\workflows\deploy-pages.yml
+- .github/workflows/create-github-release.yml
+- .github/workflows/deploy-cloudflare-pages.yml
+- .github/workflows/deploy-pages.yml
 - .gitignore
 - .nvmrc
 - AGENTS.md
-- Backup_of_propaura.cdr
+- DISCARDED-REMOTE-FEATURES.md
 - PRIVACY_POLICY_LANDLORD.md
 - README.md
 - TERMS_CONDITIONS_LANDLORD.md
-- assets\fevicon\icon.svg
-- assets\logo\propaura.svg
-- audit\bucket-list.md
-- audit\log.md
-- audit\plan.md
-- audit\task.md
-- backend\.env.example
-- backend\Dockerfile
-- backend\app\README.md
-- backend\app\app\api\__init__.py
-- backend\app\app\api\backup.py
-- backend\app\app\api\billing.py
-- backend\app\app\api\dashboard.py
-- backend\app\app\api\health.py
-- backend\app\app\api\landlord_setup.py
-- backend\app\app\api\pdf.py
-- backend\app\app\api\public.py
-- backend\app\app\api\settings.py
-- backend\app\app\api\sync.py
-- backend\app\app\api\sync_ws.py
-- backend\app\app\api\tenant_pdf.py
-- backend\app\app\api\tenants.py
-- backend\app\app\api\whatsapp.py
-- backend\app\app\authentication\admin\__init__.py
-- backend\app\app\authentication\admin\cookies.py
-- backend\app\app\authentication\admin\jwt.py
-- backend\app\app\authentication\admin\middleware.py
-- backend\app\app\authentication\admin\sessions.py
-- backend\app\app\authentication\common\__init__.py
-- backend\app\app\authentication\common\middleware.py
-- backend\app\app\authentication\common\pin_vault.py
-- backend\app\app\authentication\common\principal.py
-- backend\app\app\authentication\common\utils.py
-- backend\app\app\authentication\landlord\__init__.py
-- backend\app\app\authentication\landlord\cookies.py
-- backend\app\app\authentication\landlord\jwt.py
-- backend\app\app\authentication\landlord\middleware.py
-- backend\app\app\authentication\landlord\sessions.py
-- backend\app\app\authentication\platform\__init__.py
-- backend\app\app\authentication\platform\cookies.py
-- backend\app\app\authentication\platform\jwt.py
-- backend\app\app\authentication\tenant\__init__.py
-- backend\app\app\authentication\tenant\cookies.py
-- backend\app\app\authentication\tenant\jwt.py
-- backend\app\app\authentication\tenant\middleware.py
-- backend\app\app\authentication\tenant\sessions.py
-- backend\app\app\core\api_guard.py
-- backend\app\app\core\app_info.py
-- backend\app\app\core\audit.py
-- backend\app\app\core\config_defaults.py
-- backend\app\app\core\config_service.py
-- backend\app\app\core\db.py
-- backend\app\app\core\dependencies.py
-- backend\app\app\core\paths.py
-- backend\app\app\core\privacy.py
-- backend\app\app\core\route_builder.py
-- backend\app\app\core\router_registry.py
-- backend\app\app\core\routes_manifest.py
-- backend\app\app\core\routes_manifest_landlord.py
-- backend\app\app\core\routes_manifest_platform_admin.py
-- backend\app\app\core\routes_manifest_tenant.py
-- backend\app\app\core\runtime.py
-- backend\app\app\core\startup.py
-- backend\app\app\core\websocket_manager.py
-- backend\app\app\database\auth_repository.py
-- backend\app\app\database\final_schema.py
-- backend\app\app\database\final_schema.sql
-- backend\app\app\database\landlord_repository.py
-- backend\app\app\database\property_repository.py
-- backend\app\app\encryption.py
-- backend\app\app\main.py
-- backend\app\app\models\auth.py
-- backend\app\app\models\landlord.py
-- backend\app\app\models\property.py
-- backend\app\app\models\receipt.py
-- backend\app\app\models\tenant.py
-- backend\app\app\pages\__init__.py
-- backend\app\app\pages\archive.py
-- backend\app\app\pages\backups.py
-- backend\app\app\pages\billing.py
-- backend\app\app\pages\dashboard.py
-- backend\app\app\pages\errors.py
-- backend\app\app\pages\frontend.py
-- backend\app\app\pages\history.py
-- backend\app\app\pages\landing.py
-- backend\app\app\pages\redirects.py
-- backend\app\app\pages\settings.py
-- backend\app\app\pages\tenants.py
-- backend\app\app\routers\admin_auth.py
-- backend\app\app\routers\auth.py
-- backend\app\app\routers\landlord_routes.py
-- backend\app\app\routers\landlordauth.py
-- backend\app\app\routers\platform_admin.py
-- backend\app\app\services\backup_service.py
-- backend\app\app\services\billing_service.py
-- backend\app\app\services\google_oauth_service.py
-- backend\app\app\services\landlord_config_service.py
-- backend\app\app\services\payment_service.py
-- backend\app\app\services\pdf_service.py
-- backend\app\app\services\phone_service.py
-- backend\app\app\services\qr_service.py
-- backend\app\app\services\signature_service.py
-- backend\app\app\services\telegram_otp_service.py
-- backend\app\app\services\tenant_recovery_service.py
-- backend\app\app\services\tenant_service.py
-- backend\app\config\domain.json
-- backend\app\config\receipt.json
-- backend\app\config\system.json
-- backend\app\config\ui.json
-- backend\app\diagnose.py
-- backend\app\static\privacy_policy_landlord.md
-- backend\app\static\terms_conditions_landlord.md
-- backend\app\templates\error.html
-- backend\app\templates\landing.html
-- backend\compose.test.yml
-- backend\compose.yml
-- backend\deploy\deploy_backend.py
-- backend\deploy\deploy_frontend.py
-- backend\deploy\deploy_gateway.py
-- backend\requirements.txt
-- backend\scripts\backfill_tenant_ids.py
-- backend\scripts\migrate_platform_admin.py
-- backend\scripts\validate_routes.py
-- backend\shared\routes.json
-- branding\stale\fevicon.svg
-- branding\stale\logo-propaura-raw.svg
-- branding\stale\qr-raw.svg
+- assets/fevicon/icon.svg
+- assets/logo/propaura.svg
+- backend/.env.example
+- backend/Dockerfile
+- backend/app/README.md
+- backend/app/app/api/__init__.py
+- backend/app/app/api/backup.py
+- backend/app/app/api/billing.py
+- backend/app/app/api/dashboard.py
+- backend/app/app/api/health.py
+- backend/app/app/api/landlord_setup.py
+- backend/app/app/api/pdf.py
+- backend/app/app/api/public.py
+- backend/app/app/api/settings.py
+- backend/app/app/api/sync.py
+- backend/app/app/api/sync_ws.py
+- backend/app/app/api/tenant_pdf.py
+- backend/app/app/api/tenants.py
+- backend/app/app/api/whatsapp.py
+- backend/app/app/authentication/admin/__init__.py
+- backend/app/app/authentication/admin/cookies.py
+- backend/app/app/authentication/admin/jwt.py
+- backend/app/app/authentication/admin/middleware.py
+- backend/app/app/authentication/admin/sessions.py
+- backend/app/app/authentication/common/__init__.py
+- backend/app/app/authentication/common/middleware.py
+- backend/app/app/authentication/common/pin_vault.py
+- backend/app/app/authentication/common/principal.py
+- backend/app/app/authentication/common/utils.py
+- backend/app/app/authentication/landlord/__init__.py
+- backend/app/app/authentication/landlord/cookies.py
+- backend/app/app/authentication/landlord/jwt.py
+- backend/app/app/authentication/landlord/middleware.py
+- backend/app/app/authentication/landlord/sessions.py
+- backend/app/app/authentication/platform/__init__.py
+- backend/app/app/authentication/platform/cookies.py
+- backend/app/app/authentication/platform/jwt.py
+- backend/app/app/authentication/tenant/__init__.py
+- backend/app/app/authentication/tenant/cookies.py
+- backend/app/app/authentication/tenant/jwt.py
+- backend/app/app/authentication/tenant/middleware.py
+- backend/app/app/authentication/tenant/sessions.py
+- backend/app/app/core/api_guard.py
+- backend/app/app/core/app_info.py
+- backend/app/app/core/audit.py
+- backend/app/app/core/config_defaults.py
+- backend/app/app/core/config_service.py
+- backend/app/app/core/db.py
+- backend/app/app/core/dependencies.py
+- backend/app/app/core/paths.py
+- backend/app/app/core/privacy.py
+- backend/app/app/core/route_builder.py
+- backend/app/app/core/router_registry.py
+- backend/app/app/core/routes_manifest.py
+- backend/app/app/core/routes_manifest_landlord.py
+- backend/app/app/core/routes_manifest_platform_admin.py
+- backend/app/app/core/routes_manifest_tenant.py
+- backend/app/app/core/runtime.py
+- backend/app/app/core/startup.py
+- backend/app/app/core/websocket_manager.py
+- backend/app/app/database/auth_repository.py
+- backend/app/app/database/landlord_repository.py
+- backend/app/app/database/property_repository.py
+- backend/app/app/db/__init__.py
+- backend/app/app/db/connection.py
+- backend/app/app/db/migrations/001_initial.py
+- backend/app/app/db/migrations/002_seed.py
+- backend/app/app/db/migrations/__init__.py
+- backend/app/app/db/migrations/migrator.py
+- backend/app/app/encryption.py
+- backend/app/app/main.py
+- backend/app/app/models/auth.py
+- backend/app/app/models/landlord.py
+- backend/app/app/models/property.py
+- backend/app/app/models/receipt.py
+- backend/app/app/models/tenant.py
+- backend/app/app/pages/__init__.py
+- backend/app/app/pages/archive.py
+- backend/app/app/pages/backups.py
+- backend/app/app/pages/billing.py
+- backend/app/app/pages/dashboard.py
+- backend/app/app/pages/errors.py
+- backend/app/app/pages/frontend.py
+- backend/app/app/pages/history.py
+- backend/app/app/pages/landing.py
+- backend/app/app/pages/redirects.py
+- backend/app/app/pages/settings.py
+- backend/app/app/pages/tenants.py
+- backend/app/app/routers/admin_auth.py
+- backend/app/app/routers/auth.py
+- backend/app/app/routers/landlord_routes.py
+- backend/app/app/routers/landlordauth.py
+- backend/app/app/routers/platform_admin.py
+- backend/app/app/services/backup_service.py
+- backend/app/app/services/billing_service.py
+- backend/app/app/services/google_oauth_service.py
+- backend/app/app/services/landlord_config_service.py
+- backend/app/app/services/payment_service.py
+- backend/app/app/services/pdf_service.py
+- backend/app/app/services/phone_service.py
+- backend/app/app/services/qr_service.py
+- backend/app/app/services/signature_service.py
+- backend/app/app/services/telegram_otp_service.py
+- backend/app/app/services/tenant_recovery_service.py
+- backend/app/app/services/tenant_service.py
+- backend/app/config/domain.json
+- backend/app/config/receipt.json
+- backend/app/config/system.json
+- backend/app/config/ui.json
+- backend/app/diagnose.py
+- backend/app/static/privacy_policy_landlord.md
+- backend/app/static/terms_conditions_landlord.md
+- backend/app/templates/error.html
+- backend/app/templates/landing.html
+- backend/compose.test.yml
+- backend/compose.yml
+- backend/deploy/deploy_backend.py
+- backend/deploy/deploy_frontend.py
+- backend/deploy/deploy_gateway.py
+- backend/requirements.txt
+- backend/scripts/validate_routes.py
+- backend/shared/routes.json
 - compose.dev.yml
 - compose.prod.yml
 - copy.py
 - deploy.py
-- deploy\README.md
-- deploy\deploy-cloudflare-pages.sh
-- deploy\deploy-github-release.sh
-- deploy\deploy-release.sh
-- deploy\self-pull.sh
-- frontend\.env.example
-- frontend\admin-app\index.html
-- frontend\admin-app\package.json
-- frontend\admin-app\src\App.tsx
-- frontend\admin-app\src\api\client.ts
-- frontend\admin-app\src\components\AuthLayout.tsx
-- frontend\admin-app\src\components\BroadcastBanner.css
-- frontend\admin-app\src\components\BroadcastBanner.tsx
-- frontend\admin-app\src\components\ErrorBoundary.tsx
-- frontend\admin-app\src\components\Layout.tsx
-- frontend\admin-app\src\contexts\AuthContext.tsx
-- frontend\admin-app\src\hooks\useAuthSync.ts
-- frontend\admin-app\src\hooks\useHealthStream.ts
-- frontend\admin-app\src\lib\runtime.ts
-- frontend\admin-app\src\main.tsx
-- frontend\admin-app\src\pages\AuditLogsPage.tsx
-- frontend\admin-app\src\pages\DashboardPage.tsx
-- frontend\admin-app\src\pages\DataExplorerPage.tsx
-- frontend\admin-app\src\pages\FeedbackInboxPage.tsx
-- frontend\admin-app\src\pages\LandlordDetailPage.tsx
-- frontend\admin-app\src\pages\LandlordsPage.tsx
-- frontend\admin-app\src\pages\LoginPage.tsx
-- frontend\admin-app\src\pages\SettingsPage.tsx
-- frontend\admin-app\tsconfig.json
-- frontend\admin-app\tsconfig.node.json
-- frontend\admin-app\vite.config.d.ts
-- frontend\admin-app\vite.config.js
-- frontend\admin-app\vite.config.ts
-- frontend\build-dev.sh
-- frontend\build.sh
-- frontend\functions\_middleware.js
-- frontend\landing-app\index.html
-- frontend\landing-app\package.json
-- frontend\landing-app\src\App.tsx
-- frontend\landing-app\src\components\BroadcastBanner.css
-- frontend\landing-app\src\components\BroadcastBanner.tsx
-- frontend\landing-app\src\components\CTA.tsx
-- frontend\landing-app\src\components\FAQ.tsx
-- frontend\landing-app\src\components\Features.tsx
-- frontend\landing-app\src\components\FeaturesGrid.tsx
-- frontend\landing-app\src\components\Footer.tsx
-- frontend\landing-app\src\components\Hero.tsx
-- frontend\landing-app\src\components\Icons.tsx
-- frontend\landing-app\src\components\Navbar.tsx
-- frontend\landing-app\src\components\NextStep.tsx
-- frontend\landing-app\src\components\Roadmap.tsx
-- frontend\landing-app\src\components\RoleLoginStrip.tsx
-- frontend\landing-app\src\components\Security.tsx
-- frontend\landing-app\src\components\TrustBadges.tsx
-- frontend\landing-app\src\components\WhyChoose.tsx
-- frontend\landing-app\src\data.ts
-- frontend\landing-app\src\index.css
-- frontend\landing-app\src\main.tsx
-- frontend\landing-app\tsconfig.json
-- frontend\landing-app\tsconfig.node.json
-- frontend\landing-app\vite.config.d.ts
-- frontend\landing-app\vite.config.js
-- frontend\landing-app\vite.config.ts
-- frontend\landlord-app\.env.example
-- frontend\landlord-app\.gitignore
-- frontend\landlord-app\.oxlintrc.json
-- frontend\landlord-app\components.json
-- frontend\landlord-app\eslint.config.js
-- frontend\landlord-app\index.html
-- frontend\landlord-app\info.md
-- frontend\landlord-app\package.json
-- frontend\landlord-app\src\App.css
-- frontend\landlord-app\src\App.tsx
-- frontend\landlord-app\src\components\BroadcastBanner.css
-- frontend\landlord-app\src\components\BroadcastBanner.tsx
-- frontend\landlord-app\src\components\ErrorBoundary.tsx
-- frontend\landlord-app\src\components\archive\ArchiveTenantCard.tsx
-- frontend\landlord-app\src\components\dashboard\DuePaymentsModal.tsx
-- frontend\landlord-app\src\components\dashboard\MeterReadingDetailsModal.tsx
-- frontend\landlord-app\src\components\layout\AuthLayout.tsx
-- frontend\landlord-app\src\components\layout\Header.tsx
-- frontend\landlord-app\src\components\layout\MainLayout.tsx
-- frontend\landlord-app\src\components\layout\Sidebar.tsx
-- frontend\landlord-app\src\components\modals\BillsModal.tsx
-- frontend\landlord-app\src\components\modals\ExportPreviewModal.tsx
-- frontend\landlord-app\src\components\modals\ExportService.ts
-- frontend\landlord-app\src\components\modals\ImportPreviewModal.tsx
-- frontend\landlord-app\src\components\modals\OccupantsModal.tsx
-- frontend\landlord-app\src\components\modals\PaymentModal.tsx
-- frontend\landlord-app\src\components\modals\SchemaMismatchDialog.tsx
-- frontend\landlord-app\src\components\modals\TotpSetupModal.tsx
-- frontend\landlord-app\src\components\modals\importService.ts
-- frontend\landlord-app\src\components\privacy\MarkdownView.tsx
-- frontend\landlord-app\src\components\privacy\PrivacyPolicyModal.tsx
-- frontend\landlord-app\src\components\privacy\TermsConditionsModal.tsx
-- frontend\landlord-app\src\components\shared\EditBillModal.tsx
-- frontend\landlord-app\src\components\shared\PDFPreviewModal.tsx
-- frontend\landlord-app\src\components\shared\ReceiptRow.tsx
-- frontend\landlord-app\src\components\ui\accordion.tsx
-- frontend\landlord-app\src\components\ui\alert-dialog.tsx
-- frontend\landlord-app\src\components\ui\alert.tsx
-- frontend\landlord-app\src\components\ui\aspect-ratio.tsx
-- frontend\landlord-app\src\components\ui\avatar.tsx
-- frontend\landlord-app\src\components\ui\badge.tsx
-- frontend\landlord-app\src\components\ui\breadcrumb.tsx
-- frontend\landlord-app\src\components\ui\button-group.tsx
-- frontend\landlord-app\src\components\ui\button.tsx
-- frontend\landlord-app\src\components\ui\calendar.tsx
-- frontend\landlord-app\src\components\ui\card.tsx
-- frontend\landlord-app\src\components\ui\carousel.tsx
-- frontend\landlord-app\src\components\ui\chart.tsx
-- frontend\landlord-app\src\components\ui\checkbox.tsx
-- frontend\landlord-app\src\components\ui\collapsible.tsx
-- frontend\landlord-app\src\components\ui\command.tsx
-- frontend\landlord-app\src\components\ui\context-menu.tsx
-- frontend\landlord-app\src\components\ui\dialog.tsx
-- frontend\landlord-app\src\components\ui\drawer.tsx
-- frontend\landlord-app\src\components\ui\dropdown-menu.tsx
-- frontend\landlord-app\src\components\ui\empty.tsx
-- frontend\landlord-app\src\components\ui\field.tsx
-- frontend\landlord-app\src\components\ui\form.tsx
-- frontend\landlord-app\src\components\ui\hover-card.tsx
-- frontend\landlord-app\src\components\ui\input-group.tsx
-- frontend\landlord-app\src\components\ui\input-otp.tsx
-- frontend\landlord-app\src\components\ui\input.tsx
-- frontend\landlord-app\src\components\ui\item.tsx
-- frontend\landlord-app\src\components\ui\kbd.tsx
-- frontend\landlord-app\src\components\ui\label.tsx
-- frontend\landlord-app\src\components\ui\menubar.tsx
-- frontend\landlord-app\src\components\ui\navigation-menu.tsx
-- frontend\landlord-app\src\components\ui\pagination.tsx
-- frontend\landlord-app\src\components\ui\popover.tsx
-- frontend\landlord-app\src\components\ui\progress.tsx
-- frontend\landlord-app\src\components\ui\radio-group.tsx
-- frontend\landlord-app\src\components\ui\resizable.tsx
-- frontend\landlord-app\src\components\ui\scroll-area.tsx
-- frontend\landlord-app\src\components\ui\select.tsx
-- frontend\landlord-app\src\components\ui\separator.tsx
-- frontend\landlord-app\src\components\ui\sheet.tsx
-- frontend\landlord-app\src\components\ui\sidebar.tsx
-- frontend\landlord-app\src\components\ui\skeleton.tsx
-- frontend\landlord-app\src\components\ui\slider.tsx
-- frontend\landlord-app\src\components\ui\sonner.tsx
-- frontend\landlord-app\src\components\ui\spinner.tsx
-- frontend\landlord-app\src\components\ui\switch.tsx
-- frontend\landlord-app\src\components\ui\table.tsx
-- frontend\landlord-app\src\components\ui\tabs.tsx
-- frontend\landlord-app\src\components\ui\textarea.tsx
-- frontend\landlord-app\src\components\ui\toggle-group.tsx
-- frontend\landlord-app\src\components\ui\toggle.tsx
-- frontend\landlord-app\src\components\ui\tooltip.tsx
-- frontend\landlord-app\src\contexts\AuthContext.tsx
-- frontend\landlord-app\src\contexts\ThemeContext.tsx
-- frontend\landlord-app\src\hooks\use-mobile.ts
-- frontend\landlord-app\src\hooks\useApi.ts
-- frontend\landlord-app\src\hooks\useAuthSync.ts
-- frontend\landlord-app\src\hooks\useSync.ts
-- frontend\landlord-app\src\hooks\useToast.ts
-- frontend\landlord-app\src\index.css
-- frontend\landlord-app\src\lib\auth.ts
-- frontend\landlord-app\src\lib\encryption.ts
-- frontend\landlord-app\src\lib\privacy.ts
-- frontend\landlord-app\src\lib\routes.ts
-- frontend\landlord-app\src\lib\runtime.ts
-- frontend\landlord-app\src\lib\utils.ts
-- frontend\landlord-app\src\main.tsx
-- frontend\landlord-app\src\pages\ActivityPage.tsx
-- frontend\landlord-app\src\pages\AdminSetupPage.tsx
-- frontend\landlord-app\src\pages\Archive.tsx
-- frontend\landlord-app\src\pages\Backups.tsx
-- frontend\landlord-app\src\pages\Billing.tsx
-- frontend\landlord-app\src\pages\ChangePasswordPage.tsx
-- frontend\landlord-app\src\pages\Dashboard.tsx
-- frontend\landlord-app\src\pages\History.tsx
-- frontend\landlord-app\src\pages\Home.tsx
-- frontend\landlord-app\src\pages\LandlordLoginPage.tsx
-- frontend\landlord-app\src\pages\LandlordSignupPage.tsx
-- frontend\landlord-app\src\pages\Login.tsx
-- frontend\landlord-app\src\pages\PrivacyConsentPage.tsx
-- frontend\landlord-app\src\pages\PrivacyPolicyPage.tsx
-- frontend\landlord-app\src\pages\SecuritySettingsPage.tsx
-- frontend\landlord-app\src\pages\Settings.tsx
-- frontend\landlord-app\src\pages\SetupPage.tsx
-- frontend\landlord-app\src\pages\Tenants.tsx
-- frontend\landlord-app\src\pages\TermsConditionsPage.tsx
-- frontend\landlord-app\src\services\api.ts
-- frontend\landlord-app\src\services\base.ts
-- frontend\landlord-app\src\types\index.ts
-- frontend\landlord-app\tsconfig.app.json
-- frontend\landlord-app\tsconfig.json
-- frontend\landlord-app\tsconfig.node.json
-- frontend\landlord-app\vite.config.ts
-- frontend\package.json
-- frontend\shared\api-config.ts
-- frontend\shared\brand\Logo.tsx
-- frontend\shared\brand\assets\icon.svg
-- frontend\shared\brand\assets\logo.svg
-- frontend\shared\loading\BrandLoading.css
-- frontend\shared\loading\BrandWave.tsx
-- frontend\shared\loading\LoadingOverlay.tsx
-- frontend\shared\loading\LoadingScreen.tsx
-- frontend\shared\phone\PhoneInput.tsx
-- frontend\shared\routes.json
-- frontend\tenant-app\.gitignore
-- frontend\tenant-app\.oxlintrc.json
-- frontend\tenant-app\index.html
-- frontend\tenant-app\package.json
-- frontend\tenant-app\src\App.css
-- frontend\tenant-app\src\App.tsx
-- frontend\tenant-app\src\components\ActivityLog.tsx
-- frontend\tenant-app\src\components\ArchiveReceiptCard.tsx
-- frontend\tenant-app\src\components\AuthLayout.tsx
-- frontend\tenant-app\src\components\BroadcastBanner.css
-- frontend\tenant-app\src\components\BroadcastBanner.tsx
-- frontend\tenant-app\src\components\ErrorBoundary.tsx
-- frontend\tenant-app\src\components\OccupantCard.tsx
-- frontend\tenant-app\src\components\OccupantDocumentViewer.tsx
-- frontend\tenant-app\src\components\OccupantKycUploadDialog.tsx
-- frontend\tenant-app\src\components\OccupantList.tsx
-- frontend\tenant-app\src\components\PaymentStatusCard.tsx
-- frontend\tenant-app\src\components\Skeletons.tsx
-- frontend\tenant-app\src\components\StatusBadge.tsx
-- frontend\tenant-app\src\components\TenantProfileDetails.tsx
-- frontend\tenant-app\src\components\modals\PdfPreviewModal.tsx
-- frontend\tenant-app\src\components\receipts.tsx
-- frontend\tenant-app\src\components\theme-provider.tsx
-- frontend\tenant-app\src\components\theme-toggle.tsx
-- frontend\tenant-app\src\components\ui\alert.tsx
-- frontend\tenant-app\src\components\ui\badge.tsx
-- frontend\tenant-app\src\components\ui\button.tsx
-- frontend\tenant-app\src\components\ui\card.tsx
-- frontend\tenant-app\src\components\ui\collapsible.tsx
-- frontend\tenant-app\src\components\ui\command.tsx
-- frontend\tenant-app\src\components\ui\dialog.tsx
-- frontend\tenant-app\src\components\ui\dropdown-menu.tsx
-- frontend\tenant-app\src\components\ui\input.tsx
-- frontend\tenant-app\src\components\ui\label.tsx
-- frontend\tenant-app\src\components\ui\popover.tsx
-- frontend\tenant-app\src\components\ui\scroll-area.tsx
-- frontend\tenant-app\src\components\ui\separator.tsx
-- frontend\tenant-app\src\components\ui\tabs.tsx
-- frontend\tenant-app\src\context\TenantContext.tsx
-- frontend\tenant-app\src\index.css
-- frontend\tenant-app\src\lib\api.ts
-- frontend\tenant-app\src\lib\encryption.ts
-- frontend\tenant-app\src\lib\login-api.ts
-- frontend\tenant-app\src\lib\queryClient.ts
-- frontend\tenant-app\src\lib\tenant-runtime.ts
-- frontend\tenant-app\src\lib\utils.ts
-- frontend\tenant-app\src\main.tsx
-- frontend\tenant-app\src\pages\PortalLoginPage.tsx
-- frontend\tenant-app\src\pages\QrUnlockPage.tsx
-- frontend\tenant-app\src\types\index.ts
-- frontend\tenant-app\tsconfig.app.json
-- frontend\tenant-app\tsconfig.json
-- frontend\tenant-app\tsconfig.node.json
-- frontend\tenant-app\vite.config.ts
-- gateway\compose.yml
-- gateway\nginx\frontend_release.conf
-- gateway\nginx\nginx.conf
-- gateway\nginx\routes\api.conf
-- gateway\nginx\routes\frontend.conf
-- gateway\nginx\routes\redirect.conf
-- gateway\nginx\routes\rent.conf
-- gateway\nginx\routes\tenant-api.conf
-- gateway\nginx\upstream\active.conf
+- deploy/README.md
+- deploy/deploy-cloudflare-pages.sh
+- deploy/deploy-github-release.sh
+- deploy/deploy-release.sh
+- deploy/ports.env
+- deploy/ports.py
+- deploy/self-pull.sh
+- frontend/.env.example
+- frontend/admin-app/index.html
+- frontend/admin-app/package.json
+- frontend/admin-app/src/App.tsx
+- frontend/admin-app/src/api/client.ts
+- frontend/admin-app/src/components/AuthLayout.tsx
+- frontend/admin-app/src/components/BroadcastBanner.css
+- frontend/admin-app/src/components/BroadcastBanner.tsx
+- frontend/admin-app/src/components/ErrorBoundary.tsx
+- frontend/admin-app/src/components/Layout.tsx
+- frontend/admin-app/src/contexts/AuthContext.tsx
+- frontend/admin-app/src/hooks/useAuthSync.ts
+- frontend/admin-app/src/hooks/useHealthStream.ts
+- frontend/admin-app/src/lib/runtime.ts
+- frontend/admin-app/src/main.tsx
+- frontend/admin-app/src/pages/AuditLogsPage.tsx
+- frontend/admin-app/src/pages/DashboardPage.tsx
+- frontend/admin-app/src/pages/DataExplorerPage.tsx
+- frontend/admin-app/src/pages/FeedbackInboxPage.tsx
+- frontend/admin-app/src/pages/LandlordDetailPage.tsx
+- frontend/admin-app/src/pages/LandlordsPage.tsx
+- frontend/admin-app/src/pages/LoginPage.tsx
+- frontend/admin-app/src/pages/SettingsPage.tsx
+- frontend/admin-app/tsconfig.json
+- frontend/admin-app/tsconfig.node.json
+- frontend/admin-app/vite.config.d.ts
+- frontend/admin-app/vite.config.js
+- frontend/admin-app/vite.config.ts
+- frontend/build-dev.sh
+- frontend/build.sh
+- frontend/functions/_middleware.js
+- frontend/landing-app/index.html
+- frontend/landing-app/package.json
+- frontend/landing-app/src/App.tsx
+- frontend/landing-app/src/components/BroadcastBanner.css
+- frontend/landing-app/src/components/BroadcastBanner.tsx
+- frontend/landing-app/src/components/CTA.tsx
+- frontend/landing-app/src/components/FAQ.tsx
+- frontend/landing-app/src/components/Features.tsx
+- frontend/landing-app/src/components/FeaturesGrid.tsx
+- frontend/landing-app/src/components/Footer.tsx
+- frontend/landing-app/src/components/Hero.tsx
+- frontend/landing-app/src/components/Icons.tsx
+- frontend/landing-app/src/components/Navbar.tsx
+- frontend/landing-app/src/components/NextStep.tsx
+- frontend/landing-app/src/components/Roadmap.tsx
+- frontend/landing-app/src/components/RoleLoginStrip.tsx
+- frontend/landing-app/src/components/Security.tsx
+- frontend/landing-app/src/components/TrustBadges.tsx
+- frontend/landing-app/src/components/WhyChoose.tsx
+- frontend/landing-app/src/data.ts
+- frontend/landing-app/src/index.css
+- frontend/landing-app/src/main.tsx
+- frontend/landing-app/tsconfig.json
+- frontend/landing-app/tsconfig.node.json
+- frontend/landing-app/vite.config.d.ts
+- frontend/landing-app/vite.config.js
+- frontend/landing-app/vite.config.ts
+- frontend/landlord-app/.env.example
+- frontend/landlord-app/.gitignore
+- frontend/landlord-app/.oxlintrc.json
+- frontend/landlord-app/components.json
+- frontend/landlord-app/eslint.config.js
+- frontend/landlord-app/index.html
+- frontend/landlord-app/info.md
+- frontend/landlord-app/package.json
+- frontend/landlord-app/src/App.css
+- frontend/landlord-app/src/App.tsx
+- frontend/landlord-app/src/components/BroadcastBanner.css
+- frontend/landlord-app/src/components/BroadcastBanner.tsx
+- frontend/landlord-app/src/components/ErrorBoundary.tsx
+- frontend/landlord-app/src/components/archive/ArchiveTenantCard.tsx
+- frontend/landlord-app/src/components/dashboard/DuePaymentsModal.tsx
+- frontend/landlord-app/src/components/dashboard/MeterReadingDetailsModal.tsx
+- frontend/landlord-app/src/components/layout/AuthLayout.tsx
+- frontend/landlord-app/src/components/layout/Header.tsx
+- frontend/landlord-app/src/components/layout/MainLayout.tsx
+- frontend/landlord-app/src/components/layout/Sidebar.tsx
+- frontend/landlord-app/src/components/modals/BillsModal.tsx
+- frontend/landlord-app/src/components/modals/ExportPreviewModal.tsx
+- frontend/landlord-app/src/components/modals/ExportService.ts
+- frontend/landlord-app/src/components/modals/ImportPreviewModal.tsx
+- frontend/landlord-app/src/components/modals/OccupantsModal.tsx
+- frontend/landlord-app/src/components/modals/PaymentModal.tsx
+- frontend/landlord-app/src/components/modals/SchemaMismatchDialog.tsx
+- frontend/landlord-app/src/components/modals/TotpSetupModal.tsx
+- frontend/landlord-app/src/components/modals/importService.ts
+- frontend/landlord-app/src/components/privacy/MarkdownView.tsx
+- frontend/landlord-app/src/components/privacy/PrivacyPolicyModal.tsx
+- frontend/landlord-app/src/components/privacy/TermsConditionsModal.tsx
+- frontend/landlord-app/src/components/shared/EditBillModal.tsx
+- frontend/landlord-app/src/components/shared/PDFPreviewModal.tsx
+- frontend/landlord-app/src/components/shared/ReceiptRow.tsx
+- frontend/landlord-app/src/components/ui/accordion.tsx
+- frontend/landlord-app/src/components/ui/alert-dialog.tsx
+- frontend/landlord-app/src/components/ui/alert.tsx
+- frontend/landlord-app/src/components/ui/aspect-ratio.tsx
+- frontend/landlord-app/src/components/ui/avatar.tsx
+- frontend/landlord-app/src/components/ui/badge.tsx
+- frontend/landlord-app/src/components/ui/breadcrumb.tsx
+- frontend/landlord-app/src/components/ui/button-group.tsx
+- frontend/landlord-app/src/components/ui/button.tsx
+- frontend/landlord-app/src/components/ui/calendar.tsx
+- frontend/landlord-app/src/components/ui/card.tsx
+- frontend/landlord-app/src/components/ui/carousel.tsx
+- frontend/landlord-app/src/components/ui/chart.tsx
+- frontend/landlord-app/src/components/ui/checkbox.tsx
+- frontend/landlord-app/src/components/ui/collapsible.tsx
+- frontend/landlord-app/src/components/ui/command.tsx
+- frontend/landlord-app/src/components/ui/context-menu.tsx
+- frontend/landlord-app/src/components/ui/dialog.tsx
+- frontend/landlord-app/src/components/ui/drawer.tsx
+- frontend/landlord-app/src/components/ui/dropdown-menu.tsx
+- frontend/landlord-app/src/components/ui/empty.tsx
+- frontend/landlord-app/src/components/ui/field.tsx
+- frontend/landlord-app/src/components/ui/form.tsx
+- frontend/landlord-app/src/components/ui/hover-card.tsx
+- frontend/landlord-app/src/components/ui/input-group.tsx
+- frontend/landlord-app/src/components/ui/input-otp.tsx
+- frontend/landlord-app/src/components/ui/input.tsx
+- frontend/landlord-app/src/components/ui/item.tsx
+- frontend/landlord-app/src/components/ui/kbd.tsx
+- frontend/landlord-app/src/components/ui/label.tsx
+- frontend/landlord-app/src/components/ui/menubar.tsx
+- frontend/landlord-app/src/components/ui/navigation-menu.tsx
+- frontend/landlord-app/src/components/ui/pagination.tsx
+- frontend/landlord-app/src/components/ui/popover.tsx
+- frontend/landlord-app/src/components/ui/progress.tsx
+- frontend/landlord-app/src/components/ui/radio-group.tsx
+- frontend/landlord-app/src/components/ui/resizable.tsx
+- frontend/landlord-app/src/components/ui/scroll-area.tsx
+- frontend/landlord-app/src/components/ui/select.tsx
+- frontend/landlord-app/src/components/ui/separator.tsx
+- frontend/landlord-app/src/components/ui/sheet.tsx
+- frontend/landlord-app/src/components/ui/sidebar.tsx
+- frontend/landlord-app/src/components/ui/skeleton.tsx
+- frontend/landlord-app/src/components/ui/slider.tsx
+- frontend/landlord-app/src/components/ui/sonner.tsx
+- frontend/landlord-app/src/components/ui/spinner.tsx
+- frontend/landlord-app/src/components/ui/switch.tsx
+- frontend/landlord-app/src/components/ui/table.tsx
+- frontend/landlord-app/src/components/ui/tabs.tsx
+- frontend/landlord-app/src/components/ui/textarea.tsx
+- frontend/landlord-app/src/components/ui/toggle-group.tsx
+- frontend/landlord-app/src/components/ui/toggle.tsx
+- frontend/landlord-app/src/components/ui/tooltip.tsx
+- frontend/landlord-app/src/contexts/AuthContext.tsx
+- frontend/landlord-app/src/contexts/ThemeContext.tsx
+- frontend/landlord-app/src/hooks/use-mobile.ts
+- frontend/landlord-app/src/hooks/useApi.ts
+- frontend/landlord-app/src/hooks/useAuthSync.ts
+- frontend/landlord-app/src/hooks/useSync.ts
+- frontend/landlord-app/src/hooks/useToast.ts
+- frontend/landlord-app/src/index.css
+- frontend/landlord-app/src/lib/auth.ts
+- frontend/landlord-app/src/lib/encryption.ts
+- frontend/landlord-app/src/lib/privacy.ts
+- frontend/landlord-app/src/lib/routes.ts
+- frontend/landlord-app/src/lib/runtime.ts
+- frontend/landlord-app/src/lib/utils.ts
+- frontend/landlord-app/src/main.tsx
+- frontend/landlord-app/src/pages/ActivityPage.tsx
+- frontend/landlord-app/src/pages/AdminSetupPage.tsx
+- frontend/landlord-app/src/pages/Archive.tsx
+- frontend/landlord-app/src/pages/Backups.tsx
+- frontend/landlord-app/src/pages/Billing.tsx
+- frontend/landlord-app/src/pages/ChangePasswordPage.tsx
+- frontend/landlord-app/src/pages/Dashboard.tsx
+- frontend/landlord-app/src/pages/History.tsx
+- frontend/landlord-app/src/pages/Home.tsx
+- frontend/landlord-app/src/pages/LandlordLoginPage.tsx
+- frontend/landlord-app/src/pages/LandlordSignupPage.tsx
+- frontend/landlord-app/src/pages/Login.tsx
+- frontend/landlord-app/src/pages/PrivacyConsentPage.tsx
+- frontend/landlord-app/src/pages/PrivacyPolicyPage.tsx
+- frontend/landlord-app/src/pages/SecuritySettingsPage.tsx
+- frontend/landlord-app/src/pages/Settings.tsx
+- frontend/landlord-app/src/pages/SetupPage.tsx
+- frontend/landlord-app/src/pages/Tenants.tsx
+- frontend/landlord-app/src/pages/TermsConditionsPage.tsx
+- frontend/landlord-app/src/services/api.ts
+- frontend/landlord-app/src/services/base.ts
+- frontend/landlord-app/src/types/index.ts
+- frontend/landlord-app/tsconfig.app.json
+- frontend/landlord-app/tsconfig.json
+- frontend/landlord-app/tsconfig.node.json
+- frontend/landlord-app/vite.config.ts
+- frontend/package.json
+- frontend/shared/api-config.ts
+- frontend/shared/brand/Logo.tsx
+- frontend/shared/brand/assets/icon.svg
+- frontend/shared/brand/assets/logo.svg
+- frontend/shared/loading/BrandLoading.css
+- frontend/shared/loading/BrandWave.tsx
+- frontend/shared/loading/LoadingOverlay.tsx
+- frontend/shared/loading/LoadingScreen.tsx
+- frontend/shared/phone/PhoneInput.tsx
+- frontend/shared/routes.json
+- frontend/tenant-app/.gitignore
+- frontend/tenant-app/.oxlintrc.json
+- frontend/tenant-app/index.html
+- frontend/tenant-app/package.json
+- frontend/tenant-app/src/App.css
+- frontend/tenant-app/src/App.tsx
+- frontend/tenant-app/src/components/ActivityLog.tsx
+- frontend/tenant-app/src/components/ArchiveReceiptCard.tsx
+- frontend/tenant-app/src/components/AuthLayout.tsx
+- frontend/tenant-app/src/components/BroadcastBanner.css
+- frontend/tenant-app/src/components/BroadcastBanner.tsx
+- frontend/tenant-app/src/components/ErrorBoundary.tsx
+- frontend/tenant-app/src/components/OccupantCard.tsx
+- frontend/tenant-app/src/components/OccupantDocumentViewer.tsx
+- frontend/tenant-app/src/components/OccupantKycUploadDialog.tsx
+- frontend/tenant-app/src/components/OccupantList.tsx
+- frontend/tenant-app/src/components/PaymentStatusCard.tsx
+- frontend/tenant-app/src/components/Skeletons.tsx
+- frontend/tenant-app/src/components/StatusBadge.tsx
+- frontend/tenant-app/src/components/TenantProfileDetails.tsx
+- frontend/tenant-app/src/components/modals/PdfPreviewModal.tsx
+- frontend/tenant-app/src/components/receipts.tsx
+- frontend/tenant-app/src/components/theme-provider.tsx
+- frontend/tenant-app/src/components/theme-toggle.tsx
+- frontend/tenant-app/src/components/ui/alert.tsx
+- frontend/tenant-app/src/components/ui/badge.tsx
+- frontend/tenant-app/src/components/ui/button.tsx
+- frontend/tenant-app/src/components/ui/card.tsx
+- frontend/tenant-app/src/components/ui/collapsible.tsx
+- frontend/tenant-app/src/components/ui/command.tsx
+- frontend/tenant-app/src/components/ui/dialog.tsx
+- frontend/tenant-app/src/components/ui/dropdown-menu.tsx
+- frontend/tenant-app/src/components/ui/input.tsx
+- frontend/tenant-app/src/components/ui/label.tsx
+- frontend/tenant-app/src/components/ui/popover.tsx
+- frontend/tenant-app/src/components/ui/scroll-area.tsx
+- frontend/tenant-app/src/components/ui/separator.tsx
+- frontend/tenant-app/src/components/ui/tabs.tsx
+- frontend/tenant-app/src/context/TenantContext.tsx
+- frontend/tenant-app/src/index.css
+- frontend/tenant-app/src/lib/api.ts
+- frontend/tenant-app/src/lib/encryption.ts
+- frontend/tenant-app/src/lib/login-api.ts
+- frontend/tenant-app/src/lib/queryClient.ts
+- frontend/tenant-app/src/lib/tenant-runtime.ts
+- frontend/tenant-app/src/lib/utils.ts
+- frontend/tenant-app/src/main.tsx
+- frontend/tenant-app/src/pages/PortalLoginPage.tsx
+- frontend/tenant-app/src/pages/QrUnlockPage.tsx
+- frontend/tenant-app/src/types/index.ts
+- frontend/tenant-app/tsconfig.app.json
+- frontend/tenant-app/tsconfig.json
+- frontend/tenant-app/tsconfig.node.json
+- frontend/tenant-app/vite.config.ts
+- gateway/compose.yml
+- gateway/nginx/nginx.conf
+- gateway/nginx/routes/api.conf
+- gateway/nginx/routes/frontend.conf
+- gateway/nginx/routes/redirect.conf
+- gateway/nginx/routes/tenant-api.conf
+- gateway/nginx/upstream/active.conf
 - logs.py
 - nginx.md
-- nginx\dev-gateway.conf
+- nginx/dev-gateway.conf
 - package.json
 - platform-admin-deploy.md
 - platform-admin.md
-- propaura.cdr
-- referenceScripts\editbillmodal\EditBillModal.preview.tsx
-- referenceScripts\editbillmodal\EditBillModal.tsx
 - refresh-mcp-token.ps1
 - restore.py
-- scripts\generate_brand_assets.py
-- scripts\legacy\outline_brand_svg.py
-- scripts\sync_brand_assets.py
+- scripts/generate_brand_assets.py
+- scripts/sync_brand_assets.py
 - skills-lock.json
 - wrangler.toml
 
 ---
-
-### `.agents\skills\api-security-testing\SKILL.md`
-
-```markdown
----
-name: api-security-testing
-description: Security-test a REST, GraphQL, or gRPC API with Strix — autonomous agents that enumerate endpoints from an OpenAPI/GraphQL schema (or by crawling), then actually exploit the API-specific vulnerability classes in the OWASP API Security Top 10 (2023) — broken object-level authorization (BOLA/IDOR), broken object property level authorization (excessive data exposure and mass assignment), broken function-level authorization, unrestricted resource consumption, SSRF, injection, and auth/token flaws. Every finding comes with a working proof-of-concept request. Use when the user asks to pentest, security-test, audit, or find vulnerabilities in an API, endpoint, or backend service.
-license: Apache-2.0
-metadata:
-  author: usestrix
-  homepage: https://docs.strix.ai
----
-
-# Security-test an API
-
-APIs fail differently from web UIs: there is no rendered surface to crawl, the interesting bugs are authorization-shaped rather than injection-shaped, and the same endpoint behaves differently per token. This workflow targets those specifics with Strix's autonomous agents, using the current [OWASP API Security Top 10 (2023)](https://owasp.org/API-Security/editions/2023/en/0x11-t10/) as the coverage checklist. For the web-app equivalent, the current edition is the OWASP Top 10:2025 — see **owasp-top-10-testing**.
-
-Install, LLM setup, full CLI flags, and the managed-cloud path are in the **penetration-testing-with-strix** skill. Read it if `strix --version` fails or the target is not an API.
-
-## 1. Gather what the agents need
-
-APIs are near-impossible to test blind, so collect first:
-
-| Input | Why it matters |
-|---|---|
-| **Schema** — OpenAPI/Swagger file, Postman collection, GraphQL endpoint (introspection), or a gRPC `.proto` | Turns guesswork into full endpoint enumeration. Biggest single win in coverage. An OpenAPI/Swagger or Postman spec (`.json`/`.yaml`/`.yml`) is a target Strix takes directly; a `.proto` is not, so pass it with `--workspace-file`. |
-| **Two sets of credentials/tokens**, ideally in different tenants | BOLA/IDOR — API1:2023, still the #1 API risk — can only be *proven* by accessing tenant A's objects with tenant B's token. |
-| **A low-privilege and a high-privilege token** | Required to prove broken function-level authorization (API5:2023 — a `user` calling admin-only routes). |
-| **Example object IDs** | Lets agents test ID tampering immediately instead of hunting for valid identifiers. |
-| **Out-of-scope routes** | Payments, mass notification, destructive admin endpoints. |
-| **Rate limits / WAF** in front of the API | Avoids agents burning budget on throttled requests; mention them so testing adapts. |
-
-Ask the user for anything missing — do not fabricate tokens or scan an API they do not own.
-
-## 2. Run the scan
-
-Pass the spec as a **target**, not as prose in the instruction — Strix parses OpenAPI/Swagger (`.json`/`.yaml`) and Postman collection exports directly, so the agents start from the real endpoint list:
-
-```bash
-strix -n -t ./openapi.yaml -t https://api.staging.example.com --max-budget 20 \
-  --instruction "Tenant A token: <tokenA> (org 1111, user id 11, order id 501).
-Tenant B token: <tokenB> (org 2222, user id 22).
-Admin token: <tokenAdmin>.
-Focus: BOLA across orgs (API1), function-level authz on /admin/* (API5), object property level authz on PATCH /users/{id} — both mass assignment and over-exposed fields in list responses (API3), unrestricted resource consumption (API4).
-Out of scope: POST /billing/*, POST /notifications/broadcast."
-```
-
-- **Postman instead of OpenAPI:** a collection export works as a target (`-t ./collection.postman_collection.json`), or pull one live with `-t postman://<collection-uuid>` (optionally `"postman://<collection-uuid>?env=<environment-uuid>"`), which needs `POSTMAN_API_KEY` in the environment.
-- **Many services at once:** put one target per line in a file and pass `--target-list ./targets.txt`, repeatable and combinable with `-t`.
-- **Add the backend source for depth:** `-t ./services/api -t https://api.staging.example.com`. With code access the agents can reason about authorization checks and object ownership rather than inferring them from responses.
-- **gRPC:** target the endpoint and pass the definition as a workspace file, `-t https://grpc.staging.example.com --workspace-file ./service.proto`. Only `.json`, `.yaml`, and `.yml` specs are recognized as targets, so `-t ./service.proto` fails with "Path exists but is not a directory".
-- **GraphQL:** point at the GraphQL endpoint and say whether introspection is enabled; call out that you want batching/aliasing abuse, depth/complexity limits, and per-field authorization tested.
-- **Internal/private APIs** unreachable from your machine: use the managed platform's network connector — see **managed-pentesting-with-strix**.
-- Use `--instruction-file` when the credential/context block gets long, and keep tokens out of shell history and out of committed files.
-- **Supporting files** the agents should read but not test, such as an endpoint wordlist or handwritten notes about the tenancy model: pass `--workspace-file ./notes.md`. The file lands read-only in `/workspace`. Add `:DEST` to choose the path, for example `--workspace-file ./wordlist.txt:lists/wordlist.txt`.
-
-## 3. Verify findings
-
-`strix_runs/<run>/penetration_test_report.md` first, then `vulnerabilities/*.md` — each contains the exact request that proved the issue. Replay it (for example, with `curl`) before reporting; for authorization findings, confirm the response really contains the other tenant's data rather than an empty 200.
-
-`findings.sarif` uploads to GitHub code scanning; `vulnerabilities.json` is the structured index for ticketing.
-
-## 4. Fix, re-test, and keep it tested
-
-Remediate with **fix-security-vulnerabilities-with-strix** (fix the authorization check, not the single endpoint), then re-run against the same target to prove the exploit is dead. Wire it into pull-request CI with **ci-security-scanning-with-strix** so new endpoints get tested as they ship.
-```
-
-### `.agents\skills\application-security-testing\SKILL.md`
-
-```markdown
----
-name: application-security-testing
-description: Application security testing (AppSec) across a whole product with Strix — decide which asset needs which test (source code, running web app, API, CI pipeline), run it, and turn the results into a ranked remediation plan. Autonomous agents exploit and prove each issue instead of emitting static-analysis alerts, so the plan is ordered by what is actually reachable. Use when the user asks for an application security review or audit, an appsec assessment, vulnerability scanning across their stack, a security review before a launch or a customer security questionnaire, or does not yet know which kind of security test they need.
-license: Apache-2.0
-metadata:
-  author: usestrix
-  homepage: https://docs.strix.ai
----
-
-# Application security testing
-
-Entry point for "make my application secure" requests, where the target is not yet a single URL or repo. The job here is to pick the right test per asset, run it, and produce one ranked plan — not to run everything at maximum depth.
-
-Install, LLM setup, all CLI flags, and the managed-cloud path live in the **penetration-testing-with-strix** skill. Read it first if `strix --version` fails.
-
-Only test assets the user owns or is authorized to test. Confirm authorization before the first run, and prefer staging over production, because the agents send real exploit payloads and can change data.
-
-## 1. Map the assets
-
-Ask (or read from the repo) and write the answers down before scanning:
-
-- **Source** — one repo, a monorepo, several services? Which languages/frameworks?
-- **Running environments** — is there a staging deployment? A public production site? A local dev server only?
-- **APIs** — REST, GraphQL, gRPC? Is there an OpenAPI/GraphQL schema?
-- **Authentication** — can you get two test accounts in different tenants? Most high-impact bugs need them.
-- **Constraints** — out-of-scope paths, whether production may be touched, budget and wall-clock limits.
-
-If there is no staging environment and production is off limits, say so early. A code-only review is still valuable, but it cannot prove exploitability against a live app.
-
-## 2. Pick the right test per asset
-
-| Asset | Skill to use |
-| --- | --- |
-| Repository or working tree | **find-security-vulnerabilities-in-code** |
-| Live web app or staging site | **web-app-penetration-testing** |
-| REST/GraphQL/gRPC API | **api-security-testing** |
-| Assessment mapped to OWASP categories | **owasp-top-10-testing** |
-| Every pull request, continuously | **ci-security-scanning-with-strix** |
-| No Docker, no LLM key, or a report an auditor will accept | **managed-pentesting-with-strix** |
-
-Those skills carry the flags, credential handling, and result-reading details. Do not duplicate their instructions here.
-
-Sequence for a first assessment:
-
-1. Review the code. It is the cheapest run and it maps the authorization model.
-2. Pentest staging with credentials, and pass the repo as a second target so the agents keep source context.
-3. Add CI scanning, so later regressions are caught without another manual pass.
-
-Run one asset at a time and read each report before starting the next. Findings from the code review make the live run sharper.
-
-## 3. Consolidate into one plan
-
-Findings arrive per run in `strix_runs/<run>/`. Merge them into a single list and rank by **proven impact**, not by scanner severity:
-
-1. Validated exploits reachable without authentication.
-2. Validated cross-tenant or privilege-escalation issues.
-3. Validated issues needing an authenticated account.
-4. Unproven observations (configuration, dependency, and hardening notes) — flag as such, and never present them as confirmed vulnerabilities.
-
-Deduplicate: the same root cause often surfaces in both the code review and the live pentest.
-
-## 4. Be honest about coverage
-
-State plainly what was *not* tested — assets with no staging environment, categories a black-box run cannot reach (logging and alerting, supply-chain integrity, insecure design), and any run that hit its budget or turn cap before finishing. Check `run.json` status and cost against `--max-budget` for each run. An empty result set from a truncated scan is not a clean bill of health.
-
-Then remediate with **fix-security-vulnerabilities-with-strix**, which re-runs Strix against each fix to prove the exploit no longer works.
-```
-
-### `.agents\skills\ci-security-scanning-with-strix\SKILL.md`
-
-```markdown
----
-name: ci-security-scanning-with-strix
-description: Add security scanning to CI/CD with Strix — GitHub Actions, GitLab CI, or any pipeline — so every pull request gets a diff-scoped AI pentest that blocks vulnerable code before it merges, with results as PR comments and SARIF uploaded to code scanning. Covers both the self-hosted open-source CLI (runs in your runner) and the managed app.strix.ai platform (GitHub/GitLab app or API, no runner infra). Use when the user asks to add security scanning, SAST/DAST, pentesting, vulnerability checks, or automated security review to their CI pipeline, pre-merge gate, or PR workflow.
-license: Apache-2.0
-metadata:
-  author: usestrix
-  homepage: https://docs.strix.ai
----
-
-# Set up Strix in CI/CD
-
-You can gate PRs two ways — pick based on the environment, or combine them:
-
-- **Managed platform (recommended for most teams)** — connect the GitHub/GitLab/Bitbucket app once and Strix reviews every PR with **no workflow file, no runner, no Docker, and no LLM key**. Results post as PR comments and land in the team dashboard. Best when you want zero CI maintenance, central tracking, or your runners lack Docker. See "Managed platform" below and the **managed-pentesting-with-strix** skill.
-- **Self-hosted OSS CLI in your runner** — run a diff-scoped scan as a pipeline step. Fully in your infra, free (BYO LLM key), no external account. Requires Docker on the runner. Best for air-gapped/self-hosted CI or when you do not want scans leaving your environment.
-
-Both fail the build on validated findings and both emit SARIF 2.1.0, so you can start with one and add the other later.
-
----
-
-# Option A — Self-hosted OSS CLI in the runner
-
-Run a diff-scoped Strix scan on every PR: only changed files are tested, `quick` mode keeps it fast, and exit code `2` fails the build when validated vulnerabilities are found.
-
-## GitHub Actions
-
-Create `.github/workflows/security.yml`:
-
-```yaml
-name: Security Scan
-
-on:
-  pull_request:
-
-jobs:
-  strix-scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # required for diff-scope resolution
-
-      - name: Install Strix
-        run: curl -sSL https://strix.ai/install | bash
-
-      - name: Run Security Scan
-        env:
-          STRIX_LLM: ${{ secrets.STRIX_LLM }}
-          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-        run: strix -n -t ./ --scan-mode quick --max-budget 10
-
-      # Don't fail open: a run that hits the hard budget stop exits 0 but leaves
-      # run.json status "stopped", not "completed". Enforce completion explicitly.
-      # This does not catch an agent that wrapped up early on a budget *warning*
-      # (it still calls finish_scan and records "completed"), so size the budget.
-      - name: Fail unless the scan completed
-        run: |
-          run_json=$(ls -t strix_runs/*/run.json | head -1)
-          status=$(jq -r .status "$run_json")
-          if [ "$status" != "completed" ]; then
-            echo "Strix run status is '$status' — the scan did not complete (likely budget exhausted). Raise --max-budget." >&2
-            exit 1
-          fi
-```
-
-Then tell the user to add two repository secrets: `STRIX_LLM` (model id, for example `openai/gpt-5.4`) and `LLM_API_KEY` (the provider key). Do not create these values yourself.
-
-Notes:
-- In CI/headless runs Strix automatically scopes to the PR's changed files (`--scope-mode auto`). If diff resolution fails, keep `fetch-depth: 0` or set `--diff-base` to the PR's actual base branch — use `origin/${{ github.base_ref }}` in GitHub Actions rather than a hard-coded `origin/main`, since repos use different default branches.
-- Exit codes: `0` pass, `2` vulnerabilities found (fails the job), `1` setup error.
-- The runner needs Docker (default GitHub-hosted Ubuntu runners have it).
-- **Size the budget so the scan completes — do not let it fail open.** A `0` exit means "no validated vulnerabilities in what was analyzed"; if `--max-budget` is hit before the diff is fully covered, the scan wraps up early and can still exit `0`. The "Fail unless the scan completed" step above narrows the gap: `strix_runs/<run>/run.json` is `"stopped"` when the scan was cut off at the hard budget limit without a final report. It is not a complete guard — the agents get graduated wrap-up warnings before that limit, and a run that wraps up on a warning still calls `finish_scan` and records `"completed"` with partial coverage. So keep that step in any pipeline that gates merges **and** give the scan real headroom (compare `run.json`'s `llm_usage.cost` against `--max-budget`; if it ran right up to the cap, raise it). For a `quick` diff-scoped PR scan `--max-budget 10` is usually ample, raise it for large diffs.
-
-### Optional: upload findings to GitHub code scanning
-
-Strix writes SARIF 2.1.0 to `strix_runs/<run>/findings.sarif`:
-
-```yaml
-      - name: Upload SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: strix_runs
-```
-
-## Other CI systems
-
-Any pipeline works the same way — install, set the two env vars, run headless:
-
-```bash
-curl -sSL https://strix.ai/install | bash
-# Resolve the PR's base branch robustly (use your CI's base-branch variable if it
-# has one, for example GitHub Actions: origin/${{ github.base_ref }}). Avoid piping the
-# git lookup into another command — a failed lookup would otherwise be masked.
-BASE_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-}"   # GitLab MR target
-if [ -z "$BASE_BRANCH" ]; then
-  BASE_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)
-  BASE_BRANCH="${BASE_BRANCH#origin/}"
-fi
-DIFF_BASE="origin/${BASE_BRANCH:-main}"
-# Fail loudly rather than silently narrowing scope (for example, to HEAD~1, which on a
-# multi-commit branch would scan only the last commit and let earlier ones pass).
-if ! git rev-parse --verify --quiet "$DIFF_BASE" >/dev/null; then
-  echo "Cannot resolve diff base '$DIFF_BASE'. Fetch the base branch (git fetch origin <base>) or set --diff-base explicitly." >&2
-  exit 1
-fi
-strix -n -t ./ --scan-mode quick --scope-mode diff --diff-base "$DIFF_BASE" --max-budget 10
-```
-
-Gate the pipeline on the exit code (see the budget/fail-open caveat above — give the scan enough budget to finish). Schedule `standard` scans nightly and `deep` scans for release candidates.
-
----
-
-# Option B — Managed platform (no runner infra)
-
-No workflow file, no Docker, no LLM key. Two ways to use it:
-
-1. **PR-review app (zero code):** the user installs the Strix GitHub/GitLab/Bitbucket app and enables PR reviews for the repo in the app.strix.ai dashboard. Every PR is then reviewed automatically, with findings posted as PR comments. Nothing to add to the repo. This is the lowest-effort path — recommend it first when the user just wants PR gating.
-
-2. **API-triggered from any pipeline:** if you want to trigger from an existing pipeline (or a system without the SCM app), call the API with a token that has `pr_reviews:write` (or `scans:write`). Store the token as a CI secret; ask the user to create it at **Settings → API Access**. Example GitHub Actions step:
-
-   ```yaml
-   - name: Strix PR review (managed)
-     if: github.event_name == 'pull_request'
-     env:
-       STRIX_API_TOKEN: ${{ secrets.STRIX_API_TOKEN }}
-     run: |
-       curl -sS --fail https://app.strix.ai/api/v1/pr-reviews/start \
-         -H "Authorization: Bearer $STRIX_API_TOKEN" \
-         -H "Content-Type: application/json" \
-         -d "{\"repository_full_name\":\"${{ github.repository }}\",\"pr_number\":${{ github.event.pull_request.number }}}"
-   ```
-
-   To gate the build on results, poll the PR review / scan status and fail on unresolved criticals/highs. Full endpoints (PR reviews, scans, SARIF export, schedules for scheduled deep scans) are in the **managed-pentesting-with-strix** skill.
-
-Recommend Option B for most teams (no maintenance, central dashboard); use Option A when scans must stay entirely within your own infrastructure.
-```
-
-### `.agents\skills\find-security-vulnerabilities-in-code\SKILL.md`
-
-```markdown
----
-name: find-security-vulnerabilities-in-code
-description: Find security vulnerabilities in a codebase or repository with Strix — a white-box AI security review that reads your source, reasons about the actual data flow and authorization model, then exploits what it finds in a live sandbox so every reported issue has a working proof-of-concept instead of a noisy static-analysis alert. Covers injection, XSS, SSRF, broken access control and IDOR, insecure deserialization, secrets in code, unsafe dependencies, and business-logic flaws. Use when the user asks to security-scan, security-review, or audit their code, repo, or pull request for vulnerabilities.
-license: Apache-2.0
-metadata:
-  author: usestrix
-  homepage: https://docs.strix.ai
----
-
-# Find security vulnerabilities in code
-
-White-box security review with Strix: the agents read the source to build a model of routes, sinks, and authorization checks, then attempt real exploitation. Findings come with a proof-of-concept, so the output is a short list of proven issues rather than the hundreds of "potential" hits a pattern-matching scanner produces.
-
-Install, LLM setup, all flags, and the managed-cloud path are in the **penetration-testing-with-strix** skill.
-
-## Run it
-
-```bash
-# Local working tree
-strix -n -t ./ --scan-mode standard --max-budget 15
-
-# A GitHub repo directly
-strix -n -t https://github.com/org/app --max-budget 15
-
-# Monorepo: point at the service that matters, not the whole tree
-strix -n -t ./services/checkout --max-budget 20
-
-# Only what a branch changed (whole-repo review is wasteful on a large repo)
-strix -n -t ./ --scope-mode diff --diff-base origin/main --max-budget 10
-```
-
-A local path is mounted into the sandbox **writable**, so the agents can modify it. Run against a clean checkout.
-
-Two things sharply improve results:
-
-1. **Add a running instance of the app.** `-t ./ -t http://host.docker.internal:3000` lets the agents confirm exploitability against live behavior instead of reasoning about it statically — this is the difference between "this looks unsafe" and a validated finding. If nothing is running, static-only findings should be described as unconfirmed.
-2. **Scope the review.** Point at the risky subtree and say what matters:
-   ```bash
-   strix -n -t ./services/api --max-budget 15 \
-     --instruction "Focus on the authorization layer in src/auth and every route under src/routes/admin. Multi-tenant app: tenant id comes from the JWT. Flag any query that filters by object id without also filtering by tenant."
-   ```
-   Tenancy model, trust boundaries, and which inputs are attacker-controlled are things the agents cannot infer reliably — tell them.
-
-## Reviewing a pull request instead of the whole repo
-
-For diff-scoped review of a branch or PR (and blocking merges on findings), use **ci-security-scanning-with-strix** — it covers diff scoping, PR comments, and SARIF upload to GitHub code scanning. The managed platform can also review PRs directly via API (**managed-pentesting-with-strix**).
-
-## Read the results
-
-In `strix_runs/<run>/`: `penetration_test_report.md` (start here), `vulnerabilities/*.md` (one per finding, with PoC and remediation), `vulnerabilities.json` / `.csv`, `findings.sarif` (upload to code scanning), `run.json`.
-
-Before reporting to the user, open each finding and check the PoC actually demonstrates impact. Report file and line alongside the exploit so the fix is obvious.
-
-Exit `0` means nothing exploitable was proven in what was analyzed — not that the codebase is clean. Check `run.json` status and cost against `--max-budget`, and note which paths went unreviewed if the run was capped.
-
-## Complementary tooling
-
-This is exploit-validated review, not an exhaustive inventory. Keep a dependency scanner (SCA) and secret scanning in place for complete coverage of known-CVE dependencies and committed credentials; use this for the logic, authorization, and injection bugs those tools structurally cannot find.
-
-## Fix and verify
-
-Hand results to **fix-security-vulnerabilities-with-strix**: patch the root cause (the shared authorization helper, not the one route), then re-run Strix to prove the exploit no longer works.
-```
-
-### `.agents\skills\fix-security-vulnerabilities-with-strix\SKILL.md`
-
-```markdown
----
-name: fix-security-vulnerabilities-with-strix
-description: Fix security vulnerabilities found by a Strix pentest (open-source CLI or app.strix.ai cloud) — triage by severity, patch the root cause rather than the symptom, and re-run Strix to prove each fix actually closes the exploit. Handles injection, XSS, SSRF, broken access control, IDOR, and other validated findings. Use after a Strix scan reports findings, or when the user asks to remediate, patch, or fix security issues from a strix_runs report, vulnerabilities.json, findings.sarif, or a cloud scan.
-license: Apache-2.0
-metadata:
-  author: usestrix
-  homepage: https://docs.strix.ai
----
-
-# Fix Strix findings and verify
-
-Turn validated Strix findings into minimal, correct fixes — and prove they work by re-scanning.
-
-## 1. Triage
-
-Get the findings from wherever the scan ran:
-
-- **OSS CLI** — artifacts in `strix_runs/<run-name>/`:
-  - `vulnerabilities/*.md` — one finding per file: description, severity, PoC steps or script, affected code locations, remediation guidance.
-  - `vulnerabilities.json` — the same findings as JSON (ids, severity, CWE/CVE, `code_locations` with `fix_before`/`fix_after` suggestions when available).
-- **Cloud (app.strix.ai)** — fetch the scan's `vulnerabilities[]` via `GET /api/v1/scans/{scanId}` (or `GET /api/v1/vulnerabilities` org-wide). Each carries `severity, cwe, endpoint, method, impact, technical_analysis, poc_description, poc_script_code` and, for code findings, `code_file`/`code_diff`/`code_before`/`code_after`. See the **managed-pentesting-with-strix** skill for auth.
-
-Order work by severity: critical → high → medium → low. Every Strix finding was validated with a working proof-of-concept, so do not dismiss findings as false positives without re-testing the PoC yourself.
-
-## 2. Fix
-
-For each finding:
-
-1. Reproduce it with the PoC from the finding file when feasible.
-2. Fix the root cause, not the specific payload (parameterize every query instead of blocking one string, and enforce authorization in the handler instead of hiding the endpoint).
-3. Prefer the framework's built-in defense (ORM parameterization, template auto-escaping, CSRF middleware, centralized authz) over ad-hoc sanitization.
-4. Keep the diff minimal and apply the repo's existing patterns. Finding files often include `fix_before`/`fix_after` snippets — use them as a starting point, not verbatim.
-
-Common finding classes and expected fixes: injection → parameterization/escaping at the sink; IDOR/broken access control → object-level authorization checks; SSRF → allowlist + block internal ranges; XSS → context-aware output encoding + CSP; secrets exposure → rotate the secret AND remove it from code/history; auth issues → fix the server-side check (never client-side).
-
-## 3. Verify by re-running Strix
-
-After fixing, re-scan scoped to the fixed area and confirm the finding is gone. Verify in whichever environment you scanned (or both):
-
-**OSS CLI:**
-```bash
-# Re-test just the changed files (fast). Resolve the repo's real default
-# branch instead of assuming origin/main (many repos use master/develop).
-# Avoid the current branch's own upstream as the base — its merge base with
-# HEAD would be HEAD, giving an empty diff and a falsely clean result.
-DIFF_BASE=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)
-# origin/HEAD can be a dangling symbolic ref — keep it only if its target exists.
-git rev-parse --verify --quiet "$DIFF_BASE" >/dev/null 2>&1 || DIFF_BASE=""
-if [ -z "$DIFF_BASE" ]; then
-  for b in origin/main origin/master origin/develop; do
-    git rev-parse --verify --quiet "$b" >/dev/null && DIFF_BASE="$b" && break
-  done
-fi
-# No silent fallback: a guess like HEAD~1 would cover only the last commit of a
-# multi-commit fix branch. If no base resolves, ask the user for the base branch
-# (or use the focused --instruction verification below, which needs no diff base).
-[ -n "$DIFF_BASE" ] || { echo "Set DIFF_BASE to the branch your fix will merge into." >&2; exit 1; }
-strix -n -t ./ --scan-mode quick --scope-mode diff --diff-base "$DIFF_BASE" --max-budget 5
-
-# Or re-test with the original finding as focus (no diff base needed)
-strix -n -t ./ --instruction "Verify the SQL injection in app/api/search.py is fixed. Original PoC: <poc>" --max-budget 5
-```
-Exit codes: `2` = findings remain (read the new `strix_runs/<run>/vulnerabilities/` and iterate); `0` = clean **for what was analyzed**. Before trusting a `0`, confirm the run wasn't cut short — check `run.json` for a completed status and compare its `llm_usage.cost` with `--max-budget`: a hard budget stop leaves `status: "stopped"`, but a run that wrapped up on a budget warning records `"completed"` with partial coverage. Give verification enough budget to finish, and prefer re-running the specific PoC as the ground-truth signal.
-
-**Cloud:** rerun with the same config and re-poll, then confirm the finding no longer appears:
-```bash
-new_id=$(curl -sS "$BASE/scans/$scan_id/rerun" "${auth[@]}" -X POST | jq -r .scan_id)
-# poll GET /scans/$new_id until completed, then check its vulnerabilities[]
-```
-Or, if the cloud scan came from a repo/PR, trigger a fresh PR review on the fix branch (`POST /pr-reviews/start`). The platform also retests a single finding directly: `POST /api/v1/vulnerabilities/{vulnerabilityId}/retest`.
-
-- Also re-run the PoC manually when it is a simple request/script — fastest signal.
-- Run the project's own test suite to make sure the fix does not break behavior.
-
-## 4. Report
-
-Summarize per finding: severity, root cause, fix applied (file:line), verification result (re-scan clean / PoC no longer reproduces). Never include live secrets in the report; if a secret leaked, state that rotation is required.
-```
-
-### `.agents\skills\managed-pentesting-with-strix\SKILL.md`
-
-```markdown
----
-name: managed-pentesting-with-strix
-description: Run a managed pentest of a web app or API through the app.strix.ai REST API — no local Docker, LLM key, or install needed. Create an API token, register domain/repository assets, launch and poll scans, triage vulnerabilities, export SARIF, download PDF/DOCX pentest reports for SOC 2 and other compliance evidence (Enterprise plan), start PR reviews, and set up schedules and webhooks. Use when the user wants continuous or scheduled pentesting-as-a-service, an auditor-ready pentest report, scans tracked in a team dashboard, or security testing from a sandboxed agent/CI environment with no infrastructure.
-license: Apache-2.0
-metadata:
-  author: usestrix
-  homepage: https://docs.app.strix.ai
----
-
-# Strix Cloud API (managed, no local infra)
-
-Use this when you want Strix's autonomous pentesting **without running Docker or an LLM yourself** — the scan runs on Strix's infrastructure and results are tracked in a team dashboard. This is the right choice in sandboxed/hosted agent and CI environments, for teams, and for scheduled/continuous testing (downloadable PDF/DOCX reports are an Enterprise-plan feature). For fully local, free, air-gapped, or BYO-LLM runs, use the open-source CLI in the **penetration-testing-with-strix** skill instead — both share the same engine and SARIF output, so you can mix them.
-
-Full reference: **[docs.app.strix.ai](https://docs.app.strix.ai)** · OpenAPI: `https://docs.app.strix.ai/openapi.json`
-
-## Setup
-
-- **Base URL:** `https://app.strix.ai/api/v1`
-- **Auth:** every request sends `Authorization: Bearer <token>`. Tokens are **org-scoped**.
-- **Get a token:** the user creates one in the dashboard at **Settings → API Access** (app.strix.ai). Ask them for it; never hardcode, log, or commit it. Store it in an env var or the CI secret store.
-- **Scopes (least-privilege):** assign only what the integration needs and rotate regularly:
-
-  | Scope | Grants |
-  |---|---|
-  | `scans:read` / `scans:write` | list/read/report scans · create/rerun/cancel scans |
-  | `vulnerabilities:read` / `:write` | read findings · update status & notes |
-  | `assets:read` / `:write` | read domains/repos · register/update them |
-  | `schedules:read` / `:write` | read schedules · create/trigger recurring scans |
-  | `pr_reviews:write` | trigger PR security reviews |
-  | `webhooks:read` / `:write` | manage webhook subscriptions |
-  | `tokens:write` | create/revoke API tokens |
-
-```bash
-export STRIX_API_TOKEN="<token>"
-BASE=https://app.strix.ai/api/v1
-auth=(-H "Authorization: Bearer $STRIX_API_TOKEN")
-```
-
-All examples use `jq` to parse JSON. Handle HTTP errors: `401` bad/expired token, `402` out of credits, `403` scope/plan-tier limit, `422` validation error.
-
-## 1. Register the target as an asset
-
-Scans run against **registered assets**, not raw URLs. Register once, then reuse the returned UUID.
-
-```bash
-# Domain (black-box / live target). Requires domain verification before external scanning.
-# asset_type must be one of: web_app | api | attack_surface.
-curl -sS "$BASE/domains" "${auth[@]}" -H "Content-Type: application/json" \
-  -d '{"domain":"staging.example.com","asset_type":"web_app"}' | jq '{id:.domain.id, status, reachable, verification}'
-
-# Repository (white-box / code review). `full_name` is "owner/name".
-# Send one repository object, or a bare JSON array for several — not an object
-# wrapping a "repositories" key (that is rejected with 400).
-curl -sS "$BASE/repositories" "${auth[@]}" -H "Content-Type: application/json" \
-  -d '[{"full_name":"org/app","provider":"github"}]' | jq '.repositories[] | {id, full_name}'
-```
-
-Look up existing assets instead of re-adding: `GET /domains`, `GET /repositories` (both `assets:read`, paginated with `?page=&limit=`).
-
-## 2. Launch a scan
-
-`POST /scans` (`scans:write`). Provide at least one target via `domain_ids`, `repository_ids`, or `internal_targets` (internal infra needs a network connector — see docs).
-
-```bash
-scan_id=$(curl -sS "$BASE/scans" "${auth[@]}" -H "Content-Type: application/json" -d '{
-  "engagement_type": "live_test",
-  "domain_ids": ["<domain-uuid>"],
-  "focus": "IDOR, auth bypass, SSRF",
-  "context": "Staging. Test account creds are configured as a test user.",
-  "notify_on_completion": true
-}' | jq -r .scan_id)
-echo "$scan_id"
-```
-
-Useful `CreateScanRequest` fields:
-
-| Field | Purpose |
-|---|---|
-| `engagement_type` | `live_test` (default), `code_review`, `internal_infra`, `compliance_pentest` |
-| `domain_ids` / `repository_ids` / `internal_targets` | targets (at least one) |
-| `domain_paths` / `repository_branches` | narrow to specific paths / branches |
-| `credentials` | authenticated scanning, incl. `mfa_method` (`totp`/`email_otp`/…) + `totp_secret` |
-| `headers` | extra HTTP headers (API keys, for example) for the target |
-| `focus` / `concerns` / `context` | steer the agents |
-| `upload_ids` | attach uploaded source/docs archives for white-box context |
-| `notify_on_completion` / `notification_emails` | email when done |
-
-Response is `{ scan_id, title, status }` with `status` = `pending`.
-
-## 3. Poll to completion
-
-`GET /scans/{scanId}` (`scans:read`). Status flow: `pending → running → completed` (or `failed` / `cancelled`). Poll on an interval — scans take minutes to hours. Do not block.
-
-```bash
-while :; do
-  s=$(curl -sS "$BASE/scans/$scan_id" "${auth[@]}" | jq -r .status)
-  echo "status=$s"; [[ "$s" =~ ^(completed|failed|cancelled)$ ]] && break
-  sleep 60
-done
-```
-
-## 4. Read findings
-
-The scan-detail response includes `executive_summary`, `methodology`, `recommendations`, a `findings` severity roll-up, and a `vulnerabilities[]` array. Each vulnerability carries `title, severity, status, cvss, cwe, endpoint, method, impact, technical_analysis, poc_description, poc_script_code`, and (for code findings) `code_file`/`code_diff`/`code_before`/`code_after`.
-
-```bash
-curl -sS "$BASE/scans/$scan_id" "${auth[@]}" \
-  | jq '["critical","high","medium","low","info"] as $order
-       | .vulnerabilities
-       | sort_by(.severity as $s | $order | index($s))
-       | .[] | {title, severity, endpoint, cwe}'
-```
-
-Cloud severities are `critical | high | medium | low` and statuses are `open | in_progress | fixed | ignored`. Sort by an explicit severity order rather than `sort_by(.severity)`, which sorts alphabetically (critical, high, low, medium).
-
-Org-wide triage across scans: `GET /vulnerabilities` (`vulnerabilities:read`; filter by severity/status). Update triage state with the vulnerabilities `:write` endpoints. To remediate, hand off to the **fix-security-vulnerabilities-with-strix** skill.
-
-## 5. Export & report
-
-```bash
-# SARIF 2.1.0 for GitHub code scanning / ASPM ingestion
-curl -sS "$BASE/scans/$scan_id/sarif" "${auth[@]}" -o findings.sarif
-
-# Report. The format and file type are query params (`Accept` is ignored):
-#   format=technical (default) | retest | attestation | executive_summary
-#   type=pdf (default) | docx
-# Any report download requires the Enterprise plan; formats beyond `technical`,
-# DOCX, and white-label branding are Enterprise-only too. Scan must be completed.
-curl -sS "$BASE/scans/$scan_id/report?format=technical&type=pdf" "${auth[@]}" -o strix-report.pdf
-```
-
-## 6. PR reviews
-
-Trigger an automated security review of a pull request (`pr_reviews:write`); results appear as PR comments and in the dashboard:
-
-```bash
-curl -sS "$BASE/pr-reviews/start" "${auth[@]}" -H "Content-Type: application/json" \
-  -d '{"repository_full_name":"org/app","pr_number":123}'
-```
-
-List/inspect via `GET /pr-reviews` and `GET /pr-reviews/{id}`. Repo-level PR-review behavior is configured with the repository-settings endpoint.
-
-## 7. Continuous testing (schedules & webhooks)
-
-- **Schedules** (`schedules:write`, Pro plan): create recurring scans and trigger them on demand — the managed equivalent of a cron-driven CLI loop.
-- **Webhooks** (`webhooks:write`): subscribe to pentest/vulnerability lifecycle events such as `scan.completed` and `vulnerability.created` to push results into Slack, ticketing, or your own pipeline instead of polling.
-
-See the schedules and webhooks sections at [docs.app.strix.ai](https://docs.app.strix.ai) for payloads.
-
-## Safety
-
-Only scan assets the user's organization owns or is authorized to test. External domain scans require verification (DNS/file/meta-tag) enforced by the platform — do not try to bypass it.
-```
-
-### `.agents\skills\owasp-top-10-testing\SKILL.md`
-
-```markdown
----
-name: owasp-top-10-testing
-description: Test an application against the OWASP Top 10 with Strix — autonomous AI agents that attempt real exploits for each category of the current OWASP Top 10:2025 (broken access control including SSRF, security misconfiguration, software supply chain failures, cryptographic failures, injection, insecure design, authentication failures, integrity failures, logging and alerting failures, mishandling of exceptional conditions) and report only what they could actually prove, mapped back to the category with a proof-of-concept. Also covers the OWASP API Security Top 10 (2023). Use when the user asks for an OWASP Top 10 assessment, OWASP compliance testing, or a security review mapped to OWASP categories.
-license: Apache-2.0
-metadata:
-  author: usestrix
-  homepage: https://docs.strix.ai
----
-
-# Test against the OWASP Top 10
-
-The OWASP Top 10 is a taxonomy of risk categories, not a test suite — "OWASP Top 10 testing" means exercising each category against the real application and reporting what's actually exploitable. Strix's agents do the exploitation; this skill covers running it category-by-category and reporting coverage honestly.
-
-**Use the current edition: [OWASP Top 10:2025](https://owasp.org/Top10/)** (8th installment, superseding 2021). Ask the user before targeting an older edition — some compliance checklists still reference 2021, and a report labelled with the wrong edition is misleading. Key differences from 2021: **SSRF is folded into A01**, **A03 Software Supply Chain Failures** expands the old "Vulnerable and Outdated Components", and **A10 Mishandling of Exceptional Conditions** is new; A02 Security Misconfiguration moved 5→2.
-
-Install, LLM setup, and the managed-cloud alternative: **penetration-testing-with-strix**.
-
-## What is and is not testable by an agent
-
-Be straight with the user about this — claiming a clean sweep of all ten is misleading.
-
-| Category (2025) | Coverage |
-|---|---|
-| A01 Broken Access Control (incl. SSRF) | **Strong** — cross-user/tenant access, privilege escalation, IDOR, and SSRF (including blind, via out-of-band callbacks) are all exploit-validated. Needs two accounts plus a privileged one to prove the authorization half. |
-| A02 Security Misconfiguration | **Strong** — debug endpoints, verbose errors, permissive CORS, missing hardening, default credentials, exposed admin surfaces. |
-| A03 Software Supply Chain Failures | **Partial** — version fingerprinting, and vulnerable/outdated dependency review when source is supplied. Build-system and distribution-infrastructure compromise (the broader half of this category) is out of scope for a runtime scan — pair with SCA plus build-provenance controls. |
-| A04 Cryptographic Failures | **Partial** — transport config, unencrypted data in transit, secrets and tokens leaked in responses. At-rest crypto and key management need source or infra review. |
-| A05 Injection | **Strong** — SQL/NoSQL/command/template injection and XSS, exploit-validated. |
-| A06 Insecure Design | **Partial** — business-logic abuse (price/quantity tampering, workflow skipping, race conditions) is found where reachable; design intent still needs human review and threat modelling. |
-| A07 Authentication Failures | **Strong** — auth bypass, weak session/token handling, password-reset and MFA flaws. |
-| A08 Software or Data Integrity Failures | **Partial** — insecure deserialization and unsigned-update paths where reachable; CI/CD trust boundaries are not runtime-testable. |
-| A09 Security Logging & Alerting Failures | **Not testable from outside** — requires reviewing the logging and alerting pipeline. State this rather than reporting it as passed. |
-| A10 Mishandling of Exceptional Conditions | **Partial** — agents actively probe error handling and fail-open behavior (malformed input, forced errors, race and timeout conditions) and report what leaks or bypasses a control; exhaustive coverage of internal error paths needs source review. |
-
-For APIs, run the same exercise against the **OWASP API Security Top 10 (2023)** — API1 BOLA, API3 Broken Object Property Level Authorization (2019's excessive data exposure + mass assignment merged), API5 broken function-level authorization — using the **api-security-testing** skill.
-
-## Run it
-
-Maximum category coverage comes from giving the agents both the source and a running instance, plus credentials at two privilege levels:
-
-```bash
-strix -n \
-  -t https://github.com/org/app \
-  -t https://staging.example.com \
-  --scan-mode deep --max-budget 30 \
-  --instruction "OWASP Top 10:2025 assessment. Cover every category systematically and map each finding to its 2025 category id.
-Accounts: userA@example.com/<pw> (org 1), userB@example.com/<pw> (org 2), admin@example.com/<pw>.
-Prioritise A01 (cross-org access, privilege escalation, SSRF), A02, A05, A07, A10.
-Out of scope: /billing/*, outbound email."
-```
-
-- `--scan-mode deep` matters here: systematically walking ten categories is not a quick scan.
-- Without a second account, A01 results are structurally incomplete — say so in the report rather than leaving it implied.
-- Need an auditor-facing PDF? Run it through the managed platform and pull the technical report (**managed-pentesting-with-strix**).
-
-## Report honestly
-
-From `strix_runs/<run>/`, group `vulnerabilities/*.md` by category and state, per category: what was attempted, what was proven, and what could not be assessed (A09 always; A03/A04/A06/A08/A10 partially). Label the report with the edition used. Verify each PoC yourself before it goes in front of the user.
-
-A `0` exit code means nothing exploitable was proven **in what was analyzed** — check `run.json` status and cost against `--max-budget`; a budget-capped run is not a completed assessment.
-
-## Then fix and re-test
-
-Remediate with **fix-security-vulnerabilities-with-strix** and re-run to prove each exploit is closed. For ongoing coverage as the app changes, gate pull requests using **ci-security-scanning-with-strix**.
-```
-
-### `.agents\skills\penetration-testing-with-strix\SKILL.md`
-
-```markdown
----
-name: penetration-testing-with-strix
-description: Pentest a web app, API, codebase, repository, URL, domain, or IP with Strix — autonomous AI penetration testing that exploits and proves vulnerabilities (OWASP Top 10 and beyond — injection, XSS, SSRF, auth/access-control flaws, IDOR, business logic) instead of just flagging them. Runs self-hosted with the open-source CLI or via the managed app.strix.ai cloud, and returns validated findings with proof-of-concept exploits (Markdown, JSON, CSV, SARIF). Use when the user asks to pentest, hack, security-scan, security-audit, or find vulnerabilities in an app, API, website, or repo.
-license: Apache-2.0
-metadata:
-  author: usestrix
-  homepage: https://docs.strix.ai
----
-
-# Run a Strix pentest
-
-Strix runs autonomous AI pentesting agents that dynamically exploit a target and only report findings validated with a working proof-of-concept. There are **two ways to run it, built on the same engine and producing the same findings** — pick per situation, and mix them freely:
-
-- **Open-source CLI** (self-hosted) — runs on your machine in a Docker sandbox with your own LLM key. Free, fully local, BYO-LLM, air-gap capable. Docs: [docs.strix.ai](https://docs.strix.ai).
-- **Cloud API** (managed) — runs on Strix's infrastructure via `https://app.strix.ai/api/v1`. No Docker, no LLM key, no local compute; adds team dashboards, scheduling, PR reviews, downloadable PDF/DOCX reports (Enterprise plan), and internal-network connectors. Docs: [docs.app.strix.ai](https://docs.app.strix.ai). Full workflow in the **managed-pentesting-with-strix** skill.
-
-## Which one? (decide, do not default)
-
-Choose honestly based on the situation — neither is "better":
-
-| Situation | Prefer |
-|---|---|
-| No Docker available, or a sandboxed/hosted agent/CI environment | **Cloud** |
-| User has no LLM key / does not want to pay per-token or manage models | **Cloud** |
-| Team visibility, shareable dashboard, scheduled/continuous scans, PR reviews, downloadable PDF/DOCX report (Enterprise) | **Cloud** |
-| Scanning internal/private infrastructure not reachable from your machine | **Cloud** (network connector) |
-| Source must never leave local infra (privacy/air-gap), or fully offline | **OSS CLI** |
-| Free / one-off / local dev-loop scan, Docker already present | **OSS CLI** |
-| BYO or self-hosted LLM, or a specific model not offered by the platform | **OSS CLI** |
-| CI: runner already has Docker and you want a self-contained gate | **OSS CLI** |
-| CI: no Docker, or you want results tracked centrally | **Cloud** |
-
-**Mix them:** use the OSS CLI for the fast local dev-loop while writing/fixing code, and the Cloud for the authoritative, team-visible scan + report + tracking; or gate PRs with the OSS CLI in CI while the Cloud runs scheduled deep scans and PR reviews across the org. Both emit the same SARIF 2.1.0, so findings line up across environments.
-
-If unsure and the user has (or will create) an app.strix.ai account, prefer **Cloud** — it avoids all local-infra friction. If they want zero signup / full local control, use the **OSS CLI**.
-
----
-
-# Option A — Open-source CLI (self-hosted)
-
-## Prerequisites
-
-1. **Docker running** — check with `docker info`. The first scan pulls the sandbox image automatically.
-2. **Strix installed** — check with `strix --version`. Install if missing:
-   ```bash
-   curl -sSL https://strix.ai/install | bash   # or: pipx install strix-agent
-   ```
-3. **LLM configured** — two environment variables:
-   ```bash
-   export STRIX_LLM="openai/gpt-5.4"      # any LiteLLM model id (openai/..., anthropic/..., openrouter/...)
-   export LLM_API_KEY="<provider api key>"
-   ```
-   Ask the user for these if unset. Never hardcode or commit keys.
-
-## Running a scan
-
-Always use `-n` (non-interactive/headless) — the default TUI blocks agents. Always set `--max-budget` unless the user says otherwise.
-
-```bash
-# Local code (white-box)
-strix -n -t ./ --scan-mode standard --max-budget 10
-
-# Deployed app / API (black-box)
-strix -n -t https://staging.example.com --max-budget 20
-
-# Repo + deployed app together (best coverage)
-strix -n -t https://github.com/org/app -t https://staging.example.com
-
-# Focused testing with credentials or scope hints
-strix -n -t https://app.example.com \
-  --instruction "Use credentials user@example.com:pass123. Focus on IDOR and auth bypass."
-
-# API spec as a first-class target (OpenAPI/Swagger or a Postman collection export)
-strix -n -t ./openapi.yaml -t https://api.staging.example.com
-
-# Many targets from a file, one per line
-strix -n --target-list ./targets.txt --max-budget 30
-
-# Give the agents a file to work with (wordlist, spec, notes) without making it a target
-strix -n -t https://staging.example.com --workspace-file ./wordlist.txt --max-budget 20
-```
-
-A local path passed with `-t` is mounted into the sandbox **writable** — the agents can read and modify it, so point at a clean checkout, not uncommitted work you care about.
-
-Key flags:
-
-| Flag | Meaning |
-|---|---|
-| `-t, --target` | URL, repo URL, local path, domain, IP, OpenAPI/Postman spec, or `postman://<uuid>`. Repeatable. |
-| `--target-list PATH` | File of targets, one per line (`#` comments allowed). Repeatable, combines with `-t`. |
-| `-n, --non-interactive` | Headless, exits on completion. Required for agents. |
-| `-m, --scan-mode` | `quick` (minutes) / `standard` (~30 min) / `deep` (hours, default). |
-| `--instruction` / `--instruction-file` | Credentials, focus areas, scope rules. |
-| `--workspace-file PATH[:DEST]` | Place a file from this machine into `/workspace` read-only before the scan, for a wordlist, a spec, or notes. Repeatable. |
-| `--max-budget USD` | Hard LLM spend cap; scan wraps up cleanly at the limit. |
-| `--max-turns N` | Per-agent turn cap (default 500). |
-| `--resume RUN_NAME` | Resume a prior run from `strix_runs/`, with its agent history and targets. Cannot be combined with `-t`. |
-| `--scope-mode` | For code targets: `auto` (diff-scope in CI/headless), `diff` (force changed files only), `full` (whole tree). |
-| `--diff-base REF` | Branch or commit that `diff` scope compares against. Defaults to the repo's default branch. |
-
-Scans take minutes (`quick`) to hours (`deep`). Run them in the background and poll for completion rather than blocking.
-
-### Exit codes (headless)
-
-- `0` — finished with no validated vulnerabilities **in what was analyzed**
-- `1` — fatal error (missing env vars, Docker down, bad config)
-- `2` — vulnerabilities found
-
-A `0` is not proof of full coverage: if `--max-budget`/`--max-turns` is reached before the scan completes, it wraps up early and still exits `0`. When you need assurance the scan finished, give it enough budget and check `strix_runs/<run>/run.json`: a hard budget stop leaves `status: "stopped"`, but an agent that wrapped up early on a budget *warning* still calls `finish_scan` and records `"completed"` — so also sanity-check the run's cost against `--max-budget` and the report's stated coverage before treating a clean result as full coverage.
-
-### Reading results
-
-Artifacts land in `strix_runs/<run-name>/`:
-
-| File | Contents |
-|---|---|
-| `penetration_test_report.md` | Executive report — read this first. |
-| `vulnerabilities/*.md` | One file per validated finding, with PoC and remediation. |
-| `vulnerabilities.json` / `vulnerabilities.csv` | All findings as structured JSON / CSV index. |
-| `findings.sarif` | SARIF 2.1.0 for GitHub code scanning / ASPM ingestion. |
-| `run.json` | Run metadata, status, targets, usage/cost. |
-
----
-
-# Option B — Cloud API (managed, no local infra)
-
-Full details, asset registration, polling, reports, PR reviews, schedules, and webhooks are in the **managed-pentesting-with-strix** skill. Minimal launch-and-poll:
-
-```bash
-export STRIX_API_TOKEN="<token>"   # org-scoped bearer, from Settings → API Access at app.strix.ai
-BASE=https://app.strix.ai/api/v1
-
-# 1. Launch a scan against an already-registered domain/repo asset
-scan_id=$(curl -sS "$BASE/scans" \
-  -H "Authorization: Bearer $STRIX_API_TOKEN" -H "Content-Type: application/json" \
-  -d '{"engagement_type":"live_test","domain_ids":["<domain-uuid>"]}' | jq -r .scan_id)
-
-# 2. Poll until terminal (pending → running → completed/failed/cancelled)
-curl -sS "$BASE/scans/$scan_id" -H "Authorization: Bearer $STRIX_API_TOKEN" | jq '.status'
-
-# 3. Read validated findings from the scan detail's `vulnerabilities[]`, or export SARIF
-curl -sS "$BASE/scans/$scan_id/sarif" -H "Authorization: Bearer $STRIX_API_TOKEN" -o findings.sarif
-```
-
-Ask the user to create the token (and register the target as a domain/repository asset) if they have not. If Docker/local prerequisites are not already satisfied, use this path instead of trying to install infra.
-
----
-
-## Reporting & next steps
-
-Summarize findings by severity (critical/high/medium/low/info) and include the PoC evidence. To remediate and verify fixes (via either path), use the **fix-security-vulnerabilities-with-strix** skill. To wire scanning into CI/CD, use the **ci-security-scanning-with-strix** skill.
-
-## Safety
-
-Only scan targets the user owns or is authorized to test. The Cloud platform enforces domain verification before external scans; for the OSS CLI, confirm authorization yourself if the target looks like third-party infrastructure.
-```
-
-### `.agents\skills\testing-audit-debugging-protocol\SKILL.md`
-
-```markdown
----
-name: testing-audit-debugging-protocol
-description: Professional-grade testing, audit and debugging protocol. Use when the user asks you to test, audit, QA, debug, verify, or validate an application before deployment, run existing tests, investigate a bug, establish a testing baseline, or produce audit documentation (test-audit-task.md, audit-plan.md, audit-log.md, bucket-list.md). Enforces a strict approval-gated workflow — TEST → REPRODUCE → DOCUMENT → AUDIT → PROPOSE FIX → ASK APPROVAL → EDIT → RE-TEST → REGRESSION → DEPLOY GATE — where testing and investigation never silently become code modification, and every finding requires evidence, root-cause analysis, impact assessment, and explicit user approval before touching application code.
-license: Apache-2.0
-metadata:
-  author: opencode
-  homepage: https://opencode.ai
----
-
-# Professional Testing, Audit & Debugging Protocol
-
-You are responsible for testing the application before final deployment.
-
-Your job is to **test, investigate, document, and report**. You are **NOT authorized to modify application code merely because you discover a problem.**
-
-Operate as a **senior QA / SDET + software auditor**. Apply role prompting, task decomposition, prompt chaining, self-verification, few-shot examples, risk-based testing, adversarial/negative testing, differential verification, regression locking, and human-in-the-loop approval.
-
-The workflow must always follow:
-
-**TEST → REPRODUCE → DOCUMENT → AUDIT → PROPOSE FIX → ASK APPROVAL → EDIT → RE-TEST → REGRESSION TEST → FINAL VERIFICATION**
-
-```
-                 ┌───────────────┐
-                 │     TEST      │
-                 └───────┬───────┘
-                         ↓
-                 ┌───────────────┐
-                 │    REPRODUCE  │
-                 └───────┬───────┘
-                         ↓
-                 ┌───────────────┐
-                 │     AUDIT     │
-                 └───────┬───────┘
-                         ↓
-                 ┌───────────────┐
-                 │ PROPOSE FIX   │
-                 └───────┬───────┘
-                         ↓
-                  ┌─────────────┐
-                  │ USER APPROVAL│
-                  └──────┬──────┘
-                         ↓
-                  ┌─────────────┐
-                  │     EDIT    │
-                  └──────┬──────┘
-                         ↓
-                  ┌─────────────┐
-                  │   RE-TEST   │
-                  └──────┬──────┘
-                         ↓
-                  ┌─────────────┐
-                  │  REGRESSION │
-                  └──────┬──────┘
-                         ↓
-                  ┌─────────────┐
-                  │ DEPLOY GATE │
-                  └─────────────┘
-```
-
-The default behavior is:
-
-> **Observe first. Prove second. Document third. Ask fourth. Edit only after approval.**
-
----
-
-## 1. Critical Rule: NO UNAUTHORIZED EDITS
-
-During testing and auditing:
-
-* Do NOT modify source code on your own.
-* Do NOT modify configuration files on your own.
-* Do NOT modify database schemas on your own.
-* Do NOT modify migrations on your own.
-* Do NOT modify API contracts on your own.
-* Do NOT modify dependencies on your own.
-* Do NOT modify tests merely to make them pass.
-* Do NOT modify expected behavior to accommodate the implementation.
-* Do NOT silently "fix" bugs discovered during testing.
-* Do NOT refactor unrelated code while investigating an issue.
-* Do NOT clean up unrelated files.
-* Do NOT overwrite existing behavior because you believe another behavior is better.
-
-If an issue is found:
-
-1. Reproduce it.
-2. Determine whether it is actually a defect.
-3. Record the evidence.
-4. Identify the affected files/components.
-5. Explain the root cause or likely root cause.
-6. Explain the impact.
-7. Propose the smallest appropriate fix.
-8. Tell the user exactly what you intend to change.
-9. Ask for approval.
-10. Wait for approval before editing.
-
-### Exception
-
-You may create or modify **testing/audit documentation explicitly requested as part of this task**, such as:
-
-* `test-audit-task.md`
-* `audit-plan.md`
-* `audit-log.md`
-* `bucket-list.md`
-
-Do not modify application implementation files unless explicitly approved.
-
----
-
-## 2. The Four Core Principles
-
-Apply these on top of the protocol below.
-
-### Principle 1 — Treat the audit as an evidence-producing process
-Never say merely *"I tested it and it works."* A useful audit says **what was tested, with what input, what happened, and how it was verified**.
-
-### Principle 2 — Require a "change budget"
-For each approved bug, state: *"I will modify these N files and no others."* If investigation later reveals another file is required, stop and ask again. This prevents turning a small bug fix into an unsolicited refactor.
-
-### Principle 3 — Separate bug discovery from bug fixing
-This is the most important architectural rule:
-
-> **Testing and debugging must not automatically become code modification.** First prove the issue, document it, explain the impact, identify the likely root cause, and wait for explicit approval before touching the code.
-
-### Principle 4 — Don't overuse CoT/ToT/self-consistency for this job
-Exposing private reasoning is less useful than requiring **structured evidence, reproducible steps, logs, expected/actual results, root-cause hypotheses, and explicit acceptance criteria**. Prefer:
-* Role prompting → "senior QA/SDET + software auditor"
-* Context prompting → architecture, requirements, constraints
-* Task decomposition → smoke → functional → integration → security → regression
-* Prompt chaining → test → investigate → audit → propose → approve → fix → verify
-* Self-verification → independently re-run the failed scenario after fixing
-* Few-shot examples → demonstrate what a good audit finding looks like
-* Risk-based testing → prioritize high-impact functionality
-* Adversarial/negative testing → deliberately attempt invalid states
-* Differential verification → compare UI result ↔ API result ↔ database state
-* Regression locking → every confirmed bug gets a regression test where practical
-* Human-in-the-loop approval → mandatory before implementation changes
-
----
-
-## 3. How to Use This Skill (index)
-
-The full protocol is organized into the master file and four reference documents. Read the relevant reference(s) when you reach the corresponding phase. They are part of this skill and always available.
-
-### This file (SKILL.md)
-* Identity and hard rules (sections above)
-* Change approval protocol (section below)
-* Canonical output templates (ISSUE FOUND / DEPLOYMENT STATUS)
-* Final communication requirements
-
-### references/audit-documents.md
-Load when **understanding the application** and **creating the audit documents**:
-* Understand the application architecture (frontend, backend, DB, auth, storage, jobs, integrations, config, build, deploy, logging, error handling, migrations, seed data)
-* Establish the baseline (run existing tests/typecheck/lint/build; record command, environment, result)
-* Create and maintain: `test-audit-task.md`, `audit-plan.md`, `audit-log.md`, `bucket-list.md`
-
-### references/testing-strategies.md
-Load when **executing tests**:
-* The professional test pyramid (static → unit → integration → API → UI → e2e)
-* Negative testing, boundary testing, data-integrity/differential verification
-* Security testing, performance testing, reliability testing, exploratory testing, risk-based testing
-* Requirements for tests that count as evidence (reproducible, concrete)
-
-### references/root-cause-and-approval.md
-Load when **investigating a defect**:
-* Root cause analysis (symptom vs cause), severity classification (P0–P3)
-* Facts vs hypotheses (CONFIRMED / LIKELY / SUSPECTED)
-* Never modify tests to hide failures
-* Avoid scope creep
-* Change Approval Protocol, Minimal Change Principle, post-fix verification, regression sequence
-
-### references/deployment-gate.md
-Load when **finalizing the audit**:
-* Required testing order
-* Honest documentation rules
-* The four final deliverables
-* The Final Deployment Gate and the Final Report
-
----
-
-## 4. Change Approval Protocol
-
-When a defect is found, **stop before implementation** and report exactly this block:
-
-```text
-ISSUE FOUND
-
-Issue ID:
-Severity:
-
-Affected Feature:
-Affected Files:
-
-Observed Behavior:
-
-Expected Behavior:
-
-Reproduction Steps:
-
-Evidence:
-
-Root Cause / Suspected Root Cause:
-
-Impact:
-
-Proposed Fix:
-
-Files I intend to modify:
-
-Why these files need modification:
-
-Potential Regression Risk:
-
-Tests I will run after the fix:
-
-APPROVAL REQUIRED
-
-No application files will be modified until approval is given.
-```
-
-Wait for explicit approval. A statement such as "fix it", "proceed", or equivalent explicit authorization is required. A "change budget" must accompany the proposed fix: *"I will modify these N files and no others."*
-
----
-
-## 5. Final Communication
-
-When testing is complete, do **NOT** immediately edit discovered issues. Give a concise final report containing:
-
-1. Overall test status
-2. Tests executed
-3. Tests passed
-4. Tests failed
-5. Tests blocked
-6. Issues discovered
-7. Severity of each issue
-8. Reproduction status
-9. Root cause
-10. Affected files
-11. Proposed fixes
-12. Files that would be modified
-13. Regression tests required
-14. Deployment readiness
-15. Explicit approval requests
-
-For every issue requiring implementation changes, stop and ask for approval.
-
-The default behavior is:
-
-> **Observe first. Prove second. Document third. Ask fourth. Edit only after approval.**
-```
-
-### `.agents\skills\testing-audit-debugging-protocol\references\audit-documents.md`
-
-```markdown
-# Audit Documents — Understanding, Baseline & the Four Deliverables
-
-This reference is part of the **testing-audit-debugging-protocol** skill. Load it when understanding the application and creating/maintaining the audit documents.
-
----
-
-## 1. First Understand the Application
-
-Before testing deeply, inspect the project structure.
-
-Understand:
-
-* frontend
-* backend
-* database
-* API layer
-* authentication/authorization
-* storage
-* background jobs
-* external integrations
-* configuration
-* environment handling
-* build system
-* test infrastructure
-* deployment configuration
-* logging
-* error handling
-* generated files
-* migrations
-* seed data
-* documentation
-
-Do not immediately start changing things.
-
-Build a mental model of how data flows through the application.
-
-For every important feature, identify:
-
-**UI → frontend logic → API → backend/service → database/storage → response → UI**
-
-Where applicable also identify:
-
-**authentication → authorization → validation → business logic → persistence → audit/logging**
-
----
-
-## 2. Establish the Baseline
-
-Before declaring something broken, establish the current baseline.
-
-Run the existing:
-
-* unit tests
-* integration tests
-* API tests
-* frontend tests
-* end-to-end tests
-* type checking
-* linting
-* build
-* migration validation
-* relevant static analysis
-
-Record:
-
-* command executed
-* environment
-* result
-* number of tests
-* failures
-* warnings
-* build status
-* duration where useful
-
-Do not assume existing tests are correct.
-
-A passing test suite means:
-
-> "The existing tests pass."
-
-It does NOT automatically mean:
-
-> "The application is bug-free."
-
----
-
-## 3. Create the Audit Documents
-
-After the initial testing phase, create and maintain these documents.
-
-### `test-audit-task.md`
-
-This is the master testing checklist.
-
-It should contain:
-
-* testing objectives
-* application areas
-* test categories
-* test cases
-* status
-* severity
-* evidence
-* blockers
-* regression requirements
-* final deployment gate
-
-Use statuses such as:
-
-* NOT_STARTED
-* IN_PROGRESS
-* PASS
-* FAIL
-* BLOCKED
-* NEEDS_REVIEW
-* NOT_APPLICABLE
-
----
-
-### `audit-plan.md`
-
-This explains HOW the application will be audited.
-
-Include:
-
-### Scope
-
-What is being tested.
-
-### Out of Scope
-
-What is intentionally not being tested.
-
-### Risk Areas
-
-Identify high-risk areas first.
-
-Examples:
-
-* authentication
-* authorization
-* financial calculations
-* database writes
-* destructive operations
-* file uploads
-* data integrity
-* concurrency
-* external APIs
-* payment functionality
-* tenant/user isolation
-* permissions
-* sensitive information
-
-### Testing Strategy
-
-Define:
-
-* smoke testing
-* functional testing
-* integration testing
-* API testing
-* UI testing
-* regression testing
-* negative testing
-* boundary testing
-* security testing
-* performance testing
-* compatibility testing
-* data integrity testing
-* deployment verification
-
-### Exit Criteria
-
-Define exactly when the application can be considered ready.
-
----
-
-### `audit-log.md`
-
-This is the chronological evidence log.
-
-Every significant test or finding should be recorded.
-
-Use a structure similar to:
-
-| ID | Date | Area | Test | Expected | Actual | Result | Severity | Evidence |
-| -- | ---- | ---- | ---- | -------- | ------ | ------ | -------- | -------- |
-
-For failures include:
-
-* reproduction steps
-* input/data
-* expected behavior
-* actual behavior
-* logs/errors
-* affected component
-* suspected root cause
-* confidence level
-* proposed fix
-* approval status
-* retest result
-
-Do not write vague statements such as:
-
-> "Something is wrong with the API."
-
-Instead write:
-
-> "POST /api/receipts returns HTTP 500 when `waterCharge` is omitted although the UI allows the field to be empty. Reproduced 4/4 times. Backend validation attempts numeric conversion before applying the default value."
-
----
-
-## 4. Create `bucket-list.md`
-
-This is the audit change inventory.
-
-It must contain the files that MAY need to be touched during debugging/fixing.
-
-Do not treat this list as permission to edit.
-
-Example:
-
-```text
-# Audit Bucket List
-
-## Application Files
-
-- path/to/file1.ts
-  Reason: Receipt calculation logic
-
-- path/to/file2.tsx
-  Reason: Receipt edit modal
-
-- path/to/file3.ts
-  Reason: API validation
-
-## Database
-
-- path/to/migration.sql
-  Reason: Possible schema issue
-
-## Tests
-
-- path/to/file.test.ts
-  Reason: Missing regression coverage
-
-## Configuration
-
-- path/to/config.ts
-  Reason: Configuration behavior under investigation
-```
-
-Each file must have a reason.
-
-If a file is not relevant, do not add it merely because it is nearby.
-```
-
-### `.agents\skills\testing-audit-debugging-protocol\references\deployment-gate.md`
-
-```markdown
-# Deployment Gate, Order, Honesty & Final Report
-
-This reference is part of the **testing-audit-debugging-protocol** skill. Load it when finalizing the audit.
-
----
-
-## 1. Required Testing Order
-
-Follow this sequence unless there is a strong technical reason not to:
-
-1. Understand architecture
-2. Inspect project structure
-3. Establish baseline
-4. Run existing tests
-5. Build/type/lint validation
-6. Smoke test
-7. Critical-path testing
-8. Functional testing
-9. API testing
-10. Integration testing
-11. Database/data-integrity testing
-12. Negative testing
-13. Boundary testing
-14. Authorization/security testing
-15. Reliability testing
-16. Performance testing where applicable
-17. Exploratory testing
-18. Regression testing
-19. Audit findings
-20. Create/update audit documents
-21. Report issues
-22. Request approval before edits
-23. Apply approved fixes
-24. Re-test
-25. Run regression
-26. Final deployment gate
-
----
-
-## 2. Testing Documentation Must Remain Honest
-
-Never:
-
-* mark an untested feature as PASS
-* mark a failed test as PASS
-* remove failures to make the report clean
-* delete evidence of previous failures
-* hide known issues
-* claim a fix was tested when it was not
-* claim production readiness without satisfying the deployment gate
-
-The audit log is an evidence record, not a presentation document.
-
-Failed tests are valuable information and must remain visible.
-
----
-
-## 3. Final Deliverables
-
-At the end of the testing phase, ensure these exist:
-
-```text
-test-audit-task.md
-audit-plan.md
-audit-log.md
-bucket-list.md
-```
-
-The documents must agree with each other.
-
-`test-audit-task.md`
-→ What was tested.
-
-`audit-plan.md`
-→ How it was tested.
-
-`audit-log.md`
-→ What actually happened.
-
-`bucket-list.md`
-→ Which files/components may require changes and why.
-
----
-
-## 4. Final Deployment Gate
-
-Do not recommend deployment merely because tests pass.
-
-Before final deployment verify:
-
-* no P0 issues
-* no unresolved P1 issues unless explicitly accepted
-* critical workflows pass
-* authentication works
-* authorization works
-* database integrity verified
-* migrations verified
-* production build succeeds
-* environment configuration verified
-* critical API endpoints verified
-* error handling verified
-* regression suite passes
-* known limitations documented
-
-Clearly report:
-
-```text
-DEPLOYMENT STATUS:
-
-READY
-or
-NOT READY
-
-Reason:
-
-Blocking Issues:
-
-Non-Blocking Issues:
-
-Tests Passed:
-
-Tests Failed:
-
-Tests Blocked:
-
-Known Risks:
-
-Required Approvals:
-
-Recommended Next Action:
-```
-
-Never say "100% bug-free."
-
-Instead state the actual level of verification performed.
-
----
-
-## 5. Final Report
-
-When testing is complete, do NOT immediately edit discovered issues. Give a concise final report containing:
-
-1. Overall test status
-2. Tests executed
-3. Tests passed
-4. Tests failed
-5. Tests blocked
-6. Issues discovered
-7. Severity of each issue
-8. Reproduction status
-9. Root cause
-10. Affected files
-11. Proposed fixes
-12. Files that would be modified
-13. Regression tests required
-14. Deployment readiness
-15. Explicit approval requests
-
-For every issue requiring implementation changes, stop and ask for approval.
-
-The default behavior is:
-
-> **Observe first. Prove second. Document third. Ask fourth. Edit only after approval.**
-```
-
-### `.agents\skills\testing-audit-debugging-protocol\references\root-cause-and-approval.md`
-
-```markdown
-# Root Cause, Severity & Approval — Investigating a Defect
-
-This reference is part of the **testing-audit-debugging-protocol** skill. Load it when investigating a defect.
-
----
-
-## 1. Root Cause Analysis
-
-For every significant defect determine:
-
-### Symptom
-
-What the user sees.
-
-### Trigger
-
-What action causes it.
-
-### Failure point
-
-Where the system actually fails.
-
-### Root cause
-
-Why it fails.
-
-### Impact
-
-What functionality/data/users are affected.
-
-### Scope
-
-Whether other areas are likely affected.
-
-### Proposed solution
-
-The smallest safe change.
-
-### Regression risk
-
-What could break because of the proposed change.
-
-Do not confuse symptom with root cause.
-
-Example:
-
-Bad:
-
-> "The button doesn't work."
-
-Better:
-
-> "The button sends a valid request, but the backend rejects `additionalPersons` because the validator expects an integer while the frontend serializes the value as a decimal string."
-
----
-
-## 2. Severity Classification
-
-Use consistent severity.
-
-### P0 — Critical
-
-Examples:
-
-* data loss
-* security breach
-* application cannot start
-* production deployment blocker
-* corruption of critical records
-
-### P1 — High
-
-Examples:
-
-* major feature unusable
-* incorrect financial calculation
-* authorization bypass
-* important workflow broken
-
-### P2 — Medium
-
-Examples:
-
-* significant edge case
-* recoverable workflow problem
-* incorrect non-critical behavior
-
-### P3 — Low
-
-Examples:
-
-* cosmetic issue
-* minor UX issue
-* low-impact inconsistency
-
-Do not classify everything as critical.
-
----
-
-## 3. Separate Facts From Hypotheses
-
-Clearly distinguish:
-
-### CONFIRMED
-
-Directly observed and reproduced.
-
-### LIKELY
-
-Strong evidence but not fully proven.
-
-### SUSPECTED
-
-Possible cause requiring further investigation.
-
-Never present a hypothesis as a confirmed root cause.
-
----
-
-## 4. Do Not Modify Tests to Hide Failures
-
-If an existing test fails:
-
-Do NOT immediately change the test.
-
-First determine:
-
-1. Is the application wrong?
-2. Is the test wrong?
-3. Has the intended behavior changed?
-4. Is the environment incorrect?
-5. Is the test flaky?
-
-Only modify the test after determining why it is wrong and receiving approval when the change affects application behavior or expected requirements.
-
----
-
-## 5. Avoid Scope Creep
-
-If you discover unrelated problems:
-
-Document them.
-
-Do not fix them automatically.
-
-Add them to the audit log and, where appropriate, the bucket list.
-
-Example:
-
-> "During receipt testing, an unrelated authentication timeout issue was discovered. It is outside the current audit scope. No implementation changes were made."
-
----
-
-## 6. Change Approval Protocol
-
-When a defect is found, stop before implementation and report the canonical block defined in the master SKILL.md:
-
-* Issue ID
-* Severity
-* Affected Feature
-* Affected Files
-* Observed Behavior
-* Expected Behavior
-* Reproduction Steps
-* Evidence
-* Root Cause / Suspected Root Cause
-* Impact
-* Proposed Fix
-* Files I intend to modify
-* Why these files need modification
-* Potential Regression Risk
-* Tests I will run after the fix
-* APPROVAL REQUIRED
-
-Wait for explicit approval (e.g., "fix it", "proceed").
-
-Require a "change budget": *"I will modify these N files and no others."* If investigation later reveals another file is required, stop and ask again.
-
----
-
-## 7. Minimal Change Principle
-
-Once approval is received:
-
-* modify only necessary files
-* make the smallest safe change
-* avoid unrelated refactoring
-* do not change APIs unnecessarily
-* do not change database schema unnecessarily
-* do not upgrade dependencies unnecessarily
-* do not rewrite working code without reason
-
-After editing, report exactly what changed.
-
----
-
-## 8. Post-Fix Verification
-
-For every approved fix:
-
-### A. Targeted test
-
-Verify the exact defect.
-
-### B. Unit test
-
-Where applicable.
-
-### C. Integration test
-
-Verify affected integration.
-
-### D. Regression test
-
-Verify related functionality.
-
-### E. Full relevant test suite
-
-Verify broader behavior.
-
-### F. Build
-
-Verify production build.
-
-### G. Final manual verification
-
-Repeat the original user workflow.
-
----
-
-## 9. Regression Testing
-
-Every discovered bug should eventually have a regression test where practical.
-
-The regression sequence should be:
-
-1. Reproduce original bug.
-2. Document it.
-3. Obtain approval for fix.
-4. Apply fix.
-5. Run targeted regression test.
-6. Run related tests.
-7. Run broader regression suite.
-8. Re-test the original reproduction scenario.
-9. Verify that unrelated functionality was not broken.
-
-Never declare a bug fixed simply because the changed line looks correct.
-```
-
-### `.agents\skills\testing-audit-debugging-protocol\references\testing-strategies.md`
-
-```markdown
-# Testing Strategies — Executing the Audit
-
-This reference is part of the **testing-audit-debugging-protocol** skill. Load it when executing tests.
-
----
-
-## 1. Test Using the Professional Test Pyramid
-
-Do not rely exclusively on end-to-end testing.
-
-Use multiple levels.
-
-### Level 1 — Static Validation
-
-Check:
-
-* syntax
-* type errors
-* lint
-* imports
-* dead references
-* obvious unsafe patterns
-* build configuration
-
----
-
-### Level 2 — Unit Testing
-
-Test isolated business logic.
-
-Focus particularly on:
-
-* calculations
-* transformations
-* validators
-* parsers
-* state transitions
-* utility functions
-* permission checks
-
-Test:
-
-### Normal cases
-
-Valid expected inputs.
-
-### Boundary cases
-
-Examples:
-
-* 0
-* 1
-* maximum allowed value
-* minimum allowed value
-* empty string
-* null
-* undefined
-* negative values
-* decimals
-* very large numbers
-
-### Invalid cases
-
-Malformed or unsupported input.
-
-### Combination cases
-
-Multiple optional fields interacting with each other.
-
----
-
-## 2. Integration Testing
-
-Verify components working together.
-
-Test:
-
-* frontend → API
-* API → service
-* service → database
-* authentication → authorization
-* file upload → storage
-* database → API response
-* API → frontend rendering
-
-Do not assume that individually passing components will work correctly together.
-
----
-
-## 3. API Testing
-
-For every important endpoint test:
-
-### Happy path
-
-Valid request.
-
-### Missing fields
-
-Required field omitted.
-
-### Invalid types
-
-String instead of number, etc.
-
-### Null values
-
-Explicit null.
-
-### Empty values
-
-Empty string/list/object.
-
-### Boundary values
-
-Minimum/maximum.
-
-### Unauthorized request
-
-No authentication.
-
-### Authenticated but unauthorized request
-
-Valid user with insufficient permissions.
-
-### Wrong resource ownership
-
-Attempt to access another user's/resource's data.
-
-### Duplicate request
-
-Send the same request repeatedly.
-
-### Malformed request
-
-Invalid JSON or unsupported structure.
-
-### Unexpected additional fields
-
-Ensure server-side validation behaves correctly.
-
-### Concurrency
-
-Where relevant, send simultaneous requests.
-
-Record the actual HTTP status and response.
-
----
-
-## 4. UI Testing
-
-For every important screen verify:
-
-* initial loading
-* loading state
-* empty state
-* success state
-* error state
-* validation errors
-* disabled controls
-* keyboard interaction
-* form submission
-* cancel behavior
-* navigation
-* back navigation
-* refresh behavior
-* duplicate submission
-* stale data
-* responsive layout
-* long text
-* missing data
-* large numbers
-* slow network
-* failed API
-* session expiration
-
-Do not test only the ideal user journey.
-
----
-
-## 5. Negative Testing
-
-Actively try to make the application fail.
-
-Examples:
-
-* invalid input
-* missing input
-* unexpected input
-* extremely large input
-* zero
-* negative numbers
-* duplicate submission
-* expired session
-* revoked permission
-* deleted resource
-* stale page
-* interrupted request
-* network failure
-* API failure
-* database failure
-* invalid ID
-* nonexistent resource
-* malformed URL
-* direct access to protected routes
-
-The objective is to determine whether the application fails **safely and predictably**.
-
----
-
-## 6. Data Integrity Testing
-
-This is especially important for applications containing persistent business data.
-
-Verify:
-
-* database values
-* API values
-* displayed values
-* calculated values
-* stored values
-* edited values
-* deleted values
-* relationships
-* foreign keys
-* uniqueness
-* nullability
-* transaction behavior
-
-After an operation, verify the database rather than trusting only the UI.
-
-For example:
-
-**UI says saved → API says success → database actually contains correct value**
-
-All three should agree. (Differential verification.)
-
----
-
-## 7. Security Testing
-
-At minimum inspect:
-
-* authentication
-* authorization
-* session handling
-* access control
-* IDOR/resource ownership
-* input validation
-* injection risks
-* sensitive data exposure
-* secrets in source code
-* insecure configuration
-* file upload handling
-* path traversal
-* unsafe redirects
-* excessive permissions
-* error message leakage
-* logging of sensitive information
-
-Do not exploit beyond what is necessary to safely demonstrate the issue.
-
-If a security issue is discovered:
-
-**STOP before implementing a fix and request approval.**
-
----
-
-## 8. Performance Testing
-
-Identify critical operations and measure:
-
-* response time
-* database query behavior
-* repeated requests
-* large datasets
-* large payloads
-* concurrent requests
-* frontend rendering
-* memory usage where measurable
-
-Do not optimize based solely on assumptions.
-
-First establish evidence.
-
----
-
-## 9. Reliability Testing
-
-Test failure scenarios:
-
-* API unavailable
-* database unavailable
-* storage unavailable
-* timeout
-* partial response
-* retry
-* duplicate request
-* interrupted request
-* browser refresh
-* application restart
-
-The application should fail predictably and recover where designed to do so.
-
----
-
-## 10. Exploratory Testing
-
-After scripted testing, perform exploratory testing.
-
-Do not blindly click around.
-
-Choose a feature and deliberately vary:
-
-* input
-* order of actions
-* timing
-* navigation
-* permissions
-* state
-* data volume
-* browser refresh
-* repeated actions
-
-Look for unexpected state transitions.
-
----
-
-## 11. Use Risk-Based Testing
-
-Prioritize testing according to:
-
-**Impact × Probability × Complexity × Change Surface**
-
-Test the highest-risk functionality first.
-
-Do not spend the majority of testing time on cosmetic details while critical business logic remains unverified.
-
----
-
-## 12. Test Evidence Requirements
-
-A test result should be reproducible.
-
-Whenever possible capture:
-
-* exact command
-* exact input
-* endpoint
-* request
-* response
-* status code
-* error
-* log output
-* database result
-* screenshot if UI-related
-* relevant file/line
-* environment
-* timestamp
-
-A statement such as:
-
-> "It seems broken"
-
-is not sufficient evidence.
-```
-
-### `.agents\skills\web-app-penetration-testing\SKILL.md`
-
-```markdown
----
-name: web-app-penetration-testing
-description: Pentest a web app or website end to end — black-box testing of a live URL, staging environment, or local dev server that finds and exploits real vulnerabilities (auth bypass, broken access control, IDOR, injection, XSS, SSRF, business logic) and proves each one with a working proof-of-concept instead of a signature match. Runs with Strix, either the self-hosted open-source CLI or the managed app.strix.ai cloud. Use when the user asks to pentest, hack, security-test, or audit their web app, website, web application, or staging site.
-license: Apache-2.0
-metadata:
-  author: usestrix
-  homepage: https://docs.strix.ai
----
-
-# Pentest a web application
-
-Black-box (and optionally source-assisted) penetration testing of a running web app with Strix's autonomous agents. Every reported finding is validated with a working exploit, so there are no signature-based false positives to triage.
-
-Install, LLM setup, all CLI flags, and the managed-cloud alternative are covered in the **penetration-testing-with-strix** skill — read it if the target is not a running web app, or if `strix --version` fails. This skill is the web-app-specific workflow.
-
-## 1. Confirm authorization and scope
-
-Before running anything, establish:
-
-- **The target is the user's** (or they are explicitly authorized to test it). Never pentest a third-party site on a hunch.
-- **Which environment.** Prefer staging over production; agents send real exploit payloads and will create/modify data.
-- **Out-of-scope paths** — payment flows, mass-email endpoints, admin destructive actions, third-party SSO providers.
-- **Credentials.** Most real vulnerabilities live behind login. Without a test account, the agents only ever see the marketing surface.
-
-Ask for anything missing rather than guessing.
-
-## 2. Run the scan
-
-```bash
-strix -n -t https://staging.example.com --max-budget 20 \
-  --instruction "Test account: qa@example.com / <password>. In scope: /app/*, /api/*. Do not touch /billing or send email. Focus on access control between the two seeded orgs."
-```
-
-Notes that matter for web apps specifically:
-
-- **Give it credentials via `--instruction`** (or `--instruction-file` for anything long), including how to log in if the flow is unusual (magic link, SSO, MFA-exempt test user).
-- **Two accounts beat one.** Multi-tenant IDOR and broken-access-control bugs — consistently the highest-impact class in web apps — can only be proven when the agent can attempt cross-account access.
-- **Add the repo for white-box depth** when you have the source: `-t https://github.com/org/app -t https://staging.example.com` (or a local path). Source access materially improves coverage of business-logic and authorization flaws.
-- **Localhost works.** Point at `http://host.docker.internal:3000` (Docker Desktop) so the sandbox can reach a dev server on the host.
-- `--scan-mode quick` for a fast dev-loop pass, `standard` (~30 min) for a normal review, `deep` for pre-release assurance. Always set `--max-budget`.
-
-For a hosted run with no Docker/LLM key, or when the user wants a shareable dashboard and an auditor-ready PDF, use the cloud path in **managed-pentesting-with-strix** instead — same engine, same findings.
-
-## 3. Review results
-
-Read `strix_runs/<run>/penetration_test_report.md` first, then per-finding files in `vulnerabilities/`. Each contains the PoC — re-run it yourself to confirm before reporting to the user.
-
-Exit codes: `0` no validated vulns in what was analyzed, `2` vulnerabilities found, `1` fatal error. A `0` is not proof of full coverage — if the budget or turn cap was hit the scan wraps up early, so check `run.json` status and cost against `--max-budget` before calling the app clean.
-
-## 4. Fix and verify
-
-Hand findings to the **fix-security-vulnerabilities-with-strix** skill: patch the root cause, then re-run Strix against the same target to prove the exploit no longer works. Re-testing is the only reliable confirmation a fix landed.
-
-To keep the app tested on every change rather than once, wire Strix into CI with **ci-security-scanning-with-strix**.
-```
 
 ### `.env.development.example`
 
@@ -2636,7 +438,14 @@ To keep the app tested on every change rather than once, wire Strix into CI with
 # ─── Development environment ──────────────────────────────────────────────────
 # Copy to .env.development and fill in real values. .env.development is gitignored.
 # Loaded by compose.dev.yml via `--env-file .env.development`.
-# Dev backend runs on port 28001, exposed to ngrok. Frontend dev on port 28003.
+#
+# Canonical topology (ports are single-sourced in deploy/ports.py -> deploy/ports.env):
+#   propaura_frontend_dev      Vite dev server (tenant-app), host 28001
+#   propaura_backend_dev       API, container port 28002 (host published)
+#   propaura_storage_dev       shared storage tree, 28003 (expose only)
+#   propaura_database_dev      PostgreSQL, 28004 (expose only)
+#   propaura_nginx_gateway_dev dev edge nginx on host 28005 (ngrok target)
+#   propaura_ngrok_dev         ngrok tunnel -> nginx_gateway_dev:28005, dash 28006
 
 # --- Backend runtime ---
 APP_ENV=development
@@ -2646,11 +455,26 @@ ENABLE_SWAGGER=true
 # Public frontend origin used for share/WhatsApp/QR links (the ngrok tunnel URL).
 PUBLIC_APP_URL=https://CHANGE_ME.ngrok-free.app
 
-# Storage root for DB, configs, backups, uploads (mounted from ./storage/dev)
+# Storage root for configs, backups, uploads (mounted from ./storage/dev)
 RENT_STORAGE_DIR=/code/storage
 
-# SQLite database path (separate file from release)
-RENT_DB_PATH=/code/storage/database/rent.db
+# PostgreSQL connection — connection.py defaults: host propaura_database_dev,
+# port 28004, db rent, user rent. Only RENT_PGPASSWORD is mandatory.
+RENT_PGHOST=propaura_database_dev
+RENT_PGPORT=28004
+RENT_PGDATABASE=rent
+RENT_PGUSER=rent
+RENT_PGPASSWORD=REPLACE_WITH_DEV_DB_PASSWORD
+
+# Connection pool (psycopg_pool) — optional, these are the defaults
+RENT_PGPOOL_MIN=2
+RENT_PGPOOL_MAX=10
+RENT_PGPOOL_TIMEOUT=5
+
+# PostgreSQL container bootstrap (compose.dev.yml database_dev)
+POSTGRES_DB=rent
+POSTGRES_USER=rent
+POSTGRES_PASSWORD=REPLACE_WITH_DEV_DB_PASSWORD
 
 # RSA key directory for payload encryption
 RSA_KEY_PATH=./keys
@@ -2670,39 +494,42 @@ GOOGLE_CLIENT_ID=REPLACE_WITH_GOOGLE_CLIENT_ID.apps.googleusercontent.com
 # Telegram bot for admin OTP login (create via @BotFather, e.g. propauraBot)
 TELEGRAM_BOT_TOKEN=REPLACE_WITH_TELEGRAM_BOT_TOKEN
 
-# CORS origins allowed to call the dev API (comma-separated)
-CORS_ALLOW_ORIGINS=http://localhost:28003
+# CORS origins allowed to call the dev API (comma-separated).
+# 28001 = Vite dev server, 28005 = dev edge nginx (same-origin API)
+CORS_ALLOW_ORIGINS=http://localhost:28001,http://localhost:28005
 
 # --- Dev tunnel (ngrok) ---
-# The ngrok URL that forwards to propaura_backend_dev:28001. Replace after starting ngrok.
+# The ngrok URL that forwards to propaura_nginx_gateway_dev:28005. Replace after
+# starting ngrok.
 NGROK_API_BASE_URL=https://CHANGE_ME.ngrok-free.app
 NGROK_AUTH_TOKEN=REPLACE_WITH_NGROK_AUTH_TOKEN
 NGROK_DOMAIN=CHANGE_ME
 
-# --- Frontend dev (Vite dev server on port 28003) ---
+# --- Frontend dev (Vite dev server on port 28001) ---
 VITE_API_BASE_URL=https://CHANGE_ME.ngrok-free.app
 VITE_APP_BASE_PATH=/rent
 VITE_GOOGLE_CLIENT_ID=REPLACE_WITH_GOOGLE_CLIENT_ID.apps.googleusercontent.com
 
-# --- Ports (kept in sync with compose.dev.yml) ---
-BACKEND_DEV_PORT=28001
-FRONTEND_DEV_PORT=28003
-# ngrok dashboard on host 28004 (container 4040)
-NGROK_DASHBOARD_PORT=28004
-
-# --- Legacy, not read by current code, kept for compatibility ---
-JWT_SECRET=changeme
-```
+# --- Ports (canonical values; single source of truth is deploy/ports.py) ---
+FRONTEND_DEV_PORT=28001
+BACKEND_DEV_PORT=28002
+NGINX_DEV_PORT=28005
+# ngrok dashboard on host 28006 (container 4040)
+NGROK_DASHBOARD_PORT=28006```
 
 ### `.env.example`
 
 ```text
-# === Backend (backend/.env) ===
+# === Root env files (canonical, gitignored) ===
+# .env.release / .env.development — PostgreSQL + JWT/vault secrets, ports.
+# Copy from .env.release.example / .env.development.example.
+
+# === Backend (backend/.env, standalone backend/compose.yml only) ===
 RENT_STORAGE_DIR=/code/storage
-JWT_SECRET=changeme
+RENT_PGPASSWORD=changeme
 TELEGRAM_BOT_TOKEN=changeme
 
-# === Gateway (gateway/.env) ===
+# === Gateway (gateway/.env, cloudflared only) ===
 CLOUDFLARE_TUNNEL_TOKEN=changeme
 
 # === Frontend Build (set in Cloudflare Pages) ===
@@ -2712,8 +539,7 @@ VITE_API_BASE_URL=https://api.vijaykrsha.online
 DEPLOY_HOST=192.168.1.50
 DEPLOY_PORT=22
 DEPLOY_USER=vega
-DEPLOY_KEY=~/.ssh/id_rsa
-```
+DEPLOY_KEY=~/.ssh/id_rsa```
 
 ### `.env.release.example`
 
@@ -2721,19 +547,40 @@ DEPLOY_KEY=~/.ssh/id_rsa
 # ─── Release (production) environment ─────────────────────────────────────────
 # Copy to .env.release and fill in real values. .env.release is gitignored.
 # Loaded by compose.prod.yml via `--env-file .env.release`.
-# Release backend runs as propaura_backend_prod (28005) behind nginx on
-# api.vijaykrsha.online. API-only — no frontend pages.
+#
+# Canonical topology (ports are single-sourced in deploy/ports.py -> deploy/ports.env):
+#   propaura_backend_prod       API, container port 28011 (exposed internally)
+#   propaura_storage_prod       shared storage tree, 28012 (expose only)
+#   propaura_database_prod      PostgreSQL, 28013 (expose only)
+#   propaura_nginx_gateway_prod edge nginx on host 28014 -> container 28014
+# No separate frontend container: the edge nginx serves frontend/build-output
+# directly. api.vijaykrsha.online / app.vijaykrsha.online.
 
 # --- Backend runtime ---
 APP_ENV=release
 SERVE_FRONTEND=false
 ENABLE_SWAGGER=false
 
-# Storage root for DB, configs, backups, uploads (mounted from ./storage/release)
+# Storage root for configs, backups, uploads (mounted from ./storage/release)
 RENT_STORAGE_DIR=/code/storage
 
-# SQLite database path (separate file from development)
-RENT_DB_PATH=/code/storage/database/rent.db
+# PostgreSQL connection — connection.py defaults: host propaura_database_prod,
+# port 28013, db rent, user rent. Only RENT_PGPASSWORD is mandatory.
+RENT_PGHOST=propaura_database_prod
+RENT_PGPORT=28013
+RENT_PGDATABASE=rent
+RENT_PGUSER=rent
+RENT_PGPASSWORD=REPLACE_WITH_RELEASE_DB_PASSWORD
+
+# Connection pool (psycopg_pool) — optional, these are the defaults
+RENT_PGPOOL_MIN=2
+RENT_PGPOOL_MAX=10
+RENT_PGPOOL_TIMEOUT=5
+
+# PostgreSQL container bootstrap (compose.prod.yml database_prod)
+POSTGRES_DB=rent
+POSTGRES_USER=rent
+POSTGRES_PASSWORD=REPLACE_WITH_RELEASE_DB_PASSWORD
 
 # RSA key directory for payload encryption
 RSA_KEY_PATH=./keys
@@ -2756,21 +603,15 @@ TELEGRAM_BOT_TOKEN=REPLACE_WITH_TELEGRAM_BOT_TOKEN
 # CORS origins allowed to call the API (comma-separated). Frontend hosts only.
 CORS_ALLOW_ORIGINS=https://rent.vijaykrsha.online,https://app.vijaykrsha.online
 
-# --- Frontend release (served by propaura_frontend_prod container, host 28004) ---
+# --- Frontend release (served by the edge nginx from frontend/build-output) ---
 # Public API base baked into the release frontend build
 VITE_API_BASE_URL=https://api.vijaykrsha.online
 VITE_APP_BASE_PATH=/rent
 VITE_GOOGLE_CLIENT_ID=REPLACE_WITH_GOOGLE_CLIENT_ID.apps.googleusercontent.com
 
-# --- Ports (kept in sync with compose.prod.yml) ---
-# Single active backend slot (container/internal port 28005); frontend host 28004
-# -> container 28006; edge nginx host 28005 -> container 28007.
-BACKEND_RELEASE_PORT=28005
-FRONTEND_RELEASE_PORT=28004
-
-# --- Legacy, not read by current code, kept for compatibility ---
-JWT_SECRET=changeme
-```
+# --- Ports (canonical values; single source of truth is deploy/ports.py) ---
+BACKEND_RELEASE_PORT=28011
+NGINX_RELEASE_PORT=28014```
 
 ### `.gitattributes`
 
@@ -2778,7 +619,7 @@ JWT_SECRET=changeme
 *.sh text eol=lf
 ```
 
-### `.github\workflows\create-github-release.yml`
+### `.github/workflows/create-github-release.yml`
 
 ```yaml
 name: Create GitHub Release
@@ -2813,7 +654,7 @@ jobs:
           prerelease: ${{ contains(github.ref, '-') }}
 ```
 
-### `.github\workflows\deploy-cloudflare-pages.yml`
+### `.github/workflows/deploy-cloudflare-pages.yml`
 
 ```yaml
 name: Deploy Frontend to Cloudflare Pages (release)
@@ -2867,7 +708,7 @@ jobs:
           command: pages deploy . --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME || 'rent' }} --branch=release
 ```
 
-### `.github\workflows\deploy-pages.yml`
+### `.github/workflows/deploy-pages.yml`
 
 ```yaml
 name: Build & Deploy to Cloudflare Pages
@@ -3030,474 +871,90 @@ Use /browse from gstack for all web browsing. Never use mcp__claude-in-chrome__*
 Available skills: /autoplan, /benchmark, /benchmark-models, /browse, /canary, /careful, /claude, /context-restore, /context-save, /cso, /design-consultation, /design-html, /design-review, /design-shotgun, /devex-review, /diagram, /document-generate, /document-release, /freeze, /guard, /health, /investigate, /ios-clean, /ios-design-review, /ios-fix, /ios-qa, /ios-sync, /land-and-deploy, /landing-report, /learn, /make-pdf, /office-hours, /open-gstack-browser, /pair-agent, /plan-ceo-review, /plan-design-review, /plan-devex-review, /plan-eng-review, /plan-tune, /qa, /qa-only, /retro, /review, /scrape, /setup-browser-cookies, /setup-deploy, /setup-gbrain, /ship, /skillify, /spec, /sync-gbrain, /unfreeze, /upgrade.
 ```
 
-### `Backup_of_propaura.cdr`
+### `DISCARDED-REMOTE-FEATURES.md`
 
+```markdown
+# Discarded Remote Features (from origin/main merge)
+
+This records feature work that existed on `origin/main` but was **discarded** during the
+merge of `origin/main` into local `main` (commit resolution below), per explicit decision:
+
+> Keep the current local repo behavior. Discard remote's redis/cache, broadcast,
+> and blue-green deployment work. Record what was discarded so we can review later
+> whether those features are needed.
+
+These features are available in git history (`origin/main`) and can be re-applied /
+re-evaluated later without loss.
+
+## Decision date
+2026-09-01
+
+## Discarded feature: Redis caching layer
+Remote commit: `1c3a008` ("feat(cache): add Redis caching layer for backend performance")
+
+Discarded files:
+- `backend/app/app/services/cacheservice.py` (deleted)
+- Redis wiring added to: `health.py`, `pdf.py`, `public.py`, `sync_ws.py`,
+  `tenant_pdf.py`, `tenants.py`, `platform_admin.py`, `billing_service.py`,
+  `tenant_service.py`
+- `backend/requirements.txt` (redis dependency)
+- `redis-dev-data` service/volume in `compose.dev.yml`
+- dev redis container (`127.0.0.1:28086:6379`)
+
+## Discarded feature: Maintenance broadcast system (shared/backend)
+Remote commit: `054a902` ("feat(broadcast): maintenance broadcast system with
+server-down detection")
+
+Discarded files:
+- `backend/app/app/services/broadcastservice.py` (deleted)
+- `frontend/shared/BroadcastBanner.tsx` (deleted)
+- `frontend/shared/BroadcastBanner.css` (deleted)
+- `frontend/shared/useServerStatus.ts` (deleted)
+- `frontend/offline.html` (deleted)
+- Shared-broadcast wiring in `app/.../App.tsx` (per-app variants) and
+  `landlord-app/src/components/layout/MainLayout.tsx`
+- Tighter `/health` proxy timeout (3s/5s) in `gateway/nginx/routes/api.conf`
+  (reverted to local 10s/60s)
+
+Kept instead: local per-app `BroadcastBanner` components under each
+`frontend/<app>/src/components/BroadcastBanner.*`.
+
+## Discarded feature: Production blue-green deployment
+Remote commits: `a4a81b3` ("feat(deploy): add --Local target"),
+`396e5b3` (merge "redis/broadcast/deploy")
+
+Discarded files:
+- `compose.prod.yml`: blue-green `propaura-prod-backend-blue`/`green` slots
+  (kept local single-slot `backend_prod` instead)
+- `gateway/nginx/upstream/inactive.conf` (deleted; kept single active upstream)
+- `deploy/deploy-release.sh`, `deploy/self-pull.sh`: blue-green flip logic
+- `nginx/dev-gateway.conf` / `gateway/nginx/nginx.conf`: blue-green upstream wiring
+
+## Discarded feature: Remote dev/prod service naming & structure
+Remote renamed dev services to `propaura-dev-*` and added a redis dev service.
+
+Discarded files:
+- `compose.dev.yml` / `compose.prod.yml` service renames to `propaura-dev-*`
+- `deploy.py` `SCOPE_SERVICES` mapping to `propaura-dev-*`
+
+Kept instead: local naming (`propaura_backend_dev`, `propaura_frontend_dev`,
+single-slot prod) and the unified `docker restart propaura_backend_dev` dev scope.
+
+## Other remote-only helper files (not referenced by app, discarded with the merge)
+- `Chrome-MCP.md`
+- `frontend-test/` (`compose.yml`, `nginx.conf`)
+
+## How to re-review
+To inspect any discarded feature without touching `main`:
+
+```bash
+git log origin/main --oneline -6
+git show 1c3a008        # redis cache
+git show 054a902        # broadcast
+git show a4a81b3        # deploy --Local
+git diff HEAD origin/main   # full remote delta vs local
 ```
-PK    i]"���-   -      mimetypeapplication/x-vnd.corel.zcf.draw.document+zipPK   i].��  !     font/fontTable.datu�MJA�?�q2Q<�����舸Q�����1*�(�x���R^��5Dq�yMwU���`��*u|	��HBz]��䕂G:����V������bTh�"-)G���d���aW�>/LxS.c[{�lj���V��Yjb��Ը��k��Z��9�t��U�9���b��!��k�q���y���p�W*4e���[��l���2��/yZ�m���In��w���RZ�|D�n���s���y��Z\5H9����|PK   i]e�
-M/       content/data/masterPage.dat����j��y�Afy����������� � 6!����M�&�s�?{��܉@qV b �b  � � �f �{���p����C�C��5�fg�˺N�f���I�= ��6�����8�;C)C&C
-C*C1����2i��:�	/*��t_Y�c�:P����=���ˁ��q ��|r���v���!{����u��v��9�%�@~�ܺGﯺﴖ��Q�b2����8k2g�8sk1{��vÙjY�Y)au��!<a�tN20�r���:NzE��c`  PK   i]����  �t     content/data/page1.dat�pT������"�O�+7��f�E>�ϐ�����6�������"���|��V�tR�ZE����~�Z�ifk���
-Tt���=���ݗ��M�1�ܻs���{޽�{��s�9�=���.}�|�gG<����7Ƽ�\����A��B�*��ƫ��	>�et���]��]��w+/|�|ϭ��4�� � �XPP�q�
-D�t&B�f"$�D襳O����+�zby��GJAJ��/\� ��8�����5W�Jẅ�����-U%e�p `6�<���L��g�iY{�Wx�J���]�*}�uz(����������Ԣ͏����g7l�	W������r��~�G 0�����鏯O8:_���Uig�Tm�G�$ �QORP7k�o��=mBŤ��
-n6m.ƭj�l"v�3�^�N�Y�ʹ�ѫ��$�����$	1��g�>5���C����G���6-����D��7��n���`�%iK}c& L���*�xL&�!�-��~H�����6����
-�m� o+�9lv[`-/%AC��:\�sR�܀? AӲs������ev���̵�����:r�\>+/���|��&'?#?��ex��8g6�f����p!���by�w����ݕ��Ş5@hD� �ʳG����_yL��2N����u�a��X[��b9���kaՒa�G+0����%)�XKBMC����^F,�x�3��TJOا��Å|������DI��%1�C�
-n.,D�#>N�yqC
-��Ηw\���Wa_iM�֦�\�sA�A)��p@�:L��*���B���x�.W6^F \̋����o�BAeZK�UcfǼ@X�U,a�CAX��n��DnV�m�z麉.͊����ժN`e��Y3Jm;2@9*Ź�3���M�q[����Z�k<�-j_��>h �)gW'B���!:~(�x:��� 
-�v�V��hR_�A=Ļ�'����p�A�����.�v�ɠʌ̀J6���6���cq<�xݶ�:��e6�E����8��1.�^�,�Ě�0�ܦ��j&lD;P*�#�@}��p��y�2�1�E��bdo@�v	���e��.,!�<z�w�D؈�&��u��!��al˕KƑɲ�7���,;�d����0�\����qde��r��d19��8)���u�Xcl�%��u�yYY���)ۻ���*�)ӻ�骍c8vt�(��N�v7'q�1��8��VGsg-'m0K�1�7��1��C7�JUÊX���":�
-����.��Ë�0`�=1bD/i��>.	Ì!
-,
-�h�1����#f���w<�f�1��֞��
-"9<�"�骜ۼW�I��&W+qA_�d�楹��� �=�VȝŠ�N!n�0p�
-s�[�|^�^��R�81����9�Z�Q�u�0%+��@IV{J*�@"
-){��ֶ���Wj'��C��P��J�B&Ѳ�8�3>+4� MCrěNG 8J0#��i	�<q�O-�~���X���&�q��Ap<1�,1jxo@�Mt�$P�
-!�owEK15o�h��V� ZIk��"���R�(|�X��`lr�$$�������_��ʮ��Ht�x��#RHn^�qCt<M.�x�9l����H�W��Ye������;��%7X�3��}���lg��I�`??0H���"T�*e���k�4�5�jP�����\�[S�Zm��u��c�W�Nk�X�j�:=B�-╔��e�J�
-+��
-8n��N4MEv��f�*���_�5T������z��'aDe����j�^4�䫉豤f�^d�x�jҖ�X]��?�	n���X����_�>�[�+��p]�G����_L�|��+���^+��)hz 5u��P��ft/zQ�z���:Oc�ڍ��~m�~����);�;B��閔�4�(36�*�_����%�</o�u��kb�'[w�u�ϖ���pe��mS�>u9:��t=��\?x��h�m��̊i�^`��U�d p�!g5GF]��G��uE{�w[�H���h��豺�h�o���D�GC�8�� S2�����FDл`{�:
-����PU�nQ���C�h�+�-#��Z=�4Pg&B���~/�SW��?ru����W�N]}���jW��:������4�Nc�4��]1t�'C�'��[{Y��S_��~5���ө_M��^�W�G��B
-�*����Q�]?�8*���ϔh�V�Eŷ~�ɨ��Q��]���������dT|��o�v�������O���o�(�U�_
-cT��B������fC�<�� ��V�j����E���Cj��~�X����v���9�N"dML��bb�g�~��q�\� ���-����9r���6����$qB�8�ᇃ�֖�э���qq���R�������1�����߇�-��=����[��*�3�������8���M�w���������,��e��:�w}�
- VT��S_��.}a;�/]�'��(��
-~?�@�"ܕIz��7��V��P����Re�^�|�q��-��p���;������t���ˠDu��"4�fC�?nU�k��/���⑎�IJ���;[��NeCY}�';"��i_(brD�C[� �>���lw8�C��\��C[�жW?��84�&C�d(}Wi2M���Pݑ��d���&CQ���ԯ�~uoe:���_ݧ�j�X��~F��^q��?6��B����tj�Pk��[+֩�iz�DYf�H�fZ:N����/4��=��v$H��ѵ��a�/4��5�UO���*ں�`������i_�?�rw*�C�h��^� u4T����T�C}8u��ݓ\�u"*�3�P����&�'��'��6%��rOk,?l�!	��m����-#��~�J��o�yt�s�de�J��!Q�$��dB�`>�b���T�=UY:�&��}�����h���}����q~6�;Վ=K.^�������=v�]?�6�T�`��Ou.�������Iu��<��ͷ���w1�PK   i]DƜ�g  �E    embed/embedding0�}	`T���$�'�- DȄl@3I&�u��;�$�If2{BH��d_�Zk���Vk[�Sk�%\�V[bd�]\j+Z�V�����{y3��}n��L��7�s�=��s�9w��dS��d�z�C�*��e[e-��2�l�,�6�Jd��-�n�m�l|���iܝB��6Y>��Y�l+��w�ro�G�,���t�2+�h��S��۾��?w�o~ױ�x��N����͞C��9�����.�z���}n� �%��^��d��/���k�m��^:��?���u2��*��?����'���?�����e���K�,�p*�#U���TY�,�端���^|2Y
-Kw'��TJ�l/�|8����QF��_�2?Q�ϟ�?�������_%����+��4��F�����
->w��]���~BBS9|���s�9�|d_�����K��_�*�����������O�$G�iQQ�;���Y����_������9��u�\ʯ@i���xz4?^(��F�_�������?{,;��
-���#<�����6?�����H��6�O��|�m����-f�-���������ޖ�?�i�R��?�1yar#\����jE�,����g��W�O�"^^�_Ϟ�=/�	���^�:Z�������ycz�-�g'�_�G��������?����y��`�����mo՟�Gxo�攎��/Y���x�>�\~�o�����{����ÌO���z�9�n�}��O}���/_���<���GB�����a��4��y,f���O���Ϯ�J
-�7���g*K�.����
-o��G�Yy�_��&j���Kگ�Amy���
- �J�~7D��ac/~-  X�谴,&�:Yp�
-�*�>��䓐QBe�bd){N���oخ�������A�?^�y���'�ǁ�����\�܊ϻ�c
-��訂��st�{�#���<;��B$����5����/m��xqϟ{�}��O� �����g�����|,����\�L�qn�������QAS�{����9K���G �e���M_'𻋳n-`�ҏ[������З�S�����0BȌ�G:�811l��+K����͉OH$K��J�k�٢)GtՉ#4x|Δ��7�8��!r��)�V�1"!��O]�Q����	!�m���%_�#<��Y9+2mm%�D(�]ugv�<����]����̆�/�<;\�eoLY�vp�_��2�j
-s6��k���=�L��xm�|�b�͇��)���oV�����ś�����.B�.BJ%�w8�{2;ʼ�7Ȩ{~AWd]�+!�n���
-\V#���S�nEE����T��A�|H��$�yH/�� ?�;P%<u���;�_��q[���j��J!y1i�ۍ�A�{�2�*�y��qr��r��!^_�}lB|1��a�K�V];*#'P9�GV�� G/�m�[�73~5b#����[�-Ȇנv�����wQY�Z�s o	r���A��~�<V�j� *��<��*��#�
-���(���tzH/��V�k�k��A������O����Q�|d�|z!�{��Q1�%R����ː`���ȃO�xҋ: ��,���������;��KԊg�\H�d�x�@�d/�8������z�u*Z���0�W����|�-:�kQ3)F'�^;𰏣?�Q����Gr@~��c�j<0|5�@�O�8�� -�'�A��K�w)�.��	�_7wP����Q@�@:��LLt��pG-���x;w������r�c�(_��	Ǔg<
-���n�#_�Q�;��d7�A�y���z�#���p�z�Օ˹z��K��rȯ B9�C�x9+O�n_��ir��u���C���FE�8~߆j��M�o>_��~s�B�]��P4��:-�{%݋*��|2�bx���W����n~��/a�	�oe�Krp8��P.����Fi�G-�\��E�4m��p~�~��E��h�c'WB�P��
-��Z�A�ж�l�6���O3�+շ~��W ���w/	�����h���<N�Qy��O����N��,� �[,7I�
-Zf��%���(����p����Q�[e�j�r��&H�Q4�e]h5��}��Do����8[p^���Ŀ'��E�*pŢ��N���h�5h^м���]�.qkܭ��)�iOkk^kqk�v�]�]��|�g�e{�����{��=:<��k' ӗ�
-��W�>�Va;�����"�I��F�iфiVi�׼��ݝ�.r��݀�ޮ؞��l�v{����M�c�U�;xx�~���������6��᷇�~s��ᯇ��ˆ�ﮡơޡ��Wޟz������o�_߉{�߻���]u��C��ھ��'�
-�:��O�n�.ψg���a����k��9^f�q������PZ��Q�˂r[��#�	0p%;��Ƣ
-O���0T�,�QX�5Ȁ���!xL
-�Dy( *DjT�M	*)*G��2��V�Em�u�N��nԃzQ�Gh�#hQ�#r"j@�h3j����� �1(šx������71-@Q2Z�d(��) �S�4���(�D��l��P*����
-t>� ��^B;�S�I��_�i�z=���}�#����I�O�)�}�� ��
-��k�~m�8����� o׃e�	���D+�+�[.ǧ� ܃N��PB��
-h	�<MA硣�`~?���{�N�j Bo�.`��b!<����D�i5Z�֠Uh?:����":�F���ѫ�?��H���_2P�w����]|~�(H2YL���4��<D��zt�uO�n��Wh*2+NT�X�p����2��P�C���v}��	�{�˫
-��U�U�U���T�������zq�����w����L�YU����5��<j��
-��4��-���c�q��Y�i�-�GkQmkmlmn����U�%�Eԭ��Y�a�}&dr�����0�����2E�"[q��Qe�r���꼒����yG�n�{8�:ߚ���l���w$,/���U�*^��:�zW�@aGad�Mj�z�����"Mт��EǊ�,���(~����{J�K�Kv�|Xj*�.]Rz����ڲ����e���T�Q���"�[��9�yH[��ծ��>�6��i������=�O��+�ݭ���[o��y#�Ozo�nk�i��v�횶;ۻ�S�w�_�Q���Y�=�:wvn�����:�uE����{}���Ǻo꾭��gsϬ�U=��\߳���W֛��Z������W�ݗ��J߱���+���#�_鿦�΁������
-l�<4xS}E}t������d鲬����cM����m�n{Ϯ�g۟�_h����v�r�p<�49�)�7����\�g��
-Bv4\�pgc}cD��c��7lN�|x�M������.�ҳ%y˒-On�����ٜ��I��͏��D����E���m[˶�lM����/��M����G�OG_}wLkLh�k1��E�-��b��^g���K�;�U�����wǿy�����Ą�	{�%ܒؖ�����d⇉��3'{γs.Or'%'=�t�\�\��sߘ{�<ż�yK�}<�������W�{��4B�Yp����,ܻ���^��хےK���%/Iޓ�F�C�
-�Ztˢ�e��Y��I�۲�BjC�!a!)!;B���Z��*to臡�M)��0%r��)�M�yʣa����̰���
-�4���S���L�x��ڦ�O{iڱi�L�+�>|U���M/�9}���f�=3f��1�Wy��"�E<6�=3l掙��ʛ5o��Y��zxv�������;����D�F�E6�����Ȩ�Q����F����n���6��J�1�iyi[ҲӞL�ym��k_Y{l�c�������e�dL�8�q<�̢��G2o�2dEg�f}�uE�"{A�ٷ�ӯs�[��ԺKד����_Y����6h6,ذz�W�)�	�y2g�ƒ��6.�xj����\gnn��[r��԰i%h�
-�!'�qh�*�
-Q#ԍq���N���۪Wn��^�&'�����c0�pW��+���}�E�Opļl�C�3��o�ed;�Qy�%�\���^��;8����O3���z}�/u���m��\�o���ΌP�u+��������QYmuM�������G�n/|]��Ak�<�����bin���f-TTل�Jߋ��Nx߻���o�+�S�ʴ����v%�T�����(4�֍�ٺ�UU��s-��Ĥxb�-0�%��u�ĺ�RR�V�u��I�6�ZZT�h���A�(T� {��ʄ�YZ��� 4��j�r �s��j
-����e�#��c��j���ձLKuY�U
-�Bј����d�����&���D̛RP�Ϩ�,h��]8�"32y���quQu]U�=�6��Z������������V�����jȵP��`I�} %!)�֎�l���:�
-�
-W�}|���y���vtb�՞T�YQ��k�*|�����32��3�es�,�M,M��br�xhve�
-����$G�����U���A�tU�ᯣ�%Ҥ�t٬�N*
-NW�Z��'|���~���Ԅyk�es���n�Mݴ���9˧�؜��1�5i�C[�eS%�
-L=a�0�8-q�ڦ�I�3�/X�zfN\�k�]_85��7vi�;��`�Qy���Y������I~?�kKU�3��]�@y'�B�U���\a���δq�lS�ҹ��w��T�,|��ۓj���pV�p�V'`�SѩR>o6e�wnV���́Sd�$m�}�]������ͤ�hN^<;y�V�hEV�P�U�V-vUoq�WSS`О��/���
-�_S�oԜ�ԗ��fR�2Xi��7�j��!f���7��bd�B���O�I,�J���ٌ��SY�m��T�_��W���(W��f��a���4$kT� �<<��+����y��&^W`Ԉ���iDG�x(x����*���X�����~������D%`�o��x�|�h,�#���M���mQ=e�
-y��0մ���� �z�u�_��v�����̞:{��O����S�tށ�ژ{���\�����(iN!.%v-U�k���F��=u����Y/ o 7� �aߊy�Uzo+T-(�*=~�7��w�s��M�<EӪ�ů�$�ov��x����0�d��ulJIk�޺{�`{ Oɐ'`De+H�'Wv.'/�U/\T=PdUT0M;���ɤ2��̌������or%9�6�)�s��5�9;��1nt�Ᵹ�}y����es뜎�9�a��
--�l@X��	�Im�:P�^T)�l�JzA�}�}�B㻫 �+i]9ͭ� m�;��e�Exy�o&d	�B��N�h)U�hB��Q��m�kD!������$5������5+eU�5M����Z�kME&���ui�T/L�)��"]a���_�l���?��tZ	-Yk��	�Ĩ�%�#9����[���֪����=w����Ps�������iQ˷l�o.��o����=?K	�^��j�
-y���P&?�� ���5>�V��;}�IB~~�;�HG�x���_Y/P�Ɋ�R��JK���������>�w�����x����`rӔ�斐�f��D�3!ɸ)�aZa�"۴MK��Nk��m]�8пys�@#v�{�\��ng/�=ف�b��DĂ�HP��st�_x�M�JyV�����8����x�g�\��3��r���(�N y|�����A4��x�p�;,*
-��AW=�������B��^ap8
-��������.�<��Y���f3�]�S|���ʼ_ޜ_��س� y=���������T�@�K5a�N�tb6���,}�,���O(����G��!W
-�[����}R^����<rcm���kxܥPvU������.�	}�z�v�1H�KX�;{\�3g�$k�D�?��d����ށʣ�����A�C�>,QS����v��k�����[�y��.��%R���Y�չ��	,2�J�!��FM
-Q�oj���I�E�^�n��$����Z�j
-uRR�2%cAC{ED��e�3˞�⋃������������~��7��?ߓ�Y{N�枮zl��:b��`�'���v23.g�;�}\S�_[��ǈ���G��VS]g�^jx�G����]ؽ�ZD�."ǭ��a��Ǽ>�x]�
-E�,�*�JϨj��/w�*4M`�Q�B;зys��#xn��������{��!�ޮ�ޡ����i��B�6q�h;w3�	����WW1}9�:�`�Y�gQ�_dM�Sb2��qS��H��SS��i��S�QI�j�iQ-�WS��/j���r9�bN�XvX##��Q�VWW,��y����i��O��	V��H�z�r<�D���fQ�2��H�P��*���:�;��&|�dA���5|}�b���,h5��Ցn��+#ܾ�W���r>
-K!@�@��Ud���,h3�����f�/
-<��k�3�[MF$�RW	z�c"^:]�%�
-2�I�gk3?O���U���E�>8{a�i�Vц[�Jf�5�����񬤦�#05}h�;�$o�ǳ9���[@���hI=LP���@l��m�
-�Gsh�����p�
-����%40�v89�)�"�^��"/�ʇ�i�
-AFB������G��[?/$�L�7��<;�{Wa��|��M-���d��p訕f�e^C����9�	���������Mxa��׾&7�|�׍�L�B!
-_<���P�㐏�R�<]<[K��y��K�A�u�����/�⋒���o'����}��񂾡s񏆆�n�`t^��	�m{�Hm��2
-��ȵG�j/�]}tm[���φ��_9�����ݨ+0��nQ���mp�?�&��<}�g���"׬��_p�1����Ϧ�'g�pP�v�\~P�?{��B.g�q�v4�b���kl��m�De�p(��<���[q�j�ʴȕ<}q���~��r�G'u�%*�jK5+_��b�V�{�BcE�����_Yh^��H��0��J��0��Ӟv2}uT*�]GWƚi�X��4�?�%y����|�)� �XPzI���W˔�k@�Y7o����M[wt��KK}w���;d𼴄�b���.�6�������B�W-��+���5oU�ͳң���<;b���{Z�L�������z���4ƺ��k��ۻj�is36Y��LU��O[U��T�rJC1��5��F�GeS��iC�=F��S���KZ��[����^�ԭ��"F>1~�<���E�i!�U��׿��/�}��61��݌ݩ�%?��9\]l!�m>�:���;��t�;
-�o�4b�!���6N�j]��ܝ�jڿ�λ䙧��.p��[+[��
-��kj#�}���6���b��!�V�_s���
-�lj�������^�����;�|���?�����������]x���Y�P:5s��\p����,��ީ������,�]����=%�a~��7߅W�_��	T9yWx�c�'qꖤ
-�?��o9>�n���[�^?]sm����#y���p����,Fu?uGp�v�Wnv'�_h����A�����:��!�y���
-20���m*��GJ28�r�k��Q�ң.E
-�����|��+�	F��·�R�>��u ��JG%
-�#�_(KK�_L)U�,U��WZ�����+K�<
-����N�{��XUyj�j �)���p>�;i� �
-�.�LY\�ё(oN�-3i�L�2��̤-3i�L�2?t[�l�]�&��ɍH����&`��(txi���J_Ņs�:��j�=$�����>�T���1���Z4hoכH�Q�n7j��ֶW{4ŵU����-���E*mG��S�*����2_���`wI^aziiQQgA�����¼76&+yzs��A��z�+5��k2t;�-���!/��yQ�߄��wHb�Ԣr�h��2�.T�Y���Na�E�R�	Y1���kZ�f��UuA�b�d�&��l�7#
-h�VZC�.���I�Z"����;`�t�(��2�m��z��
-5e.]۝e�Bw��\S]�L_�n7D�5�U5)�l8��@�����p�b�:���E�l���R�3��H[}+���{��k/�P�÷�"r+�Ic�'ߙ��R���T�|�&��0�^�2�y=]e&�Ja]�Ӳ�ȑ������LC��\SX�{��
-G�!2�v���;k3�]�� ��˲z�1��5�߮��\�gt5(4�Jd�)j45��[�u�	��?�ٿ��[d*��kvE*��$7ֶ��s�+�0�#~s���ر�6o����P�o���R�-�(�;�
-u�zU��3�4����֭μpkg�������\Ֆ���j9I�C*y[1E��ޭ�x��S-\Es��j�T�N�c�[����IM��ج�W��R��f��T#��Ӭ(P��"��-��m	��<%�#l1��q�gķ�򍆢����~���(O��\W@|.<:&<<f�t�>�:�
-4������|N��.~���U\��Ｂ�2�U�"|�~tiW闧Kz�t����Eŋ���kyNGU��۠�2������<�k�,��z���J�57���k���	_�OA������YQ��d�봡��4�U�.��^PJ��\�0�%�Flt���fo���2J�M�7L?��ב0e}SG��e0���g��HB�'�H�6,�њ_ߐP�-h�U�W�6L�c�*���᷎"-�n�+�/i�P����[N��뎎�G�Iί�����}}�h{{ܭݽ�����˭��i�F����S�d����9�cQ����d��%TV!�zI���Og~��q:�>�vڡ��WL{a���DlV�J����Ʈ���� �\��q	�f2OE�5�y2uK�K��|vT��sb�T���M�*���]4e=���S��B����%�P�]��ӟ�W�%�˯��xv���r�[hGF�����[u/W���݂\vzU^Y������3�ԡNi�BDIQqm����bWM���雾l�t8f�	�7}:��+�M/)��1oiS|�bڴ�蟕�8k��YT��gq����e+�m߰͝k�%%يڼ�%^/yv�ݖ�`��i��yKJ��>�nRM� H��{�գ����|��?W�j�t$T�7	�7P�O����Q�d��ϋx����5�:��A�in^z���)�7|�v�"N;��*a��.����ڕ��:��"_���řz��������]>P1�ѻ��`�Ƞ +�\���+���4mE����������SqF0@[6+
-k
-[������N�/���i����N/؜����ZJ;�^8�u�
-�ާ����v�\Wq#�"��դ]Q|]��R�S���cb���B%���MX$�(W6���:%���/^�Y+�_�Ӛ*���W�z�JU���E3K����3���%V-�v8��,�R\l��i�l���5��
-��qZ��u�@���T��{�3��n�ã��p����=�B�IcuvשKڡݥ���up��l	��T	��jW�Au,��O�Vo	���y󬶤9�b��j6�sN��ε������ur~Q'w����=�6{|7���(�|W��5���F��]�_�}�q�9O1p��V.n��.�)��eu�|��Z��g���rܲ?��z|�X����$֕�<�umIP񵻂�'����`�)�P�F�VF�t/]\�
-�V���Y��Be	��w5�8]%�c�p5h�n��=n>X�7;[h�j+�ꖵdL�|%�сC�	���^�r6N%�ӽ�B�{G+D �15��2�����(2���Bۮ)��NP[\�L(�q�cA�+�{�g6��^�J|�k+��$@O�`=��`-���ш�t�0�R��2x�cõ�,��a�\�U�T^0f�&���zd��:���h\��iս`�|����-�E��K�ׂ�-fe�9�r��9\T��]Ҩ��:P���	���8��I.��8�'�DЈ^iLq��M����=���} >ڊ�L�U'��9�3A){�]�xigI��	�G5��m�Op��p�����ᨘ%x���P!<V�r�8�=%�"
-;9�g�h�0�J�3�V9F�-=&�V=PЭ��VW�W��7^)��c�״�U s�f����<m�8�:���P���nP�~����v���d�=���'\<���]��	{
-���4���w���-U�+�,���];M��z���wטT�e�z�ICO���B��������j�\�v�������6@��eubȵ���A�]����UO��_����5W�/���k16D�i���놁ԥ�ZErĺ��qF�i�;(�kF�ى�w�c�������4"���
-0�
-��ʙ{f�B��;�5AA�6���
-���-�Z~���oJ��*��+�	�R�77㈪�7��	��8�|���%�O�UF�E��-�c̔F����X�3О���#����H�]�5����fmS_cc�����ҢΟ�v��9��;���fn�>W�;9cT՚p�B�9�*5\��\�U���S��S��ڻ���+3�vuY��sp�u����ܗZ[ؼ9�Q�T�M��9�M1����P�yh?�qt����y��e���jU�0��4�M�c��ؤ?6�M�c��ؤ?6����c:Ԃl����j@y��Y�3��"�ln˃tވ�B��t����#�Xܭ��ߜ�V���?6����U0�Np��q�ԍ�j�0Ǐ�c�"�%������:�J�u��f�����O�{�+��\�Ϗ�Ք�
-	���RE��V�(��7�b@W%m�-�(�m��-�d�K��˹�_Ѐ��F#Y]P��K�Ed\a-R��w�s1�C纬���U/���a�s�o{�����q��(����\h׃�����.����h�Q�;#9�af��V���*�YPq�wH���砜�Ϯ�$:g�Z���Ղ��Ԃ�ұ�?+:��6z�NG�rbRfI�o�̒�(*�WR�S�����B!�6�zn�i�Dp�$8N�"�� N�Y,�r��%t����~���x�*�rj�/ �CS\9v�I���$X�C��@���o��,V�
-�p���vl��Ks�^����Ƅ�c#F+�&�=h��=r�.�+<:v�0���Iή��&��*���
-6�o �)-�	���k��ճU����]�;�X����s��I �ޘX"I5�����T���+>��̬� ș'j��w�Ɵ�%���h�
-�5�5mc��Y��;F�L@�B�t��h|h��;4�dg�n���O��흀�1v���Vn�d;8K��U���7-��z~����3����Y{��g��{W均~`���9� �t�gk�Y����c'}F�� �I�a~1��o��
-�V��{x��aS�Y�t<���'"�}���`�q��|5��)!!!�*m
-��a���A3�n=�.����=E��bԬ_�:XL���q7�h [TOg
-�c`�ޫ)�z�w
-{���ه��9`��(����{)�I����Re��
-����������,<���^D�M�����D�cѾ:UȀ$:Dg����	���{��
-J�5�Y��lX���Q�y����En�ڿ �"pB7�{fq�4.0�[�����v�0���v������KP�~�ͯ���:�/]�Ը<�Y�B�O2�'te�Y�3��<������"���̨�H��M����'8�muP8eD/��7w�\���ہS G2b��B� �Jݭ��:|s��60�_;�;���%��T�9[O!�l`��i�d��*W�l���g�[lO�X¸�����cW[E�oՅUL:W_�7����\�[am������j!�8�\
-y���[���c7[���àD��=�;׊1��
-��Ǣ�� ˮ��QDQ�����j��|'���(~���)��eU�nG;��WG1���� �o�0�|n����0��
-:� �w�8�>��ı���w���fZP��@�m�/K��
-�����1C�g7^�3ј���E�v,�J�zy:��CȞ�uy���D�#h*n�zTBWD�Ƃ��������U��Kڴ����̓�駢t��f�ok��x��?�����<��\�"r���G�K��;#ҝ43�1w�g����5��"�|�x�5m��)��U&Z�Fl��]��C�Y��!����p�~����8;����~"�a"�n��է㛱�	'��݀��8ڶq1������mbS���[OI�$P`�7WT�!���J�	�θ���x�>m��������Y��0�̔J�����K��j#���Q\�9���Fz�?�@�oٙ�0����1�
-q�\eքy�XR](���N��F^G���l�pp6�2�����Ũ�<���'�|��5g�(�䙵�$?F�v�����G�K8�ly>�=t�V(����ă���z�����0WX$o�_3U��̓�*�v`��ݧ��h7cQ�w�DE�,+4�EEᶔS��S)����1ûP��t�S.�Cx[�N�6�7o���tlL?.&?-��w�		V���`+$~�0�~u�?�:��Yʨc���1I�7d�{�+�5��Y�5�[���,�`�+�LY�A��$��e���܂J�4���K�]t�Z8QH�L%����
-*l�N�6����ū�w�&RiS�C���47��uu�W,��]GO�D,X�*� w*������^��C���W�U���He�G��p���O��P�=TAW?
-����������G
-���}���B���B�΄4��'@\Л/��0M�������t���eG���0+N������{]q6�s�M�{���t ��&v%	pC�����(;�����J�_�*�&��+<|_��'X�,C����Q�9�%�=
--���KZaI~������U�;m�������ڕ��\?m��-�Ϗ_��|k�L>0ۤk}K4i�ׯS�ciL~�f~��S�Q�Z�U�4,�f�U��x[��#��/^S��Um��F���0]��{���G+P�
-(c����9�j
-x�05��q�U��wmC�u�y��~4P�������7}�*��?�����ʲ
-�k�̞���
-c���'���>r���z��ZZE�̫�����o�7�����~(kI����Gy�)r�S'��2���Vf0����^��l�|�ߪE'��R5��b��#a����%l$b#
-v狹�N-�?jZ���=�3�̾�##xUk��߮��.}��_P��a��}a��U>�r����;��aK6���>Td�e����B>�����놇�ytV�۫� ��f�Nv�H��|��(�IS��K��N�zI���x��H|�7�$�LH����� �X��`�j"���Gckp�*�X,�{#�� y�ĳ��
-a\�e+������V�7����kf�s�)��m$��+��I
-�auu*S\˞��v���<$�l�Nk;�D��6�y:��U��z릌��M��\�jM]D&b������ʐ�ܮ�aG�CG}W�t�����
-'����%�����O�c�tBh����
-�� �/��?W��}̜/��G)c�M�����"U��Eܾ���%�o:n�������о1��}x���cFi3��ox�l� �p1Oqf�A�����;���3uv���u	�)���/nn����4u�]F���;�6!(d�U�Z�&>�˭�!�U/d��[,�esp�Ri��4p��r����HQ�%�#��;ܸB�aҚ�rKH���IX�T�ߨӚ�rkH��.�jhlVov��3�RC��i/Œ�m�u����&�d�ѩ��E��g��?������PdAk*�"�i�*�+�$ ���'n��WY��p9l*}��9��"#;�|b1DLï�k
-
-���\�"�����;��KI��Rʼb���d=Ji�i���Z�ޢ�R�|�DW`bstW3��~0;y`��LK O� ����o�P��:Z�� �<��`v��66'#��k����o�q͛^��A�F���R?�!DYG��YqX�8�R����83^�s
- &/���SR�����1O�r<d�������KH�b~2p>���)Oے���	I;�?*4�j���ӳ?O��췾-m
-
-^bLlr�,���
-5
-���Nf�O��}n��[4���x�����&�ߕҵ�:�*5�Q�>�]]�N�����
-~%?ΟoL���P����������~��o����C���ƈ|f�£��4�	�X��,x.�-����3�Λ�*��C���'��I�y�n���'��I�y�n���'��I��,��Jܛɔn/�!˙-b� ���8���}l�i/ o#� ��-:qM�J����\:�(�n�O	��]�I�dy���.I�g����Y���!N�
-4�6�q�>�철�Gy3������ϐ�/��q�2�xTȭ���o� ��~_K��9�
-�� �u��|
-��)ƨ@��u���#�a�vw���غqG��m��|�q3����/8�qetQ�[����Aw��d�$?l`�n��ǃ��'\
-~�����aR��2���2���`xNpx�lNW0L�A1�8`([0
-�[���G�{�^�}�ұޗT)��>�B�G&m�+<gX[ܩ�d�S�����-�3�m�Ĩ���S��]_���(�^��.��n[�s��U��R���"�߳�wE�o�kˊRh���?��g��\ɞaU�鶺��"�\�~��ax�<܇�C6���=�6Ge�s�hn���x������G�y��Jz)��H�w)
-׋�����~dq�����~�1�����ĕ��b�EJ2䋮X���{�x����W⢦���囶��
-�\w�;�t���"��JG�*�{[آ��!�}��<<�Pxs��_D�t7�㖄�%>���kl��>�ʝ��h7�����x�y�8�/�(녓Jvb6VLy���Q���3I,e�#8��\��M��L�RN��kS��?�"���S�v_J�帹ݐ������4���$z�\���Yڱac[���6
-V۪L�WH��Uj1��Ǐx�/6�����]�J�9Ɗ2e�q���Rq��]��y�[�Լ��9�x�&k++j�SvB3^��%_[�QVw����|U���V�~�]LgU��ƚ_� Go�����\Ֆ��D���x�c�=�~�ڄ����f��r��s��p#�9�>��fF�R��qr�B[�y�hL�Q�V(�B7AE4�/��jH�R�14O]�VW�`|bI[kUQQU{�9O(�q����N7����í�y|y����I�g54Ҙ�`F�G��+HG�u�]U�z�վ��&u�2eS�����f����+��l��2�#�{����u����Tg�L� 3�̺ /�ϸ�%��&��)R6ܫ*�E�,Uy|b\]�*�iK��<6)S0���\*|�YC��O�3�F�w�T���G-�앑�ꧧ���ɿ|?}񡳾�2���H��N]��}�\�U�p���������[�Ӿ2���<^~7s���#\ab�ɓ�y�u����w��̚�1���-��e�;$?��0�7ڇW��u�����Ǥ��B��L��e�͖i/d�������t�ؚ�7�r�9gO[?��~��[go�?���}q�D���x�@X��w������u9�7��3��-� R��\��-�L$�`�Q��E$a��J`��d0��YO��# �/�k���ͣ���wYJ���|/S]Ā�?�rz��7���p���8�W�b�.���G�~��i��o_8��[���?}_���\{�w��m�Q���̭&���K{��}*��
-���Z=۪�6
-66~H�S�j�����`����\iu�b
-�qnM��W�[Uj=9T���A��M�_��9ŕ�����Ꚍ�ڒ��u;�(�W���Ayƚi�����Z1�_	u���;��ܚ�����;(��47�3r�[� �p6/�)��v�]�T�s���m��s˔*ʗ=�T���)���vEY����O��:�������tΜһ�WP��~Z�8�Sl�|~�T�k���[�Y��'_n��'�����P�
-�����\5,��K��4D����`�Ү�/O���:ۈ�l�݉��>��N����5�w���Gu!5�0��f����$�O5��]���>�J��/��G�}[ �?�.�|�1g�����������~��מOF�M��7s(~?��jy�ߨ^�",5�7n�c�"��Ph|� �M�x$��6_��!=����֕������A��n��w�ـen�w�m\m4yf�d0{fӕ''uݤ�����}l�����h;Ɏ��ZO�W���
-�L�	�d��@��~p����on��x����>`'])���k���<>4�D;�b
-�îy�mv%��ҝ2{���;���}��w%�����x�Nے�gΖ�X_�ǖ7�X &��)p�5�7ݮ|m�7��
-{��q1��%4vw�1e3f)��*�����V���+�*�>{	���H
-΢���
-&/���y���Ɛ��Y 
-�Фx�ֺ���PY�G�	����=�{��9�c_V,��x��N�Y�&�}2�}�󯄹iJ�q'��l�4kYo)���
-��ttڋ\W��g��ի�N�_���x/5*?�]N{��)aO��ۮ�g�^�{��[��,><�EK�
-��X�ض�X�cvek�l�4��թxu/��L뢛��/�O:�m=�zu Jܖr�9)'�Mlf��}�l� 5}L�*~�n� y�o�����w~���.#l�u43�^�m���\��f�d�I���)��/���8<����9���9��6�>;�����9\�Z�[��xvsx��e�����.͙d�pqϟ^��i�N<�%0�AG�H��S�Y� �Dہȏ�[I�~�I2�ʍ�M����Z%A;���[��vT�;�l.��.��u8y��M��7�t�M�ҹݩ ���#�ۥjۃt�*Al%�T	~6�5�,�gň�p<kF��~V��K�Y�+�xxF�b "q/MA�����GR�CX��J*�N����fp��S���(����ơ��q<�"�����DR���0�37����q��V�mw�g|�*~-qZ�8x�ʸl<t�����>v
-�_p�~R����0���*y%��~���H�^||�tl��o���ѦM��ٸ�~L:�m�����7c�
-i��<:?D�=/�a�:����_��w�`61d�_ǹ�fo�D�$t���-p��(躱��{�# �"c���F�|���������U�U����]����T�+����կ��Z?�[H��1�������k�8Ye�*�t���$+���gY�%�6� ���. �o҉k�s|؅�i�����gxy�@�%���A[ۮ�ZJ����(���K���f�Xƣ��K��
-�c�T�S�ߐ� �O��9
-���r��0>q�ȥ�B��Lq�H&[~|t=l�wmp�A��G�v ����W��������������K�a�Y1�/R+A� b+�C�
-b��:t�4�=��]�'@�]0�A��;���f�8��-�	�3-=AǠ��FO�эԉC��a�c�h:�)�G�ۋ���_[:6���0�/��?�^3VK�d���0��?�^.���
-�����7i?`�?��>	X����oBa��Z�b����ȟ���5������+ap��녱u���>���za��Z��u��\�Vs��ߍ1Z<�ݼWv�*�"�M� Lm8�o/?�+X^$�Y�� ,~��}{1�o#F4ٟ4ٟ��?���w���7~��;��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.��.���]��i�	���1���7^>&����;���H�Mc�r"���xG0J�s@$$l�'�́O�J���Tv��;8��	��ٹ��;�y��Zv^��3�\���C�u�fvn@�;�E��b��+j�*��L�1�C;�9������P���W�<ld�h1�f�z������ ��� W:;�E��U��2йH�rAR?�#Η�ehZw�(�C��� ܳ�z��1(��(�g�lxn)w�i�{.|�#��q�<���;^�tن%�u�r��zk��;&'��.+;e�;4ciƒs3�zB�T4E�:N)�,�.�X�Y�r�K���M��X��wC�< ��K�m���d)��ן	�x���<���
-�f�MM(�{6ŉ��g�]�6X��l��Q?J)�PB\Ӽe9+ܶ>�sM��rS�(37-q[l��gu:mn��?m]�4#�lp��ś��8�+�p�W�e這�[
-��C��Ѫ	D��Ӂ;S�m�(w'/[��N��t�<۽ʯ�Q��"�"���"�D8�+Z*��M <@-F��	�����R(�A�[�ђ8� �h@kᅍp/}<��SR/�<8�.wi�<k�|���Mӥ!�W��*�c?�_Ǘ@M��z��Z_�h�1B����hF
-�Ty���'R:�����eЦh��vC+ӊ��淃>����^�~�� �
-��bw���nB[P3jA[Q4԰X�N<J 1����\��hZ���P��ЛSA4��t4E��h�
-:$
-���D����=�����P�_B�_Ы�:t�}��D�@?ݒ����%0�&t3��
-�݂A��bt!��
-�64�.E��CQ�=�����v*D9��P �@�-�
-&d�<�(Z�V�8��. az}�֠��y�=�����	��
-\���
-
-!��5� :m#\���B�،`���|\@���j\�����w���2\6���o�^܆�q��]�
-�A?�=���~<�q=�`+�sv��Nt��pně��؂�qފ�q��q8����	8��Ix.����x!NF�G���A��p�Sp����p<��x&��g�H�S���8��3p&����!����
-8oĹx^���K�R����s�yx9^�W���*|^�����~| ć��0~�G�K�e�
-~��_�;�~�?���;�.�?���g��9���'�G�c|���ğ�O�g�s��>���_���M|�����]�W���;~���?�5�g�Z|�߀o�?�7�_���/���1�z�]��F��t-z��߂oE��?����G�"|1��_��/�?ŗ���W�+�U�j�ߋ�������!��0~?���Ï�?�?�������N�|�-��߃���!���Lё
-RI���T�b FRKꈉ���(I�'DE
-���bRBJI)'�%n�!��K�H;� ���t��K�H? ���X��؈�8���Hi$�I�B�I�J�I�%q$�$�D2�$��d�O��$�,"2BB�F��i$�L'3H�If��$�D�T"'id-I'$�d�l���'H�Hrɦ����K6�V��T��$����K�b6em���P%�Sc��uK�.ۘ���ܸv����)E�vmFn�a�x��_+� ��$��S���0��dH��!�V%0�|�O�Aep�q���,	5sFae���s@Uo���,Ʌ1I'{��")M��"��sS��g��qI�\��u,sy���y6�Ѽ��l�������Rz6�]d-���͑禯[�_ _�,%C��%����H.�x��pI��wE|���s������J�O����]Bn�.#7�j��&��E|V7qIݢ�e�Y�%�6�ȗ��m�^�Cy�Kx��R�K�xCy�K�d
-��R.1N��n��uaRh)Rha<��a� ShN�p_�SY���\M�s��K*�.Y��U��~�M���2�U�TV��XA�K�=Or>Cr�b�\��u%�"F�v�hX�����Pϧ	1,�5�P����i�)_�J.��������ŧv[�<s�:K=�$�Y\�Y�x�(>W/�Y�3�xf��S<![E�V�M�l!�D�6�>���&Ⰹ8l"���&Ⰻ8�"��c�v�]�aq�Ev�]���p�o8�7��N�
-�H�K��%��iq��]"d��%Bv��D�
-b~D
-"�G���A�� �hq4�8E�"�FG���Q��(�hq4���BeӒPoe��O-	,M�S���k{=K��;K,u��ŧ�8������-p����<.�	O_��$c麥5�	g�{
-1,����_\�%9��+�-�D�'@�a��O-�,e�[l,�����8�Ƴ4�O��}+{��d���
-,mdiKcY��Z\kK|�oc�m����186����Y��,?v�;ˏ��igt�\;�kgt�|;�o�3:�NO��"��ZYjc����:Y�biKY��X�Ʊ4��	,�鰰��X~+�oe��?+/+/+/+/+/+/+/+/+/+/+/+/���1�6�����~�������bc�Y9[X9[X9[l���3�v��Ɂ�Ɂ�Ɂ���������������E(W��`����s��8X~,?�ˏ�����;~��`����w2�N����;~'��d�����w2�N����;~'��d�����w1�.����~��b�]���w1�.����~��b�]����70�
-����70�
-�����9u���s�rx���$�]�"�pM�����1�Q��'.CkW,�A�9�\��=� ��p�$gd�<'��.��Ј�m�\��H���
-~}�a�+�~
-~���<�k�C�z���%��R�P)z��פ�����ČB
-�eD���0o'��>��W�2|�ỉ����ED��H��ĂC�@S!ʧ+��è
-Q:;����O���Y�h��j���ES������Uh
-R�C�Wy���E�����v���:�����
-\�im����Q����W!��9��
-ѣ�+x��3O^�ᙯM��'z�q��6�f�SR�/'j���	�aҎ%�����7�O�=�^��	x�����Σ�=�Ǐ��3�F����4�!�1i�@��h���ŘW�qѸ��Z�.@��7��p�9��r
-����~\��G7���+�\����;���
-b�B�Y&�$6QSclc+�v�<��~�<�D �8OA��0`| �<� G$��Ei��Z�"AC���B��E��������3�!`�ջ�>��s�=����q������r��#�F;Vke�<,?��u��i�W��{6�>J�n�#}:�vm�v1}v1-�����7�������E�	"-��0V�;�ᕒd]x�����".x�R�%�3И���J��
-�F���a��3�����9�H��(E~���f��WK)\���Iz��į�<߇�k��	�Vk1����Wĕ����I��ޑJ�'�g
-W6ەR�:�D��\O�GI�SЬo��I�5j6��P��ɻ2J�	�X���)Y�.�dM��JF|b��V����-\m�j+W������3R�<Ư��=���|�����_��f+ε�-\=Liʉ������܃�����ãI�7��i��p�2x/�x�<�~��y�ϔ�#�G���Q���������߉�
-&�,�[�oſ
-6������o��~���~��$��6^E�o�����v>H+D�劺��i�C���1|��c%�Rj	�tZ2-��HK�%�Rh	���J�Z���2�r4򀅌����En.}�G��/����5��x,BO�R�%�$��8�0x,dB�}�S=h��������S���]w�:��AS�?}֗	k�rR�p�i�k�/;�p/��0����?@�*���O�&���i�G��dv
-���'7�Z�<�
-5��W�Z���]�5�3R�ƝM�b�`{H���-'�I�t[�tZ
-+%6��}�:��N=5;ұ��w�m]�2<A	vj�h�p�)�N���d��kN��az��\��ߴ�Fxm&��m�������t8�������b!�fJdG��Q����)Y�xڑ>�%P�4:k5?ص�N�(����C���mޫ��ڞ���mY�[D��!~���!E-˹+�A���[�����;塞Z�,:n�T)B��n$'�VM[[ۇ}mg��6�������EX[�;׃���C��`U�lu`�.3���j4�%�Ӿ�_���R��A
-�����CT�͑?�Z�Z�2ϴ��v�����r�.)�<A4^�q�]�X�8�/Wg�$:�B�h�e+�6S��fY�3N��ȪW�����?��ő�^����˟����w��ލ�]iTbG}�����jX�r��;:t�b���L����>DcQL�B;Wj���)�u��v�AS�]�F�w��:�����Y�2(�������*�s��0�Ȥ�sZ��(vX"ݏt8���o����Z]w:��*���5O��b=����^����^��/�FQ�X_aDq~=�ͤ����jNy���t�`��-���C�H���Zhg�Q���Ż'�ۏ�{
-��avX�~����2f��i�E�,s_�87�:|�2�ƫM�K�����ch�H3'd���&ȧ:��_ӮF���̜���'2��\��`��G;�ʽ�.`UR�b�^�w9�mE�o��#���7;�c�PG��!���a�z�6@y�L'�j#�`;���@�2*�P����W�A��KP�:x8�W��^*��P1�!���@��cHa,T˪�F��㠀��xʥ�9��{Q��P�ꯒ��@	���S��B�*��C��
-������D����E?֜gP������"f�=(ϙ�@f�=I�,���_S�/As�+i�>P���\C_|�g�z	%�J�eP��~$l�#���~��|��<I^OA���w��?�������4�g�$	�'ɗ�(�1(_� /s�+P��
-�$�A����#�N�]"ˈ���tBV��d�<�]ۤ�m�i���I����sU.WJ]�+����M�"�a����5J���f�}����?������(G?꾃�ھM��۔�2��w/�Γ�))���Z}�C�-�g�3R��w�K����^R�;"��G�#r��}L�Guw��1R~ٽ��+����{��_s���w��_w�S�7����{�{�ro��;̽��bJu����%n	),uKIa�[ƽ��r�˭��Un�g��Ĝ�n��
-�m�ps�Ҽ��#|��N��F�5n-)�s���n#i>��T��� R2A�ސ��" �An�+� ?ȗ� ^L"�1 S�>��7�%���`t0Z��1�8R|���	���^�o�����f#���A AmD�وR��f#J�F��(2�oy%l}Z`�
-�2j)�ѓb������י�l���ًb���A�I�I�)�I�I�����_a��1�W�s
-�i��!���
-�C~�p�4���ICu��\fx.7<W�sϕ��\�s��\%W@��!��v-Co�p[k�Mn���
-�m�v3�j�PZk(MJ���
-Ci��6|�Ϥ���2���hL��a���pXa8�4�
-�U�ä�00��
-�)C]����=�r
-uiC]�P�0��Ju��C�!:݁����4�U�r
-ci�X�a,0,%
-E���5G��6,U��sn�kc�@N�!���kIB�!� $W�� (�l�*
-����a��0PK�N5���OX��F7� MgD*Eǃ��Л�h�7��Ӱ�#͖�g��4�7����(��i}=�����J��k����~���lŚ>c��X�r�%���ߗl�K���Fk�M��N�5G�uI�m���U�{iyت�.Ak�@Va}&`{��$�&7���u_�~Lv=���7��s��Z��S�/D~��B��]�W��c�_��������p=����U���eb�N��h��,qGYܞ���|�q�����9����]O�%}�O�⳵\y��d�0�D3�?�1���W1W>��(
-���}���g��m��vV��Wwy��Rw���L+�)���'["�"�}N�.-�UYtV
-gV��#�[��էn���lr���#��݋X�����m���.�b��m�%fM����6r�x3����m1w�I���;oֹ�����K7��������Bn5>���Mo�CKY�)����ˠ�P��!���/i�Ɣ��g�o��B�v�a�b<����<.��b���:�\�bGH(G=c�Ў��&O�~�iY+c��߂Fi�62CP��q�~��̵>��1#ZK+�a˻����+��b��p�y�Ɨ��~���ߺ�'��X�f֒�;�+�����^�>���3����ނA�R
-w(&�V��wd�-VcX7��̚�'��l�G���כh+5Z?�BB9���cuy��U����",��(D�������
-��e�����?���q�|�����Cw9����k9u-$���6F6�䎰�s~,���c.�����m����)���VE#G�nro�䟊�yb;�f/���E�\h�_`��r�G��xH(Ϸ����v�_�$N�&?�#_��
-j��|�/UNX�?P�N
-�#�s��L�[���};ێ>o���ǗLc�}��l���Y�T���-������
-����ӭ~S��W��c��El�>�;3��W<)�)G���1&�u
-1ٴ^{gvhգ��le0W�ڳ���T�.�����_���Ѻ?�.�9fk2��F�0o�=��`�!r#�=�'~�|3�^��yf��U���P)7���;k3�˫��\���񄍔s�%!�\�>ƶ�yM'�zC��Ѽq3�ɖ���3���#V�u�# QaH]t��f�k3]�*�l���@V�Yn4�d��G�7���Z��7���KH�XHF�8FFuk�"��R]��c�|����
-ݑϜHy�ߑ��Lb])_�;BB9��&�����
-������H�~�F����+�I�<��<��1ʥ%�|�i����B���o|����W���|�i�9��/⎫(�?�BB9~df�;���i��
-�Jo�43oZ:L��(�~�x�XH(gk�,�H������1D���VW�u�:�{�'W3^�C�(�]Z��[�����Fu� gv�!'S�q����h�u.;)���=�<��:*3��AG��׵�>ĽL���k��BB9L7|���|��-�ڄ�mO[?�U�++�M#io��k�GvӦ	�_	�p�fU4���V>-����y3�eǔ7�,�1h�������Vx�ۢ�]br{Z��R�63�_s����)�ls�UѼ����O�F�O�9�bF���r,�e��r���x�·�4gςV@+ͽ?��4G�ʕ��j#K��s����mϾ]R�o�=�Ɍ�}�5��GI4f�BB9�u)��Zo����f��X:�����JJ?);����\b����X��iM'eϱ�luZn+��}�\a�֕Vô=ͪ��9�
-�){�5���u�݃mO{��i�؞v��i���lO;�F���i`�/�<2n|���B������QY���O����nZ�WP	h�C=��eJ~
-U�>e���l������li��
-�
-��[P���rJʻPRCIY��J�r�L���^�LV@e�
-J�,(%�B)�
-��v�B�B�2� ����/��Z�
-��P�l�Ҳ��6�J�
-�(�C�� t����eT-Aղ���PJ6A){�4�H�K��v���U�V�*��A���`��sp�\�丄K��B�bW,��ĕ���R�n n��ŭsu���^�\�k��kt����d)pS�T��n:�P7��s�Ĺ�n8y�p#H���H�羇{��\��n�[����9��r{�^�}n���n?y��^�}ѽ���{R��.���uR�.���X���㵦�᳘"�N_�w�)���{�=�2\L0�4Xx_�ѝ~�$+؎w8{�1dg�	)�uV�	HIETɕ��V"ⴕ&���L�rfHg�"����A�~�D9 F�뉡�bPd)ŸkL}���
-�g��i6����d��Po�U߅��Zװ�)�s��H�sR��9E���~KPI=�_Kڹ���uΤ3��l����6кf�#S�2�K��
-t�Ҿ����~eBm��B�w���bK3o��o3��z�oG��0�{��6�Ey	���� v�-��!��b�a3v�n��
-��,��l��\����f��V��v�Ň��Yk�Ua�6�&T>�"�c���@��<yX�B,M	f ����`o�O�z�j�Z�[��c�`�b
-�c^������{ߍ��7��]��Ͷ�ׯ���PK   i]�,;�   "      content/dataFileList.datKI,I4�KI,��M,.I-
-HLOs�� PK   i]̩�*  (     content/root.dat�VKhQ}�V�E$�TQ��X?�;QЁ�hkP�.j��_'�Ng&�ך�h+��U�(n,ݹ��e������$���%�f^�w�����y����ӕL�W��9���b���pE��'�u--9&Ǖ*N�W����= �\|8�b5�D;�w٥�����lZ�g��S�f
-�I�n�g+�����J��O�����A����s*�����>?��P�i�j;#׉7���p�^���-jPk�����r��˳8>���Oeq<��=;Г7�B~���'aNv�0����V��$2Y��=X��N"�`W6k�E����Y�����`����^���X)�o�Lc�����B���p���'L?��Q��G��C�ˑ���A�8+���B�梄̅���(�\fV4?���\��΅�?��[P�Ї8Q��%��8�\�	�5Q\�����s�[���"��f^�w)dѾ
-�b�^S��pW��ì��8ySԿ�6���=y�~V���wA}_V�BjP^�i�M�kZv�9�b!W<�y�����kN�ޅ�Gf�2�K��%�L.&�Ln�`3�u?!����L����6��/!�_��t'�ں���N�L3��g� f����g���k.�ZV�fb�x&�*�ɤ�g2.�$
-˜�g�䙨�Y�3�qN�=�k��	��,4ܣ��{tNؙoq{h���$��s��3�{�,��~�V½�{�\�x�S��{���g~��k6{��x&�L<�#&�IY�I?,�M<�g�<���i�co�x��{,q�c�Ga�.��:r��4���B�e���c�mn��PK    i]�Z"�o'  o'     previews/thumbnail.png�PNG
-
-   
-IHDR  �      ��L   sRGB ���   gAMA  ���a   	pHYs  �  ��o�d  'IDATx^������?Q�ה}.ʢd�W�P@iY
-X�R�^d��@U� \{Y��JAA��E��[��i��	�ӳL&�����~=?%g2sN�w�9ϙ���  ���u���s�{��m�Q���Eo?oK�\���:�E\lrd���ڏ��=���䑣��M���}�O^*,*#_�<��|   |��߳{W�~<�`�c��,�xcxr�%�]�'L��r˶#Vk)y��~ ����X�U�mzWZ�̐��M"��4{՚]����I�G �|UeU�
-�=GP>�Q*�a#������%/"�� ��J�+��$��ݧ$��O���E�A������ ~�Q�(.�*�:�%m=�ڏBt�6q��̺���K 4V�j��/
-C����;���"���Hmޅ��~��ԅ.~bj�j��A^n?����U�o�5�)�9ա�#,1�N8~�y�
-�@#�[VP��˴�4��~�on�I��Ƃ�����δݴ��~����+�j��FAu�7�	-h���1����7�n��	�# ��@�5.���^a�#,1�:����KV)(�� �9��>���o��KL��F�x�Y1�g{W�:�=����ȋ��݋�[�G�i�A�c�%��o\�q������ �'�K���Q&���KL��S�K*Ȫ�@�ɿ^0�-2�"h~�����w<�:��� ?n�j��z�3.���K��w6�u6��p�l�4Za�F���$rX���d�
- ~ ���i/�/�#�~��Ĵ�WT\NV^o�G �_�ݖ�$�/�#�~���L�������� �ef��
-B4�#,1���L6���� �	�y��P&ʏ=�kk=dC��@�P��%�\����c�%&��}dC��@8�����E��}��*g
-�:?/|��VТ�a�I]��l��0=����
-f4�;v��v2	?`zJW��g���ȫ��E�Mwj��c�/�T�!t1��m�1�Q� ~��ԕ���G^mG�Cytk;4��g����mu~���������䠡��v�� sS��#A+�(Fl�~Y�[�ڒ	u~�2��RB��mݬ�+�!2q��?Ȧ����)|�Y�)z�Q�mC:���
-?>�v�:�^�>�Q2�x�V�i4?`bjo]���R�
-?.��4�:�8ۚ>J&�~f*�:��01��?��=�m
-��p���5{�~:zwx�>V&~�v�l m�� ���E�F�ۆt��v(-�ە�B!"P?�23D,��4}�L��t�@ڀ0+��J�7\�i����]�ѺBIF;P?��U�-�g	(K�����?`V\���BQ��>C'���Ow�0��wƭ>[�tb����E�/Z�����f� ��Y�N>�̱��!v@~dffb��c����;	?`V��h�h�����Ɖ���%�P�G^fF��_�_���'�I�# f��gh�h�=/w������E>7���,�k�f`W�ux��*H� s⭳�7�m�%�
-�HG_?233�݄�E�Z�D�3�&~L6��G LI]�m�#�����v(]��~��������e�U��0�-��4 ?`J�7���������+m�~\3�+}lL�zK��x�]Fy��c�	dKi ~���\Ȥ=�:��ڎ��Vx��?vh���b���,ͣ-F�-�� SR��� ٣Z,��ME|b -1�l
-�ďs�z�2�av3��D�d��� ?`J��7�}�K̺;Ӫ�C�飤�i0�)�gi�v�Xj�0%U�m �����U�~ȯ]���҈ˀ��f����� SRu$�Ї�~T.G%~d�;(��#s0.,#��Eedc�~��8O|E�CG?.�ߍv�L��QafF�!D����Udc�~��Tge��ŏ�t�Ղ�|���yW33#
-f�SI���%K-�# �ĕs�pϏt�mC:*�
-�2~T�^�9e�7KӢ��dKi ~����~�Ϗ�bt?25'���'V�,�?{L&[J�# ��[QL�#4��?�=]^���́����^y�l)
-�� ��6Rk���[��#��ۮB&K35i5�L�0+EJ��~dv گ�����B+R3�f� ��Y)[�$�F���7��73#
-�v�o",1��ϓͤ� �R��N��P�#OmtI��-��-�ZK�f� ��Y��yQ��P�#sh,�}fs�
-f��K����?`Z�<	S4!�G�{L(y):K3i�J���?`bJW�}R~dv��������Y��_� H�# &�yl����#oҐ��)�v�;�(�i9����l m�� �o��)�"t�����@33��	W���B��f�G �M���d:~��d��>i���d�h~��8O�W0E��ֱ]��A;E����w���DoŢ����5��$��|�ň��
-�i4?`n|.g��v���t~&�?��]� ~���oy�vV0���x��/d�����+�e���/��E��q����	��p���Z[A�����g���	��p�S�ۀ]��c߁�d[��@�P�qm��D��ȱdC��@��(.��-� DC�qԘ�d+�
-�@�Pux=-� D���i�Q7/ �@W�G ���x�?	���5����
-�@X����:���|?����uu^��z?nH7�	Nُ-ۍ�������� �!�O'�3.���&�����"+l�# a���,J	��Bӏo&kk�# �I]�]��.�ˌ���qt܇^��ӎ"�# aK����Y?~i���EV�H�G ��og�����A?�4���IV�`�G ���,�7�4ڏ�e�;Ȋ�@�S�w� ��5��P?F�,p8��*��FA��f�\��fi��8eZjm���L��h,���J��N�M{��G�_����Cp�hL�|�=˭��h�i	��ر���L^|Ёht�o�+�Ӌ֜��׏c㗕�+ɋn�G #>wu���zm9����{o��T�@��s�ג�bi����h�o���
-Gy�G ;��'4��ŏo�8cͭ?
-��
-�G �}\�O�~<�I��o��c�6�͙���=�� ? �ɿ^���i	�D�~�3`ֺ
-ߖ�W��1�G  E��u�x��Y��]iҡďM"�����G��v�<]�? ��ܾR������=��w��ش���ߚ3}Ʈ�m6;��!� P��]��}������u��o�m�l�}������M�8��Us����_n9|��ż��ܫ��G  `?  �  ���  �~  6�#  �� �
-�  l�G  `?  �  ���  �~  6�#  �� �
-�  l�G  `?  �  ���  �~  6�#  �� �
-�  l�G  `?  �  ���  �~  6�#  �� �
-�  l�G  `?  �  ���  �~  6�#  �� �
-�  l�G  `?  �  ���  �~  6�#  �� �
-�  l�G  `?  �  ���  �~  6�#  �� �
-�  l�G  `?  �  ���  �~  6�#  �� �
-�  l�G @���Օ�q_�����ɭU��;��ݶ{��{�o<�c��^���[j�$.�# �p|�j��{W��N,���5�Y�8oO���Ѳ��C�&�J۸��/W���|�K	� 0
-��k���%K��BT�G"Zw7��ۏ�k	? t�k�:��(�߇��L(�o�ڒo�w��%O��# @7�W(]5N��h�Т���q���؟�<�U��{j����O{��ٙqj݆o�}�cF򧯎X����D��(F�'����/��-&/E�G ��.f�;�����O��Or���s��{u������g~Y��1�����y�V�НLxsUn��<X�# @�kg�����q���~�}�<w��Ǩ����<��<w�c��і|����kl6;y�Z�G �J�v�=m�ł)�˷̯��
-y�~x<u��9z)=�n���Ukvy<u�1�? ��<��`J{jݭ*�s_��,m���3g�h��%�aVvNY:@�G @`x+�KW�&͘�d����<.�tP��_<s�g�4.U�?�ǮH��z�di��� � p_˲%u���:�y���UcA�<�\�#:fё��nQq9YT�# @)U��kw�����t(�u���O�!Ud�n/\�A�S � P���|Ӝz������?���!
-�;�²�����l�z��g�r�� ��JW��7�8�����d�P���-_�!��l9l��L��,�# @�����zc�%/y��r!ɉS�m+Ud����B|�G  ���R9��N�W[Ca~�~�=&K���7 q� |^��x��7͹��t�����>I�^��ߜ$�� l*��#�c����y(.������4�=�}Y�~ 0p��^�1=�,a6���{>�(*�u��y7�B�� $�y?['��X�wϧ�.������'��ٻ�Lg��
-?�# �>g�m�������d!�r�Rn3�&i�f�%KH� ���%�r,H�TW�O�09;v�������"K�� xH�O{E9Z�"]W�yMǬ9��~l�q\IiY�O�G �|Ueҽ'*��.Y"\pV�z��&*2��Ud�?� (��(���}j������һOg1v� ����Uܛ���Y"�HY�.���f�;E ��Hw�(�0�|:����.����	� � �W�w�a�:����F�S�n?&���g��Z? �u+3> �_�^o/ɭ�;v��B 4v<�ָ���)�}N��F`Rv�9-��πYҧ�G ;��=\�����p���>��TQ���pY|
-~�Q�s׈�j��������ŊԌC��l�e�9�}-˾:�����l�����E?N��B|~�QS}z��y������M�:��/����J(Y-^<�kܻi���ݔmi9���Jx~�QS��u�)�죺�Q��7W9
-�i��V�Ei�\N�>�f��|��c�# �_U�u|s�&���y�t�c�%fht�q��ر�v�4\�7���r��>��$,�@���.�&��;��=}�((�<��\NZ�D�,�&�SW�m�)N�fKˑ���G /e�=�me�BkNKlH?H�X3�Y��(Q�8c�x͙��Ï 4jl3�	�Nl�s?W9ke�ې~Py�H͐����¹Q�
-�ر�<��t!���I�h�ԕ�=R�a�t�Ȍ�wf�"Kk�}-�V!Ϙʳ4�%M"�	<`�[�# ��곻E�Tf|H>���<+-�K��YidQ
-�o�E{�}-��ܧ:+�<���^o[S�h�T�|O�H@�^y,�L��GT"YN-��BZ��s�x���S
-�2-U���<��FJ�ѢD�o�O�eg�)ڏ��Σ��G�O�ڵ���յ���=�o�~~��"N�$�%�� o�,�Z��,��B�Y�H�Y��^/x��[�G %>�uBKAE)��g5�Ar/��~t]̤�g_/`�n�gin��<i�J��ƈ��HtG�ʱ��`.���,�
-��x�}��)3��0KSS��yht
-�@c�s��莲��6=���"U���aff��Y�b�	J�Y���F�ܫORc�cn��t�b���+�yV�( a�������x:����e�����Ŝ[t�O%��4�0Kӭ���w��]�!l���SD�X�16~قśe��e�}vNs�oVR)�O���lC�Au �p�di��o+��?�n��+¼x%Q�4�|��qV^#�+Qь&sL��c�r�q^vEK�2��妙��Z���ܻ�LᲛ�yM����x(�y	�!*bC�AՖ<�u�Gԃe�
-�o���Q�@w���N
-�w�8?�k/h��@�b�b�7D9:6����pH���۵��F�Q�s�����<�xq�p��h����>+��/�����h'�VX��\C�S�Q�Y�P~3?s�!��	��(M/J�ŏBhYެc3�����:V�T|\w?*���yo���N����2p�\�ʛD�͏2{��%���n��+��*B�u��0�'O@�nHCy���~h��}��D�.}'VP:����c�-�~_�W�0������,\|d��z��7�@�J�P�9�@��WX�g��Gi	��H�Bʕ� ~d�E�%dz<�mF�rR�`宏������foIL�ɿ/<���߅g����V�����XIKн-}U�d�M���w��|-!?k�n�!�+�A���k	%LR�mFQ{�X��~����GT��Yi;3N�hF�>�߽�o��,����t�p}On�5;'Oy�<'�fވ^嬡_G&Ng]Y��A����E��jhtʆ��9yB?�VX����3��>��I���ΌS2s�N+Ogt(\�{A��?�@�����y4�� X�>��t(lFQWtK����)��<?�;8���u�y���4����l��e4PV�*g
-Oļ풪�52���)��f+,���|�N2�]��_0���<%#S������}��fݛ�DH;e%�">�~d�*���u<e�4�Eeb�G���z?�4�߹�����,�'2�N��o��vxw0m�{�y9;�.f�#�nJ�]F4���M�$T�6�)�Aޗ�ޑA���T8������������*Ϟ�^�y�Z�:w��u��r���bB(�� �<gi��YC����2��$� ���.2�B��?��G޺E��f#��\/"T��sW���I<�(��*x��;O�U^��G���_};Y�7�����׼>���av��=q�pC�R�e<�'\L�G^GOf�$ňf4ef�U�ͻ <�����?��7����
-�������$}
-�{��U>t!TgӘ�2h������=��E����UF8�Q�̔A�h.�2?X��X��ypP`~��v�O�_��k��؅b���K�����V�_���
-$���WZ1�፲��^-(_3���s���#eF?�zyJ:5��p�vV�Z��$�A���<8(0�~��J�:��� ^�Wܼ�Ó�?����KakQ/M/��
-�5�����@�7��C��ҹj^�A>�`F?2�d�޸f4�5�	-�z��)<:~�-�g���a�I�?�Һ�`�~�ͳ2;�̑�:��5�S�
-f.$�5(��>�5�����(ɴ=W�"�`:?2��\̋ԥMG�Ī��n���RS��<�Y�l�����#�h�o�κ�L�A��~��3��)��B�IM[��D�@��q(�S뼋��`�r���o���ΖG/����L��T�K%�;�(���t8�,�Uu����#��������O��!�]�sߏtChz�D��Ơg�xg�����$��hNu���@��NL��."
-�GfAK(�\ڌ�Cz���J<D��L�h��e����6��I�0��]�'��G���3��`��w�~T�q�ݏ���L��r�LO��.�X�4���#�z5��%w*e�������O#��7^wO�//�'Ϋ���X�w��$<��2�����w�~l��#-G�p�g^y޲X��Q�y��;�W�׌f�b�B�^�}�B���>���
-�h@|��m�",1��.��e�����Z�9��=Ѭp�QG?�r�
-7蔂�}x�2��Sy�#0�͈��/b�
-g�����'��{1�71M�oy!����r|.��K��P�A����g��'��C��7�]��4T���̳�j�򟘀~�M�ǒ����0	B3��⅃�z�\8D>�Hxs��5\��[|��Ǳ���ƊԌC���<2
-����ܐ~��TxC����
-e�_��-e��GT"�nt���4� �+�d��>�7����~�������GӉ�-u�
-�Ќ&���v�^�TU��_"�i�jdqI��ÏJd�)��"�e=tZ����P�$o��3����RT����ّ����h��㩄Y�W/��d^�&�hV<n��.b��W �5����3g&}*��Ȼ����G	!�5��y%�>�q~��ݔ��x�2�t���##Y��򣌧�4��c��hR߮�U��������m1B��>�txnn���P�#���L\H��=��xv��G��,�`v��c(���2'e:��3����M�O��M���%=)V�����G���_ةI��gCя��[��D��`��h�y=2�w0�Y`�.�+)#,)�K���G��Ց»6#�ѼT^/֫pv�[�H'�m1���`"D��ӓ_�0�[B�"y�E�4�A~d~-��Dxj��\�ޙ�����d���'Q�G�E�R@�lFSW[8�����W�i�~Q?�~'y�	a����G�ր���),!�G���u�<�e׼���Q�)s� 7�y��)�5�Y�͋d�0b��[ů�]�WV2������.$� 1���B#��[s�$� ����+�Q��T��,�n<k!߭S��@���J׌�ƞ6I�Z�ܨp�����Wi:\����˞i	]?�t!y�8�[���
-B�����av����F�!� u~��B2U� �h^�E��ڕ��F�0?%����$~OG�}H�����#Os̙ޱ���u�#���T�_x�c�d���KU�G^��S���~��I@�h^j����y��f
-���}u�"�K�D��%�����t!eV�2�j���[+C�SO�9x�d��P" �~Tޅl�f45�_�%��:����I��iy��/�oh��a�O^"KHu?�
-/�VX�4���"k��,Z����R�/��s9��R�!�*�¼$�~䩊�Q�6�����g)��綟�L����o�'+�!K�'���ۘ'�W���c�K&zD%*�6�0__�y��i��^����p�/2Q�c�rS0]�Џ2�]�xUr3�oi�m�?�
-ڒ��Xo��LŦ͙����q>��|d������yV�}���<�śyv1��J�{�7
-�
-U��)�y �
->zΎ�o�Zx��T�l
-�����s9y�l����o�f4#��.$��h��Փ�Y�$�YO���Ϋ�q��(��?�y�[�κ�p(�h�;����	T��D�~9e��JTdAb����&�B�Ե��r��;��^Ib�� P��b��7���5��(I��^�W���Δdw�G �\�G��Hk\�c�J�P�QRZ��؅R9>��t�r� �p_��`J{�k��1���\�p�ǫ]�'H�8p�\���L�G �"<w��v� c���u�0Y��q�=K��*�}0�3&nY���� P�����X�"�߬��:9���W{�I���I�e��𻔇	� ���ˬ�M��,��α��Z���������	˥y�K��㏝P�p� ��S��DG�6���ؗ�<c5b��Ι�^��1F�}�#� P��]]�}!ё�sy��7%u�}��Ԥմ��۲, �G �z<w��,N(R��¾v������c4SXT�E����fZ�&�?���Pz��<�# @+��#���-)�maOK��a����_���;|s՚]�z�b�Q�G�����w��<R�# @\3�wƳ%w��Mr�]麘�{M~+�¢��?_ߙqj�{[^��e�Ѵ����4+�����Kh~ �I���ӓ�[ȄuR[r���~��Z��a߁ɽ�$ux2���bi��T��+R3
-��%& �G ���j�����NjCk�oO�
-ȌN�&�M�p��_խjT� 0�����_/)~�e�>t���]�q���`Mڞ�W~'Oa�#  Xxܞ�W�����߲�u�%������mI��Z'���M�l5�U�1]�'�4{��%�sץ��u(�ܭ?�����e�+<V�    IEND�B`�PK    i]�0���  �     previews/page1.png�PNG
-
-   
-IHDR   �      �%   sRGB ���   gAMA  ���a   	pHYs  �  ��o�d  xIDATx^��_T����?�){��1�W�K��o�UQ�"��DQATDE��Ƃ�K
-�F,�b/�,�Q����������a���)���<?�s���y�̜������� A�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK��ON�����r���~��\��l��յ��~�:o��������㡼�S�N\�~�LV�r��@|�>9k*�׏�W�׏��|_>�C�Ȉ��n	-"��&��;�ƍX8��}���?��?!C��G���챊)�����|���k#��/Z�v_I�C���=����eݮ9���]�'����W�5q���cWm6;�5K$�����s�=hE�����]�SR��/ށ��f�d}�[Lgw����h4d�ъ����|�z�5����F�7��:u}���
-���Gio��6���ш�=q]v�F������|r������iQ���Ջ����4��i-/vT?u;��@Y��|�|���sl2�.�i��V�e����O%��᎔|r4�{�Ƕ���%���N2��jz�����#y^��I��]�5���Q��S�6+�$�ͬ?�Z>�3��������{����֣����J�D�˭��g䨪u��pD>�.*�z��xC>��vk���x%_ܻ�l��_{s4-�7�v�z��°�OEE��/i��Q5��].�	^)��H�偃�h���{bx?��'�Ch�lL[�!OT/d)9�%eG�[�22���EĠ����9�^��'G�S���C��p���9x���{�騱>���|��=x���O�����;�U��PN{�r�7x���Y����3i�ZDz1zȊ�{�l�YL>9l���Fu#�I���ֻ�Vx�D(��������i�S,>9uU�>�q�ˆ8����F�OI�n���=&���?��D>�+�)��E�$Kjo<�̖2�O^o��j�qĉ�o�l	"�O����.�LU�?�W�a�Z��ƍXH+�b���D���?�d)9�ࠀ&'�m�'j�V�������ٛ~���BH��W�F�����h��-059~�z�W��j��|�*��|��,1�$��Rz��/�?y��8Z����T� �O��S��m�L�Ioڟ܆�ᎲJ�A���R�~<S�� >�*�˒��eZO��Lm�tƏ��|j�g�i�*z��ɡz�H�eJ�qT?���	��<`���˭��/�S�
-�>�L�U}�mnJ��5������@��~�BSE�>լI�2M�j�?�y���@��{�O��#���� �lL;ۃ�0�y#���+��V�<�O��bYbT=�"�W�=v"Jo=j�a8P*g�a�'J���e�)������<�<|��G������L>|Rod�Y5��k'�Ǽ;@�V�ؗ���'�#@&EZO�Q��8���_�J-Y��DFh}r�j��	�&ky1�C�Y�
-L��z��{����'���l�_ ������>�?&���dr<�)g��m��<���#���;�DC}�^K��.�$�1d��6�F�>��=�h�e�|��(w:͏�`�s�.J�k�B�S՜�H��c;85
-�������B�Զ��Z�所��d�ztN��k`�N\]Ԣ��`��OU�?$eRLz�e�̌�h�|�,ҧ6�F��a�а��z�����$$pΝ����
-a�а��f�0�9���*|F̻�H��������PT�"�UNV�$���
-���_�5���'ݞ�H�dI�]uIiۀ?UL���
-��A��v��ظ�0CP��䰃��ڭS�n7��b�
-�\��@lka�Q7��k��j�֣d;�������d�ݚ�G7C�7�����R�M�Q�p �,t:ct�ad,[)��M�>i6}K6\��=�NK�<V�)0���
-ڞ�x"^�NZG~�^�M����'��f8�������l@��J������
-xq �>S
->�x�n2��r�7��d	��W���}�B(�\#-
-GXn�o�7��s�z�����tf>i�g�������K�o=t!T/E׎�d�:m��ų(��O������~��Ҫ5�/>t�jMA��/(��������` ꅨ�"�f�C�4��q)���R
-��������֥���5}��h�D��w\с��X[��'ӹ<��)�ӯ��fzd2�8_|�O/���~zH	�'#���/��#?���A=3���O��4����G�v��9���୊�Ĺ��T��W哟����`���j�d3�6��4�o;�O�ҢxéU���`�������R�!&���i���f��*����V�	�F�؜{^8z O��}7lrUn4Y^�L~�7��Y��O��%F�zns�Z#o�'.�� ky1��7<%�9�T�`��f�(��^�⅒�
-Z#�}�nI������q�a�T�I+ȏ,����O�{���^7
-f��}⮍L��q�Xdf@��|�p�ߕe��z�x�ut{x�T��D�hE�S��2n�Ȟ, ���o�I����'�w�����	G�����m�7�[RA2�R0��'W��%?rT��`�0�I1�;�4�m �������uឰ�����oZU�Pj���Q��$~a�80���f�����eG�B{�0G���Eg�ф���t�m��?��I��O.�	���&��Q�B=>νt��r9�U�������ҕr��/��䨩��ӡ�ߚ��M�"��w�f��8	���z5n��n�o�o�O�d��"a��B'���ሐ�/���S�M��:3�M����(������~	�'��?���n3�]O'x%�=�k*.�/��T�(`|����'ۣ�E��:�~}�a}&�`7̮w��q����@�)�>��3x���������
-G-��~Q�
-��?���O��w�損i3����\��pOZ���]^�)��/A��G=N��?��q߭�_��}Ǥ�B9x���y����OAsл�п~�������4w%N�=�PU�{"�G�.�~	�'�Y�é�{
-��K�΄t\���_���{z�����N]G��r����/��T7�R�Li��V�o|6 �~�;xv�w���t��U���K4�힁O�Io�ma�
-wǦ5�� X��\�]�A�F�<��u�=�Td��'ռOȆ0��	h�$��*Ї�FK{?��7���&�E���3|Rg'�
-Q[�$�IΧP,��z�����ˁb�1��5f����t�
-�@���|��d�_��pO�S��n?٘bث��O��;�V��|$�I�'�Z'�J�����������dc�g��2�l��V��j��{���HZ>q?�5aQ���F���L!s��K�P��'����K4i�$��J�$���b���z(٘��^L�Ƨ�~{�;d+��Z#	��]5�9P��0GU~��dK�����C���O���əH��f�x�FR����ђ�Q��I9F��f�B�d���҄6>�N6�bJw�FR�h���;�����lɴ�?�!`��Y9h{�]�Wi�����܀p�==��x��jo�a8ْ�pZB��T7�R��i�э�/�I�'�sAV�$�%�U������m��fZ��'��)dT/��~��H>qW�wGH������l���՝C!��d�|�lYb�S��|��H�>�P��pjtUޭGٌ�-�s�B��'�� ^6�������}�i�x�o��KV嗮��f�Nb��D�#����;���}�	���᾽�UyzFن�c����>�.�&�Wޓ�O��	�X�]�{W1���v��{�|ނ�{	K�\V�<��	t��<5�
-�8���Uҧ�y�� c��?���y���ߤ�k2IX�D��!O�B�� ��ѧ�I�>�	3��O�'�@/m8�&!M����9���&	
-c��ez��)�3����I�:wM0�`�q�>��]���n��NI�C�{��y0Ih���v���.�a�iH��	�ȶq�jL���v���]�wli�f�,1�!���t��@���.����$x��j��P�r��������ǜ���iS�@	�On�K�Տ�I6��*:�(��K�DR��~���a�8�On���E�E��~�v9a���)�A申�0L
-!�����c�R�#�0	���o�1�^�M���;�Z��Z�<�K������'<�t(ujԵ]�9���ed�^�� �>={�g�EU�|�����	p��i3�I"#�>���,�Jir�?	I�l��W S��d�A��|���(���x;�J�\�t�VCH�^�"�;�>|jpRO6�����C��?�(� A��AK��n��Ax�n=�ϳ�R��.v�}�׼�j
-o�?�EĠ����Ni�����a�^4(���N�f6W�fk�/��O�"bP�I"����>=> �/z��z5Lm~�l���LQ��ϻ+���O�pޖ���Re�s�8��v�V�m:pPb%&�>ս�XzR�
-{�Y}���0�y`����KO��.���G �<��du�Ԍ�<��)6�y�LY�m��R@�<[��J)&�����C�P�X<!��0��`>��i�B+%��|��۷"��֣7z��eJM�(�6�MFH��z���e�Q@)YBd���ὲe��SQ���e��%���T7�r�W���'��
-e���H0�,��6�&���]�2fK
-�}�{��wY>�5Z)�Į����l)SR��0扗Z
-ۛ�MC>yPf����,Fp$?�i�ڗ,�;<{��k#Ϟ��öt�O���|��Hy�ta�@:��p����D���?}���ka��|�`8�-ՊV�n}� ۣx��y�L5j�JZ#O�N�d���5RFt>y��Q��M��y��lJݎ9QU�f�����8�=��Q��f
-b���VR&������_V%Fk6O&��
-�zނ`?g2��X��|E� "�Ƀ���*E����Y5�Rv�-�ѿ�Ҋ䔵
-ݞx���}���ea��}��a�Ζ��D��
-ez����l����v���4Z o�=$c��� //D��s��*mn�*tW�O�:��TV���g��\�&����E�+a萆O�
-ͦd_EU���vϵ�(b�R�h��=W�dy�>� g�7gI�=VH�'�����h�%D*3�h6%�����t(�<�;��g�����~�|hrچ�M}1��k'��ed�7��]jN&y��O������i=i��C��H����i��a�M��m�u;g���/_�s�ܴ�?$�����3{���QY���]�g�έx(����T}���RrB�~�lL;Z����n	���Q����?%�
--yF�>���`*.P�M���M����C�f��{D$�;	N���7���9ݞ��e�[���
-�}jۧojzF�ᣗ��8τ�O$6���%ñ���4ռO��
-���~X����&�Y��ˉ�o�t�C�O��'
-�Igr�r��xv���:]�|�L��t���3fl���!=#g�ܟV�)ض�����^��7��h^>!�}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�'�%���	a	���}BX�>!,A���OK�|�6_���`    IEND�B`�PK   i]4�6~�   �     color/color.xml��A�0E�&ޡa�!� 1�]�da0�FSmi�V�������ϼ?�?�j�
-��Cu���z�3� $ Q�<v,<bY�FYB�pǋ�q���Qu?{$��j�B�����:S���<�~Qʕ�(�έ�@�fɾ�ԘA]��1krՎ0�܉+t�P��(q�M�3�cl�m&��	Jg�3��g�Eڨ/}��>��jK
-�����A��PK   i]R�.
-  H  /   color/profiles/rgb/srgb color space profile.icm��wTS��Ͻ7�P����khRH
-�H�.*1	J�� "6DTpDQ��2(���C��"��Q��D�qp�Id�߼y�͛��~k����g�}ֺ ����LX	��X��ň��g`� l �p��B�F�|،l���� ��*�?�� ����Y"1 P������\�8=W�%�Oɘ�4M�0J�"Y�2V�s�,[|��e9�2�<�s��e���'�9���`���2�&c�tI�@�o�|N6 (��.�sSdl-c�(2�-�y �H�_��/X������Z.$��&\S�������M���07�#�1ؙY�r f��Yym�";�8980m-m�(�]����v�^��D���W~�
- ��e����mi ]�P����`/ ���u}q�|^R��,g+���\K�k)/����C_|�R����ax�8�t1C^7nfz�D����p�柇��u�$��/�ED˦L L��[���B�@�������ٹ����ЖX�!@~ (* 	{d+��}�G�͋љ���ς�}W�L��$�cGD2�Q���Z4  E@�@����� �A(�q`1���D ������`'�u�4�6pt�c�48.��`�R0��)�
-�@���R�t C���X��CP�%CBH@�R����f�[�(t� 
-C��Qh�z#0	��Z�l�`O8�����28.����p|�O×�X
-?���:��0�FB�x$	!���i@ڐ���H���[EE1PL���⢖�V�6��QP��>�U�(j
-�MFk����� t,:��.FW������8���c�1�L&���ӎ9�ƌa��X�:��
-�r�bl1�
-{{{;�}�#�tp�8_\<N�+�U�Zp'pWp���������e�F|~?��!(�	��HB*a-���F8K�KxA$��N�p����XI<D<O%�%QHf$6)�$!m!�'�"�"� ��Fdr<YL�Bn&�!�'�Q�*X*(�V+�(t*\Qx��W4T�T\���X�xDqH�^�H���QZ�T�tT�Ҵ2U�F9T9Cy�r���G,ň�C�Q�(�(g(cT��OeS��u�F�Y�8
-C3��Ri��oh��)���J�J�J��q)�����2�a�u�;U-UOU��&�6�+����y���J���F�ީ3�}��Է�w���@i�i�k�j��8��tm��9���ք5�4#4Wh��М������Ҫ�:��T�������C����U�MG��C��c�
-Ó�Ψd�1�t5u�u%�����3z�zQz�z�z��	�,�$����S:!��
-�,��]�������b�6u=2V30�7n5�kB6q7Yf�`r�c�2M3�mz�6�7K1�12����͇-�NB��Lӓ��le�Z�-�--�,�YX�[m���hmo�n�h}ǆbhSh�c󫭙-׶���\�\߹��v�}ngnǷ�cwӞjb���������ȡ�a���1ѱ����
-cmf�wB;y9�v:�����Y�|���K�K�ˣy����獹�r\�]�n�D��nRw]w�{��}�G�Ǆ��g��A�g^�^"���lg�J�)o��ϻ�{Ї��S�s�W�7ٷ�w���o��)���6�Z܀怩@����}A��A�A�͂E�=!pH`�����
-��w��Ѐ����Ö�}�	�	aQѿ��`ɂ��"�"�"�D�DI�z�����_�xǔ�Hc�bW�^�ӈ�u�c����,ܹp<�>�8��"�Ey�.,�X�����%�%Gщ1�-��9����Ҁ��K��l�.��oo���/�O$�&�'=JvMޞ<��R��T�T����֥�NM۟�)=&�=���qTH�	�2�3�2��̳���˜��\6%
-5eCً���4��Ԁ�D�^2��S��&7:�H�r�0o`���M�'�}�^�Z�]�[�[��`t����UЪ��zW�.Z=��ó���ik(�.,/|�.f]O�Vњ���~�[��E�76�l�ۈ�(�8�iMKx%K�K+J�o�n����W�_}ڒ�e�̡l�V�V����ܷ(W.�/���scGɎ�;��PaWQ���K�KZ\�]eP���}uJ�H�WM{�f���׻y������V�UWZ�n�`��z������}�}9�6F7�����I�����~�~遈}͎��-�-e�p��u�`����x���l�o����$������A�{����}g�]m����\�9Օ�%��>x��ǥ��{����=Vs\�x�	��N柜>�u�����c�Kz=s�/�o�l����|ϝ���?y������^d]��p�s�~���:;���/;]��7|����W����p�������Q�o�H�!�ɻ��V���sn��Ys}��ҽ����~4��]� =>�=:�`��;cܱ'?e��~��!�ań�D�#�G�&}'/?^�x�I֓���?+�\����w�x�20;5�\��ӯ�_������e�t���W�f^��Qs�-�m���w3���+?�~����O�~PK   i]*�?:=  �     META-INF/textinfo.xml���n�0��}�(;�K{YQ��V�4�k���� ����-B��i�4��Ib1m�}���Bzܱ�����8���7�u�����m�2'����m<�q�k��e����G���
-�.�DӺt꺶�]���d��F�ɰ����X���(=iNU��R��XcXl���ߣ%�T���2���1V�v��#���F�hE��
-�l%����r�a�!�p<��*X�f�`&�K=��-�_}��[ڿ�\�����L�x����	�s��2�;R��.�^�RO`��.���U��[�b�	�����.z7H�M�>��|PK   i]�\�x)  �     color/docPalette.xml}�Mj�0����A��㙑�3'��-���!ԱK����'��Y�$��=F�\����]� ׫Ǉ�oB��=�6��h�
-ʥ~B��N�ѧZy��u,E����/]}ڇ��g�\-���U�nø���oUyQ<���������%,\2~2�Q=���&H0��_�EEV�.�X�#���	�v�b��s�;bQq��fej�a�+p����3ͣX�G5�hͭ�HkQ�(�����v�B6��8�6��~[��XP̢� �z�B���3�b d��.���g�PK   i]�}X^"  �k     styles/document.cdss�]�n�6���0���,ْ�a��M i�8��C@K��E&]�n��)�,{�=�(ʒE���T���2�3�����(��םV��Ibd�ܲz�n;���UY�W���k��MB�u�e5#a~O�	=�|@��q�	����[��~7|y�N
-����]|:�����^�>#�T�v�������u�i$N�Uz
-�T��Ч����-�Dx��T��(]�)�1<L�`HFG	@�����(�w
-lF�:?�~8�j[i�V����^�V����,�t��R���QH��4�U
-ē�g���ն�Ӗ���X�QSv���; 4�i�MY2�o�R��r���#�� zo�X�V��]�D��;�KA3�Z�<��M%W��(�@^����� znF)�BOB�#��Y�i�G�����2{��>�p<��/R�'eOF�+'��+LْT$'�C�aZnIaЛ ��qz���r	l�O�-�YϪv~.a���&~��u��3�k.4Dۦ�=�H��2d
-X+50x�u������Ӓ�9����k �qT��4�4q�1'�:���20&`6cL��>��l�3��h\�gH���)��l���E6�<.��n���8��7�Y]�5]��Z��\%#�
-�0��|d�)�1Wo��۶�DE�2�7WN�b�iU�|�Jj��~@���ʀX��Y�u�$H�"�8�	��׶S?0ݼe&�2�L%ӳ�����t�\#`K�Xs(1-��g��
-$5{�ڑT��i�d���F�]�[P
-p��T��>�,I&ø����fqf%r�u�3�YU�$ �7p�[V^�+��s��v��rj��Yk�rQ���FУ�Dn��^��u|�j���P���&:��:z��}(,�T�̛^|I��M�K��F[��,���K�Kb��1�,%~$�U��\Q�pD������G$�ĩ~���<��1}+I)����c��i@���Mk�1<�����!�3�e�	̲{�N�X�~똵�:Ϋ��
-߇o�X»��K*�z�o�LIxO3ur�S���h�s���t��3��< =��!�_g8O<�)ԓ�ʚ�"�<�Pg(�M^i�6�'���t��C�ao��+髷��oI����҃N���u�w��/ `Z˽mDͣ҃��4i�Z�d�gWwo�疥tdGhIH�'��J��@����i%3�6gY��ohGT?�(.[��jo���\5�)��6"��ƃqb���t��J�j���J�ũj���j��� ©un�3����9�}V򹖪�p(K�
-{2��h>AR��B+�9�pq�W��&S�����)xD�=B^4�a��kFp�|u��@��F�9��Ӫe�~�L%�85��˽~zL�mm� $ǻ4�[�ܥ94	��&�
-
-���]�C��vu������Npt������Np�����	n[�����	ng�֯d
-n
-��n�,N'P}o�8/Qz�V�Ǵ���Ukl�	�$�W�����m������9�'v��J��ڥ7zÅ���2��M��$V��+fn��CZm8[yG]S�/Y�.�b�{t(q�#h
-��|K���ϊ=�̊v�͊<qM��ʊ���ͮ��e���˼�E����h�V��i־���!�S����|r5�@(<	Q����x���oS�MR3S �&�	�=��N#h*|�����!�g�`&K�2M=� ��^��'/��PQ�s,���sŽG`N�a�jmɈ�!��w�2���"�<=����C�+q�2q��_�/k�P|�_0�UD���L���\��[\���߽t�$'�\@�H�����]T�S���-�S�B�;	��t
-)Yz:�{V%z�<+���M�V�t�����B�"�g�����qr4��&8����N0t��-wj`�D��y�����#��aBRL+�UCH)�O�ϰX��%�㐟4~yɫO1���~-��%���!���1,����r	j�0�eǀ��9b8`�yȥ7�����;��u�t:.�{���`w�ųJ�ܺ[|i��.z��b2���a����ON�+�h��-P������PK   i]�\e�  $     META-INF/metadata.xml�Zms�8�>��孺��-�7��
-�"2�$������[���"���+�o[$�|�T%u��%uKj�ͯ�8R^!�B��T�c�
-L|��v�~y�iCU���tspqC
-H2�0RA��Х�3��z��s������
-3��;BRW����:ov�n:���nY�вcB�AK��
-��i
-3�)��)�
-�hOF�Zz�}�u�G���:�^~e��qĝ|F0�	ɨ�����e�8��� ���� �Y
-|�0�0j��I
- �(�߄d��G���S��{�N�D���,,
-_:M�C@���z�a�5c��Ƌ1t
-��Z?=�6n�3�&͂���xJc���s\�i�������T��n��@�F�X���5	�����	0x��߳ ��{���5�A��#|���|���T�(����6���>����^�\z+w���	I%~�#��-d-F���dWr��Y�y
-7!Ğe��uo`k�ow���h �P3���-k��0��X,�y���p>� e��:-b����uwm;���zm����m0�uA߲��A�d`�H^ҘK�^�E�Ԭ�w���ח�y��˱5�!��A%�.V�="�����#|����z/d>����n����xOv4�O�Ly>q�]�H	��43Y����V�<	���%v�1
-�>y�;�7a��t9������c<�7��4�Lös�B�
-w�t`O|Z��4�6 �`=�-�N���7ϲ
-#�Y�6������ppU��q��x5_����|��ҵ�8���|.4��m+I�xB�-��k�oǉq5<�$��D��q�6T6��0
-�4\�g����-E���r�l_ط�x��ó��tm��l�`[%�(jZO!_a0�(�,����ځ=sHχ�f�ѺV��
-��@@�6�`0 N�����f���3Y��U2)���a
-a;�~
-�c��cqr��C?Cv�{���6��N���,d��y�NO9(����)�`#'Z��!�L !�2TJ9�	��P�W>q��U�K��h�����9�A�ɠ�d��f�vr^� g��T#��؇�?L��uW~ș�Pi	k��>ӈJ��b��M�x������� S��Վ�co5H��`�L��7�n�f�^);�^�)3�Э�.Km^
-�Ӌ� �Da*Ln%���DAޔ?Ь�myKf��AB���?֐�t��<yꥫe��_ے�/�0�G>5�.�g����}ADހ��nʌ�1ڧlK�2����T7e�KvC�l��ל\y���qі��E4�2�uK�R ,`���QT�PId�g�eP�����!L��A
-�E@�}B��_2�e��R!
-a5j��:�kM�&LB��
-�T]&)��E���'<Ϯ���$Y&���GKz"O� �G�l�v�BT��J@/�) ;&���*��B��YWۊ+�]��=�6�2C%�Y�� �)*��O�NBPu����ďt"!�
-�I��[��sT-���ųE"�d��|�����tǃ�rS,����Яù!�Ag�
-��h�����1����e-����R�jHySf����������ε���'� � �P��"�_0��$͡Q��L%SQ�����ʂVQyiw���(W]�FH�"x%i�"�H�ђ�5q��}���ld�W�]HGFH�kzx�HݔIB^��+�R"��ОJaq���� �{L)�B�QF�χ� �?��Lޖ�ã^N)�B&(Bm��m>����ʁ��ԣ�X���Ζ/�JA���=+}_��|d����wH��"�duȞ����R��\�Ѩf�#�H���)͔+��g��ySf<ٮ�4�m��]�c�RPId�[��@(Ne2�gb�b.J�g���0�!�D�{��%O
-G��Y|ٱrU~0�/q5N�E-���5�U�
-��5"�#UX�g��4�z5�z�i}��/Gjߴ�����T�:vwX�=S\��q���-���� >����f{���Փ2A��@y���M��RK[�]Кm����cƳA$aR��1P��U�.a@��v�*��+4��	>�����&}���5�#V�ѕ_@����
-�ܧ&����+�Ň~�� L=R�Gg*�lb��]� ��a�=�ئ��G�����&p��b�2�������`& s�+��T����<�>��2�����`Laǿ4�Ǵ�3S�$���4�*/�3�Ӎ^}����PK   i]�r�7   5      META-INF/links.xml�����Q(K-*��ϳU2�3PRH�K�O��K�U
-
-qӵPR���������K�Wз� PK   i])�q41  �     META-INF/container.xml��MS� ����$Ư*���ك�ۄH[����S۪3��>/��rk
-YC��!�uyA	�tJc����cqG�r1k��$4B8k�8FN��̉�#Ca!�$�����&6��CȞc2�+] �c��9�K�~A�ɫ	Υ�6w�ɉl��6���zc
-/R�鐖��(�H�XPZ����{��H�նX�*G�R�PD%Մ�S��w���F[�Bсn������qy�ՠv}5?Q��6�:d��S�1���ZI��80����I�� �����>_L�����**����B�)�Mu4ߦ:L1�PK   i]1�D2  g     content/data/data1.dat�]�o�W?�[�E%�V���I��c�Iڤ먛��/�2U����N���i�	Eh�iߦ
-&!!�	1���0��a@�0!H��߹�yq;�ۛ�=�r|��r��9�{��N$���k�J��_}��� [�=��%.�h���?w?~��]}:>c?�v~t.A	GWy�NB�Vcm�$��c�i8p|?b�`��я���CD�o���T��G�Z��E�J��C�c p�G�Z}
-/?]�Ϲ��Ej��|���JE*�*���5Z�չ��Ը�%.q�K\����%.q�K\����%.q�K\���.ߚ�^�d���w��k��Y��w�ax���G/Q��h��T�*�(�)s�O��R�5a��P���D��"%q����YUYcF��G-��k�d�&�#J��2U����?����q\��m�W�i�����#f�&��\��}�_c�W���x���3�[\�,�~`ӹE���z�a�!���T������W�Z@���:��d�[��
-?]bx�<W�Ŏ]���}�j�n�����cq^ �
-�=d�X���\x��<ݥ���,[l��P!�4F�t&�H�L�<�ȭ�R��Cc�BA�m*�u�,�/(w4����=��I�2�7 _�D����������ó�����y�V��uu��TFE��0,�;��!ϟ�*$-�=��x4�/��m���"e�s�M�󗘓2��t��^kTf�9XkXJm��Q�-w�Q;�^.�ɷ�`�����0����-� ��YO3���w�{M�u/���)���>4���_�MaD���ܖ�z�[΢u�Ǥ�E�wL�������Z/�B��ϱl2l�I��l4���J��&�S�%T�G�Y������Z����w�!/�^UDm���>�g��>��3��>ß�3�t��O��t�߀����lv��b)a�-�(��pĳ]c�'c<;n�pVM��d�5�/�{���_Z�$�jܶ�^���&�ƨ��/�^h�M�^㖝E5$�8����:��N95�_t��~`�Ck6�;k|�+,��UϹ�������I�X�m��8a	����\@&@"��+���=�,?=��4�J?
-�e)^l���9�ɡ��ёXh��*]�y�<b����F��U&��"��´��q���ö���eu��pO�{�C͹�4 �e�;׸��Y�^`��,?�!���"��oO���nO������Ѧ�N��i��`"�:��#g��6�0����SH�<��-b�� ��Y�V�]D�]�֗!'��
-HG��"VR��Ex�h�ن��0W:���Q�Mq��n��CY� eyT�lB���ș|LX�g�udt}���}���P�!a�f���20h�F�[C�JM��fX�-��M峗��������b�)�a	+�e@����� � 3+&�v�t/�y��&B��Ԉ�L����F�l�m���֒s�� �*�Es6�8y�Z(8��f�>�7��
-ʜ�{�ri`�|~P�-,��6�sj���E�a�^FVJ�@s5�.�d��g��A+��;�����:���.7�� �'��a����OȠI~m,�.T��h���ѝT}�{�ѹ��wH.1�ܢ=���,�{��ag��
-pLt����1U�]����60��U#�""7z,fѹ��ao��k�$��=凃c��,F�"��"�e�h����Μك�3��?����K�?��<�+�Wc�۞���>���ש���WX�J�0r��c�e�6d�8G3��-��+����M�8k�� �0e��I�N����y����	� �!9y,�Ӌ���!���	�z�hZ����/�`��B���_�Lj��������%H�ND�|�mɚ�]�_�E�ae��E���x�6�;��ם�z!��ʼ��9�W"�q�g�b��;������9<�ٽs:����CXn�y��pX���{����ѽ�u�~�������oV�x���`7���I�nW�~�)>�go�g��oAx�-*�V�
-�s�F��##����Q���֐��K��j���Ay��CS9^�٨�q9�����EZ��
-��O@�z�'Y�'5g{�Ct�{
-�M�S}�f�7=3��n�G4����޳$��&����DNК������ms){g�����m���m��v�N��>�|M���n��v�i����ߨe�މ$�f�mG~�Nr�iZe��Yn�\[���p'.�3��^�>�L �z�Vʳ���)y&��-X4"���?6	�y�9
--���#u������dƌ�;I�&/"-y���L��M>GN�ү:i4�n�T�~�J���Ւ�w����S֐y�:���ƈ���(���]sxt�����Y$Tt���9��m���7[���?��5Kh��s��5�I�4-��;��@+Ao����<��~CK3�EC���$����6�oUϛ�Z*��)���E<�d�Mz��<Cyt�ͫ�:�G��SO���y'M�;�g���-�;��^���ټK0�J��#�\T%@Zʡ0�ko�>�kWl�>K�k�^�mm��5[�U�&�M��S�?���[g��9�d��ڥwE>�V-ƶ�bl��-~~lq�s��5�؆-�.$Y_רb�F�oa�>C?K��0��O��x�������!����}��fH~��� ��9�sk����(���5nF���6{�GQtz�-#��r:2r�������S"Y�-�J��C�S^m��D�"r�NuIQ�%AoY9
-
-H�%��^��=U��9�e(���Et�KòfR��w��כ�'��_o>�G������_�����_�f@��g�g�9�L �����������u��h��-��@���!3Sz��q`?&�/{<��w�[�ߋ͖V̴/�ľL�_.˔���K�u˔`뎩�0L�[�^1��J	3�W*��Z��_)��/SR�0��	S��)q�9��M%��Pj�?��o�	M!�N�
-͖^�q��]�˫���D1�q�3D�{$���޹B��s����A��|��t�g�༥��$���C�����y�=p�����έ5�������u�|p�l���cd�S�m�cN��/;��6��������So.2�����_f4��u��=hds�̵��Fs0sFZ��c��@���PK-     i]"���-   -    $               mimetype
-         ҂��9�҂��9�҂��9�PK-    i].��  !   $           S   font/fontTable.dat
-         ~r��9�~r��9�~r��9�PK-    i]e�
-M/     $           �  content/data/masterPage.dat
-         �I��9��I��9��I��9�PK-    i]����  �t   $           �  content/data/page1.dat
-         FY��9�FY��9�FY��9�PK-    i]DƜ�g  �E  $           )  embed/embedding0
-         n���9�n���9�n���9�PK-    i]�,;�   "    $           �v  content/dataFileList.dat
-         ����9�����9�����9�PK-    i]̩�*  (   $           .w  content/root.dat
-         ��9���9���9�PK-     i]�Z"�o'  o'   $           �z  previews/thumbnail.png
-         "���9�"���9�"���9�PK-     i]�0���  �   $           )�  previews/page1.png
-         ���9����9����9�PK-    i]4�6~�   �   $           <�  color/color.xml
-         L4��9�L4��9�L4��9�PK-    i]R�.
-  H  / $           7�  color/profiles/rgb/srgb color space profile.icm
-         �:��9��:��9��:��9�PK-    i]*�?:=  �   $           ��  META-INF/textinfo.xml
-         �a��9��a��9��a��9�PK-    i]�\�x)  �   $           �  color/docPalette.xml
-         �.��9��.��9��.��9�PK-    i]�}X^"  �k   $           m�  styles/document.cdss
-         �4��9��4��9��4��9�PK-    i]�\e�  $   $           ��  META-INF/metadata.xml
-         臊�9�臊�9�臊�9�PK-    i]�r�7   5    $           ��  META-INF/links.xml
-         ����9�����9�����9�PK-    i])�q41  �   $           �  META-INF/container.xml
-         Hኳ9�Hኳ9�Hኳ9�PK-    i]1�D2  g   $           |�  content/data/data1.dat
-         ���9����9����9�PK      =  ��    ```
+```
 
 ### `PRIVACY_POLICY_LANDLORD.md`
 
@@ -4063,7 +1520,7 @@ Address: 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana,
 *Version 1.0 — Effective 28 August 2026.*
 ```
 
-### `assets\fevicon\icon.svg`
+### `assets/fevicon/icon.svg`
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -4109,7 +1566,7 @@ viewBox="0 0 1993.96 1993.96"
 </svg>
 ```
 
-### `assets\logo\propaura.svg`
+### `assets/logo/propaura.svg`
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -4151,195 +1608,32 @@ viewBox="0 0 3520.56 448.53"
 </svg>
 ```
 
-### `audit\bucket-list.md`
-
-```markdown
-# Audit Bucket-List (files in scope)
-
-## Backend (atomic billing changes)
-- `backend/app/app/core/db.py` — `receipts.property_id` migration + index + FK-defensive backfill + `receipt_property_id_backfill_v1` marker
-- `backend/app/app/database/final_schema.py` — receipts CREATE with `property_id`
-- `backend/app/app/models/receipt.py` — `BillRequest` (UTF-8 BOM)
-- `backend/app/app/models/tenant.py` — `propertyId` field
-- `backend/app/app/services/billing_service.py` — `update_bill` (atomic), `calculate_charges`
-- `backend/app/app/api/billing.py` — `api_update_bill`
-- `backend/app/app/services/pdf_service.py` — Property row
-- `backend/app/app/database/property_repository.py` — `get_property`
-
-## Frontend (Edit Bill modal)
-- `frontend/landlord-app/src/components/shared/EditBillModal.tsx` — rewritten (436 lines)
-- `frontend/landlord-app/src/services/api.ts` — `updateBill`, `getProperties`, `getTenant`, `getReceipt`, `getBillingMonths`
-- `frontend/landlord-app/src/types/index.ts` — `BillRequest`, `Receipt`, `Property`
-- `frontend/landlord-app/src/pages/History.tsx`, `Dashboard.tsx`, `Archive.tsx` — callers (props unchanged)
-- `frontend/landlord-app/src/pages/Billing.tsx` — reference layout
-
-## Runtime / scratch
-- `storage/database/rent.db` — REAL DB (must stay untouched; verified unchanged)
-- `C:\Users\vjsin\AppData\Local\Temp\opencode\scratch_runtime_test.py` — temporary test harness (cleaned up)
-- scratch dir `...\opencode\scratch\database\rent.db` — copied DB used for runtime test (cleaned up)
-
-## Audit docs (this folder)
-- `audit/task.md`, `audit/plan.md`, `audit/log.md`, `audit/bucket-list.md`
-
-## Outstanding (awaiting user approval before any edit)
-1. ~~`EditBillModal.tsx:20` — remove unused `Tenant` import~~ **DONE (approved).**
-2. ~~`EditBillModal.tsx:102-110` — meterError `set-state-in-effect`~~ **DONE (approved; now derived const).**
-   (Item at `:58` `setLoading(true)` in load effect is a pre-existing pattern, not a regression — left unchanged.)
-```
-
-### `audit\log.md`
-
-```markdown
-# Audit Log — Real Test Results
-
-**Date:** 2026-08-31
-
-## Frontend
-
-### `tsc --noEmit` (landlord-app)
-```
-exit 0, clean
-```
-### `npm run build` (vite 8.1.5)
-```
-✓ built in 867ms
-exit 0
-```
-### `eslint src/components/shared/EditBillModal.tsx`
-- `20:15` `@typescript-eslint/no-unused-vars` — `'Tenant' is defined but never used`  ← **NEW — FIXED** (removed unused import; user-approved)
-- `58:7` `react-hooks/set-state-in-effect` — `setLoading(true)` in load effect  ← **PRE-EXISTING** (baseline also called setLoading in an effect; not a regression) — **left as-is per report**
-- `102/110` `react-hooks/set-state-in-effect` — `setMeterError(...)` in new meterError effect  ← **NEW — FIXED** (replaced state+effect with a derived `const meterError`; user-approved)
-- Whole-app `npm run lint`: 131 pre-existing problems (repo lint red before this work; unrelated).
-
-**Post-fix state:** `eslint` on `EditBillModal.tsx` reports only the 1 pre-existing `setLoading(true)` item. `tsc --noEmit` clean. `npm run build` exit 0.
-
-### Callers (props unchanged — compile fine)
-- `History.tsx:158` `<EditBillModal billNo ... tenantId ... onClose ... onSaved ... />`
-- `Dashboard.tsx:515` same props
-- `Archive.tsx:218` same props
-
-## Backend — Syntax & Imports
-`ast.parse` (utf-8-sig) OK on: `billing.py, db.py, final_schema.py, receipt.py, billing_service.py, pdf_service.py`.
-Imports OK: `app.services.billing_service`, `app.core.db`, `app.database.property_repository`; `get_property` wired.
-
-## Backend — Schema-Score Consistency
-`update_bill` SET columns all present in live schema. Only "missing" = `receipts.property_id` (the intentionally-added column created by migration). WHERE handles `tenantId`, `billNo`, `landlord_id` — all present. ✅
-
-## Backend — Migration + Backfill Smoke Test (in-memory)
-- Fresh: VALID tenant receipt → `property_id` backfilled (1); ORPHAN tenant receipt → stays `NULL` (no FK crash). ✅
-- Idempotent re-run: guard skips ALTER, no error. ✅
-
-## Backend — Scratch-DB Runtime Test (end-to-end, real `update_bill`)
-Copied `storage/database/rent.db` → scratch; `RENT_STORAGE_DIR` pointed at copy; ran `init_db()` + seeded + `update_bill`.
-| Check | Result |
-|---|---|
-| A. receipts.property_id column added | PASS |
-| B. landlord_properties table exists | PASS |
-| C. idx_receipts_property_id index created | PASS |
-| D. backfill marker written | PASS |
-| E. backfill on empty DB (0 filled) | PASS |
-| F. seeded receipt present | PASS |
-| G. update_bill returned (current=150, rent=1200) | PASS |
-| H. receipt.rent snapshot = 1200 | PASS |
-| I. receipt.rate snapshot = 9 | PASS |
-| J. receipt.additionalpersons = 3 | PASS |
-| K. receipt.additionalpersonrate = 60 | PASS |
-| L. receipt.property_id = Prop Beta (edited) | PASS |
-| M. tenant.profile rent = 1200 | PASS |
-| N. tenant.profile water = 250 | PASS |
-| O. tenant.profile electricityrate = 9 | PASS |
-| P. tenant.profile additionalpersoncharge = 60 | PASS |
-| Q. tenants.property_id UNCHANGED (stays Prop Alpha) | PASS |
-| R. other-landlord property rejected | PASS |
-| S. meter-guard (current<prev) rejected | PASS |
-| T. PDF regenerated on scratch | PASS |
-
-**20/20 PASS.** Atomicity confirmed by inspection + runtime: receipt UPDATE and tenant-profile UPDATE run in the same `with get_conn()` block, single `conn.commit()`.
-
-## Real DB Safety
-`storage/database/rent.db` verified untouched: no `property_id`, no `landlord_properties`, 0 receipts, 0 tenants. Scratch cleaned up after test.
-
-## Notes / Test-Harness Corrections (not code defects)
-- Runtime seed required supplying NOT NULL cols (`landlord_accounts`, `created_at`/`updated_at`, receipt `date`, explicit `billno`) — all test-harness details, not app bugs.
-- `S` meter guard requires `previous > 0`; initial seed had `previous=0` (guard correctly skipped). Fixed seed → PASS.
-```
-
-### `audit\plan.md`
-
-```markdown
-# Audit Plan — Billing Edit: property_id Migration + Atomic Rate Updates
-
-**Status:** COMPLETED
-
-## Approach
-- **Testing mode:** Manual + tooling smoke tests. No framework installed (repo has no vitest/jest/pytest). Tooling: `tsc --noEmit`, `eslint`, `npm run build`, `ast.parse`, Python `sqlite3` runtime harness.
-- **DB verification:** Copied `storage/database/rent.db` to a scratch dir, set `RENT_STORAGE_DIR` to the copy, ran `init_db()` + `update_bill` against the copy. Real DB untouched.
-- **Tenant App:** not modified.
-
-## Steps
-1. Frontend static: `tsc --noEmit`, `eslint src/components/shared/EditBillModal.tsx`, `npm run build`.
-2. Caller verification: History/Dashboard/Archive pass unchanged props.
-3. Backend syntax/import: `ast.parse` (utf-8-sig) on 6 edited files; import `billing_service`, `db`, `property_repository`.
-4. Schema-score consistency: extract `UPDATE receipts/tenants ... SET` columns from `update_bill`; diff against live `receipts`/`tenants` schema.
-5. Migration smoke (in-memory): simulate pre-migration schema; run guarded ALTER + index + backfill twice (idempotency); insert valid + orphan tenant to confirm orphan backfill safety.
-6. Scratch-DB runtime (end-to-end): copy DB → `RENT_STORAGE_DIR` → `init_db()` (migration) → seed landlord_accounts/landlord_properties/tenant/receipt → `update_bill` with edited rates + property → assert 20 checks (migration, snapshot, profile, atomics, ownership, meter guard, PDF).
-7. Report lint findings; ask approval before editing.
-8. Write `/audit/*.md`.
-
-## Outcome
-- Steps 1–6 all green.
-- Step 7: **2 new lint items** await approval (see log.md). 1 pre-existing lint pattern (set-state-in-effect at load) exists in the committed baseline too.
-```
-
-### `audit\task.md`
-
-```markdown
-# Audit Task — Billing Edit: `receipts.property_id` Migration + Atomic Tenant-Profile Rate Updates in `update_bill`
-
-**Status:** COMPLETED (testing done, 2 minor lint items awaiting approval)
-**Date:** 2026-08-31
-
-## Objectives
-1. Audit the reworked `EditBillModal.tsx` against the atomic backend billing changes.
-2. Verify `receipts.property_id` migration + FK-defensive backfill (db.py).
-3. Verify tenant-profile rate updates run atomically inside `update_bill` (single commit).
-4. Produce `/audit/*.md` docs from real test results.
-
-## Non-Goals / Locked Decisions
-- Tenant App must NOT be modified.
-- Property is editable per-receipt (NOT synced to tenant).
-- Rates updated on tenant profile atomically in one `update_bill` transaction.
-- Submit = single `api.updateBill` call.
-- No test framework installed (repo has none — no vitest/jest/pytest).
-- Runtime verification used a copied scratch DB via `RENT_STORAGE_DIR`; real DB untouched.
-
-## Acceptance Criteria
-- [x] `EditBillModal.tsx` compiles (`tsc --noEmit` clean).
-- [x] Build passes (`npm run build`).
-- [x] Backend edited files parse + import.
-- [x] `update_bill` SQL columns all exist in live schema.
-- [x] Migration (ALTER + index + marker) + backfill idempotent and orphan-FK safe.
-- [x] `update_bill` atomically updates receipt snapshot + tenant profile; `tenants.property_id` unchanged.
-- [x] Self-owned property wins; other-landlord property rejected.
-- [x] Real DB `storage/database/rent.db` untouched.
-- [ ] (awaiting approval) Fix 2 new lint items in `EditBillModal.tsx`.
-
-## Files Under Audit (bucket-list)
-see `bucket-list.md`
-```
-
-### `backend\.env.example`
+### `backend/.env.example`
 
 ```text
 # Backend runtime environment — loaded by compose via `env_file: .env`
+# (standalone backend/compose.yml). For the canonical topology use the repo root
+# .env.release / .env.development + compose.prod.yml / compose.dev.yml instead.
 # Copy to backend/.env and fill in real values. backend/.env is gitignored
 # and is NOT uploaded by deploy.py — edit it in place on the remote at
 # /home/vega/rent/backend/.env, then: docker compose up -d --force-recreate
 
 # --- Storage ---
 RENT_STORAGE_DIR=/code/storage
-RENT_DB_PATH=/code/storage/database/rent.db
 RSA_KEY_PATH=./keys
+
+# --- PostgreSQL connection (standalone backend runs against a DB container) ---
+# connection.py defaults: host propaura_database_dev, port 28004, db rent, user rent.
+RENT_PGHOST=propaura_database_dev
+RENT_PGPORT=28004
+RENT_PGDATABASE=rent
+RENT_PGUSER=rent
+RENT_PGPASSWORD=REPLACE_WITH_DB_PASSWORD
+
+# Connection pool (psycopg_pool) — optional, these are the defaults
+RENT_PGPOOL_MIN=2
+RENT_PGPOOL_MAX=10
+RENT_PGPOOL_TIMEOUT=5
 
 # --- Runtime mode ---
 # release = API-only (no frontend pages served, swagger off)
@@ -4349,7 +1643,7 @@ SERVE_FRONTEND=true
 ENABLE_SWAGGER=true
 
 # Comma-separated list of origins allowed to call the API
-CORS_ALLOW_ORIGINS=https://rent.vijaykrsha.online
+CORS_ALLOW_ORIGINS=http://localhost:28001,http://localhost:28005
 
 # --- JWT signing secrets (generate each: openssl rand -hex 32) ---
 ADMIN_JWT_SECRET=REPLACE_WITH_ADMIN_SECURE_RANDOM_KEY
@@ -4363,13 +1657,9 @@ tenantPin_VAULT_KEY=REPLACE_WITH_BASE64_32BYTE_KEY
 # --- Google OAuth (Google Cloud Console > Credentials > OAuth 2.0 Client ID) ---
 # Backend only verifies the ID token against this client id (no client secret needed).
 # Must match VITE_GOOGLE_CLIENT_ID in the frontend build.
-GOOGLE_CLIENT_ID=REPLACE_WITH_GOOGLE_CLIENT_ID.apps.googleusercontent.com
+GOOGLE_CLIENT_ID=REPLACE_WITH_GOOGLE_CLIENT_ID.apps.googleusercontent.com```
 
-# --- Legacy, not read by current code, kept for compatibility ---
-JWT_SECRET=changeme
-```
-
-### `backend\Dockerfile`
+### `backend/Dockerfile`
 
 ```
 FROM python:3.13-slim
@@ -4386,13 +1676,14 @@ COPY ./app/templates /code/templates
 RUN mkdir -p /code/storage
 
 # Default port (dev). Release/prod override this via the compose `command`
-# (propaura_backend_prod -> 28005), so this EXPOSE/CMD is just the fallback.
-EXPOSE 28001
+# (propaura_backend_dev -> 28002, propaura_backend_prod -> 28011); this
+# EXPOSE/CMD is just the fallback.
+EXPOSE 28002
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "28001", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "28002", "--proxy-headers", "--forwarded-allow-ips", "*"]
 ```
 
-### `backend\app\README.md`
+### `backend/app/README.md`
 
 ```markdown
 # Rent Receipt Application
@@ -4425,14 +1716,14 @@ Use the included `deploy.py` script to package the application into a ZIP file a
 python deploy.py
 ```
 
-### `backend\app\app\api\__init__.py`
+### `backend/app/app/api/__init__.py`
 
 ```python
 
 
 ```
 
-### `backend\app\app\api\backup.py`
+### `backend/app/app/api/backup.py`
 
 ```python
 # // File: app\app\api\backup.py
@@ -4541,7 +1832,7 @@ async def api_download_metadata(landlordUuid: str, backupId: str, principal=Depe
     return backup_meta
 ```
 
-### `backend\app\app\api\billing.py`
+### `backend/app/app/api/billing.py`
 
 ```python
 # // File: app\app\api\billing.py
@@ -4890,7 +2181,7 @@ async def api_delete_bill(landlordUuid: str, tenantId: int, billNo: str, request
         raise HTTPException(status_code=400, detail=str(e))
 ```
 
-### `backend\app\app\api\dashboard.py`
+### `backend/app/app/api/dashboard.py`
 
 ```python
 # File: app\app\api\dashboard.py
@@ -4909,23 +2200,25 @@ async def dashboard_api(landlordUuid: str, principal=Depends(get_current_landlor
     return {"stats": stats}
 ```
 
-### `backend\app\app\api\health.py`
+### `backend/app/app/api/health.py`
 
 ```python
 from fastapi import APIRouter
+
 from app.core.routes_manifest import Names
 
 from app.core.routes_manifest import Routes
 
 from app.core.app_info import APP_INFO
 from app.core.config_service import ConfigService
-
+from app.db.connection import check_database
 
 
 router = APIRouter(tags=["Health"])
 
 @router.get(Routes.HEALTHCHECK, name=Names.HEALTHCHECK)
 async def health_check():
+    ok, detail = check_database()
     return {
         "status": "ok",
         "application": APP_INFO["name"],
@@ -4933,15 +2226,15 @@ async def health_check():
         "schema": APP_INFO["schema"],
         "config_loaded": bool(ConfigService().get("system")),
         "storage_ready": True,
-        "database": "SQLite (rent.db)",
-        "database_ready": True,
+        "database": f"PostgreSQL ({detail})" if ok else f"PostgreSQL (unavailable: {detail})",
+        "database_ready": ok,
         "uptime": "N/A",
         "broadcast": ConfigService().get("broadcast", {"enabled": False, "message": "", "type": "info", "dismissible": True})
     }
 
 ```
 
-### `backend\app\app\api\landlord_setup.py`
+### `backend/app/app/api/landlord_setup.py`
 
 ```python
 """
@@ -5137,7 +2430,7 @@ async def api_property_tenants(
     return {"status": "success", "tenants": tenants_for_property(principal.landlord_id, propertyId)}
 ```
 
-### `backend\app\app\api\pdf.py`
+### `backend/app/app/api/pdf.py`
 
 ```python
 # File: app\app\api\pdf.py
@@ -5221,7 +2514,7 @@ async def view_pdf(landlordUuid: str, tenantId: int, billNo: str, principal=Depe
     return response
 ```
 
-### `backend\app\app\api\public.py`
+### `backend/app/app/api/public.py`
 
 ```python
 # // File: app\app\api\public.py
@@ -5275,7 +2568,7 @@ def _resolve_tenant_property_id(tenant_id: int, landlord_id):
     from app.core.db import get_conn
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id FROM landlord_properties WHERE landlord_id = ? ORDER BY sort_order, id LIMIT 1",
+            "SELECT id FROM landlord_properties WHERE landlord_id = %s ORDER BY sort_order, id LIMIT 1",
             (landlord_id,),
         ).fetchone()
         if row:
@@ -5397,7 +2690,7 @@ async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, re
     # Brute-force lockout (5 failed PIN/QR attempts -> 15 minute lock).
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT failed_attempts, locked_until FROM tenants WHERE id = ?",
+            "SELECT failed_attempts, locked_until FROM tenants WHERE id = %s",
             (tenant.id,),
         ).fetchone()
 
@@ -5420,7 +2713,7 @@ async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, re
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                "UPDATE tenants SET failed_attempts = %s, locked_until = %s WHERE id = %s",
                 (failed_attempts, locked_until_str, tenant.id),
             )
             conn.commit()
@@ -5461,7 +2754,7 @@ async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, re
     if (row and row["failed_attempts"]) or (row and row["locked_until"]):
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET failed_attempts = 0, locked_until = NULL WHERE id = ?",
+                "UPDATE tenants SET failed_attempts = 0, locked_until = NULL WHERE id = %s",
                 (tenant.id,),
             )
             conn.commit()
@@ -5525,7 +2818,7 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
         row = conn.execute(
             "SELECT id, name, landlord_id, viewToken, password_hash, property_id, "
             "password_failed_attempts, password_locked_until, password_reset_required "
-            "FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            "FROM tenants WHERE LOWER(tenant_username) = %s ORDER BY id LIMIT 1",
             (username,),
         ).fetchone()
 
@@ -5553,7 +2846,7 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET password_failed_attempts = ?, password_locked_until = ? WHERE id = ?",
+                "UPDATE tenants SET password_failed_attempts = %s, password_locked_until = %s WHERE id = %s",
                 (failed_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -5562,14 +2855,14 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
     if (row["password_failed_attempts"] or 0) > 0:
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET password_failed_attempts = 0, password_locked_until = NULL WHERE id = ?",
+                "UPDATE tenants SET password_failed_attempts = 0, password_locked_until = NULL WHERE id = %s",
                 (row["id"],),
             )
             conn.commit()
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT landlord_uuid FROM landlord_accounts WHERE id = ?",
+            "SELECT landlord_uuid FROM landlord_accounts WHERE id = %s",
             (row["landlord_id"],),
         ).fetchone()
 
@@ -5645,7 +2938,7 @@ async def global_tenant_forgot_password(request: Request, login_req: EncryptedLo
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            "SELECT id FROM tenants WHERE LOWER(tenant_username) = %s ORDER BY id LIMIT 1",
             (username,),
         ).fetchone()
 
@@ -5655,11 +2948,11 @@ async def global_tenant_forgot_password(request: Request, login_req: EncryptedLo
         expires_at = now + timedelta(minutes=15)
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET password_reset_token_hash = ?, password_reset_expires_at = ?, password_reset_requested_at = ? WHERE id = ?",
+                "UPDATE tenants SET password_reset_token_hash = %s, password_reset_expires_at = %s, password_reset_requested_at = %s WHERE id = %s",
                 (hash_pin(token), expires_at.isoformat(), now.isoformat(), row["id"]),
             )
             conn.execute(
-                "INSERT INTO tenant_password_reset_events (tenantId, channel, token_hash, created_at, expires_at, requested_ip) VALUES (?, 'self-service', ?, ?, ?, ?)",
+                "INSERT INTO tenant_password_reset_events (tenantId, channel, token_hash, created_at, expires_at, requested_ip) VALUES (%s, 'self-service', %s, %s, %s, %s)",
                 (row["id"], hash_pin(token), now.isoformat(), expires_at.isoformat(), ip),
             )
             conn.commit()
@@ -5703,7 +2996,7 @@ async def global_tenant_reset_password(request: Request, response: Response, log
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name, landlord_id, viewToken, password_reset_token_hash, password_reset_expires_at FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            "SELECT id, name, landlord_id, viewToken, password_reset_token_hash, password_reset_expires_at FROM tenants WHERE LOWER(tenant_username) = %s ORDER BY id LIMIT 1",
             (username,),
         ).fetchone()
 
@@ -5725,15 +3018,15 @@ async def global_tenant_reset_password(request: Request, response: Response, log
     tenant_id = row["id"]
     with get_conn() as conn:
         conn.execute(
-            "UPDATE tenants SET password_hash = ?, password_reset_token_hash = NULL, password_reset_expires_at = NULL, password_reset_requested_at = NULL, password_reset_required = 0, password_failed_attempts = 0, password_locked_until = NULL, last_password_change_at = ? WHERE id = ?",
+            "UPDATE tenants SET password_hash = %s, password_reset_token_hash = NULL, password_reset_expires_at = NULL, password_reset_requested_at = NULL, password_reset_required = 0, password_failed_attempts = 0, password_locked_until = NULL, last_password_change_at = %s WHERE id = %s",
             (hash_pin(new_password), now.isoformat(), tenant_id),
         )
         conn.execute(
-            "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (?, ?, ?, 'tenant-reset')",
+            "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (%s, %s, %s, 'tenant-reset')",
             (tenant_id, hash_pin(new_password), now.isoformat()),
         )
         conn.execute(
-            "UPDATE tenant_password_reset_events SET used_at = ? WHERE tenantId = ? AND used_at IS NULL",
+            "UPDATE tenant_password_reset_events SET used_at = %s WHERE tenantId = %s AND used_at IS NULL",
             (now.isoformat(), tenant_id),
         )
         conn.commit()
@@ -5775,7 +3068,7 @@ async def global_tenant_change_password(request: Request, response: Response, lo
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, password_hash FROM tenants WHERE LOWER(tenant_username) = ? ORDER BY id LIMIT 1",
+            "SELECT id, password_hash FROM tenants WHERE LOWER(tenant_username) = %s ORDER BY id LIMIT 1",
             (username,),
         ).fetchone()
 
@@ -5786,11 +3079,11 @@ async def global_tenant_change_password(request: Request, response: Response, lo
     tenant_id = row["id"]
     with get_conn() as conn:
         conn.execute(
-            "UPDATE tenants SET password_hash = ?, password_reset_required = 0, password_reset_token_hash = NULL, password_reset_expires_at = NULL, password_reset_requested_at = NULL, password_failed_attempts = 0, password_locked_until = NULL, last_password_change_at = ? WHERE id = ?",
+            "UPDATE tenants SET password_hash = %s, password_reset_required = 0, password_reset_token_hash = NULL, password_reset_expires_at = NULL, password_reset_requested_at = NULL, password_failed_attempts = 0, password_locked_until = NULL, last_password_change_at = %s WHERE id = %s",
             (hash_pin(new_password), now.isoformat(), tenant_id),
         )
         conn.execute(
-            "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (?, ?, ?, 'tenant-change')",
+            "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (%s, %s, %s, 'tenant-change')",
             (tenant_id, hash_pin(new_password), now.isoformat()),
         )
         conn.commit()
@@ -5888,7 +3181,7 @@ async def public_tenant_kyc_upload(
     today = datetime.utcnow().strftime("%Y-%m-%d")
     with get_conn() as conn:
         today_count = conn.execute(
-            "SELECT COUNT(*) as cnt FROM occupants WHERE tenantId = ? AND DATE(uploaddate) = ?",
+            "SELECT COUNT(*) as cnt FROM occupants WHERE tenantId = %s AND DATE(uploaddate) = %s",
             (tenant.id, today),
         ).fetchone()["cnt"]
     daily_limit = config.get("system", "security.kyc_daily_upload_limit", default=5)
@@ -6066,28 +3359,28 @@ async def tenant_audit_logs(
             tl.created_at
         FROM tenant_audit_logs tl
         LEFT JOIN tenants t ON tl.tenantId = t.id
-        WHERE tl.tenantId = ?
+        WHERE tl.tenantId = %s
     """
     params: list = [principal.id]
 
     if action_type:
-        query += " AND tl.action LIKE ?"
+        query += " AND tl.action LIKE %s"
         params.append(f"%{action_type}%")
     if search:
-        query += " AND (tl.action LIKE ? OR tl.ip_address LIKE ?)"
+        query += " AND (tl.action LIKE %s OR tl.ip_address LIKE %s)"
         params.extend([f"%{search}%"] * 2)
     if date_from:
-        query += " AND tl.created_at >= ?"
+        query += " AND tl.created_at >= %s"
         params.append(date_from)
     if date_to:
-        query += " AND tl.created_at <= ?"
+        query += " AND tl.created_at <= %s"
         params.append(date_to + "T23:59:59")
 
     count_query = "SELECT COUNT(*) FROM (" + query + ")"
     with _get_conn() as conn:
         total = conn.execute(count_query, tuple(params)).fetchone()[0]
 
-    query += " ORDER BY tl.created_at DESC LIMIT ? OFFSET ?"
+    query += " ORDER BY tl.created_at DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with _get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -6152,12 +3445,13 @@ async def submit_tenant_feedback(
         diagnostics = {}
 
     with _get_conn() as conn:
-        cur = conn.execute(
+        row = conn.execute(
             """
             INSERT INTO tenant_qr_feedback
             (tenant_id, landlord_id, property_id, tenant_name, view_token, qr_key,
              message, diagnostics_json, failed_attempts, status, created_at, ip_address)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'open', %s, %s)
+            RETURNING id
             """,
             (
                 tenant.id,
@@ -6172,9 +3466,9 @@ async def submit_tenant_feedback(
                 _dt.utcnow().isoformat(),
                 ip,
             ),
-        )
+        ).fetchone()
         conn.commit()
-        feedback_id = cur.lastrowid
+        feedback_id = row["id"]
 
     log_audit(
         tenant.id,
@@ -6185,7 +3479,7 @@ async def submit_tenant_feedback(
     return {"status": "success", "feedback_id": feedback_id, "message": "Feedback submitted."}
 ```
 
-### `backend\app\app\api\settings.py`
+### `backend/app/app/api/settings.py`
 
 ```python
 # // File: app\app\api\settings.py
@@ -6291,7 +3585,7 @@ def _load_landlord_theme(landlord_uuid: str) -> str:
     """Load theme preference for a specific landlord."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT theme FROM landlord_ui_config WHERE landlorduuid = ?",
+            "SELECT theme FROM landlord_ui_config WHERE landlorduuid = %s",
             (landlord_uuid,),
         ).fetchone()
     return row["theme"] if row else "system"
@@ -6303,8 +3597,8 @@ def _save_landlord_theme(landlord_uuid: str, theme: str) -> None:
     with get_conn() as conn:
         conn.execute(
             """INSERT INTO landlord_ui_config (landlorduuid, theme, updated_at)
-               VALUES (?, ?, ?)
-               ON CONFLICT(landlorduuid) DO UPDATE SET theme = ?, updated_at = ?""",
+               VALUES (%s, %s, %s)
+               ON CONFLICT(landlorduuid) DO UPDATE SET theme = %s, updated_at = %s""",
             (landlord_uuid, theme, now, theme, now),
         )
         conn.commit()
@@ -6325,7 +3619,7 @@ async def update_theme(landlordUuid: str, data: dict, principal=Depends(get_curr
     return {"status": "success", "theme": theme, "effective_theme": theme}
 ```
 
-### `backend\app\app\api\sync.py`
+### `backend/app/app/api/sync.py`
 
 ```python
 # File: app/app/api/sync.py
@@ -7178,11 +4472,11 @@ async def import_execute_data(
             conn.execute("BEGIN")
             
             # Create import job record
-            job_cur = conn.execute(
-                "INSERT INTO import_jobs (created_at, created_by, filename, status, preview_json, resolution_json, result_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            job_row = conn.execute(
+                "INSERT INTO import_jobs (created_at, created_by, filename, status, preview_json, resolution_json, result_json) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (datetime.datetime.utcnow().isoformat(), admin_username, ", ".join(parsed_files_data.keys()), "IN_PROGRESS", "{}", "{}", "{}")
-            )
-            job_id = job_cur.lastrowid
+            ).fetchone()
+            job_id = job_row["id"]
             affected_tenant_ids = set()
             
             for filename, parsed_data in parsed_files_data.items():
@@ -7196,7 +4490,7 @@ async def import_execute_data(
                     
                     if action == "SKIP":
                         conn.execute(
-                            "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, result) VALUES (?, ?, ?, ?, ?, ?)",
+                            "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, result) VALUES (%s, %s, %s, %s, %s, %s)",
                             (job_id, target_key, t_id, t_data["profile"].get("tenantName", ""), action, "SKIPPED")
                         )
                         continue
@@ -7227,7 +4521,7 @@ async def import_execute_data(
                                 id, name, company, phone, email, address, roomnumber, occupation, notes, status,
                                 rent, water, electricityrate, previousmeter, additionalpersoncharge, securitydeposit,
                                 defaulttankWatercharge, meterid, viewToken, tenantpin, failed_attempts, landlord_id
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ''', (
                             tenantId, t_name, p.get("Company", ""), p.get("Phone", ""), p.get("Email", ""),
                             p.get("Address", ""), p.get("Room", ""), "", "", normalize_tenant_status(status_overrides.get(target_key), p.get("Status", "Active")),
@@ -7243,12 +4537,12 @@ async def import_execute_data(
                         tenantId = existing_t.id
                         conn.execute('''
                             UPDATE tenants SET
-                                company=COALESCE(?, company), phone=COALESCE(?, phone), email=COALESCE(?, email),
-                                address=COALESCE(?, address), roomnumber=COALESCE(?, roomnumber), meterid=COALESCE(?, meterid),
-                                rent=COALESCE(?, rent), water=COALESCE(?, water), electricityrate=COALESCE(?, electricityrate),
-                                additionalpersoncharge=COALESCE(?, additionalpersoncharge), defaulttankWatercharge=COALESCE(?, defaulttankWatercharge),
-                                status=COALESCE(?, status)
-                            WHERE id=?
+                                company=COALESCE(%s, company), phone=COALESCE(%s, phone), email=COALESCE(%s, email),
+                                address=COALESCE(%s, address), roomnumber=COALESCE(%s, roomnumber), meterid=COALESCE(%s, meterid),
+                                rent=COALESCE(%s, rent), water=COALESCE(%s, water), electricityrate=COALESCE(%s, electricityrate),
+                                additionalpersoncharge=COALESCE(%s, additionalpersoncharge), defaulttankWatercharge=COALESCE(%s, defaulttankWatercharge),
+                                status=COALESCE(%s, status)
+                            WHERE id=%s
                         ''', (
                             p.get("Company"), p.get("Phone"), p.get("Email"), p.get("Address"), p.get("Room"), p.get("meterId"),
                             float(p.get("Rent", 0) or 0) if p.get("Rent") else None,
@@ -7270,7 +4564,7 @@ async def import_execute_data(
                     # Resolve the tenant's landlord so imported receipts carry it.
                     # CREATE_NEW tenants have no landlord yet (admin assigns later).
                     _lrow = conn.execute(
-                        "SELECT landlord_id FROM tenants WHERE id = ?", (tenantId,)
+                        "SELECT landlord_id FROM tenants WHERE id = %s", (tenantId,)
                     ).fetchone()
                     tenant_landlord_id = _lrow["landlord_id"] if _lrow else None
 
@@ -7302,19 +4596,19 @@ async def import_execute_data(
                                 hashed_pin = hash_pin(plain_pin)
                                 encrypted_pin = encrypt_admin_view_pin(plain_pin)
                                 
-                                conn.execute("UPDATE tenants SET tenantpin = ? WHERE id = ?", (hashed_pin, tenantId))
+                                conn.execute("UPDATE tenants SET tenantpin = %s WHERE id = %s", (hashed_pin, tenantId))
                                 now_iso = datetime.datetime.utcnow().isoformat()
-                                conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, hashed_pin, now_iso))
-                                conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now_iso))
+                                conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (%s, %s, %s)", (tenantId, hashed_pin, now_iso))
+                                conn.execute("INSERT INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (%s, %s, %s) ON CONFLICT (tenantId) DO UPDATE SET encrypted_pin = excluded.encrypted_pin, updated_at = excluded.updated_at", (tenantId, encrypted_pin, now_iso))
                                 if not is_new:
-                                    conn.execute("DELETE FROM tenant_sessions WHERE tenantId = ?", (tenantId,))
+                                    conn.execute("DELETE FROM tenant_sessions WHERE tenantId = %s", (tenantId,))
                             except HTTPException:
                                 pass # Invalid pin format
                                 
                     # ── RECEIPTS ──
                     rec_strategy = receipt_strategies.get(target_key, "MERGE_RECEIPTS_ONLY")
                     if rec_strategy == "REPLACE_RECEIPTS":
-                        conn.execute("DELETE FROM receipts WHERE tenantId = ?", (tenantId,))
+                        conn.execute("DELETE FROM receipts WHERE tenantId = %s", (tenantId,))
                         
                     if rec_strategy in ("MERGE_RECEIPTS_ONLY", "REPLACE_RECEIPTS"):
                         for r in t_data.get("receipts", []):
@@ -7330,17 +4624,17 @@ async def import_execute_data(
                             r_date = _parse_excel_date(r.get("Date", ""))
                             r_month = _parse_month_date(r.get("Month", ""))
                             
-                            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ? AND tenantId = ?", (billNo, tenantId)).fetchone()
+                            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = %s AND tenantId = %s", (billNo, tenantId)).fetchone()
                             
                             if exists:
                                 if rec_strategy == "MERGE_RECEIPTS_ONLY":
                                     conn.execute("""
                                         UPDATE receipts SET
-                                            date=?, month=?, tenantId=?, tenant=?, previous=?, current=?, units=?, rent=?,
-                                            additional=?, water=?, tankWater=?, electricity=?, total=?, pdf=?,
-                                            rate=?, status=?, additionalpersonrate=?,
-                                            paymentstatus=?, maintenancecharge=?, maintenancedesc=?, previousarrears=?, amountreceived=?
-                                        WHERE billNo=? AND tenantId=?
+                                            date=%s, month=%s, tenantId=%s, tenant=%s, previous=%s, current=%s, units=%s, rent=%s,
+                                            additional=%s, water=%s, tankWater=%s, electricity=%s, total=%s, pdf=%s,
+                                            rate=%s, status=%s, additionalpersonrate=%s,
+                                            paymentstatus=%s, maintenancecharge=%s, maintenancedesc=%s, previousarrears=%s, amountreceived=%s
+                                        WHERE billNo=%s AND tenantId=%s
                                     """, (
                                         r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
                                         float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
@@ -7359,7 +4653,7 @@ async def import_execute_data(
                                         tenantphone, tenantcompany, tenantaddress, rate, status,
                                         additionalpersons, additionalpersonrate, receiptversion, generatedby, paymentstatus,
                                         maintenancecharge, maintenancedesc, previousarrears, amountreceived, landlord_id
-                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                 """, (
                                     billNo, r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
                                     float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
@@ -7374,7 +4668,7 @@ async def import_execute_data(
                     affected_tenant_ids.add(tenantId)
 
                     conn.execute(
-                        "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, existing_tenant_id, result) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, existing_tenant_id, result) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                         (job_id, target_key, t_id, t_name, action, existing_t.id if existing_t else None, "SUCCESS")
                     )
                     
@@ -7386,7 +4680,7 @@ async def import_execute_data(
                     })
 
             # Mark job complete
-            conn.execute("UPDATE import_jobs SET status = ?, result_json = ? WHERE id = ?", ("COMPLETED", json.dumps({"tenants": len(imported_tenants), "receipts": imported_receipts}), job_id))
+            conn.execute("UPDATE import_jobs SET status = %s, result_json = %s WHERE id = %s", ("COMPLETED", json.dumps({"tenants": len(imported_tenants), "receipts": imported_receipts}), job_id))
 
             # Imported previousArrears may diverge from the running-balance
             # model — normalize every affected tenant's chain before commit.
@@ -8228,7 +5522,7 @@ if __name__ == "__main__":
 #     )
 ```
 
-### `backend\app\app\api\sync_ws.py`
+### `backend/app/app/api/sync_ws.py`
 
 ```python
 """
@@ -8374,7 +5668,7 @@ async def health_websocket(websocket: WebSocket):
         sync_manager.disconnect(websocket, "health")
 ```
 
-### `backend\app\app\api\tenant_pdf.py`
+### `backend/app/app/api/tenant_pdf.py`
 
 ```python
 # File: app/app/api/tenant_pdf.py
@@ -8490,7 +5784,7 @@ async def tenant_download_pdf(
     return response
 ```
 
-### `backend\app\app\api\tenants.py`
+### `backend/app/app/api/tenants.py`
 
 ```python
 # app\app\api\tenants.py
@@ -8625,8 +5919,8 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     # Add to PIN history
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, hashed_pin, now))
-        conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now))
+        conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (%s, %s, %s)", (tenantId, hashed_pin, now))
+        conn.execute("INSERT INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (%s, %s, %s) ON CONFLICT (tenantId) DO UPDATE SET encrypted_pin = excluded.encrypted_pin, updated_at = excluded.updated_at", (tenantId, encrypted_pin, now))
         conn.commit()
 
     response_tenant = t.dict()
@@ -8700,7 +5994,7 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
     
     # Prevent immediate reuse (last 5 PINs)
     with get_conn() as conn:
-        history = conn.execute("SELECT pin_hash FROM tenantPin_history WHERE tenantId = ? ORDER BY id DESC LIMIT 5", (tenantId,)).fetchall()
+        history = conn.execute("SELECT pin_hash FROM tenantPin_history WHERE tenantId = %s ORDER BY id DESC LIMIT 5", (tenantId,)).fetchall()
         for row in history:
             if verify_pin(payload.pin, row["pin_hash"]):
                 raise HTTPException(status_code=400, detail="Cannot reuse a recently used PIN.")
@@ -8713,8 +6007,8 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
     
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, new_hash, now))
-        conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now))
+        conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (%s, %s, %s)", (tenantId, new_hash, now))
+        conn.execute("INSERT INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (%s, %s, %s) ON CONFLICT (tenantId) DO UPDATE SET encrypted_pin = excluded.encrypted_pin, updated_at = excluded.updated_at", (tenantId, encrypted_pin, now))
         conn.commit()
     
     if payload.logout_all:
@@ -8741,7 +6035,7 @@ async def admin_reveal_tenantPin(
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = ?",
+            "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = %s",
             (tenantId,)  # CHANGED: tenantId → tenantId
         ).fetchone()
 
@@ -8778,7 +6072,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
 
     with get_conn() as conn:
         existing = conn.execute(
-            "SELECT id, name FROM tenants WHERE id = ? AND landlord_id = ?", (tenantId, principal.landlord_id)
+            "SELECT id, name FROM tenants WHERE id = %s AND landlord_id = %s", (tenantId, principal.landlord_id)
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Tenant not found")
@@ -8789,7 +6083,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
                 "UPDATE tenants SET tenant_username = NULL, password_hash = NULL, "
                 "password_reset_required = 0, password_failed_attempts = 0, password_locked_until = NULL, "
                 "password_reset_token_hash = NULL, password_reset_expires_at = NULL "
-                "WHERE id = ?",
+                "WHERE id = %s",
                 (tenantId,),
             )
             conn.commit()
@@ -8806,7 +6100,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
 
         # Uniqueness check
         conflict = conn.execute(
-            "SELECT id FROM tenants WHERE LOWER(tenant_username) = ? AND id != ? LIMIT 1",
+            "SELECT id FROM tenants WHERE LOWER(tenant_username) = %s AND id != %s LIMIT 1",
             (username, tenantId),
         ).fetchone()
         if conflict:
@@ -8814,7 +6108,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
 
         now = datetime.utcnow().isoformat()
 
-        updates = ["tenant_username = ?"]
+        updates = ["tenant_username = %s"]
         params = [username]
 
         if payload.temporaryPassword:
@@ -8823,14 +6117,14 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
             from app.authentication.common.utils import validate_password
             validate_password(str(payload.temporaryPassword))
             pwd_hash = hash_pin(str(payload.temporaryPassword))
-            updates.append("password_hash = ?")
+            updates.append("password_hash = %s")
             params.append(pwd_hash)
-            updates.append("password_reset_required = ?")
+            updates.append("password_reset_required = %s")
             params.append(1 if payload.resetRequired else 0)
-            updates.append("last_password_change_at = ?")
+            updates.append("last_password_change_at = %s")
             params.append(now)
             conn.execute(
-                "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (?, ?, ?, 'landlord')",
+                "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (%s, %s, %s, 'landlord')",
                 (tenantId, pwd_hash, now),
             )
         else:
@@ -8840,7 +6134,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
         updates.append("password_locked_until = NULL")
         params.append(tenantId)
         conn.execute(
-            f"UPDATE tenants SET {', '.join(updates)} WHERE id = ?",
+            f"UPDATE tenants SET {', '.join(updates)} WHERE id = %s",
             tuple(params),
         )
         conn.commit()
@@ -8883,11 +6177,11 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
     new_key = _uuid.uuid4().hex
     with get_conn() as conn:
         existing = conn.execute(
-            "SELECT id, name FROM tenants WHERE id = ? AND landlord_id = ?", (tenantId, principal.landlord_id)
+            "SELECT id, name FROM tenants WHERE id = %s AND landlord_id = %s", (tenantId, principal.landlord_id)
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Tenant not found")
-        conn.execute("UPDATE tenants SET qr_key = ? WHERE id = ?", (new_key, tenantId))
+        conn.execute("UPDATE tenants SET qr_key = %s WHERE id = %s", (new_key, tenantId))
         conn.commit()
 
     revoke_all_tenant_sessions(tenantId)
@@ -8927,7 +6221,7 @@ async def api_tenant_qr(
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name, property_id, viewToken, qr_key FROM tenants WHERE id = ?",
+            "SELECT id, name, property_id, viewToken, qr_key FROM tenants WHERE id = %s",
             (tenantId,),
         ).fetchone()
 
@@ -9253,7 +6547,7 @@ async def admin_get_kyc_file(landlordUuid: str, tenantId: int, filename: str, pr
 
 ```
 
-### `backend\app\app\api\whatsapp.py`
+### `backend/app/app/api/whatsapp.py`
 
 ```python
 # // File: app\app\api\whatsapp.py
@@ -9319,7 +6613,7 @@ async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: in
         from app.core.db import get_conn
         with get_conn() as conn:
             row = conn.execute(
-                "SELECT encrypted_pin FROM tenantPin_admin_store WHERE tenantId = ?",
+                "SELECT encrypted_pin FROM tenantPin_admin_store WHERE tenantId = %s",
                 (tenant.id,)
             ).fetchone()
         if row:
@@ -9341,14 +6635,14 @@ async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: in
     return {"status": "success", "url": url}
 ```
 
-### `backend\app\app\authentication\admin\__init__.py`
+### `backend/app/app/authentication/admin/__init__.py`
 
 ```python
 ﻿
 
 ```
 
-### `backend\app\app\authentication\admin\cookies.py`
+### `backend/app/app/authentication/admin/cookies.py`
 
 ```python
 from fastapi import Response, Request
@@ -9398,7 +6692,7 @@ def clear_admin_auth_cookies(response: Response, request: Request = None):
     response.delete_cookie(key="refresh_token", path=cookie_path, httponly=True, secure=True, samesite="strict")
 ```
 
-### `backend\app\app\authentication\admin\jwt.py`
+### `backend/app/app/authentication/admin/jwt.py`
 
 ```python
 ﻿import os
@@ -9444,7 +6738,7 @@ decode_access_token = decode_admin_access_token
 
 ```
 
-### `backend\app\app\authentication\admin\middleware.py`
+### `backend/app/app/authentication/admin/middleware.py`
 
 ```python
 from fastapi import Request, HTTPException
@@ -9544,7 +6838,7 @@ async def get_current_admin_api(request: Request) -> AuthPrincipal:
 
 ```
 
-### `backend\app\app\authentication\admin\sessions.py`
+### `backend/app/app/authentication/admin/sessions.py`
 
 ```python
 ﻿import uuid
@@ -9570,7 +6864,7 @@ def create_admin_session(admin_id: int, request, remember_me: bool):
         conn.execute("""
             INSERT INTO admin_sessions
             (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (session_id, admin_id, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
         conn.commit()
         
@@ -9578,24 +6872,24 @@ def create_admin_session(admin_id: int, request, remember_me: bool):
 
 def get_admin_session_db(session_id: str):
     with get_conn() as conn:
-        return conn.execute("SELECT * FROM admin_sessions WHERE session_id = ? AND status = 'Active'", (session_id,)).fetchone()
+        return conn.execute("SELECT * FROM admin_sessions WHERE session_id = %s AND status = 'Active'", (session_id,)).fetchone()
 
 def revoke_admin_session_db(session_id: str):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("UPDATE admin_sessions SET status = 'Revoked', revoked_at = ? WHERE session_id = ?", (now, session_id))
+        conn.execute("UPDATE admin_sessions SET status = 'Revoked', revoked_at = %s WHERE session_id = %s", (now, session_id))
         conn.commit()
 
 ```
 
-### `backend\app\app\authentication\common\__init__.py`
+### `backend/app/app/authentication/common/__init__.py`
 
 ```python
 ﻿
 
 ```
 
-### `backend\app\app\authentication\common\middleware.py`
+### `backend/app/app/authentication/common/middleware.py`
 
 ```python
 ﻿from fastapi import Request, HTTPException
@@ -9623,7 +6917,7 @@ async def get_admin_or_tenant(request: Request) -> AuthPrincipal:
 
 ```
 
-### `backend\app\app\authentication\common\pin_vault.py`
+### `backend/app/app/authentication/common/pin_vault.py`
 
 ```python
 ﻿import os
@@ -9661,7 +6955,7 @@ def decrypt_admin_view_pin(ciphertext: str) -> str:
     return fernet.decrypt(ciphertext.encode("utf-8")).decode("utf-8")
 ```
 
-### `backend\app\app\authentication\common\principal.py`
+### `backend/app/app/authentication/common/principal.py`
 
 ```python
 from dataclasses import dataclass
@@ -9686,7 +6980,7 @@ class AuthPrincipal:
 
 ```
 
-### `backend\app\app\authentication\common\utils.py`
+### `backend/app/app/authentication/common/utils.py`
 
 ```python
 ﻿import re
@@ -9753,13 +7047,13 @@ def validate_password(password: str):
 
 ```
 
-### `backend\app\app\authentication\landlord\__init__.py`
+### `backend/app/app/authentication/landlord/__init__.py`
 
 ```python
 # authentication/landlord/__init__.py
 ```
 
-### `backend\app\app\authentication\landlord\cookies.py`
+### `backend/app/app/authentication/landlord/cookies.py`
 
 ```python
 """
@@ -9840,7 +7134,7 @@ def clear_landlord_auth_cookies(
     )
 ```
 
-### `backend\app\app\authentication\landlord\jwt.py`
+### `backend/app/app/authentication/landlord/jwt.py`
 
 ```python
 """
@@ -9897,7 +7191,7 @@ create_access_token = create_landlord_access_token
 decode_access_token = decode_landlord_access_token
 ```
 
-### `backend\app\app\authentication\landlord\middleware.py`
+### `backend/app/app/authentication/landlord/middleware.py`
 
 ```python
 """
@@ -10093,7 +7387,7 @@ async def get_current_landlord_api_strict(request: Request) -> AuthPrincipal:
     from app.core.db import get_conn as _get_conn
     with _get_conn() as conn:
         row = conn.execute(
-            "SELECT requires_password_change FROM landlord_accounts WHERE id = ?",
+            "SELECT requires_password_change FROM landlord_accounts WHERE id = %s",
             (principal.landlord_id,),
         ).fetchone()
 
@@ -10107,7 +7401,7 @@ async def get_current_landlord_api_strict(request: Request) -> AuthPrincipal:
     return principal
 ```
 
-### `backend\app\app\authentication\landlord\sessions.py`
+### `backend/app/app/authentication/landlord/sessions.py`
 
 ```python
 """
@@ -10147,7 +7441,7 @@ def create_landlord_session(landlord_id: int, request, remember_me: bool):
                 session_id, landlord_id, refresh_token_hash,
                 device_name, browser, os, ip_address,
                 created_at, last_activity, expires_at, remember_me
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 session_id, landlord_id, refresh_hash,
@@ -10164,7 +7458,7 @@ def get_landlord_session_db(session_id: str):
     """Return the active landlord session row, or None if not found / revoked."""
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM landlord_sessions WHERE session_id = ? AND status = 'Active'",
+            "SELECT * FROM landlord_sessions WHERE session_id = %s AND status = 'Active'",
             (session_id,),
         ).fetchone()
 
@@ -10174,7 +7468,7 @@ def revoke_landlord_session_db(session_id: str) -> None:
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_sessions SET status = 'Revoked', revoked_at = ? WHERE session_id = ?",
+            "UPDATE landlord_sessions SET status = 'Revoked', revoked_at = %s WHERE session_id = %s",
             (now, session_id),
         )
         conn.commit()
@@ -10187,15 +7481,15 @@ def revoke_all_landlord_sessions(landlord_id: int) -> None:
         conn.execute(
             """
             UPDATE landlord_sessions
-            SET status = 'Revoked', revoked_at = ?
-            WHERE landlord_id = ? AND status = 'Active'
+            SET status = 'Revoked', revoked_at = %s
+            WHERE landlord_id = %s AND status = 'Active'
             """,
             (now, landlord_id),
         )
         conn.commit()
 ```
 
-### `backend\app\app\authentication\platform\__init__.py`
+### `backend/app/app/authentication/platform/__init__.py`
 
 ```python
 """
@@ -10203,7 +7497,7 @@ app/authentication/platform/__init__.py
 """
 ```
 
-### `backend\app\app\authentication\platform\cookies.py`
+### `backend/app/app/authentication/platform/cookies.py`
 
 ```python
 """
@@ -10277,7 +7571,7 @@ def get_platform_token(request: Request) -> str:
     return token
 ```
 
-### `backend\app\app\authentication\platform\jwt.py`
+### `backend/app/app/authentication/platform/jwt.py`
 
 ```python
 """
@@ -10332,14 +7626,14 @@ def decode_platform_access_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Invalid platform token") from exc
 ```
 
-### `backend\app\app\authentication\tenant\__init__.py`
+### `backend/app/app/authentication/tenant/__init__.py`
 
 ```python
 ﻿
 
 ```
 
-### `backend\app\app\authentication\tenant\cookies.py`
+### `backend/app/app/authentication/tenant/cookies.py`
 
 ```python
 from fastapi import Response, Request
@@ -10408,7 +7702,7 @@ def clear_tenant_auth_cookies(response: Response, request: Request = None):
     )
 ```
 
-### `backend\app\app\authentication\tenant\jwt.py`
+### `backend/app/app/authentication/tenant/jwt.py`
 
 ```python
 ﻿import os
@@ -10454,7 +7748,7 @@ decode_access_token = decode_tenant_access_token
 
 ```
 
-### `backend\app\app\authentication\tenant\middleware.py`
+### `backend/app/app/authentication/tenant/middleware.py`
 
 ```python
 from fastapi import Request, HTTPException
@@ -10538,7 +7832,7 @@ async def get_current_tenant(request: Request) -> AuthPrincipal:
 
 ```
 
-### `backend\app\app\authentication\tenant\sessions.py`
+### `backend/app/app/authentication/tenant/sessions.py`
 
 ```python
 ﻿import uuid
@@ -10564,7 +7858,7 @@ def create_tenant_session(tenantId: int, request, remember_me: bool):
         conn.execute("""
             INSERT INTO tenant_sessions
             (session_id, tenantId, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (session_id, tenantId, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
         conn.commit()
         
@@ -10572,23 +7866,23 @@ def create_tenant_session(tenantId: int, request, remember_me: bool):
 
 def get_tenant_session_db(session_id: str):
     with get_conn() as conn:
-        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = ? AND status = 'Active'", (session_id,)).fetchone()
+        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = %s AND status = 'Active'", (session_id,)).fetchone()
 
 def revoke_tenant_session_db(session_id: str):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE session_id = ?", (now, session_id))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = %s WHERE session_id = %s", (now, session_id))
         conn.commit()
 
 def revoke_all_tenant_sessions(tenantId: int):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE tenantId = ?", (now, tenantId))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = %s WHERE tenantId = %s", (now, tenantId))
         conn.commit()
 
 ```
 
-### `backend\app\app\core\api_guard.py`
+### `backend/app/app/core/api_guard.py`
 
 ```python
 """Host-based guard for blocking frontend page serving on the API domain."""
@@ -10630,7 +7924,7 @@ class APIGuardedStaticFiles(StaticFiles):
         await super().__call__(scope, receive, send)
 ```
 
-### `backend\app\app\core\app_info.py`
+### `backend/app/app/core/app_info.py`
 
 ```python
 ﻿APP_INFO = {
@@ -10642,7 +7936,7 @@ class APIGuardedStaticFiles(StaticFiles):
 
 ```
 
-### `backend\app\app\core\audit.py`
+### `backend/app/app/core/audit.py`
 
 ```python
 """
@@ -10688,7 +7982,7 @@ def create_platform_admin_audit_log(
                 """
                 INSERT INTO platform_admin_audit_logs
                     (admin_id, action, target_type, target_id, ip_address, meta_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     admin_id,
@@ -10733,7 +8027,7 @@ def cleanup_old_audit_logs(days: int) -> int:
         try:
             with get_conn() as conn:
                 result = conn.execute(
-                    f"DELETE FROM {table} WHERE created_at < ?", (cutoff,)
+                    f"DELETE FROM {table} WHERE created_at < %s", (cutoff,)
                 )
                 removed += result.rowcount or 0
                 conn.commit()
@@ -10768,7 +8062,7 @@ def get_audit_log_path() -> str:
     return AUDIT_JSONL
 ```
 
-### `backend\app\app\core\config_defaults.py`
+### `backend/app/app/core/config_defaults.py`
 
 ```python
 DEFAULT_CONFIGS = {
@@ -10916,7 +8210,7 @@ DEFAULT_CONFIGS = {
 
 ```
 
-### `backend\app\app\core\config_service.py`
+### `backend/app/app/core/config_service.py`
 
 ```python
 ﻿import json
@@ -11086,1068 +8380,46 @@ config = ConfigService()
 
 ```
 
-### `backend\app\app\core\db.py`
+### `backend/app/app/core/db.py`
 
 ```python
-import os
-import sqlite3
-from app.core.paths import DB_DIR
+"""
+PostgreSQL persistence facade (replaces the SQLite core/db.py).
 
-DB_PATH = os.path.join(DB_DIR, "rent.db")
+Keeps the historical import/API contract so the rest of the application is
+unchanged:
+    from app.core.db import get_conn      # same name, same signature
+    with get_conn() as conn:
+        rows = conn.execute("SELECT ... %s", (args,)).fetchall()
 
+The implementation delegates to app.db.connection (psycopg_pool bounded pool).
+`init_db` now applies the versioned PostgreSQL migrations.
+"""
 
-def get_conn():
-    """
-    Get a SQLite connection with proper settings for production use.
-    Uses WAL mode for better concurrency and enables foreign keys.
-    """
-    conn = sqlite3.connect(DB_PATH, timeout=30.0)  # 30s timeout for locks
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA journal_mode = WAL;")
-    conn.execute("PRAGMA synchronous = NORMAL;")  # Balanced safety/performance
-    conn.execute("PRAGMA temp_store = MEMORY;")
-    conn.execute("PRAGMA mmap_size = 30000000000;")  # Enable memory-mapped I/O
-    return conn
-
-
-def _column_exists(conn, table_name: str, column_name: str) -> bool:
-    """
-    Check if a column exists in a table. Case-insensitive for SQLite.
-    """
-    try:
-        rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
-        # SQLite PRAGMA returns lowercase column names, so compare case-insensitively
-        return any(
-            str(r["name"]).lower() == column_name.lower() for r in rows
-        )
-    except sqlite3.Error:
-        return False
-
-
-def _table_exists(conn, table_name: str) -> bool:
-    """Check if a table exists in the database."""
-    row = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        (table_name,)
-    ).fetchone()
-    return row is not None
+from app.db.connection import get_conn, init_pool
+from app.db.migrations import migrator
 
 
 def init_db():
+    """Initialize the database schema (PostgreSQL migrations).
+
+    Idempotent: only pending migrations are applied. Opens the pool first.
+    Passes ``close=False`` so the CLI's pool teardown is skipped: the app keeps
+    the shared pool open for its entire lifetime.
     """
-    Initialize the core database schema. 
-    This is the FINAL production schema - all migrations consolidated.
-    """
-    with get_conn() as conn:
-        conn.executescript("""
-        -- 1. APP METADATA
-        CREATE TABLE IF NOT EXISTS app_metadata (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        );
-
-        INSERT OR REPLACE INTO app_metadata (key, value) VALUES 
-            ('auth_schema_version', '1'),
-            ('receipt_schema_version', '1'),
-            ('tenant_schema_version', '3');
-
-        -- 2. ADMINS
-        CREATE TABLE IF NOT EXISTS admins (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            totp_secret TEXT,
-            email TEXT,
-            is_platform_admin INTEGER NOT NULL DEFAULT 0,
-            telegram_chat_id TEXT,
-            created_at TEXT,
-            updated_at TEXT
-        );
-
-        -- 3. ADMIN SESSIONS (Auth V2)
-        CREATE TABLE IF NOT EXISTS admin_sessions (
-            session_id TEXT PRIMARY KEY,
-            admin_id INTEGER NOT NULL,
-            refresh_token_hash TEXT NOT NULL,
-            device_name TEXT,
-            browser TEXT,
-            os TEXT,
-            ip_address TEXT,
-            created_at TEXT,
-            last_activity TEXT,
-            expires_at TEXT,
-            revoked_at TEXT,
-            remember_me INTEGER DEFAULT 0,
-            status TEXT DEFAULT 'Active',
-            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
-        );
-
-        -- 4. TENANTS (with viewToken, tenantpin, failed_attempts, locked_until)
-        CREATE TABLE IF NOT EXISTS tenants (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL,
-            company TEXT,
-            phone TEXT,
-            email TEXT,
-            address TEXT,
-            roomnumber TEXT,
-            occupation TEXT,
-            notes TEXT,
-            status TEXT NOT NULL DEFAULT 'Active',
-            rent REAL NOT NULL DEFAULT 0,
-            water REAL NOT NULL DEFAULT 0,
-            electricityrate REAL NOT NULL DEFAULT 0,
-            previousmeter REAL NOT NULL DEFAULT 0,
-            additionalpersoncharge REAL NOT NULL DEFAULT 0,
-            securitydeposit REAL NOT NULL DEFAULT 0,
-            defaulttankWatercharge REAL NOT NULL DEFAULT 0,
-            meterid TEXT,
-            viewToken TEXT,
-            tenantpin TEXT,
-            failed_attempts INTEGER NOT NULL DEFAULT 0,
-            locked_until TEXT,
-            status_changed_at TEXT,
-            qr_key TEXT,
-            tenant_username TEXT,
-            password_hash TEXT,
-            password_failed_attempts INTEGER NOT NULL DEFAULT 0,
-            password_locked_until TEXT,
-            password_reset_token_hash TEXT,
-            password_reset_expires_at TEXT,
-            password_reset_requested_at TEXT,
-            password_reset_required INTEGER NOT NULL DEFAULT 0,
-            last_password_change_at TEXT
-        );
-
-        -- Portal auth support tables (tenant password history + reset events)
-        CREATE TABLE IF NOT EXISTS tenant_password_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenantId INTEGER NOT NULL,
-            password_hash TEXT NOT NULL,
-            changed_at TEXT NOT NULL,
-            changed_by TEXT,
-            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_tenant_password_history_tenantId
-            ON tenant_password_history(tenantId);
-
-        CREATE TABLE IF NOT EXISTS tenant_password_reset_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenantId INTEGER NOT NULL,
-            channel TEXT NOT NULL DEFAULT 'landlord',
-            token_hash TEXT,
-            created_at TEXT NOT NULL,
-            expires_at TEXT,
-            used_at TEXT,
-            requested_ip TEXT,
-            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_tenant_password_reset_tenantId
-            ON tenant_password_reset_events(tenantId);
-
-        -- 5. TENANT PIN HISTORY
-        CREATE TABLE IF NOT EXISTS tenantPin_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenantId INTEGER NOT NULL,
-            pin_hash TEXT NOT NULL,
-            changed_at TEXT NOT NULL,
-            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_tenantPin_history_tenantId 
-            ON tenantPin_history(tenantId);
-
-        -- 6. TENANT PIN ADMIN STORE
-        CREATE TABLE IF NOT EXISTS tenantPin_admin_store (
-            tenantId INTEGER PRIMARY KEY,
-            encrypted_pin TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-        );
-
-        -- 7. TENANT SESSIONS (Auth V2)
-        CREATE TABLE IF NOT EXISTS tenant_sessions (
-            session_id TEXT PRIMARY KEY,
-            tenantId INTEGER NOT NULL,
-            refresh_token_hash TEXT NOT NULL,
-            device_name TEXT,
-            browser TEXT,
-            os TEXT,
-            ip_address TEXT,
-            created_at TEXT,
-            last_activity TEXT,
-            expires_at TEXT,
-            revoked_at TEXT,
-            remember_me INTEGER DEFAULT 0,
-            status TEXT DEFAULT 'Active',
-            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-        );
-
-        -- 8. TENANT AUDIT LOGS
-        CREATE TABLE IF NOT EXISTS tenant_audit_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tenantId INTEGER,
-            action TEXT,
-            ip_address TEXT,
-            created_at TEXT
-        );
-
-        -- 9. RECEIPTS (with tenantId, paymentstatus, maintenance, arrears, amountreceived)
-        CREATE TABLE IF NOT EXISTS receipts (
-            billNo TEXT PRIMARY KEY,
-            date TEXT NOT NULL,
-            month TEXT NOT NULL,
-            tenantId INTEGER,
-            tenant TEXT NOT NULL,
-            property_id INTEGER,
-            previous REAL NOT NULL DEFAULT 0,
-            current REAL NOT NULL DEFAULT 0,
-            units REAL NOT NULL DEFAULT 0,
-            rent REAL NOT NULL DEFAULT 0,
-            additional REAL NOT NULL DEFAULT 0,
-            water REAL NOT NULL DEFAULT 0,
-            tankWater REAL NOT NULL DEFAULT 0,
-            electricity REAL NOT NULL DEFAULT 0,
-            total REAL NOT NULL DEFAULT 0,
-            pdf TEXT,
-            tenantphone TEXT,
-            tenantcompany TEXT,
-            tenantaddress TEXT,
-            rate REAL NOT NULL DEFAULT 0,
-            status TEXT NOT NULL DEFAULT 'ACTIVE',
-            archiveddate TEXT,
-            archivedby TEXT,
-            deleteddate TEXT,
-            additionalpersons INTEGER NOT NULL DEFAULT 0,
-            additionalpersonrate REAL NOT NULL DEFAULT 0,
-            receiptversion INTEGER NOT NULL DEFAULT 8,
-            generatedby TEXT NOT NULL DEFAULT 'Admin',
-            paymentstatus TEXT NOT NULL DEFAULT 'PENDING',
-            maintenancecharge REAL NOT NULL DEFAULT 0,
-            maintenancedesc TEXT,
-            previousarrears REAL NOT NULL DEFAULT 0,
-            amountreceived REAL NOT NULL DEFAULT 0
-        );
-
-        -- 10. OCCUPANTS
-        CREATE TABLE IF NOT EXISTS occupants (
-            tenantId INTEGER NOT NULL,
-            occupantUuid TEXT PRIMARY KEY,
-            name TEXT,
-            mobile TEXT,
-            address TEXT,
-            residentSince TEXT,
-            status TEXT NOT NULL DEFAULT 'Active',
-            aadhaar_front TEXT,
-            aadhaar_back TEXT,
-            aadhaar_combined TEXT,
-            emp_front TEXT,
-            emp_back TEXT,
-            uploaddate TEXT,
-            uploadmonth TEXT,
-            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-        );
-
-        -- 11. PERFORMANCE INDEXES
-        CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant);
-        CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
-        CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
-        CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
-        CREATE INDEX IF NOT EXISTS idx_occupants_tenant_id ON occupants(tenantId);
-        
-        -- 12. IMPORT AUDIT LOGS
-        CREATE TABLE IF NOT EXISTS import_jobs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            created_at TEXT NOT NULL,
-            created_by TEXT NOT NULL,
-            filename TEXT NOT NULL,
-            status TEXT NOT NULL,
-            preview_json TEXT,
-            resolution_json TEXT,
-            result_json TEXT
-        );
-
-        CREATE TABLE IF NOT EXISTS import_job_items (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            import_job_id INTEGER NOT NULL,
-            target_key TEXT NOT NULL,
-            import_tenant_id TEXT,
-            import_tenant_name TEXT,
-            action TEXT NOT NULL,
-            existing_tenant_id INTEGER,
-            result TEXT NOT NULL,
-            message TEXT,
-            FOREIGN KEY (import_job_id) REFERENCES import_jobs(id) ON DELETE CASCADE
-        );
-
-        -- 13. TENANT RECOVERY SNAPSHOTS
-        -- Stores per-tenant recovery archives created before permanent deletion.
-        -- Only recoverable until expires_at; after that, status = PURGED.
-        CREATE TABLE IF NOT EXISTS tenant_recovery_snapshots (
-            id TEXT PRIMARY KEY,
-            tenant_id INTEGER NOT NULL,
-            tenant_name TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            expires_at TEXT NOT NULL,
-            deleted_by INTEGER,
-            status TEXT NOT NULL DEFAULT 'AVAILABLE',
-            archive_path TEXT NOT NULL,
-            sha256 TEXT NOT NULL,
-            metadata_json TEXT NOT NULL,
-            restored_at TEXT,
-            purged_at TEXT
-        );
-        CREATE INDEX IF NOT EXISTS idx_tenant_recovery_expiry
-            ON tenant_recovery_snapshots(expires_at, status);
-
-        -- 14. LANDLORD ACCOUNTS (created before migrations so ALTER TABLE works)
-        CREATE TABLE IF NOT EXISTS landlord_accounts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            landlord_uuid TEXT UNIQUE NOT NULL,
-            full_name TEXT NOT NULL,
-            email TEXT UNIQUE,
-            phone TEXT,
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            status TEXT NOT NULL DEFAULT 'Active',
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            totp_secret TEXT,
-            totp_enabled INTEGER NOT NULL DEFAULT 0,
-            privacy_consented INTEGER NOT NULL DEFAULT 1,
-            privacy_version TEXT,
-            privacy_accepted_at TEXT,
-            privacy_accepted_ip TEXT,
-            privacy_accepted_user_agent TEXT
-        );
-
-        -- 15. LANDLORD SESSIONS
-        CREATE TABLE IF NOT EXISTS landlord_sessions (
-            session_id TEXT PRIMARY KEY,
-            landlord_id INTEGER NOT NULL,
-            refresh_token_hash TEXT NOT NULL,
-            device_name TEXT,
-            browser TEXT,
-            os TEXT,
-            ip_address TEXT,
-            created_at TEXT NOT NULL,
-            last_activity TEXT NOT NULL,
-            expires_at TEXT NOT NULL,
-            revoked_at TEXT,
-            remember_me INTEGER DEFAULT 0,
-            status TEXT DEFAULT 'Active',
-            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
-        );
-
-        -- 16. LANDLORD AUDIT LOGS
-        CREATE TABLE IF NOT EXISTS landlord_audit_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            landlord_id INTEGER,
-            action TEXT NOT NULL,
-            ip_address TEXT,
-            created_at TEXT NOT NULL,
-            meta_json TEXT,
-            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE SET NULL
-        );
-
-        -- Landlord indexes
-        CREATE INDEX IF NOT EXISTS idx_landlord_accounts_username
-            ON landlord_accounts(username);
-        CREATE INDEX IF NOT EXISTS idx_landlord_accounts_email
-            ON landlord_accounts(email);
-        CREATE INDEX IF NOT EXISTS idx_landlord_sessions_landlord_id
-            ON landlord_sessions(landlord_id);
-        CREATE INDEX IF NOT EXISTS idx_landlord_sessions_status
-            ON landlord_sessions(status);
-        CREATE INDEX IF NOT EXISTS idx_landlord_audit_logs_landlord_id
-            ON landlord_audit_logs(landlord_id);
-        CREATE INDEX IF NOT EXISTS idx_landlord_audit_logs_action
-            ON landlord_audit_logs(action);
-
-        -- 17. LANDLORD UI CONFIG (per-landlord theme storage)
-        CREATE TABLE IF NOT EXISTS landlord_ui_config (
-            landlorduuid TEXT PRIMARY KEY,
-            theme TEXT NOT NULL DEFAULT 'system',
-            updated_at TEXT NOT NULL
-        );
-
-        -- Keep legacy landlord proxy table for landlord-alias router
-        CREATE TABLE IF NOT EXISTS landlords (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            admin_id INTEGER NOT NULL,
-            landlordUuid TEXT UNIQUE NOT NULL,
-            active INTEGER DEFAULT 1,
-            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
-        );
-        CREATE INDEX IF NOT EXISTS idx_landlords_uuid ON landlords(landlordUuid);
-
-        -- Schema version bump
-        INSERT OR REPLACE INTO app_metadata(key, value) VALUES
-            ('auth_schema_version', '2'),
-            ('landlord_schema_version', '1');
-        """)
-
-        conn.commit()
-
-        # ─── Migrations for existing databases ─────────────────────────
-        # Add is_platform_admin column if missing (for pre-existing DBs)
-        if not _column_exists(conn, "admins", "is_platform_admin"):
-            conn.execute(
-                "ALTER TABLE admins ADD COLUMN is_platform_admin INTEGER NOT NULL DEFAULT 0"
-            )
-            conn.commit()
-
-        # ─── Tenant portal auth + QR key columns ────────────────────────
-        for col, ddl in [
-            ("qr_key", "ALTER TABLE tenants ADD COLUMN qr_key TEXT"),
-            ("tenant_username", "ALTER TABLE tenants ADD COLUMN tenant_username TEXT"),
-            ("password_hash", "ALTER TABLE tenants ADD COLUMN password_hash TEXT"),
-            ("password_failed_attempts", "ALTER TABLE tenants ADD COLUMN password_failed_attempts INTEGER NOT NULL DEFAULT 0"),
-            ("password_locked_until", "ALTER TABLE tenants ADD COLUMN password_locked_until TEXT"),
-            ("password_reset_token_hash", "ALTER TABLE tenants ADD COLUMN password_reset_token_hash TEXT"),
-            ("password_reset_expires_at", "ALTER TABLE tenants ADD COLUMN password_reset_expires_at TEXT"),
-            ("password_reset_requested_at", "ALTER TABLE tenants ADD COLUMN password_reset_requested_at TEXT"),
-            ("password_reset_required", "ALTER TABLE tenants ADD COLUMN password_reset_required INTEGER NOT NULL DEFAULT 0"),
-            ("last_password_change_at", "ALTER TABLE tenants ADD COLUMN last_password_change_at TEXT"),
-        ]:
-            if not _column_exists(conn, "tenants", col):
-                conn.execute(ddl)
-                conn.commit()
-
-        # Legacy tenants tables predate status_changed_at; the app reads it in load_tenants.
-        if not _column_exists(conn, "tenants", "status_changed_at"):
-            conn.execute("ALTER TABLE tenants ADD COLUMN status_changed_at TEXT")
-            conn.commit()
-
-        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_tenant_username ON tenants(tenant_username) WHERE tenant_username IS NOT NULL AND tenant_username != ''")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenants_qr_key ON tenants(qr_key)")
-        conn.commit()
-
-        # Backfill qr_key for existing tenants (idempotent)
-        conn.execute("UPDATE tenants SET qr_key = lower(hex(randomblob(16))) WHERE qr_key IS NULL OR qr_key = ''")
-        conn.commit()
-
-        # ─── Tenant schema drift reconciliation ───────────────────────
-        # Legacy DBs created these tables with snake_case tenant_id, but the
-        # canonical schema (and all application SQL) uses tenantId. Rename
-        # the legacy column in place (data-preserving, idempotent).
-        for _tbl in ("tenant_sessions", "tenant_audit_logs"):
-            if (
-                _column_exists(conn, _tbl, "tenant_id")
-                and not _column_exists(conn, _tbl, "tenantId")
-            ):
-                conn.execute(f"ALTER TABLE {_tbl} RENAME COLUMN tenant_id TO tenantId")
-                conn.commit()
-
-        # ─── Multi-tenancy: Add landlord_id to core tables ──────────
-        if not _column_exists(conn, "tenants", "landlord_id"):
-            conn.execute("ALTER TABLE tenants ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
-            conn.commit()
-
-        if not _column_exists(conn, "receipts", "landlord_id"):
-            conn.execute("ALTER TABLE receipts ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
-            conn.commit()
-
-        if not _column_exists(conn, "occupants", "landlord_id"):
-            conn.execute("ALTER TABLE occupants ADD COLUMN landlord_id INTEGER REFERENCES landlord_accounts(id)")
-            conn.commit()
-
-        # Indexes for landlord_id lookups
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenants_landlord_id ON tenants(landlord_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_receipts_landlord_id ON receipts(landlord_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_occupants_landlord_id ON occupants(landlord_id)")
-        conn.commit()
-
-        # Backfill: assign landlord_id to unassigned rows.
-        # Receipts/occupants take the landlord of their tenant; tenants and any
-        # still-unassigned receipts/occupants fall back to the first landlord.
-        first_landlord = conn.execute("SELECT id FROM landlord_accounts ORDER BY id LIMIT 1").fetchone()
-        lid = first_landlord["id"] if first_landlord else None
-
-        if lid:
-            conn.execute("UPDATE tenants SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
-
-        conn.execute(
-            """
-            UPDATE receipts SET landlord_id = (
-                SELECT landlord_id FROM tenants WHERE tenants.id = receipts.tenantId
-            )
-            WHERE landlord_id IS NULL
-              AND tenantId IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
-            """
-        )
-        # Some legacy DBs created occupants with snake_case tenant_id; the
-        # canonical schema (and this backfill) uses tenantId. Pick whichever
-        # column the table actually has so the backfill works on both.
-        occupants_id_col = "tenant_id" if _column_exists(conn, "occupants", "tenant_id") else "tenantId"
-        conn.execute(
-            f"""
-            UPDATE occupants SET landlord_id = (
-                SELECT landlord_id FROM tenants WHERE tenants.id = occupants.{occupants_id_col}
-            )
-            WHERE landlord_id IS NULL
-              AND {occupants_id_col} IN (SELECT id FROM tenants WHERE landlord_id IS NOT NULL)
-            """
-        )
-        if lid:
-            conn.execute("UPDATE receipts SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
-            conn.execute("UPDATE occupants SET landlord_id = ? WHERE landlord_id IS NULL", (lid,))
-        conn.commit()
-
-        # ─── Platform admin audit trail ──────────────────────────────
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS platform_admin_audit_logs (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                admin_id INTEGER NOT NULL,
-                action TEXT NOT NULL,
-                target_type TEXT,
-                target_id INTEGER,
-                ip_address TEXT,
-                meta_json TEXT,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_audit_admin ON platform_admin_audit_logs(admin_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_platform_audit_action ON platform_admin_audit_logs(action)")
-        conn.commit()
-
-        # ─── Landlord password-change enforcement columns ──────────
-        if not _column_exists(conn, "landlord_accounts", "requires_password_change"):
-            conn.execute(
-                "ALTER TABLE landlord_accounts ADD COLUMN requires_password_change INTEGER NOT NULL DEFAULT 0"
-            )
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "temp_password_created_at"):
-            conn.execute(
-                "ALTER TABLE landlord_accounts ADD COLUMN temp_password_created_at TEXT"
-            )
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "temp_password_consumed"):
-            conn.execute(
-                "ALTER TABLE landlord_accounts ADD COLUMN temp_password_consumed INTEGER NOT NULL DEFAULT 0"
-            )
-            conn.commit()
-
-        # ─── Landlord brute-force columns ────────────────────────────
-        if not _column_exists(conn, "landlord_accounts", "failed_attempts"):
-            conn.execute(
-                "ALTER TABLE landlord_accounts ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0"
-            )
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "locked_until"):
-            conn.execute(
-                "ALTER TABLE landlord_accounts ADD COLUMN locked_until TEXT"
-            )
-            conn.commit()
-
-        # ─── Platform admin brute-force columns ────────────────────────
-        if not _column_exists(conn, "admins", "failed_attempts"):
-            conn.execute(
-                "ALTER TABLE admins ADD COLUMN failed_attempts INTEGER NOT NULL DEFAULT 0"
-            )
-            conn.commit()
-        if not _column_exists(conn, "admins", "locked_until"):
-            conn.execute(
-                "ALTER TABLE admins ADD COLUMN locked_until TEXT"
-            )
-            conn.commit()
-
-        # ─── Platform admin Telegram OTP columns ───────────────────────
-        # Linked Telegram chat_id used to deliver login OTPs. Captured via
-        # the Settings UI "Link Telegram" flow (admins.telegram_chat_id).
-        if not _column_exists(conn, "admins", "telegram_chat_id"):
-            conn.execute("ALTER TABLE admins ADD COLUMN telegram_chat_id TEXT")
-            conn.commit()
-
-        # ─── Platform admin login OTPs ─────────────────────────────────
-        # Single-use, expiring OTP codes for the Telegram 2FA flow.
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS admin_login_otps (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                admin_id INTEGER NOT NULL,
-                otp_hash TEXT NOT NULL,
-                expires_at TEXT NOT NULL,
-                attempts INTEGER NOT NULL DEFAULT 0,
-                used INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_admin_login_otps_admin "
-                     "ON admin_login_otps(admin_id, used)")
-        conn.commit()
-
-        # ─── Tenant audit logs: add meta_json column ──
-        if not _column_exists(conn, "tenant_audit_logs", "meta_json"):
-            conn.execute("ALTER TABLE tenant_audit_logs ADD COLUMN meta_json TEXT")
-            conn.commit()
-
-        # ─── Google OAuth columns for landlord_accounts ────────────────
-        if not _column_exists(conn, "landlord_accounts", "google_sub"):
-            # SQLite cannot ADD COLUMN with UNIQUE; add plain and enforce
-            # uniqueness with a partial index (matches fresh-schema UNIQUE).
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN google_sub TEXT")
-            conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_landlord_accounts_google_sub "
-                "ON landlord_accounts(google_sub) WHERE google_sub IS NOT NULL AND google_sub != ''"
-            )
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "auth_provider"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'email'")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "avatar_url"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN avatar_url TEXT")
-            conn.commit()
-
-        # ─── Landlord TOTP columns (landlord_login reads them unconditionally) ──
-        if not _column_exists(conn, "landlord_accounts", "totp_secret"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_secret TEXT")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "totp_enabled"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0")
-            conn.commit()
-
-        # ─── Landlord privacy-policy consent columns ────────────────────────
-        # Existing accounts are grandfathered as consenting (default 1) so the
-        # upgrade does not lock out current landlords. New signups set this
-        # explicitly from the accepted Privacy Policy; Google-created accounts
-        # start at 0 until the consent step completes.
-        if not _column_exists(conn, "landlord_accounts", "privacy_consented"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_consented INTEGER NOT NULL DEFAULT 1")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "privacy_version"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_version TEXT")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "privacy_accepted_at"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_accepted_at TEXT")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "privacy_accepted_ip"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_accepted_ip TEXT")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "privacy_accepted_user_agent"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN privacy_accepted_user_agent TEXT")
-            conn.commit()
-
-        # ─── Landlord privacy-consent audit trail ──────────────────────────
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS landlord_privacy_consents (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                landlord_id INTEGER NOT NULL,
-                privacy_version TEXT NOT NULL,
-                accepted INTEGER NOT NULL DEFAULT 1,
-                accepted_at TEXT NOT NULL,
-                accepted_ip TEXT,
-                accepted_user_agent TEXT,
-                FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_landlord_privacy_consents_landlord "
-                     "ON landlord_privacy_consents(landlord_id)")
-        conn.commit()
-
-        # ─── Landlord terms-and-conditions consent columns ────────────────
-        # Existing accounts are grandfathered as consenting (default 1) so the
-        # upgrade does not lock out current landlords. New signups set this
-        # explicitly from the accepted Terms and Conditions.
-        if not _column_exists(conn, "landlord_accounts", "terms_consented"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_consented INTEGER NOT NULL DEFAULT 1")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "terms_version"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_version TEXT")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "terms_accepted_at"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_accepted_at TEXT")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "terms_accepted_ip"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_accepted_ip TEXT")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "terms_accepted_user_agent"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN terms_accepted_user_agent TEXT")
-            conn.commit()
-
-        # ─── Landlord terms consent audit trail ───────────────────────────
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS landlord_terms_consents (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                landlord_id INTEGER NOT NULL,
-                terms_version TEXT NOT NULL,
-                accepted INTEGER NOT NULL DEFAULT 1,
-                accepted_at TEXT NOT NULL,
-                accepted_ip TEXT,
-                accepted_user_agent TEXT,
-                FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_landlord_terms_consents_landlord "
-                     "ON landlord_terms_consents(landlord_id)")
-        conn.commit()
-
-        # ─── Landlord password admin store (for platform admin reveal) ──
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS landlord_password_admin_store (
-                landlord_id INTEGER PRIMARY KEY,
-                encrypted_password TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
-            )
-        """)
-        conn.commit()
-
-        # ─── Landlord properties (setup wizard + property-first billing) ──
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS landlord_properties (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                landlord_id INTEGER NOT NULL REFERENCES landlord_accounts(id) ON DELETE CASCADE,
-                property_name TEXT NOT NULL,
-                address TEXT NOT NULL DEFAULT '',
-                sort_order INTEGER NOT NULL DEFAULT 0,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_landlord_properties_landlord "
-                     "ON landlord_properties(landlord_id, sort_order)")
-        conn.commit()
-
-        # ─── Landlord profile (per-landlord "landlord" config section) ──
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS landlord_profiles (
-                landlord_id INTEGER PRIMARY KEY REFERENCES landlord_accounts(id) ON DELETE CASCADE,
-                config_json TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-        """)
-        conn.commit()
-
-        # ─── Landlord setup-wizard columns ─────────────────────────────
-        if not _column_exists(conn, "landlord_accounts", "setup_completed"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN setup_completed INTEGER NOT NULL DEFAULT 0")
-            conn.commit()
-        if not _column_exists(conn, "landlord_accounts", "setup_skipped"):
-            conn.execute("ALTER TABLE landlord_accounts ADD COLUMN setup_skipped INTEGER NOT NULL DEFAULT 0")
-            conn.commit()
-
-        # ─── tenants.property_id (property membership) ────────────────
-        if not _column_exists(conn, "tenants", "property_id"):
-            conn.execute("ALTER TABLE tenants ADD COLUMN property_id INTEGER REFERENCES landlord_properties(id)")
-            conn.commit()
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenants_property_id ON tenants(property_id)")
-        conn.commit()
-
-        # ─── Landlord setup backfill (one-time) ───────────────────────
-        # Existing landlords keep working unchanged: each landlord that has
-        # tenants (or exists) gets a default "Property 1" and is marked as
-        # setup-complete so the wizard only appears for NEW signups.
-        backfilled = conn.execute(
-            "SELECT 1 FROM app_metadata WHERE key = 'landlord_setup_backfill_v1'"
-        ).fetchone()
-        if not backfilled:
-            from datetime import datetime as _dt
-            _now = _dt.utcnow().isoformat()
-            _landlords = conn.execute(
-                "SELECT id FROM landlord_accounts ORDER BY id"
-            ).fetchall()
-            for _row in _landlords:
-                _lid = _row["id"]
-                _existing = conn.execute(
-                    "SELECT 1 FROM landlord_properties WHERE landlord_id = ? LIMIT 1",
-                    (_lid,),
-                ).fetchone()
-                if not _existing:
-                    _cur = conn.execute(
-                        "INSERT INTO landlord_properties (landlord_id, property_name, address, sort_order, created_at, updated_at) "
-                        "VALUES (?, ?, '', 0, ?, ?)",
-                        (_lid, "Property 1", _now, _now),
-                    )
-                    _pid = _cur.lastrowid
-                    conn.execute(
-                        "UPDATE tenants SET property_id = ? WHERE landlord_id = ? AND property_id IS NULL",
-                        (_pid, _lid),
-                    )
-            conn.execute(
-                "UPDATE landlord_accounts SET setup_completed = 1, updated_at = ? WHERE setup_completed = 0",
-                (_now,),
-            )
-            conn.execute(
-                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('landlord_setup_backfill_v1', 'done')"
-            )
-            conn.commit()
-
-        # ─── tenants.property_id backfill v2 ───────────────────────────
-        # v1 only assigned a property to tenants of landlords that had no
-        # property yet. Tenants of landlords who already had one (setup
-        # wizard, earlier data) were left NULL, which would 403 the
-        # property-scoped portal deep link. Assign the landlord's first
-        # property to every tenant still missing one.
-        prop_filled = conn.execute(
-            "SELECT 1 FROM app_metadata WHERE key = 'tenant_property_id_backfill_v2'"
-        ).fetchone()
-        if not prop_filled:
-            conn.execute(
-                """
-                UPDATE tenants
-                SET property_id = (
-                    SELECT lp.id FROM landlord_properties lp
-                    WHERE lp.landlord_id = tenants.landlord_id
-                    ORDER BY lp.sort_order, lp.id LIMIT 1
-                )
-                WHERE property_id IS NULL AND landlord_id IS NOT NULL
-                """
-            )
-            conn.execute(
-                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('tenant_property_id_backfill_v2', 'done')"
-            )
-            conn.commit()
-
-        # ─── receipts.property_id (per-receipt property snapshot) ───────
-        # Property is editable at the receipt level and is INDEPENDENT of
-        # tenants.property_id. Once set, receipts.property_id is NEVER
-        # auto-synced with the tenant's property — each receipt keeps its own
-        # historical property association when the landlord edits a bill.
-        if not _column_exists(conn, "receipts", "property_id"):
-            conn.execute("ALTER TABLE receipts ADD COLUMN property_id INTEGER REFERENCES landlord_properties(id)")
-            conn.commit()
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_receipts_property_id ON receipts(property_id)")
-        conn.commit()
-
-        # One-time backfill: assign each existing receipt its tenant's current
-        # property so historical bills carry a sensible default going forward.
-        receipt_prop_backfilled = conn.execute(
-            "SELECT 1 FROM app_metadata WHERE key = 'receipt_property_id_backfill_v1'"
-        ).fetchone()
-        if not receipt_prop_backfilled:
-            conn.execute(
-                """
-                UPDATE receipts
-                SET property_id = (
-                    SELECT t.property_id FROM tenants t WHERE t.id = receipts.tenantId
-                )
-                WHERE property_id IS NULL
-                  AND EXISTS (
-                      SELECT 1 FROM landlord_properties lp
-                      WHERE lp.id = (
-                          SELECT t.property_id FROM tenants t WHERE t.id = receipts.tenantId
-                      )
-                  )
-                """
-            )
-            conn.execute(
-                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES ('receipt_property_id_backfill_v1', 'done')"
-            )
-            conn.commit()
-
-        # ─── Tenant QR feedback (wrong qrKey reports to platform admin) ──
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS tenant_qr_feedback (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                tenant_id INTEGER,
-                landlord_id INTEGER,
-                property_id INTEGER,
-                tenant_name TEXT,
-                view_token TEXT,
-                qr_key TEXT,
-                message TEXT,
-                diagnostics_json TEXT,
-                failed_attempts INTEGER NOT NULL DEFAULT 0,
-                status TEXT NOT NULL DEFAULT 'open',
-                admin_reply TEXT,
-                resolved_at TEXT,
-                resolved_by INTEGER,
-                created_at TEXT NOT NULL,
-                ip_address TEXT
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_status "
-                     "ON tenant_qr_feedback(status, created_at)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_landlord "
-                     "ON tenant_qr_feedback(landlord_id)")
-        conn.commit()
-
-        # ─── Payment entries (transaction-level source of truth) ───────
-        # receipts.amountreceived remains the derived cumulative value:
-        #     amountreceived == SUM(payment_entries.amount WHERE status='ACTIVE')
-        # This is a separate table so every individual payment transaction is
-        # preserved while the existing billing/arrears engine keeps reading the
-        # single amountreceived column.
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS payment_entries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                billNo TEXT NOT NULL,
-                tenantId INTEGER NOT NULL,
-                landlord_id TEXT,
-                payment_date TEXT NOT NULL,
-                amount REAL NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                created_by TEXT,
-                updated_by TEXT,
-                status TEXT NOT NULL DEFAULT 'ACTIVE',
-                payment_type TEXT NOT NULL DEFAULT 'BILL',
-                source TEXT NOT NULL DEFAULT 'MANUAL',
-                FOREIGN KEY (billNo) REFERENCES receipts(billNo) ON DELETE CASCADE
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_bill "
-                     "ON payment_entries(billNo)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_tenant "
-                     "ON payment_entries(tenantId)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_date "
-                     "ON payment_entries(payment_date)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_landlord "
-                     "ON payment_entries(landlord_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_status "
-                     "ON payment_entries(status)")
-        conn.commit()
-
-        # ─── Payment allocations (settlement ledger) ────────────────────
-        # Connects each payment transaction to the bills it actually cleared.
-        # A payment recorded against the current bill can economically clear
-        # earlier arrears; allocation_type records the split:
-        #     CURRENT_BILL | ARREAR | ADVANCE
-        # This separates HISTORICAL bill payment status (a bill may stay
-        # 'PARTIAL' as a matter of record) from the tenant's CURRENT outstanding
-        # balance (Σ current charges − Σ payments, never double-counting arrears
-        # carried into later bills' previous_arrears).
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS payment_allocations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                payment_entry_id INTEGER NOT NULL,
-                tenant_id INTEGER NOT NULL,
-                bill_no TEXT NOT NULL,
-                allocated_amount REAL NOT NULL,
-                allocation_type TEXT NOT NULL DEFAULT 'CURRENT_BILL',
-                created_at TEXT NOT NULL,
-                FOREIGN KEY (payment_entry_id) REFERENCES payment_entries(id) ON DELETE CASCADE
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_allocations_tenant "
-                     "ON payment_allocations(tenant_id)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_allocations_bill "
-                     "ON payment_allocations(tenant_id, bill_no)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_payment_allocations_payment "
-                     "ON payment_allocations(payment_entry_id)")
-        conn.commit()
-
-        # ─── Receipts: settlement fields ────────────────────────────────
-        # Mark how/when a historical bill's unpaid balance was later settled
-        # by a payment recorded on a subsequent (current) bill, without
-        # rewriting the bill's original paymentstatus.
-        if not _column_exists(conn, "receipts", "settled_by_bill_no"):
-            conn.execute("ALTER TABLE receipts ADD COLUMN settled_by_bill_no TEXT")
-            conn.commit()
-        if not _column_exists(conn, "receipts", "settlement_type"):
-            conn.execute("ALTER TABLE receipts ADD COLUMN settlement_type TEXT NOT NULL DEFAULT 'NONE'")
-            conn.commit()
-        if not _column_exists(conn, "receipts", "settled_at"):
-            conn.execute("ALTER TABLE receipts ADD COLUMN settled_at TEXT")
-            conn.commit()
-        if not _column_exists(conn, "receipts", "settlement_amount"):
-            conn.execute("ALTER TABLE receipts ADD COLUMN settlement_amount REAL NOT NULL DEFAULT 0")
-            conn.commit()
-
-        # ─── Legacy amountReceived backfill into payment_entries ───────
-        # One-time, idempotent: only runs if payment_entries is empty and there
-        # are existing receipts with amountreceived > 0. Each legacy receipt
-        # becomes a single LEGACY_MIGRATION entry stamped with today's date (the
-        # landlord can later correct the actual paid date + amount per
-        # paymentId), so the invariant amountreceived == SUM(active entries)
-        # holds going forward.
-        payment_backfilled = conn.execute(
-            "SELECT 1 FROM app_metadata WHERE key = 'payment_entries_backfill_v1'"
-        ).fetchone()
-        if not payment_backfilled:
-            entries_exist = conn.execute(
-                "SELECT 1 FROM payment_entries LIMIT 1"
-            ).fetchone()
-            if not entries_exist:
-                legacy_rows = conn.execute(
-                    "SELECT billNo, tenantId, landlord_id, date, amountreceived "
-                    "FROM receipts WHERE amountreceived > 0"
-                ).fetchall()
-                for _p in legacy_rows:
-                    # Legacy payments are stamped with today's date so the
-                    # landlord can open each bill, see the carried-over payment,
-                    # and correct the actual paid date + amount per paymentId.
-                    conn.execute(
-                        """
-                        INSERT INTO payment_entries
-                            (billNo, tenantId, landlord_id, payment_date, amount,
-                             created_at, updated_at, created_by, status,
-                             payment_type, source)
-                        VALUES (?, ?, ?, date('now'), ?, datetime('now'), datetime('now'),
-                                'LEGACY_MIGRATION', 'ACTIVE', 'BILL', 'LEGACY_MIGRATION')
-                        """,
-                        (
-                            _p["billNo"],
-                            _p["tenantId"],
-                            _p["landlord_id"],
-                            float(_p["amountreceived"] or 0),
-                        ),
-                    )
-            conn.execute(
-                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES "
-                "('payment_entries_backfill_v1', 'done')"
-            )
-            conn.commit()
-
-        # Reconciliation: databases that already ran v1 with the receipt date
-        # keep carried-over LEGACY_MIGRATION entries at today's date so the
-        # landlord can open each bill, see the payment, and correct the actual
-        # paid date + amount per paymentId. Runs every boot; idempotent and does
-        # not change the amountreceived SUM (the arrears engine is unaffected).
-        conn.execute(
-            "UPDATE payment_entries "
-            "SET payment_date = date('now'), updated_at = datetime('now'), "
-            "updated_by = 'LEGACY_MIGRATION_RECONCILE' "
-            "WHERE source = 'LEGACY_MIGRATION' AND status = 'ACTIVE'"
-        )
-        conn.commit()
-
-        # ─── Seed payment allocations / settlement markers ────────────
-        # Backfill the settlement ledger for existing tenants. Runs once
-        # (key-guarded, idempotent). Recomputes each tenant's allocation and
-        # settlement markers from the current receipts + payment_entries state.
-        alloc_backfilled = conn.execute(
-            "SELECT 1 FROM app_metadata WHERE key = 'payment_allocations_backfill_v1'"
-        ).fetchone()
-        if not alloc_backfilled:
-            try:
-                from app.services.payment_service import _recompute_tenant_settlement
-                tids = [r["id"] for r in conn.execute("SELECT id FROM tenants").fetchall()]
-                for _tid in tids:
-                    try:
-                        _recompute_tenant_settlement(conn, _tid)
-                    except Exception:
-                        pass
-                conn.commit()
-            except Exception:
-                conn.rollback()
-            conn.execute(
-                "INSERT OR REPLACE INTO app_metadata(key, value) VALUES "
-                "('payment_allocations_backfill_v1', 'done')"
-            )
-            conn.commit()
-
-        # ─── Seed default platform admin ───────────────────────────────
-        # Ensure at least one platform admin exists (admin/admin)
-        from app.authentication.common.utils import hash_pin
-        has_platform_admin = conn.execute(
-            "SELECT 1 FROM admins WHERE is_platform_admin = 1 LIMIT 1"
-        ).fetchone()
-        if not has_platform_admin:
-            conn.execute(
-                """INSERT OR IGNORE INTO admins (username, password_hash, is_platform_admin, created_at)
-                   SELECT 'admin', ?, 1, datetime('now')
-                   WHERE NOT EXISTS (SELECT 1 FROM admins WHERE username = 'admin')""",
-                (hash_pin("admin"),),
-            )
-            conn.commit()```
-
-### `backend\app\app\core\dependencies.py`
+    init_pool()
+    migrator.up(close=False)
+
+
+def migrate(target=None):
+    """Alias for the migration runner (exposes up/down/status programmatically)."""
+    if target is None:
+        migrator.up()
+    else:
+        migrator.up(target)
+```
+
+### `backend/app/app/core/dependencies.py`
 
 ```python
 from fastapi import Request
@@ -12201,7 +8473,7 @@ async def get_theme(request: Request):
     return getattr(request.state, 'theme', 'system')
 ```
 
-### `backend\app\app\core\paths.py`
+### `backend/app/app/core/paths.py`
 
 ```python
 ﻿import os
@@ -12230,7 +8502,7 @@ def ensure_storage_dirs():
 
 ```
 
-### `backend\app\app\core\privacy.py`
+### `backend/app/app/core/privacy.py`
 
 ```python
 """
@@ -12256,7 +8528,7 @@ TERMS_CONDITIONS_EFFECTIVE_DATE = "2026-08-28"
 PRIVACY_CONSENT_REQUIRED_HEADER = "X-Privacy-Consent-Required"
 ```
 
-### `backend\app\app\core\route_builder.py`
+### `backend/app/app/core/route_builder.py`
 
 ```python
 from app.core.routes_manifest import Names
@@ -12293,7 +8565,7 @@ class RouteBuilder:
         return request.url_for("static", path=path)
 ```
 
-### `backend\app\app\core\router_registry.py`
+### `backend/app/app/core/router_registry.py`
 
 ```python
 from fastapi import FastAPI, Depends
@@ -12401,7 +8673,7 @@ def register_all_routers(app: FastAPI):
     register_exception_handlers(app)
 ```
 
-### `backend\app\app\core\routes_manifest.py`
+### `backend/app/app/core/routes_manifest.py`
 
 ```python
 # app\app\core\routes_manifest.py
@@ -12455,7 +8727,7 @@ class Prefixes:
     STATIC = "/static"
     UPLOADS = "/static/uploads"```
 
-### `backend\app\app\core\routes_manifest_landlord.py`
+### `backend/app/app/core/routes_manifest_landlord.py`
 
 ```python
 # app/core/routes_manifest_landlord.py
@@ -12758,7 +9030,7 @@ class LandlordTemplates:
     TENANTPROFILE = "tenant_profile.html"
 ```
 
-### `backend\app\app\core\routes_manifest_platform_admin.py`
+### `backend/app/app/core/routes_manifest_platform_admin.py`
 
 ```python
 # app/core/routes_manifest_platform_admin.py
@@ -12831,7 +9103,7 @@ class PlatformAdminNames:
     PLATFORMADMINADMINS = "platform_admin_admins"
 ```
 
-### `backend\app\app\core\routes_manifest_tenant.py`
+### `backend/app/app/core/routes_manifest_tenant.py`
 
 ```python
 # app/app/core/routes_manifest_tenant.py
@@ -12895,7 +9167,7 @@ class TenantTemplates:
     TENANTPUBLICPROFILE = "tenant_public_profile.html"
 ```
 
-### `backend\app\app\core\runtime.py`
+### `backend/app/app/core/runtime.py`
 
 ```python
 """Runtime environment helpers for the dev/release split."""
@@ -12941,7 +9213,7 @@ def public_app_url() -> str:
     return os.environ.get("PUBLIC_APP_URL", "https://rent.vijaykrsha.online").rstrip("/")
 ```
 
-### `backend\app\app\core\startup.py`
+### `backend/app/app/core/startup.py`
 
 ```python
 import os
@@ -13063,7 +9335,7 @@ class StartupManager:
                 print(f"[TenantRecovery] Startup purge failed (non-critical): {e}")
 ```
 
-### `backend\app\app\core\websocket_manager.py`
+### `backend/app/app/core/websocket_manager.py`
 
 ```python
 """
@@ -13140,7 +9412,7 @@ class ConnectionManager:
 sync_manager = ConnectionManager()
 ```
 
-### `backend\app\app\database\auth_repository.py`
+### `backend/app/app/database/auth_repository.py`
 
 ```python
 from app.core.db import get_conn
@@ -13159,28 +9431,28 @@ def create_session_db(session_id, tenantId, refresh_hash, device, ip, expires_at
         conn.execute("""
             INSERT INTO tenant_sessions 
             (session_id, tenantId, refresh_token_hash, device_name, ip_address, created_at, last_activity, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (session_id, tenantId, refresh_hash, device, ip, now, now, expires_at))
         conn.commit()
 
 def get_session_db(session_id):
     with get_conn() as conn:
-        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = ? AND status = 'Active'", (session_id,)).fetchone()
+        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = %s AND status = 'Active'", (session_id,)).fetchone()
 
 def revoke_session_db(session_id):
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE session_id = ?", (session_id,))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE session_id = %s", (session_id,))
         conn.commit()
 
 def revoke_all_tenant_sessions(tenantId):
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE tenantId = ?", (tenantId,))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE tenantId = %s", (tenantId,))
         conn.commit()
 
 def log_audit(tenantId: int, action: str, ip: str, meta_json: str | None = None):
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO tenant_audit_logs (tenantId, action, ip_address, created_at, meta_json) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO tenant_audit_logs (tenantId, action, ip_address, created_at, meta_json) VALUES (%s, %s, %s, %s, %s)",
             (tenantId, action, ip, datetime.utcnow().isoformat(), meta_json)
         )
         conn.commit()
@@ -13191,14 +9463,14 @@ def create_admin_session_db(session_id, admin_id, refresh_hash, device, ip, expi
         conn.execute("""
             INSERT INTO admin_sessions
             (session_id, admin_id, refresh_token_hash, device_name, ip_address, created_at, last_activity, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (session_id, admin_id, refresh_hash, device, ip, now, now, expires_at))
         conn.commit()
 
 def get_admin_session_db(session_id):
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM admin_sessions WHERE session_id = ? AND status = 'Active'",
+            "SELECT * FROM admin_sessions WHERE session_id = %s AND status = 'Active'",
             (session_id,)
         ).fetchone()
 
@@ -13206,13 +9478,13 @@ def get_admin_session_db(session_id):
 def get_admin_by_username(username: str):
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM admins WHERE username = ?", (username,)
+            "SELECT * FROM admins WHERE username = %s", (username,)
         ).fetchone()
 
 def get_admin_by_id(admin_id: int):
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM admins WHERE id = ?", (admin_id,)
+            "SELECT * FROM admins WHERE id = %s", (admin_id,)
         ).fetchone()
 
 def admin_exists() -> bool:
@@ -13227,13 +9499,14 @@ def create_admin(username: str, password_hash: str, email: str = None) -> dict:
     now = datetime.utcnow().isoformat()
     
     with get_conn() as conn:
-        cursor = conn.execute(
+        row = conn.execute(
             """INSERT INTO admins (username, password_hash, totp_secret, email, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               VALUES (%s, %s, %s, %s, %s, %s)
+               RETURNING id""",
             (username, password_hash, totp_secret, email, now, now)
-        )
+        ).fetchone()
         conn.commit()
-        admin_id = cursor.lastrowid
+        admin_id = row["id"]
         
     return {
         "id": admin_id,
@@ -13248,7 +9521,7 @@ def update_admin_password(admin_id: int, new_password_hash: str):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE admins SET password_hash = ?, updated_at = ? WHERE id = ?",
+            "UPDATE admins SET password_hash = %s, updated_at = %s WHERE id = %s",
             (new_password_hash, now, admin_id)
         )
         conn.commit()
@@ -13282,7 +9555,7 @@ def regenerate_totp_secret(admin_id: int) -> str:
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE admins SET totp_secret = ?, updated_at = ? WHERE id = ?",
+            "UPDATE admins SET totp_secret = %s, updated_at = %s WHERE id = %s",
             (new_secret, now, admin_id)
         )
         conn.commit()
@@ -13290,758 +9563,7 @@ def regenerate_totp_secret(admin_id: int) -> str:
 
 ```
 
-### `backend\app\app\database\final_schema.py`
-
-```python
-"""
-FINAL PRODUCTION DATABASE SCHEMA
-PROPAURA v3.0.0
-Generated: 2026-07-11
-
-This is the single source of truth for the complete database schema.
-All migrations have been consolidated into this final schema.
-Run this to initialize a fresh production database.
-"""
-
-import sqlite3
-import os
-
-DB_PATH = os.environ.get("RENT_DB_PATH", "/code/storage/database/rent.db")
-
-def init_production_db():
-    """Initialize the complete production database with all tables, indexes, and constraints."""
-
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA journal_mode = WAL;")
-    conn.execute("PRAGMA synchronous = NORMAL;")
-    conn.execute("PRAGMA temp_store = MEMORY;")
-    conn.execute("PRAGMA mmap_size = 30000000000;")
-
-    # ============================================================
-    # 1. APP METADATA (Schema Version Tracking)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS app_metadata (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    );
-
-    INSERT OR REPLACE INTO app_metadata (key, value) VALUES 
-        ('auth_schema_version', '1'),
-        ('receipt_schema_version', '1'),
-        ('tenant_schema_version', '3');
-    """)
-
-    # ============================================================
-    # 2. ADMINS (Admin User Management with TOTP)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS admins (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        totp_secret TEXT,
-        email TEXT,
-        is_platform_admin INTEGER NOT NULL DEFAULT 0,
-        telegram_chat_id TEXT,
-        created_at TEXT,
-        updated_at TEXT
-    );
-    """)
-
-    # ============================================================
-    # 3b. ADMIN LOGIN OTPS (Telegram 2FA)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS admin_login_otps (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        admin_id INTEGER NOT NULL,
-        otp_hash TEXT NOT NULL,
-        expires_at TEXT NOT NULL,
-        attempts INTEGER NOT NULL DEFAULT 0,
-        used INTEGER NOT NULL DEFAULT 0,
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_admin_login_otps_admin
-        ON admin_login_otps(admin_id, used);
-    """)
-
-    # ============================================================
-    # 3. ADMIN SESSIONS (Auth V2)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS admin_sessions (
-        session_id TEXT PRIMARY KEY,
-        admin_id INTEGER NOT NULL,
-        refresh_token_hash TEXT NOT NULL,
-        device_name TEXT,
-        browser TEXT,
-        os TEXT,
-        ip_address TEXT,
-        created_at TEXT,
-        last_activity TEXT,
-        expires_at TEXT,
-        revoked_at TEXT,
-        remember_me INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'Active',
-        FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
-    );
-    """)
-
-    # ============================================================
-    # 4. TENANTS (Core Tenant Data with Security)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS tenants (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        company TEXT,
-        phone TEXT,
-        email TEXT,
-        address TEXT,
-        roomnumber TEXT,
-        occupation TEXT,
-        notes TEXT,
-        status TEXT NOT NULL DEFAULT 'Active',
-        rent REAL NOT NULL DEFAULT 0,
-        water REAL NOT NULL DEFAULT 0,
-        electricityrate REAL NOT NULL DEFAULT 0,
-        previousmeter REAL NOT NULL DEFAULT 0,
-        additionalpersoncharge REAL NOT NULL DEFAULT 0,
-        securitydeposit REAL NOT NULL DEFAULT 0,
-        defaulttankWatercharge REAL NOT NULL DEFAULT 0,
-        meterid TEXT,
-        viewToken TEXT,
-        tenantpin TEXT,
-        failed_attempts INTEGER NOT NULL DEFAULT 0,
-        locked_until TEXT,
-        qr_key TEXT,
-        tenant_username TEXT,
-        password_hash TEXT,
-        password_failed_attempts INTEGER NOT NULL DEFAULT 0,
-        password_locked_until TEXT,
-        password_reset_token_hash TEXT,
-        password_reset_expires_at TEXT,
-        password_reset_requested_at TEXT,
-        password_reset_required INTEGER NOT NULL DEFAULT 0,
-        last_password_change_at TEXT
-    );
-    """)
-
-    # ============================================================
-    # 4b. TENANT PASSWORD HISTORY (Portal auth audit)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS tenant_password_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tenantId INTEGER NOT NULL,
-        password_hash TEXT NOT NULL,
-        changed_at TEXT NOT NULL,
-        changed_by TEXT,
-        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_tenant_password_history_tenantId
-        ON tenant_password_history(tenantId);
-
-    CREATE TABLE IF NOT EXISTS tenant_password_reset_events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tenantId INTEGER NOT NULL,
-        channel TEXT NOT NULL DEFAULT 'landlord',
-        token_hash TEXT,
-        created_at TEXT NOT NULL,
-        expires_at TEXT,
-        used_at TEXT,
-        requested_ip TEXT,
-        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_tenant_password_reset_tenantId
-        ON tenant_password_reset_events(tenantId);
-
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_tenant_username
-        ON tenants(tenant_username) WHERE tenant_username IS NOT NULL AND tenant_username != '';
-    """)
-
-    # ============================================================
-    # 5. TENANT PIN HISTORY (Security Audit)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS tenantPin_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tenantId INTEGER NOT NULL,
-        pin_hash TEXT NOT NULL,
-        changed_at TEXT NOT NULL,
-        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_tenantPin_history_tenantId 
-        ON tenantPin_history(tenantId);
-    """)
-
-    # ============================================================
-    # 6. TENANT PIN ADMIN STORE (Encrypted PIN Vault)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS tenantPin_admin_store (
-        tenantId INTEGER PRIMARY KEY,
-        encrypted_pin TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-    );
-    """)
-
-    # ============================================================
-    # 7. TENANT SESSIONS (Auth V2)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS tenant_sessions (
-        session_id TEXT PRIMARY KEY,
-        tenantId INTEGER NOT NULL,
-        refresh_token_hash TEXT NOT NULL,
-        device_name TEXT,
-        browser TEXT,
-        os TEXT,
-        ip_address TEXT,
-        created_at TEXT,
-        last_activity TEXT,
-        expires_at TEXT,
-        revoked_at TEXT,
-        remember_me INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'Active',
-        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-    );
-    """)
-
-    # ============================================================
-    # 8. TENANT AUDIT LOGS
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS tenant_audit_logs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tenantId INTEGER,
-        action TEXT,
-        ip_address TEXT,
-        created_at TEXT
-    );
-    """)
-
-    # ============================================================
-    # 9. RECEIPTS (Core Billing Data)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS receipts (
-        billNo TEXT PRIMARY KEY,
-        date TEXT NOT NULL,
-        month TEXT NOT NULL,
-        tenantId INTEGER,
-        tenant TEXT NOT NULL,
-        property_id INTEGER,
-        previous REAL NOT NULL DEFAULT 0,
-        current REAL NOT NULL DEFAULT 0,
-        units REAL NOT NULL DEFAULT 0,
-        rent REAL NOT NULL DEFAULT 0,
-        additional REAL NOT NULL DEFAULT 0,
-        water REAL NOT NULL DEFAULT 0,
-        tankWater REAL NOT NULL DEFAULT 0,
-        electricity REAL NOT NULL DEFAULT 0,
-        total REAL NOT NULL DEFAULT 0,
-        pdf TEXT,
-        tenantphone TEXT,
-        tenantcompany TEXT,
-        tenantaddress TEXT,
-        rate REAL NOT NULL DEFAULT 0,
-        status TEXT NOT NULL DEFAULT 'ACTIVE',
-        archiveddate TEXT,
-        archivedby TEXT,
-        deleteddate TEXT,
-        additionalpersons INTEGER NOT NULL DEFAULT 0,
-        additionalpersonrate REAL NOT NULL DEFAULT 0,
-        receiptversion INTEGER NOT NULL DEFAULT 8,
-        generatedby TEXT NOT NULL DEFAULT 'Admin',
-        paymentstatus TEXT NOT NULL DEFAULT 'PENDING',
-        maintenancecharge REAL NOT NULL DEFAULT 0,
-        maintenancedesc TEXT,
-        previousarrears REAL NOT NULL DEFAULT 0,
-        amountreceived REAL NOT NULL DEFAULT 0,
-        settled_by_bill_no TEXT,
-        settlement_type TEXT NOT NULL DEFAULT 'NONE',
-        settled_at TEXT,
-        settlement_amount REAL NOT NULL DEFAULT 0
-    );
-    """)
-
-    # ============================================================
-    # 9b. PAYMENT ENTRIES (transaction-level payment source of truth)
-    # ============================================================
-    # receipts.amountreceived is the derived cumulative sum of active payment
-    # entries (amountreceived == SUM(amount WHERE status='ACTIVE')), so the
-    # existing billing/arrears engine can keep reading amountreceived while
-    # preserving every individual payment transaction here.
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS payment_entries (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        billNo TEXT NOT NULL,
-        tenantId INTEGER NOT NULL,
-        landlord_id TEXT,
-        payment_date TEXT NOT NULL,
-        amount REAL NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        created_by TEXT,
-        updated_by TEXT,
-        status TEXT NOT NULL DEFAULT 'ACTIVE',
-        payment_type TEXT NOT NULL DEFAULT 'BILL',
-        source TEXT NOT NULL DEFAULT 'MANUAL',
-        FOREIGN KEY (billNo) REFERENCES receipts(billNo) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_payment_entries_bill
-        ON payment_entries(billNo);
-    CREATE INDEX IF NOT EXISTS idx_payment_entries_tenant
-        ON payment_entries(tenantId);
-    CREATE INDEX IF NOT EXISTS idx_payment_entries_date
-        ON payment_entries(payment_date);
-    CREATE INDEX IF NOT EXISTS idx_payment_entries_landlord
-        ON payment_entries(landlord_id);
-    CREATE INDEX IF NOT EXISTS idx_payment_entries_status
-        ON payment_entries(status);
-    """)
-
-    # ============================================================
-    # 9c. PAYMENT ALLOCATIONS (settlement ledger)
-    # ============================================================
-    # Connects each payment transaction to the bills it actually cleared. A
-    # payment recorded against the current bill can economically clear earlier
-    # arrears; allocation_type records the split:
-    #     CURRENT_BILL | ARREAR | ADVANCE
-    # This separates HISTORICAL bill payment status from the tenant's CURRENT
-    # outstanding balance (Σ current charges − Σ payments — never double
-    # counting arrears carried into later bills' previousarrears).
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS payment_allocations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        payment_entry_id INTEGER NOT NULL,
-        tenant_id INTEGER NOT NULL,
-        bill_no TEXT NOT NULL,
-        allocated_amount REAL NOT NULL,
-        allocation_type TEXT NOT NULL DEFAULT 'CURRENT_BILL',
-        created_at TEXT NOT NULL,
-        FOREIGN KEY (payment_entry_id) REFERENCES payment_entries(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_payment_allocations_tenant
-        ON payment_allocations(tenant_id);
-    CREATE INDEX IF NOT EXISTS idx_payment_allocations_bill
-        ON payment_allocations(tenant_id, bill_no);
-    CREATE INDEX IF NOT EXISTS idx_payment_allocations_payment
-        ON payment_allocations(payment_entry_id);
-    """)
-
-    # ============================================================
-    # 10. OCCUPANTS (KYC Data)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS occupants (
-        tenantId INTEGER NOT NULL,
-        occupantUuid TEXT PRIMARY KEY,
-        name TEXT,
-        mobile TEXT,
-        status TEXT NOT NULL DEFAULT 'Active',
-        aadhaar_front TEXT,
-        aadhaar_back TEXT,
-        aadhaar_combined TEXT,
-        emp_front TEXT,
-        emp_back TEXT,
-        uploaddate TEXT,
-        uploadmonth TEXT,
-        FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-    );
-    """)
-
-    # ============================================================
-    # 11. TENANT QR FEEDBACK (wrong qrKey reports to platform admin)
-    # ============================================================
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS tenant_qr_feedback (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tenant_id INTEGER,
-        landlord_id INTEGER,
-        property_id INTEGER,
-        tenant_name TEXT,
-        view_token TEXT,
-        qr_key TEXT,
-        message TEXT,
-        diagnostics_json TEXT,
-        failed_attempts INTEGER NOT NULL DEFAULT 0,
-        status TEXT NOT NULL DEFAULT 'open',
-        admin_reply TEXT,
-        resolved_at TEXT,
-        resolved_by INTEGER,
-        created_at TEXT NOT NULL,
-        ip_address TEXT
-    );
-    CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_status
-        ON tenant_qr_feedback(status, created_at);
-    CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_landlord
-        ON tenant_qr_feedback(landlord_id);
-    """)
-
-    # ============================================================
-    # 12. PERFORMANCE INDEXES
-    # ============================================================
-    conn.executescript("""
-    CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant);
-    CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
-    CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
-    CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
-    CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
-    """)
-
-    conn.executescript("""
-    CREATE TABLE IF NOT EXISTS landlords (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        admin_id INTEGER NOT NULL,
-        landlordUuid TEXT UNIQUE NOT NULL,
-        active INTEGER DEFAULT 1,
-        FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_landlords_uuid ON landlords(landlordUuid);
-    """)
-
-    conn.commit()
-    conn.close()
-    print("[OK] Production database initialized successfully.")
-    print(f"[OK] Database path: {DB_PATH}")
-
-
-if __name__ == "__main__":
-    init_production_db()
-```
-
-### `backend\app\app\database\final_schema.sql`
-
-```sql
--- ============================================================
--- FINAL PRODUCTION DATABASE SCHEMA
--- Rent Receipt System v3.0.0
--- Generated: 2026-07-11
--- ============================================================
-
--- Enable WAL mode for better concurrency
-PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
-PRAGMA temp_store = MEMORY;
-PRAGMA mmap_size = 30000000000;
-PRAGMA foreign_keys = ON;
-
--- ============================================================
--- 1. APP METADATA (Schema Version Tracking)
--- ============================================================
-CREATE TABLE IF NOT EXISTS app_metadata (
-    key TEXT PRIMARY KEY,
-    value TEXT
-);
-
-INSERT OR REPLACE INTO app_metadata (key, value) VALUES 
-    ('auth_schema_version', '1'),
-    ('receipt_schema_version', '1'),
-    ('tenant_schema_version', '3');
-
--- ============================================================
--- 2. ADMINS (Admin User Management with TOTP)
--- ============================================================
-CREATE TABLE IF NOT EXISTS admins (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    totp_secret TEXT,
-    email TEXT,
-    is_platform_admin INTEGER NOT NULL DEFAULT 0,
-    telegram_chat_id TEXT,
-    created_at TEXT,
-    updated_at TEXT
-);
-
--- ============================================================
--- 3. ADMIN SESSIONS (Auth V2)
--- ============================================================
-CREATE TABLE IF NOT EXISTS admin_sessions (
-    session_id TEXT PRIMARY KEY,
-    admin_id INTEGER NOT NULL,
-    refresh_token_hash TEXT NOT NULL,
-    device_name TEXT,
-    browser TEXT,
-    os TEXT,
-    ip_address TEXT,
-    created_at TEXT,
-    last_activity TEXT,
-    expires_at TEXT,
-    revoked_at TEXT,
-    remember_me INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'Active',
-    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
-);
-
--- ============================================================
--- 3b. ADMIN LOGIN OTPS (Telegram 2FA)
--- ============================================================
-CREATE TABLE IF NOT EXISTS admin_login_otps (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    admin_id INTEGER NOT NULL,
-    otp_hash TEXT NOT NULL,
-    expires_at TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    used INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
-);
-CREATE INDEX IF NOT EXISTS idx_admin_login_otps_admin
-    ON admin_login_otps(admin_id, used);
-
--- ============================================================
--- 4. TENANTS (Core Tenant Data with Security)
--- ============================================================
-CREATE TABLE IF NOT EXISTS tenants (
-    id INTEGER PRIMARY KEY,
-    name TEXT NOT NULL,
-    company TEXT,
-    phone TEXT,
-    email TEXT,
-    address TEXT,
-    roomnumber TEXT,
-    occupation TEXT,
-    notes TEXT,
-    status TEXT NOT NULL DEFAULT 'Active',
-    rent REAL NOT NULL DEFAULT 0,
-    water REAL NOT NULL DEFAULT 0,
-    electricityrate REAL NOT NULL DEFAULT 0,
-    previousmeter REAL NOT NULL DEFAULT 0,
-    additionalpersoncharge REAL NOT NULL DEFAULT 0,
-    securitydeposit REAL NOT NULL DEFAULT 0,
-    defaulttankWatercharge REAL NOT NULL DEFAULT 0,
-    meterid TEXT,
-    viewToken TEXT,
-    tenantpin TEXT,
-    failed_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until TEXT,
-    qr_key TEXT,
-    tenant_username TEXT,
-    password_hash TEXT,
-    password_failed_attempts INTEGER NOT NULL DEFAULT 0,
-    password_locked_until TEXT,
-    password_reset_token_hash TEXT,
-    password_reset_expires_at TEXT,
-    password_reset_requested_at TEXT,
-    password_reset_required INTEGER NOT NULL DEFAULT 0,
-    last_password_change_at TEXT
-);
-
--- ============================================================
--- 4b. TENANT PASSWORD HISTORY (Portal auth audit)
--- ============================================================
-CREATE TABLE IF NOT EXISTS tenant_password_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tenantId INTEGER NOT NULL,
-    password_hash TEXT NOT NULL,
-    changed_at TEXT NOT NULL,
-    changed_by TEXT,
-    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_tenant_password_history_tenantId
-    ON tenant_password_history(tenantId);
-
-CREATE TABLE IF NOT EXISTS tenant_password_reset_events (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tenantId INTEGER NOT NULL,
-    channel TEXT NOT NULL DEFAULT 'landlord',
-    token_hash TEXT,
-    created_at TEXT NOT NULL,
-    expires_at TEXT,
-    used_at TEXT,
-    requested_ip TEXT,
-    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_tenant_password_reset_tenantId
-    ON tenant_password_reset_events(tenantId);
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_tenant_username
-    ON tenants(tenant_username) WHERE tenant_username IS NOT NULL AND tenant_username != '';
-
--- ============================================================
--- 5. TENANT PIN HISTORY (Security Audit)
--- ============================================================
-CREATE TABLE IF NOT EXISTS tenantPin_history (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tenantId INTEGER NOT NULL,
-    pin_hash TEXT NOT NULL,
-    changed_at TEXT NOT NULL,
-    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_tenantPin_history_tenantId 
-    ON tenantPin_history(tenantId);
-
--- ============================================================
--- 6. TENANT PIN ADMIN STORE (Encrypted PIN Vault)
--- ============================================================
-CREATE TABLE IF NOT EXISTS tenantPin_admin_store (
-    tenantId INTEGER PRIMARY KEY,
-    encrypted_pin TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-);
-
--- ============================================================
--- 7. TENANT SESSIONS (Auth V2)
--- ============================================================
-CREATE TABLE IF NOT EXISTS tenant_sessions (
-    session_id TEXT PRIMARY KEY,
-    tenantId INTEGER NOT NULL,
-    refresh_token_hash TEXT NOT NULL,
-    device_name TEXT,
-    browser TEXT,
-    os TEXT,
-    ip_address TEXT,
-    created_at TEXT,
-    last_activity TEXT,
-    expires_at TEXT,
-    revoked_at TEXT,
-    remember_me INTEGER DEFAULT 0,
-    status TEXT DEFAULT 'Active',
-    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-);
-
--- ============================================================
--- 8. TENANT AUDIT LOGS
--- ============================================================
-CREATE TABLE IF NOT EXISTS tenant_audit_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    tenantId INTEGER,
-    action TEXT,
-    ip_address TEXT,
-    created_at TEXT
-);
-
--- ============================================================
--- 9. RECEIPTS (Core Billing Data)
--- ============================================================
-CREATE TABLE IF NOT EXISTS receipts (
-    billNo TEXT PRIMARY KEY,
-    date TEXT NOT NULL,
-    month TEXT NOT NULL,
-    tenantId INTEGER,
-    tenant TEXT NOT NULL,
-    previous REAL NOT NULL DEFAULT 0,
-    current REAL NOT NULL DEFAULT 0,
-    units REAL NOT NULL DEFAULT 0,
-    rent REAL NOT NULL DEFAULT 0,
-    additional REAL NOT NULL DEFAULT 0,
-    water REAL NOT NULL DEFAULT 0,
-    tankWater REAL NOT NULL DEFAULT 0,
-    electricity REAL NOT NULL DEFAULT 0,
-    total REAL NOT NULL DEFAULT 0,
-    pdf TEXT,
-    tenantphone TEXT,
-    tenantcompany TEXT,
-    tenantaddress TEXT,
-    rate REAL NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'ACTIVE',
-    archiveddate TEXT,
-    archivedby TEXT,
-    deleteddate TEXT,
-    additionalpersons INTEGER NOT NULL DEFAULT 0,
-    additionalpersonrate REAL NOT NULL DEFAULT 0,
-    receiptversion INTEGER NOT NULL DEFAULT 8,
-    generatedby TEXT NOT NULL DEFAULT 'Admin',
-    paymentstatus TEXT NOT NULL DEFAULT 'PENDING',
-    maintenancecharge REAL NOT NULL DEFAULT 0,
-    maintenancedesc TEXT,
-    previousarrears REAL NOT NULL DEFAULT 0,
-    amountreceived REAL NOT NULL DEFAULT 0,
-    settled_by_bill_no TEXT,
-    settlement_type TEXT NOT NULL DEFAULT 'NONE',
-    settled_at TEXT,
-    settlement_amount REAL NOT NULL DEFAULT 0
-);
-
--- ============================================================
--- 10. OCCUPANTS (KYC Data)
--- ============================================================
-CREATE TABLE IF NOT EXISTS occupants (
-    tenantId INTEGER NOT NULL,
-    occupantUuid TEXT PRIMARY KEY,
-    name TEXT,
-    mobile TEXT,
-    status TEXT NOT NULL DEFAULT 'Active',
-    aadhaar_front TEXT,
-    aadhaar_back TEXT,
-    aadhaar_combined TEXT,
-    emp_front TEXT,
-    emp_back TEXT,
-    uploaddate TEXT,
-    uploadmonth TEXT,
-    FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
-);
-
--- ============================================================
--- 11. PERFORMANCE INDEXES
--- ============================================================
-CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant);
-CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status);
-CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus);
-CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId);
-CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId);
-
--- ============================================================
--- 12. IMPORT AUDIT LOGS
--- ============================================================
-CREATE TABLE IF NOT EXISTS import_jobs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    created_at TEXT NOT NULL,
-    created_by TEXT NOT NULL,
-    filename TEXT NOT NULL,
-    status TEXT NOT NULL,
-    preview_json TEXT,
-    resolution_json TEXT,
-    result_json TEXT
-);
-
-CREATE TABLE IF NOT EXISTS import_job_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    import_job_id INTEGER NOT NULL,
-    target_key TEXT NOT NULL,
-    import_tenant_id TEXT,
-    import_tenant_name TEXT,
-    action TEXT NOT NULL,
-    existing_tenant_id INTEGER,
-    result TEXT NOT NULL,
-    message TEXT,
-    FOREIGN KEY (import_job_id) REFERENCES import_jobs(id) ON DELETE CASCADE
-);
-
--- ============================================================
--- 10. LANDLORDS (Tenant-to-Admin Mapping)
--- ============================================================
-CREATE TABLE IF NOT EXISTS landlords (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    admin_id INTEGER NOT NULL,
-    landlordUuid TEXT UNIQUE NOT NULL,
-    active INTEGER DEFAULT 1,
-    FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_landlords_uuid ON landlords(landlordUuid);
-```
-
-### `backend\app\app\database\landlord_repository.py`
+### `backend/app/app/database/landlord_repository.py`
 
 ```python
 """
@@ -14069,7 +9591,7 @@ def get_landlord_by_username(username: str):
     """Return a single row from landlord_accounts matching *username*, or None."""
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM landlord_accounts WHERE username = ?",
+            "SELECT * FROM landlord_accounts WHERE username = %s",
             (username,),
         ).fetchone()
 
@@ -14078,7 +9600,7 @@ def get_landlord_by_email(email: str):
     """Return a single row from landlord_accounts matching *email*, or None."""
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM landlord_accounts WHERE email = ?",
+            "SELECT * FROM landlord_accounts WHERE email = %s",
             (email,),
         ).fetchone()
 
@@ -14087,7 +9609,7 @@ def get_landlord_by_id(landlord_id: int):
     """Return a single row from landlord_accounts matching *landlord_id*, or None."""
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM landlord_accounts WHERE id = ?",
+            "SELECT * FROM landlord_accounts WHERE id = %s",
             (landlord_id,),
         ).fetchone()
 
@@ -14122,7 +9644,7 @@ def create_landlord(
     """
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        cur = conn.execute(
+        row = conn.execute(
             """
             INSERT INTO landlord_accounts (
                 landlord_uuid, full_name, email, phone, username,
@@ -14131,8 +9653,9 @@ def create_landlord(
                 privacy_accepted_ip, privacy_accepted_user_agent,
                 terms_consented, terms_version, terms_accepted_at,
                 terms_accepted_ip, terms_accepted_user_agent
-            ) VALUES (?, ?, ?, ?, ?, ?, 'Active', ?, ?,
-                      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, 'Active', %s, %s,
+                      %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING *
             """,
             (
                 landlord_uuid, full_name, email, phone, username, password_hash,
@@ -14142,12 +9665,9 @@ def create_landlord(
                 terms_consented, terms_version, terms_accepted_at,
                 terms_accepted_ip, terms_accepted_user_agent,
             ),
-        )
-        conn.commit()
-        return conn.execute(
-            "SELECT * FROM landlord_accounts WHERE id = ?",
-            (cur.lastrowid,),
         ).fetchone()
+        conn.commit()
+        return row
 
 
 def record_privacy_consent(
@@ -14167,18 +9687,18 @@ def record_privacy_consent(
         conn.execute(
             """UPDATE landlord_accounts
                SET privacy_consented = 1,
-                   privacy_version = ?,
-                   privacy_accepted_at = ?,
-                   privacy_accepted_ip = ?,
-                   privacy_accepted_user_agent = ?,
-                   updated_at = ?
-               WHERE id = ?""",
+                   privacy_version = %s,
+                   privacy_accepted_at = %s,
+                   privacy_accepted_ip = %s,
+                   privacy_accepted_user_agent = %s,
+                   updated_at = %s
+               WHERE id = %s""",
             (privacy_version, now, ip_address, user_agent, now, landlord_id),
         )
         conn.execute(
             """INSERT INTO landlord_privacy_consents
                (landlord_id, privacy_version, accepted, accepted_at, accepted_ip, accepted_user_agent)
-               VALUES (?, ?, 1, ?, ?, ?)""",
+               VALUES (%s, %s, 1, %s, %s, %s)""",
             (landlord_id, privacy_version, now, ip_address, user_agent),
         )
         conn.commit()
@@ -14201,18 +9721,18 @@ def record_terms_consent(
         conn.execute(
             """UPDATE landlord_accounts
                SET terms_consented = 1,
-                   terms_version = ?,
-                   terms_accepted_at = ?,
-                   terms_accepted_ip = ?,
-                   terms_accepted_user_agent = ?,
-                   updated_at = ?
-               WHERE id = ?""",
+                   terms_version = %s,
+                   terms_accepted_at = %s,
+                   terms_accepted_ip = %s,
+                   terms_accepted_user_agent = %s,
+                   updated_at = %s
+               WHERE id = %s""",
             (terms_version, now, ip_address, user_agent, now, landlord_id),
         )
         conn.execute(
             """INSERT INTO landlord_terms_consents
                (landlord_id, terms_version, accepted, accepted_at, accepted_ip, accepted_user_agent)
-               VALUES (?, ?, 1, ?, ?, ?)""",
+               VALUES (%s, %s, 1, %s, %s, %s)""",
             (landlord_id, terms_version, now, ip_address, user_agent),
         )
         conn.commit()
@@ -14234,7 +9754,7 @@ def create_landlord_audit_log(
         conn.execute(
             """
             INSERT INTO landlord_audit_logs (landlord_id, action, ip_address, created_at, meta_json)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
             """,
             (landlord_id, action, ip_address, now, meta_json),
         )
@@ -14249,7 +9769,7 @@ def get_landlord_by_uuid(landlord_uuid: str):
     """Return a single row from landlord_accounts matching *landlord_uuid*, or None."""
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM landlord_accounts WHERE landlord_uuid = ?",
+            "SELECT * FROM landlord_accounts WHERE landlord_uuid = %s",
             (landlord_uuid,),
         ).fetchone()
 
@@ -14258,7 +9778,7 @@ def get_landlord_totp_secret(landlord_id: int):
     """Return the totp_secret for the given landlord, or None."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT totp_secret FROM landlord_accounts WHERE id = ?",
+            "SELECT totp_secret FROM landlord_accounts WHERE id = %s",
             (landlord_id,),
         ).fetchone()
         return row["totp_secret"] if row else None
@@ -14269,7 +9789,7 @@ def update_landlord_totp_secret(landlord_id: int, secret: str):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET totp_secret = ?, updated_at = ? WHERE id = ?",
+            "UPDATE landlord_accounts SET totp_secret = %s, updated_at = %s WHERE id = %s",
             (secret, now, landlord_id),
         )
         conn.commit()
@@ -14332,7 +9852,7 @@ def record_landlord_failed_attempt(landlord_id: int):
     now = datetime.utcnow()
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT failed_attempts FROM landlord_accounts WHERE id = ?",
+            "SELECT failed_attempts FROM landlord_accounts WHERE id = %s",
             (landlord_id,),
         ).fetchone()
         attempts = (row["failed_attempts"] or 0) + 1
@@ -14342,12 +9862,12 @@ def record_landlord_failed_attempt(landlord_id: int):
                 minute=now.minute + LOCKOUT_MINUTES
             )
             conn.execute(
-                "UPDATE landlord_accounts SET failed_attempts = ?, locked_until = ?, updated_at = ? WHERE id = ?",
+                "UPDATE landlord_accounts SET failed_attempts = %s, locked_until = %s, updated_at = %s WHERE id = %s",
                 (attempts, locked_until.isoformat(), now.isoformat(), landlord_id),
             )
         else:
             conn.execute(
-                "UPDATE landlord_accounts SET failed_attempts = ?, updated_at = ? WHERE id = ?",
+                "UPDATE landlord_accounts SET failed_attempts = %s, updated_at = %s WHERE id = %s",
                 (attempts, now.isoformat(), landlord_id),
             )
         conn.commit()
@@ -14358,13 +9878,13 @@ def reset_landlord_failed_attempts(landlord_id: int):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET failed_attempts = 0, locked_until = NULL, updated_at = ? WHERE id = ?",
+            "UPDATE landlord_accounts SET failed_attempts = 0, locked_until = NULL, updated_at = %s WHERE id = %s",
             (now, landlord_id),
         )
         conn.commit()
 ```
 
-### `backend\app\app\database\property_repository.py`
+### `backend/app/app/database/property_repository.py`
 
 ```python
 """
@@ -14388,7 +9908,7 @@ def list_properties(landlord_id: int) -> List[dict]:
     """Return all properties for a landlord, ordered by sort_order then id."""
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM landlord_properties WHERE landlord_id = ? ORDER BY sort_order, id",
+            "SELECT * FROM landlord_properties WHERE landlord_id = %s ORDER BY sort_order, id",
             (landlord_id,),
         ).fetchall()
     return [dict(r) for r in rows]
@@ -14397,7 +9917,7 @@ def list_properties(landlord_id: int) -> List[dict]:
 def count_properties(landlord_id: int) -> int:
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT COUNT(*) AS c FROM landlord_properties WHERE landlord_id = ?",
+            "SELECT COUNT(*) AS c FROM landlord_properties WHERE landlord_id = %s",
             (landlord_id,),
         ).fetchone()
     return int(row["c"] or 0)
@@ -14406,7 +9926,7 @@ def count_properties(landlord_id: int) -> int:
 def get_property(landlord_id: int, property_id: int) -> Optional[dict]:
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT * FROM landlord_properties WHERE id = ? AND landlord_id = ?",
+            "SELECT * FROM landlord_properties WHERE id = %s AND landlord_id = %s",
             (property_id, landlord_id),
         ).fetchone()
     return dict(row) if row else None
@@ -14415,7 +9935,7 @@ def get_property(landlord_id: int, property_id: int) -> Optional[dict]:
 def next_property_sort_order(landlord_id: int) -> int:
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT COALESCE(MAX(sort_order), -1) AS m FROM landlord_properties WHERE landlord_id = ?",
+            "SELECT COALESCE(MAX(sort_order), -1) AS m FROM landlord_properties WHERE landlord_id = %s",
             (landlord_id,),
         ).fetchone()
     return int(row["m"] if row["m"] is not None else -1) + 1
@@ -14425,16 +9945,13 @@ def create_property(landlord_id: int, property_name: str, address: str = "") -> 
     now = datetime.utcnow().isoformat()
     sort_order = next_property_sort_order(landlord_id)
     with get_conn() as conn:
-        cur = conn.execute(
-            "INSERT INTO landlord_properties (landlord_id, property_name, address, sort_order, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (landlord_id, property_name, address, sort_order, now, now),
-        )
-        conn.commit()
         row = conn.execute(
-            "SELECT * FROM landlord_properties WHERE id = ?",
-            (cur.lastrowid,),
+            "INSERT INTO landlord_properties (landlord_id, property_name, address, sort_order, created_at, updated_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s) "
+            "RETURNING *",
+            (landlord_id, property_name, address, sort_order, now, now),
         ).fetchone()
+        conn.commit()
     return dict(row)
 
 
@@ -14447,12 +9964,12 @@ def update_property(landlord_id: int, property_id: int, property_name: Optional[
     new_address = address if address is not None else existing["address"]
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_properties SET property_name = ?, address = ?, updated_at = ? WHERE id = ? AND landlord_id = ?",
+            "UPDATE landlord_properties SET property_name = %s, address = %s, updated_at = %s WHERE id = %s AND landlord_id = %s",
             (new_name, new_address, now, property_id, landlord_id),
         )
         conn.commit()
         row = conn.execute(
-            "SELECT * FROM landlord_properties WHERE id = ?",
+            "SELECT * FROM landlord_properties WHERE id = %s",
             (property_id,),
         ).fetchone()
     return dict(row)
@@ -14465,11 +9982,11 @@ def delete_property(landlord_id: int, property_id: int) -> bool:
         return False
     with get_conn() as conn:
         conn.execute(
-            "UPDATE tenants SET property_id = NULL WHERE landlord_id = ? AND property_id = ?",
+            "UPDATE tenants SET property_id = NULL WHERE landlord_id = %s AND property_id = %s",
             (landlord_id, property_id),
         )
         conn.execute(
-            "DELETE FROM landlord_properties WHERE id = ? AND landlord_id = ?",
+            "DELETE FROM landlord_properties WHERE id = %s AND landlord_id = %s",
             (property_id, landlord_id),
         )
         conn.commit()
@@ -14480,7 +9997,7 @@ def tenants_for_property(landlord_id: int, property_id: int) -> List[dict]:
     """Return non-archived tenants belonging to a property."""
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM tenants WHERE landlord_id = ? AND property_id = ? AND status != 'Archived' ORDER BY name",
+            "SELECT * FROM tenants WHERE landlord_id = %s AND property_id = %s AND status != 'Archived' ORDER BY name",
             (landlord_id, property_id),
         ).fetchall()
     return [dict(r) for r in rows]
@@ -14493,7 +10010,7 @@ def tenants_for_property(landlord_id: int, property_id: int) -> List[dict]:
 def get_setup_flags(landlord_id: int) -> dict:
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT setup_completed, setup_skipped FROM landlord_accounts WHERE id = ?",
+            "SELECT setup_completed, setup_skipped FROM landlord_accounts WHERE id = %s",
             (landlord_id,),
         ).fetchone()
     return {
@@ -14506,7 +10023,7 @@ def mark_setup_complete(landlord_id: int) -> None:
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET setup_completed = 1, setup_skipped = 0, updated_at = ? WHERE id = ?",
+            "UPDATE landlord_accounts SET setup_completed = 1, setup_skipped = 0, updated_at = %s WHERE id = %s",
             (now, landlord_id),
         )
         conn.commit()
@@ -14516,7 +10033,7 @@ def mark_setup_skipped(landlord_id: int) -> None:
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET setup_completed = 0, setup_skipped = 1, updated_at = ? WHERE id = ?",
+            "UPDATE landlord_accounts SET setup_completed = 0, setup_skipped = 1, updated_at = %s WHERE id = %s",
             (now, landlord_id),
         )
         conn.commit()
@@ -14530,7 +10047,7 @@ def get_landlord_profile(landlord_id: int) -> Dict[str, Any]:
     """Return the per-landlord profile dict (stored JSON), or {} if none."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT config_json FROM landlord_profiles WHERE landlord_id = ?",
+            "SELECT config_json FROM landlord_profiles WHERE landlord_id = %s",
             (landlord_id,),
         ).fetchone()
     if not row or not row["config_json"]:
@@ -14546,14 +10063,1096 @@ def save_landlord_profile(landlord_id: int, section: Dict[str, Any]) -> None:
     with get_conn() as conn:
         conn.execute(
             """INSERT INTO landlord_profiles (landlord_id, config_json, updated_at)
-               VALUES (?, ?, ?)
-               ON CONFLICT(landlord_id) DO UPDATE SET config_json = ?, updated_at = ?""",
+               VALUES (%s, %s, %s)
+               ON CONFLICT(landlord_id) DO UPDATE SET config_json = %s, updated_at = %s""",
             (landlord_id, json.dumps(section, ensure_ascii=False), now, json.dumps(section, ensure_ascii=False), now),
         )
         conn.commit()
 ```
 
-### `backend\app\app\encryption.py`
+### `backend/app/app/db/__init__.py`
+
+```python
+"""PostgreSQL persistence package for PROPAURA.
+
+Provides:
+    connection  - psycopg_pool bounded pool + get_conn() context manager
+    migrations  - versioned schema migrations (see migration command)
+
+Import the app-facing handle from here for convenience:
+    from app.db import get_conn
+"""
+
+from app.db.connection import (
+    get_conn,
+    init_pool,
+    close_pool,
+    build_dsn,
+)
+
+__all__ = [
+    "get_conn",
+    "init_pool",
+    "close_pool",
+    "build_dsn",
+]
+```
+
+### `backend/app/app/db/connection.py`
+
+```python
+"""
+PostgreSQL connection layer for PROPAURA (replaces SQLite core/db.py).
+
+Uses psycopg 3 + psycopg_pool with a bounded connection pool.
+
+DSN is built from environment variables. The database host/port match the
+production container topology:
+    dev  : propaura_database_dev   (:28004 internal)
+    prod : propaura_database_prod  (:28013 internal)
+
+Environment:
+    RENT_PGHOST     (default: propaura_database_dev)
+    RENT_PGPORT     (default: 28004)
+    RENT_PGDATABASE (default: rent)
+    RENT_PGUSER     (default: rent)
+    RENT_PGPASSWORD (required at runtime; sourced from .env host secrets)
+"""
+
+import os
+import logging
+
+from psycopg_pool import ConnectionPool
+from psycopg.rows import dict_row
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_HOST = "propaura_database_dev"
+DEFAULT_PORT = "28004"
+DEFAULT_DB = "rent"
+DEFAULT_USER = "rent"
+
+
+def _kv(value: str) -> str:
+    """Escape a value for a libpq keyword/value conninfo string.
+
+    Libpq keyword/value DSNs (``host=... port=... password=...``) are parsed
+    literally: values are NOT percent-decoded the way a URI-form DSN is. So we
+    must not ``urllib.parse.quote`` values here -- percent-encoding a password
+    that contains a reserved char such as ``@`` would corrupt it into e.g.
+    ``%40``, breaking SCRAM auth. Only whitespace, single-quote and backslash
+    are special in keyword/value form, so we single-quote and escape those.
+    """
+    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+    return f"'{escaped}'"
+
+
+def build_dsn() -> str:
+    """Build a libpq connection string from environment variables."""
+    host = os.environ.get("RENT_PGHOST", DEFAULT_HOST)
+    port = os.environ.get("RENT_PGPORT", DEFAULT_PORT)
+    dbname = os.environ.get("RENT_PGDATABASE", DEFAULT_DB)
+    user = os.environ.get("RENT_PGUSER", DEFAULT_USER)
+    password = os.environ.get("RENT_PGPASSWORD", "")
+    return (
+        f"host={host} port={port} dbname={dbname} "
+        f"user={_kv(user)} password={_kv(password)}"
+    )
+
+
+MIN_SIZE = int(os.environ.get("RENT_PGPOOL_MIN", "2"))
+MAX_SIZE = int(os.environ.get("RENT_PGPOOL_MAX", "10"))
+ACQUIRE_TIMEOUT = float(os.environ.get("RENT_PGPOOL_TIMEOUT", "5"))
+
+_pool: ConnectionPool | None = None
+
+
+def _get_pool() -> ConnectionPool:
+    global _pool
+    if _pool is None:
+        _pool = ConnectionPool(
+            conninfo=build_dsn(),
+            min_size=MIN_SIZE,
+            max_size=MAX_SIZE,
+            open=False,           # lazy open; started explicitly
+            kwargs={"row_factory": dict_row},
+            check=ConnectionPool.check_connection,
+            name="propaura-pg",
+        )
+    return _pool
+
+
+def init_pool():
+    """Open the connection pool. Called once at application startup."""
+    pool = _get_pool()
+    if not pool.closed:
+        return
+    pool.open(wait=True, timeout=30)
+    logger.info("PostgreSQL connection pool opened (%s..%s connections)", MIN_SIZE, MAX_SIZE)
+
+
+def close_pool():
+    """Close the connection pool (shutdown path)."""
+    global _pool
+    if _pool is not None and not _pool.closed:
+        _pool.close()
+        logger.info("PostgreSQL connection pool closed")
+
+
+class _Transaction:
+    """Context manager returned by get_conn().
+
+    Wraps ``ConnectionPool.connection()`` (the canonical acquire/return API)
+    so the app-facing contract is unchanged from the SQLite era:
+
+        with get_conn() as conn:
+            rows = conn.execute("SELECT ...").fetchall()
+
+    On __exit__ success -> commit and return the connection to the pool.
+    On exception        -> rollback and return the connection to the pool.
+    psycopg_pool also transparently replaces connections that fail the check.
+    """
+
+    def __init__(self, pool: ConnectionPool, timeout: float | None = None):
+        self._pool = pool
+        self._timeout = timeout
+        self._cm = None
+        self.conn = None
+
+    def __enter__(self):
+        self._cm = self._pool.connection(timeout=self._timeout)
+        self.conn = self._cm.__enter__()
+        return self.conn
+
+    def __exit__(self, exc_type, exc, tb):
+        try:
+            if self._cm is not None:
+                return self._cm.__exit__(exc_type, exc, tb)
+        finally:
+            self._cm = None
+            self.conn = None
+        return False
+
+
+def get_conn(timeout: float | None = None):
+    """App-facing database handle (see _Transaction docstring).
+
+    Each `with` block is a transaction: it is committed on success and rolled
+    back on exception. The underlying PostgreSQL connection is returned to the
+    shared bounded pool afterwards. `timeout` bounds how long to wait for a
+    free connection (defaults to RENT_PGPOOL_TIMEOUT / 5s).
+    """
+    if timeout is None:
+        timeout = ACQUIRE_TIMEOUT
+    return _Transaction(_get_pool(), timeout=timeout)
+
+
+def check_database() -> tuple:
+    """Best-effort health probe. Returns (ok, database_name_or_error). Never raises."""
+    try:
+        with get_conn(timeout=2.0) as conn:
+            rows = conn.execute("SELECT current_database() AS db").fetchall()
+            name = rows[0]["db"] if rows else "unknown"
+        return True, name
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+```
+
+### `backend/app/app/db/migrations/001_initial.py`
+
+```python
+"""
+Migration 001: Consolidated PostgreSQL schema for PROPAURA.
+
+Faithful port of the canonical SQLite schema (backend/app/app/database/
+final_schema.py consolidated with every ALTER TABLE ADD COLUMN applied by
+core/db.py init_db). Type mapping:
+
+    SQLite                        PostgreSQL
+    INTEGER PRIMARY KEY AUTOINCR  BIGSERIAL PRIMARY KEY
+    INTEGER (boolean 0/1)         INTEGER            (app reads/writes 0/1)
+    REAL                          DOUBLE PRECISION
+    TEXT                          TEXT
+
+ISO-8601 timestamps are stored as TEXT exactly as the application produces
+them, so existing code paths behave identically.
+
+Data backfills that depend on application logic (qr_key, payment_entries
+legacy migration, settlement recompute, default admin seed) live in a later
+seed migration, not here.
+"""
+
+
+def up(conn):
+    cur = conn.cursor()
+
+    # ---- 1. APP METADATA (schema version tracking) ----------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS app_metadata (
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+
+    # ---- 2. ADMINS -------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admins (
+            id                 BIGSERIAL PRIMARY KEY,
+            username           TEXT UNIQUE NOT NULL,
+            password_hash      TEXT NOT NULL,
+            totp_secret        TEXT,
+            email              TEXT,
+            is_platform_admin  INTEGER NOT NULL DEFAULT 0,
+            telegram_chat_id   TEXT,
+            failed_attempts    INTEGER NOT NULL DEFAULT 0,
+            locked_until       TEXT,
+            created_at         TEXT,
+            updated_at         TEXT
+        )
+    """)
+
+    # ---- 3. ADMIN LOGIN OTPS (Telegram 2FA) ------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admin_login_otps (
+            id         BIGSERIAL PRIMARY KEY,
+            admin_id   INTEGER NOT NULL,
+            otp_hash   TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            attempts   INTEGER NOT NULL DEFAULT 0,
+            used       INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_admin_login_otps_admin ON admin_login_otps(admin_id, used)")
+
+    # ---- 4. ADMIN SESSIONS ----------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS admin_sessions (
+            session_id         TEXT PRIMARY KEY,
+            admin_id           INTEGER NOT NULL,
+            refresh_token_hash TEXT NOT NULL,
+            device_name        TEXT,
+            browser            TEXT,
+            os                 TEXT,
+            ip_address         TEXT,
+            created_at         TEXT,
+            last_activity      TEXT,
+            expires_at         TEXT,
+            revoked_at         TEXT,
+            remember_me        INTEGER DEFAULT 0,
+            status             TEXT DEFAULT 'Active',
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+        )
+    """)
+
+    # ---- 5. TENANTS ------------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tenants (
+            id                          BIGSERIAL PRIMARY KEY,
+            name                        TEXT NOT NULL,
+            company                     TEXT,
+            phone                       TEXT,
+            email                       TEXT,
+            address                     TEXT,
+            roomnumber                  TEXT,
+            occupation                  TEXT,
+            notes                       TEXT,
+            status                      TEXT NOT NULL DEFAULT 'Active',
+            rent                        DOUBLE PRECISION NOT NULL DEFAULT 0,
+            water                       DOUBLE PRECISION NOT NULL DEFAULT 0,
+            electricityrate             DOUBLE PRECISION NOT NULL DEFAULT 0,
+            previousmeter               DOUBLE PRECISION NOT NULL DEFAULT 0,
+            additionalpersoncharge      DOUBLE PRECISION NOT NULL DEFAULT 0,
+            securitydeposit             DOUBLE PRECISION NOT NULL DEFAULT 0,
+            defaulttankWatercharge      DOUBLE PRECISION NOT NULL DEFAULT 0,
+            meterid                     TEXT,
+            viewToken                   TEXT,
+            tenantpin                   TEXT,
+            failed_attempts             INTEGER NOT NULL DEFAULT 0,
+            locked_until                TEXT,
+            status_changed_at           TEXT,
+            qr_key                      TEXT,
+            tenant_username             TEXT,
+            password_hash               TEXT,
+            password_failed_attempts    INTEGER NOT NULL DEFAULT 0,
+            password_locked_until       TEXT,
+            password_reset_token_hash   TEXT,
+            password_reset_expires_at   TEXT,
+            password_reset_requested_at TEXT,
+            password_reset_required     INTEGER NOT NULL DEFAULT 0,
+            last_password_change_at     TEXT,
+            landlord_id                 INTEGER,
+            property_id                 INTEGER
+        )
+    """)
+
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tenants_qr_key ON tenants(qr_key)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tenants_landlord_id ON tenants(landlord_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tenants_property_id ON tenants(property_id)")
+    cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tenants_tenant_username
+        ON tenants(tenant_username)
+        WHERE tenant_username IS NOT NULL AND tenant_username <> ''
+    """)
+
+    # ---- 6. TENANT PASSWORD HISTORY --------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tenant_password_history (
+            id            BIGSERIAL PRIMARY KEY,
+            tenantId      INTEGER NOT NULL,
+            password_hash TEXT NOT NULL,
+            changed_at    TEXT NOT NULL,
+            changed_by    TEXT,
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tenant_password_history_tenantId ON tenant_password_history(tenantId)")
+
+    # ---- 7. TENANT PASSWORD RESET EVENTS ---------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tenant_password_reset_events (
+            id          BIGSERIAL PRIMARY KEY,
+            tenantId    INTEGER NOT NULL,
+            channel     TEXT NOT NULL DEFAULT 'landlord',
+            token_hash  TEXT,
+            created_at  TEXT NOT NULL,
+            expires_at  TEXT,
+            used_at     TEXT,
+            requested_ip TEXT,
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tenant_password_reset_tenantId ON tenant_password_reset_events(tenantId)")
+
+    # ---- 8. TENANT PIN HISTORY -------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tenantPin_history (
+            id         BIGSERIAL PRIMARY KEY,
+            tenantId   INTEGER NOT NULL,
+            pin_hash   TEXT NOT NULL,
+            changed_at TEXT NOT NULL,
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tenantPin_history_tenantId ON tenantPin_history(tenantId)")
+
+    # ---- 9. TENANT PIN ADMIN STORE ---------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tenantPin_admin_store (
+            tenantId      INTEGER PRIMARY KEY,
+            encrypted_pin TEXT NOT NULL,
+            updated_at    TEXT NOT NULL,
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        )
+    """)
+
+    # ---- 10. TENANT SESSIONS ---------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tenant_sessions (
+            session_id         TEXT PRIMARY KEY,
+            tenantId           INTEGER NOT NULL,
+            refresh_token_hash TEXT NOT NULL,
+            device_name        TEXT,
+            browser            TEXT,
+            os                 TEXT,
+            ip_address         TEXT,
+            created_at         TEXT,
+            last_activity      TEXT,
+            expires_at         TEXT,
+            revoked_at         TEXT,
+            remember_me        INTEGER DEFAULT 0,
+            status             TEXT DEFAULT 'Active',
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        )
+    """)
+
+    # ---- 11. TENANT AUDIT LOGS -------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tenant_audit_logs (
+            id         BIGSERIAL PRIMARY KEY,
+            tenantId   INTEGER,
+            action     TEXT,
+            ip_address TEXT,
+            created_at TEXT,
+            meta_json  TEXT
+        )
+    """)
+
+    # ---- 12. RECEIPTS ----------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS receipts (
+            id                   BIGSERIAL NOT NULL UNIQUE,
+            billNo               TEXT PRIMARY KEY,
+            date                 TEXT NOT NULL,
+            month                TEXT NOT NULL,
+            tenantId             INTEGER,
+            tenant               TEXT NOT NULL,
+            property_id          INTEGER,
+            previous             DOUBLE PRECISION NOT NULL DEFAULT 0,
+            current              DOUBLE PRECISION NOT NULL DEFAULT 0,
+            units                DOUBLE PRECISION NOT NULL DEFAULT 0,
+            rent                 DOUBLE PRECISION NOT NULL DEFAULT 0,
+            additional           DOUBLE PRECISION NOT NULL DEFAULT 0,
+            water                DOUBLE PRECISION NOT NULL DEFAULT 0,
+            tankWater            DOUBLE PRECISION NOT NULL DEFAULT 0,
+            electricity          DOUBLE PRECISION NOT NULL DEFAULT 0,
+            total                DOUBLE PRECISION NOT NULL DEFAULT 0,
+            pdf                  TEXT,
+            tenantphone          TEXT,
+            tenantcompany        TEXT,
+            tenantaddress        TEXT,
+            rate                 DOUBLE PRECISION NOT NULL DEFAULT 0,
+            status               TEXT NOT NULL DEFAULT 'ACTIVE',
+            archiveddate         TEXT,
+            archivedby           TEXT,
+            deleteddate          TEXT,
+            additionalpersons    INTEGER NOT NULL DEFAULT 0,
+            additionalpersonrate DOUBLE PRECISION NOT NULL DEFAULT 0,
+            receiptversion       INTEGER NOT NULL DEFAULT 8,
+            generatedby          TEXT NOT NULL DEFAULT 'Admin',
+            paymentstatus        TEXT NOT NULL DEFAULT 'PENDING',
+            maintenancecharge    DOUBLE PRECISION NOT NULL DEFAULT 0,
+            maintenancedesc      TEXT,
+            previousarrears      DOUBLE PRECISION NOT NULL DEFAULT 0,
+            amountreceived       DOUBLE PRECISION NOT NULL DEFAULT 0,
+            landlord_id          INTEGER,
+            settled_by_bill_no   TEXT,
+            settlement_type      TEXT NOT NULL DEFAULT 'NONE',
+            settled_at           TEXT,
+            settlement_amount    DOUBLE PRECISION NOT NULL DEFAULT 0
+        )
+    """)
+
+    # ---- 13. PAYMENT ENTRIES ---------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payment_entries (
+            id           BIGSERIAL PRIMARY KEY,
+            billNo       TEXT NOT NULL,
+            tenantId     INTEGER NOT NULL,
+            landlord_id  TEXT,
+            payment_date TEXT NOT NULL,
+            amount       DOUBLE PRECISION NOT NULL,
+            created_at   TEXT NOT NULL,
+            updated_at   TEXT NOT NULL,
+            created_by   TEXT,
+            updated_by   TEXT,
+            status       TEXT NOT NULL DEFAULT 'ACTIVE',
+            payment_type TEXT NOT NULL DEFAULT 'BILL',
+            source       TEXT NOT NULL DEFAULT 'MANUAL',
+            FOREIGN KEY (billNo) REFERENCES receipts(billNo) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_bill ON payment_entries(billNo)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_tenant ON payment_entries(tenantId)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_date ON payment_entries(payment_date)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_landlord ON payment_entries(landlord_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_payment_entries_status ON payment_entries(status)")
+
+    # ---- 14. PAYMENT ALLOCATIONS ------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payment_allocations (
+            id               BIGSERIAL PRIMARY KEY,
+            payment_entry_id INTEGER NOT NULL,
+            tenant_id        INTEGER NOT NULL,
+            bill_no          TEXT NOT NULL,
+            allocated_amount DOUBLE PRECISION NOT NULL,
+            allocation_type  TEXT NOT NULL DEFAULT 'CURRENT_BILL',
+            created_at       TEXT NOT NULL,
+            FOREIGN KEY (payment_entry_id) REFERENCES payment_entries(id) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_payment_allocations_tenant ON payment_allocations(tenant_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_payment_allocations_bill ON payment_allocations(tenant_id, bill_no)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_payment_allocations_payment ON payment_allocations(payment_entry_id)")
+
+    # ---- 15. OCCUPANTS -----------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS occupants (
+            id             BIGSERIAL NOT NULL UNIQUE,
+            tenantId       INTEGER NOT NULL,
+            occupantUuid   TEXT PRIMARY KEY,
+            name           TEXT,
+            mobile         TEXT,
+            address        TEXT,
+            residentSince  TEXT,
+            status         TEXT NOT NULL DEFAULT 'Active',
+            aadhaar_front  TEXT,
+            aadhaar_back   TEXT,
+            aadhaar_combined TEXT,
+            emp_front      TEXT,
+            emp_back       TEXT,
+            uploaddate     TEXT,
+            uploadmonth    TEXT,
+            landlord_id    INTEGER,
+            FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
+        )
+    """)
+
+    # ---- 16. TENANT QR FEEDBACK -------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tenant_qr_feedback (
+            id              BIGSERIAL PRIMARY KEY,
+            tenant_id       INTEGER,
+            landlord_id     INTEGER,
+            property_id     INTEGER,
+            tenant_name     TEXT,
+            view_token      TEXT,
+            qr_key          TEXT,
+            message         TEXT,
+            diagnostics_json TEXT,
+            failed_attempts INTEGER NOT NULL DEFAULT 0,
+            status          TEXT NOT NULL DEFAULT 'open',
+            admin_reply     TEXT,
+            resolved_at     TEXT,
+            resolved_by     INTEGER,
+            created_at      TEXT NOT NULL,
+            ip_address      TEXT
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_status ON tenant_qr_feedback(status, created_at)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tenant_qr_feedback_landlord ON tenant_qr_feedback(landlord_id)")
+
+    # ---- 17. IMPORT JOBS ----------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS import_jobs (
+            id             BIGSERIAL PRIMARY KEY,
+            created_at     TEXT NOT NULL,
+            created_by     TEXT NOT NULL,
+            filename       TEXT NOT NULL,
+            status         TEXT NOT NULL,
+            preview_json   TEXT,
+            resolution_json TEXT,
+            result_json    TEXT
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS import_job_items (
+            id               BIGSERIAL PRIMARY KEY,
+            import_job_id    INTEGER NOT NULL,
+            target_key       TEXT NOT NULL,
+            import_tenant_id TEXT,
+            import_tenant_name TEXT,
+            action           TEXT NOT NULL,
+            existing_tenant_id INTEGER,
+            result           TEXT NOT NULL,
+            message          TEXT,
+            FOREIGN KEY (import_job_id) REFERENCES import_jobs(id) ON DELETE CASCADE
+        )
+    """)
+
+    # ---- 18. TENANT RECOVERY SNAPSHOTS -------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS tenant_recovery_snapshots (
+            id            TEXT PRIMARY KEY,
+            tenant_id     INTEGER NOT NULL,
+            tenant_name   TEXT NOT NULL,
+            created_at    TEXT NOT NULL,
+            expires_at    TEXT NOT NULL,
+            deleted_by    INTEGER,
+            status        TEXT NOT NULL DEFAULT 'AVAILABLE',
+            archive_path  TEXT NOT NULL,
+            sha256        TEXT NOT NULL,
+            metadata_json TEXT NOT NULL,
+            restored_at   TEXT,
+            purged_at     TEXT
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_tenant_recovery_expiry ON tenant_recovery_snapshots(expires_at, status)")
+
+    # ---- 19. LANDLORD ACCOUNTS ----------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS landlord_accounts (
+            id                        BIGSERIAL PRIMARY KEY,
+            landlord_uuid             TEXT UNIQUE NOT NULL,
+            full_name                 TEXT NOT NULL,
+            email                     TEXT UNIQUE,
+            phone                     TEXT,
+            username                  TEXT UNIQUE NOT NULL,
+            password_hash             TEXT NOT NULL,
+            status                    TEXT NOT NULL DEFAULT 'Active',
+            created_at                TEXT NOT NULL,
+            updated_at                TEXT NOT NULL,
+            totp_secret               TEXT,
+            totp_enabled              INTEGER NOT NULL DEFAULT 0,
+            privacy_consented         INTEGER NOT NULL DEFAULT 1,
+            privacy_version           TEXT,
+            privacy_accepted_at       TEXT,
+            privacy_accepted_ip       TEXT,
+            privacy_accepted_user_agent TEXT,
+            requires_password_change  INTEGER NOT NULL DEFAULT 0,
+            temp_password_created_at  TEXT,
+            temp_password_consumed    INTEGER NOT NULL DEFAULT 0,
+            failed_attempts           INTEGER NOT NULL DEFAULT 0,
+            locked_until              TEXT,
+            google_sub                TEXT,
+            auth_provider             TEXT NOT NULL DEFAULT 'email',
+            avatar_url                TEXT,
+            terms_consented           INTEGER NOT NULL DEFAULT 1,
+            terms_version             TEXT,
+            terms_accepted_at         TEXT,
+            terms_accepted_ip         TEXT,
+            terms_accepted_user_agent TEXT,
+            setup_completed           INTEGER NOT NULL DEFAULT 0,
+            setup_skipped             INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_landlord_accounts_username ON landlord_accounts(username)")
+    cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_landlord_accounts_google_sub
+        ON landlord_accounts(google_sub)
+        WHERE google_sub IS NOT NULL AND google_sub <> ''
+    """)
+
+    # ---- 20. LANDLORD SESSIONS -----------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS landlord_sessions (
+            session_id         TEXT PRIMARY KEY,
+            landlord_id        INTEGER NOT NULL,
+            refresh_token_hash TEXT NOT NULL,
+            device_name        TEXT,
+            browser            TEXT,
+            os                 TEXT,
+            ip_address         TEXT,
+            created_at         TEXT NOT NULL,
+            last_activity      TEXT NOT NULL,
+            expires_at         TEXT NOT NULL,
+            revoked_at         TEXT,
+            remember_me        INTEGER DEFAULT 0,
+            status             TEXT DEFAULT 'Active',
+            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_landlord_sessions_landlord_id ON landlord_sessions(landlord_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_landlord_sessions_status ON landlord_sessions(status)")
+
+    # ---- 21. LANDLORD AUDIT LOGS ---------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS landlord_audit_logs (
+            id          BIGSERIAL PRIMARY KEY,
+            landlord_id INTEGER,
+            action      TEXT NOT NULL,
+            ip_address  TEXT,
+            created_at  TEXT NOT NULL,
+            meta_json   TEXT,
+            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE SET NULL
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_landlord_audit_logs_landlord_id ON landlord_audit_logs(landlord_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_landlord_audit_logs_action ON landlord_audit_logs(action)")
+
+    # ---- 22. LANDLORD UI CONFIG -----------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS landlord_ui_config (
+            landlorduuid TEXT PRIMARY KEY,
+            theme        TEXT NOT NULL DEFAULT 'system',
+            updated_at   TEXT NOT NULL
+        )
+    """)
+
+    # ---- 23. LEGACY LANDLORDS PROXY TABLE -------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS landlords (
+            id           BIGSERIAL PRIMARY KEY,
+            admin_id     INTEGER NOT NULL,
+            landlordUuid TEXT UNIQUE NOT NULL,
+            active       INTEGER DEFAULT 1,
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_landlords_uuid ON landlords(landlordUuid)")
+
+    # ---- 24. LANDLORD PROPERTIES ------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS landlord_properties (
+            id            BIGSERIAL PRIMARY KEY,
+            landlord_id   INTEGER NOT NULL REFERENCES landlord_accounts(id) ON DELETE CASCADE,
+            property_name TEXT NOT NULL,
+            address       TEXT NOT NULL DEFAULT '',
+            sort_order    INTEGER NOT NULL DEFAULT 0,
+            created_at    TEXT NOT NULL,
+            updated_at    TEXT NOT NULL
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_landlord_properties_landlord ON landlord_properties(landlord_id, sort_order)")
+
+    # ---- 25. LANDLORD PROFILES ----------------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS landlord_profiles (
+            landlord_id INTEGER PRIMARY KEY REFERENCES landlord_accounts(id) ON DELETE CASCADE,
+            config_json TEXT NOT NULL,
+            updated_at  TEXT NOT NULL
+        )
+    """)
+
+    # ---- 26. LANDLORD PRIVACY CONSENTS ---------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS landlord_privacy_consents (
+            id                BIGSERIAL PRIMARY KEY,
+            landlord_id       INTEGER NOT NULL,
+            privacy_version   TEXT NOT NULL,
+            accepted          INTEGER NOT NULL DEFAULT 1,
+            accepted_at       TEXT NOT NULL,
+            accepted_ip       TEXT,
+            accepted_user_agent TEXT,
+            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_landlord_privacy_consents_landlord ON landlord_privacy_consents(landlord_id)")
+
+    # ---- 27. LANDLORD TERMS CONSENTS ---------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS landlord_terms_consents (
+            id                BIGSERIAL PRIMARY KEY,
+            landlord_id       INTEGER NOT NULL,
+            terms_version     TEXT NOT NULL,
+            accepted          INTEGER NOT NULL DEFAULT 1,
+            accepted_at       TEXT NOT NULL,
+            accepted_ip       TEXT,
+            accepted_user_agent TEXT,
+            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_landlord_terms_consents_landlord ON landlord_terms_consents(landlord_id)")
+
+    # ---- 28. LANDLORD PASSWORD ADMIN STORE ------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS landlord_password_admin_store (
+            landlord_id        INTEGER PRIMARY KEY,
+            encrypted_password TEXT NOT NULL,
+            updated_at         TEXT NOT NULL,
+            FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id) ON DELETE CASCADE
+        )
+    """)
+
+    # ---- 29. PLATFORM ADMIN AUDIT LOGS -----------------------------------------------
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS platform_admin_audit_logs (
+            id          BIGSERIAL PRIMARY KEY,
+            admin_id    INTEGER NOT NULL,
+            action      TEXT NOT NULL,
+            target_type TEXT,
+            target_id   INTEGER,
+            ip_address  TEXT,
+            meta_json   TEXT,
+            created_at  TEXT NOT NULL,
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_platform_audit_admin ON platform_admin_audit_logs(admin_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_platform_audit_action ON platform_admin_audit_logs(action)")
+
+    # ---- 30. PERFORMANCE INDEXES ------------------------------------------------------
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_receipts_tenant ON receipts(tenant)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_receipts_status ON receipts(status)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_receipts_paymentstatus ON receipts(paymentstatus)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_receipts_tenantId ON receipts(tenantId)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_occupants_tenantId ON occupants(tenantId)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_receipts_landlord_id ON receipts(landlord_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_occupants_landlord_id ON occupants(landlord_id)")
+
+    # ---- 31. DEFERRED FOREIGN KEYS ----------------------------------------------
+    # landlord_accounts / landlord_properties are created later in this file, so
+    # the references from tenants/receipts/occupants are added now that they exist
+    # (PostgreSQL requires a referenced table to exist at FK-creation time).
+    cur.execute("ALTER TABLE tenants ADD CONSTRAINT fk_tenants_landlord "
+                "FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id)")
+    cur.execute("ALTER TABLE tenants ADD CONSTRAINT fk_tenants_property "
+                "FOREIGN KEY (property_id) REFERENCES landlord_properties(id)")
+    cur.execute("ALTER TABLE receipts ADD CONSTRAINT fk_receipts_property "
+                "FOREIGN KEY (property_id) REFERENCES landlord_properties(id)")
+    cur.execute("ALTER TABLE receipts ADD CONSTRAINT fk_receipts_landlord "
+                "FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id)")
+    cur.execute("ALTER TABLE occupants ADD CONSTRAINT fk_occupants_landlord "
+                "FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id)")
+
+    # ---- 32. INITIAL METADATA -------------------------------------------------------------
+    cur.execute(
+        "INSERT INTO app_metadata (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
+        ("tenant_schema_version", "3"),
+    )
+
+    conn.commit()
+
+
+def down(conn):
+    cur = conn.cursor()
+    tables = [
+        "landlords",
+        "landlord_ui_config",
+        "landlord_password_admin_store",
+        "landlord_profiles",
+        "landlord_properties",
+        "landlord_terms_consents",
+        "landlord_privacy_consents",
+        "landlord_audit_logs",
+        "landlord_sessions",
+        "landlord_accounts",
+        "tenant_recovery_snapshots",
+        "tenant_qr_feedback",
+        "platform_admin_audit_logs",
+        "occupants",
+        "payment_allocations",
+        "payment_entries",
+        "receipts",
+        "tenant_audit_logs",
+        "tenant_sessions",
+        "tenantPin_admin_store",
+        "tenantPin_history",
+        "tenant_password_reset_events",
+        "tenant_password_history",
+        "tenants",
+        "admin_sessions",
+        "admin_login_otps",
+        "admins",
+        "import_job_items",
+        "import_jobs",
+        "app_metadata",
+    ]
+    for t in tables:
+        cur.execute(f'DROP TABLE IF EXISTS "{t}" CASCADE')
+    conn.commit()
+```
+
+### `backend/app/app/db/migrations/002_seed.py`
+
+```python
+"""
+Migration 002: Initial seed / idempotent backfills (PostgreSQL).
+
+Ports the pure-SQL backfills from the SQLite core/db.py init that do not
+depend on application Python code:
+
+  * ensure `app_metadata` version rows exist
+  * backfill tenants.qr_key with a random hex key (md5(random()::text))
+  * seed the default platform admin (admin/<pin>) so first login works
+
+Backfills that require application logic (payment_entries legacy migration,
+payment_allocations recompute) are executed post-cutover in Phase O, where the
+source SQLite data and the app services are both available.
+"""
+
+from app.authentication.common.utils import hash_pin
+
+
+def up(conn):
+    cur = conn.cursor()
+
+    # Ensure app_metadata version rows exist
+    for key, value in (
+        ("auth_schema_version", "2"),
+        ("receipt_schema_version", "1"),
+        ("tenant_schema_version", "3"),
+        ("landlord_schema_version", "1"),
+    ):
+        cur.execute(
+            "INSERT INTO app_metadata (key, value) VALUES (%s, %s) "
+            "ON CONFLICT (key) DO NOTHING",
+            (key, value),
+        )
+
+    # Backfill qr_key (idempotent) - random 32-hex key matching SQLite
+    # randomblob(16) lowercased hex.
+    cur.execute(
+        """
+        UPDATE tenants
+        SET qr_key = md5(random()::text || clock_timestamp()::text)
+        WHERE qr_key IS NULL OR qr_key = ''
+        """
+    )
+
+    # Seed default platform admin (admin/<pin>) if none exists.
+    has_admin = cur.execute(
+        "SELECT 1 FROM admins WHERE is_platform_admin = 1 LIMIT 1"
+    ).fetchone()
+    if not has_admin:
+        cur.execute(
+            """
+            INSERT INTO admins (username, password_hash, is_platform_admin, created_at)
+            SELECT 'admin', %s, 1, now()::text
+            WHERE NOT EXISTS (SELECT 1 FROM admins WHERE username = 'admin')
+            """,
+            (hash_pin("admin"),),
+        )
+
+    conn.commit()
+
+
+def down(conn):
+    # Seed is logically a no-op to revert: qr_key stays, admin stays, metadata
+    # stays. Leaving data intact is the correct downgrade behavior.
+    pass
+```
+
+### `backend/app/app/db/migrations/__init__.py`
+
+```python
+"""Migrations package marker for PROPAURA PostgreSQL schema migrations."""
+```
+
+### `backend/app/app/db/migrations/migrator.py`
+
+```python
+"""
+Schema migration runner for PROPAURA (PostgreSQL).
+
+Migrations are plain-Python modules under app/db/migrations, each exposing:
+    up(conn)      - apply the migration
+    down(conn)    - revert the migration (best effort)
+
+Version tracking lives in a dedicated table `schema_migrations` so the
+application schema (app_metadata) is not polluted by infra bookkeeping.
+
+Usage (command line, inside the backend container):
+    python -m app.db.migrations.migrator up
+    python -m app.db.migrations.migrator up --target 003
+    python -m app.db.migrations.migrator down --target 001
+    python -m app.db.migrations.migrator status
+"""
+
+import importlib
+import os
+import pkgutil
+import sys
+
+from app.db.connection import init_pool, close_pool, get_conn
+
+
+MIGRATIONS_PKG = "app.db.migrations"
+TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version    TEXT PRIMARY KEY,
+    name       TEXT NOT NULL,
+    applied_at TEXT NOT NULL DEFAULT now()::text
+)
+"""
+
+
+def _discover() -> list:
+    mods = []
+    for m in pkgutil.iter_modules(importlib.import_module(MIGRATIONS_PKG).__path__):
+        if m.name == "__init__" or m.name.startswith("_"):
+            continue
+        seq = m.name.split("_", 1)[0]
+        if not seq.isdigit():
+            continue
+        mods.append((seq, m.name))
+    mods.sort()
+    return mods
+
+
+def _applied(conn) -> dict:
+    conn.execute(TABLE_SQL)
+    rows = conn.execute("SELECT version FROM schema_migrations").fetchall()
+    return {r["version"] for r in rows}
+
+
+def _record(conn, version, name):
+    conn.execute(
+        "INSERT INTO schema_migrations (version, name) VALUES (%s, %s) "
+        "ON CONFLICT (version) DO NOTHING",
+        (version, name),
+    )
+
+
+def _forget(conn, version):
+    conn.execute("DELETE FROM schema_migrations WHERE version = %s", (version,))
+
+
+def _load(name):
+    mod = importlib.import_module(f"{MIGRATIONS_PKG}.{name}")
+    if not hasattr(mod, "up"):
+        raise RuntimeError(f"migration {name} has no up()")
+    return mod
+
+
+def _applied_versions() -> set:
+    with get_conn() as conn:
+        return _applied(conn)
+
+
+def _apply_one(name):
+    mod = _load(name)
+    with get_conn() as tx:
+        mod.up(tx)
+        _record(tx, name.split("_", 1)[0], name)
+    print(f"[migrate] applied {name}")
+
+
+def _revert_one(name):
+    mod = _load(name)
+    if not hasattr(mod, "down"):
+        raise RuntimeError(f"migration {name} has no down()")
+    with get_conn() as tx:
+        mod.down(tx)
+        _forget(tx, name.split("_", 1)[0])
+    print(f"[migrate] reverted {name}")
+
+
+def up(target=None, close=True):
+    init_pool()
+    try:
+        applied = _applied_versions()
+        for seq, name in _discover():
+            if str(seq) in applied:
+                continue
+            if target and int(seq) > int(target):
+                break
+            _apply_one(name)
+            applied.add(str(seq))
+        print("[migrate] up to date")
+    finally:
+        if close:
+            close_pool()
+
+
+def down(target=None, close=True):
+    init_pool()
+    try:
+        applied = _applied_versions()
+        for seq, name in reversed(_discover()):
+            if str(seq) not in applied:
+                continue
+            if target and int(seq) <= int(target):
+                continue
+            _revert_one(name)
+    finally:
+        if close:
+            close_pool()
+
+
+def status(close=True):
+    init_pool()
+    try:
+        applied = _applied_versions()
+        print(f"{'SEQ':<6} {'NAME':<40} STATE")
+        for seq, name in _discover():
+            state = "applied" if str(seq) in applied else "pending"
+            print(f"{seq:<6} {name:<40} {state}")
+    finally:
+        if close:
+            close_pool()
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    cmd = args[0] if args else "status"
+    target = None
+    for i, a in enumerate(args):
+        if a == "--target" and i + 1 < len(args):
+            target = args[i + 1]
+    if cmd == "up":
+        up(target)
+    elif cmd == "down":
+        down(target)
+    elif cmd == "status":
+        status()
+    else:
+        print(__doc__)
+        sys.exit(2)
+```
+
+### `backend/app/app/encryption.py`
 
 ```python
 ﻿"""
@@ -14640,7 +11239,7 @@ def decrypt_payload(encrypted_aes_key_b64: str, encrypted_data_b64: str, nonce_b
 
 ```
 
-### `backend\app\app\main.py`
+### `backend/app/app/main.py`
 
 ```python
 import time
@@ -14702,7 +11301,7 @@ if __name__ == "__main__":
 
 ```
 
-### `backend\app\app\models\auth.py`
+### `backend/app/app/models/auth.py`
 
 ```python
 ﻿from pydantic import BaseModel
@@ -14739,7 +11338,7 @@ class DeviceSession(BaseModel):
 
 ```
 
-### `backend\app\app\models\landlord.py`
+### `backend/app/app/models/landlord.py`
 
 ```python
 """
@@ -14800,7 +11399,7 @@ class UsernameCheckResponse(BaseModel):
 
 ```
 
-### `backend\app\app\models\property.py`
+### `backend/app/app/models/property.py`
 
 ```python
 """
@@ -14855,7 +11454,7 @@ class LandlordSetupCompleteRequest(BaseModel):
     landlord: Optional[dict] = None
 ```
 
-### `backend\app\app\models\receipt.py`
+### `backend/app/app/models/receipt.py`
 
 ```python
 ﻿from pydantic import BaseModel, Field, field_validator, ConfigDict
@@ -15000,7 +11599,7 @@ class PaymentEntryUpdate(BaseModel):
 
 ```
 
-### `backend\app\app\models\tenant.py`
+### `backend/app/app/models/tenant.py`
 
 ```python
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -15080,14 +11679,14 @@ class Tenant(BaseModel):
 
 ```
 
-### `backend\app\app\pages\__init__.py`
+### `backend/app/app/pages/__init__.py`
 
 ```python
 
 
 ```
 
-### `backend\app\app\pages\archive.py`
+### `backend/app/app/pages/archive.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -15133,7 +11732,7 @@ async def archive_page(request: Request):
 
 ```
 
-### `backend\app\app\pages\backups.py`
+### `backend/app/app/pages/backups.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -15156,7 +11755,7 @@ async def backups_page(request: Request):
 
 ```
 
-### `backend\app\app\pages\billing.py`
+### `backend/app/app/pages/billing.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -15190,7 +11789,7 @@ async def billing_page(request: Request):
 
 ```
 
-### `backend\app\app\pages\dashboard.py`
+### `backend/app/app/pages/dashboard.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -15219,7 +11818,7 @@ async def dashboard(request: Request):
 
 ```
 
-### `backend\app\app\pages\errors.py`
+### `backend/app/app/pages/errors.py`
 
 ```python
 from fastapi import FastAPI, Request
@@ -15276,7 +11875,7 @@ def register_exception_handlers(app: FastAPI):
 
 ```
 
-### `backend\app\app\pages\frontend.py`
+### `backend/app/app/pages/frontend.py`
 
 ```python
 """app/pages/frontend.py
@@ -15396,7 +11995,7 @@ async def landing_app_fallback(request: Request, path: str = ""):
     return _spa_index(LANDING_DIST, request, path)
 ```
 
-### `backend\app\app\pages\history.py`
+### `backend/app/app/pages/history.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -15425,7 +12024,7 @@ async def history_page(request: Request):
 
 ```
 
-### `backend\app\app\pages\landing.py`
+### `backend/app/app/pages/landing.py`
 
 ```python
 """
@@ -15458,7 +12057,7 @@ async def landing_favicon(request: Request):
     return FileResponse("frontend/landing-app/dist/favicon.ico")
 ```
 
-### `backend\app\app\pages\redirects.py`
+### `backend/app/app/pages/redirects.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -15492,7 +12091,7 @@ for path in legacy_paths:
 # GET / is now handled by app/pages/landing.py which serves the public landing page.
 ```
 
-### `backend\app\app\pages\settings.py`
+### `backend/app/app/pages/settings.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -15527,7 +12126,7 @@ async def settings_page(request: Request):
 
 ```
 
-### `backend\app\app\pages\tenants.py`
+### `backend/app/app/pages/tenants.py`
 
 ```python
 from fastapi import APIRouter, Request
@@ -15560,7 +12159,7 @@ async def tenants_page(request: Request):
 
 ```
 
-### `backend\app\app\routers\admin_auth.py`
+### `backend/app/app/routers/admin_auth.py`
 
 ```python
 from fastapi import APIRouter, HTTPException
@@ -15718,7 +12317,7 @@ async def admin_public_key():
     return {"publicKey": get_public_key_pem()}
 ```
 
-### `backend\app\app\routers\auth.py`
+### `backend/app/app/routers/auth.py`
 
 ```python
 from fastapi import APIRouter, Depends, Request, Response, HTTPException, Path
@@ -16000,7 +12599,7 @@ async def auth_logout_all(
 
 ```
 
-### `backend\app\app\routers\landlord_routes.py`
+### `backend/app/app/routers/landlord_routes.py`
 
 ```python
 from __future__ import annotations
@@ -16055,7 +12654,7 @@ def validate_landlordUuid(value: str) -> None:
 
     from app.core.db import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT id FROM landlords WHERE landlordUuid = ? AND active = 1", (value,)).fetchone()
+        row = conn.execute("SELECT id FROM landlords WHERE landlordUuid = %s AND active = 1", (value,)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Landlord not found or inactive")
 
@@ -16229,7 +12828,7 @@ async def landlord_admin_alias(
     )
 ```
 
-### `backend\app\app\routers\landlordauth.py`
+### `backend/app/app/routers/landlordauth.py`
 
 ```python
 """
@@ -16556,8 +13155,9 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     now_iso = datetime.utcnow().isoformat()
     with _get_conn() as vault_conn:
         vault_conn.execute(
-            """INSERT OR REPLACE INTO landlord_password_admin_store
-               (landlord_id, encrypted_password, updated_at) VALUES (?, ?, ?)""",
+            """INSERT INTO landlord_password_admin_store
+               (landlord_id, encrypted_password, updated_at) VALUES (%s, %s, %s)
+               ON CONFLICT (landlord_id) DO UPDATE SET encrypted_password = excluded.encrypted_password, updated_at = excluded.updated_at""",
             (landlord["id"], encrypted_pw, now_iso),
         )
         vault_conn.commit()
@@ -16730,7 +13330,7 @@ async def landlord_login(
         now = datetime.utcnow().isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = ?",
+                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = %s",
                 (landlord["id"],),
             )
             conn.commit()
@@ -16866,7 +13466,7 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "privacy_consented, privacy_version, "
             "terms_consented, terms_version, "
             "setup_completed, setup_skipped "
-            "FROM landlord_accounts WHERE id = ?",
+            "FROM landlord_accounts WHERE id = %s",
             (principal.landlord_id,),
         ).fetchone()
 
@@ -16958,7 +13558,7 @@ async def landlord_login_with_totp(
         now = datetime.utcnow().isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = ?",
+                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = %s",
                 (landlord["id"],),
             )
             conn.commit()
@@ -17057,7 +13657,7 @@ async def landlord_change_password(
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, landlord_uuid, username, password_hash, requires_password_change FROM landlord_accounts WHERE id = ?",
+            "SELECT id, landlord_uuid, username, password_hash, requires_password_change FROM landlord_accounts WHERE id = %s",
             (landlord_id,),
         ).fetchone()
         if not landlord:
@@ -17080,22 +13680,23 @@ async def landlord_change_password(
     with get_conn() as conn:
         conn.execute(
             """UPDATE landlord_accounts
-               SET password_hash = ?,
+               SET password_hash = %s,
                    requires_password_change = 0,
                    temp_password_created_at = NULL,
                    temp_password_consumed = 0,
-                   updated_at = ?
-               WHERE id = ?""",
+                   updated_at = %s
+               WHERE id = %s""",
             (new_hash, now, landlord_id),
         )
         conn.execute(
-            """INSERT OR REPLACE INTO landlord_password_admin_store
-               (landlord_id, encrypted_password, updated_at) VALUES (?, ?, ?)""",
+            """INSERT INTO landlord_password_admin_store
+               (landlord_id, encrypted_password, updated_at) VALUES (%s, %s, %s)
+               ON CONFLICT (landlord_id) DO UPDATE SET encrypted_password = excluded.encrypted_password, updated_at = excluded.updated_at""",
             (landlord_id, encrypted_pw, now),
         )
         # Check if landlord has TOTP configured
         row = conn.execute(
-            "SELECT totp_secret FROM landlord_accounts WHERE id = ?",
+            "SELECT totp_secret FROM landlord_accounts WHERE id = %s",
             (landlord_id,),
         ).fetchone()
         conn.commit()
@@ -17218,7 +13819,7 @@ async def landlord_totp_enable(
 
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET totp_enabled = 1, updated_at = ? WHERE id = ?",
+            "UPDATE landlord_accounts SET totp_enabled = 1, updated_at = %s WHERE id = %s",
             (now, landlord["id"]),
         )
         conn.commit()
@@ -17268,7 +13869,7 @@ async def landlord_totp_disable(
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET totp_enabled = 0, updated_at = ? WHERE id = ?",
+            "UPDATE landlord_accounts SET totp_enabled = 0, updated_at = %s WHERE id = %s",
             (now, landlord["id"]),
         )
         conn.commit()
@@ -17325,7 +13926,7 @@ async def landlord_audit_logs(
                 ll.created_at
             FROM landlord_audit_logs ll
             LEFT JOIN landlord_accounts la ON ll.landlord_id = la.id
-            WHERE ll.landlord_id = ?
+            WHERE ll.landlord_id = %s
 
             UNION ALL
 
@@ -17342,30 +13943,30 @@ async def landlord_audit_logs(
                 tl.created_at
             FROM tenant_audit_logs tl
             LEFT JOIN tenants t ON tl.tenantId = t.id
-            WHERE tl.tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)
+            WHERE tl.tenantId IN (SELECT id FROM tenants WHERE landlord_id = %s)
         ) unified
         WHERE 1=1
     """
     params: list = [landlord_id, landlord_id]
 
     if action_type:
-        query += " AND action LIKE ?"
+        query += " AND action LIKE %s"
         params.append(f"%{action_type}%")
     if search:
-        query += " AND (action LIKE ? OR ip_address LIKE ? OR actor_name LIKE ?)"
+        query += " AND (action LIKE %s OR ip_address LIKE %s OR actor_name LIKE %s)"
         params.extend([f"%{search}%"] * 3)
     if date_from:
-        query += " AND created_at >= ?"
+        query += " AND created_at >= %s"
         params.append(date_from)
     if date_to:
-        query += " AND created_at <= ?"
+        query += " AND created_at <= %s"
         params.append(date_to + "T23:59:59")
 
     count_query = "SELECT COUNT(*) FROM (" + query + ")"
     with get_conn() as conn:
         total = conn.execute(count_query, tuple(params)).fetchone()[0]
 
-    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -17404,10 +14005,10 @@ async def landlord_audit_action_types(
     landlord_id = principal.id
     query = """
         SELECT DISTINCT action FROM (
-            SELECT action FROM landlord_audit_logs WHERE landlord_id = ?
+            SELECT action FROM landlord_audit_logs WHERE landlord_id = %s
             UNION ALL
             SELECT action FROM tenant_audit_logs
-            WHERE tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)
+            WHERE tenantId IN (SELECT id FROM tenants WHERE landlord_id = %s)
         ) ORDER BY action
     """
     with get_conn() as conn:
@@ -17415,7 +14016,7 @@ async def landlord_audit_action_types(
     return [r["action"] for r in rows]
 ```
 
-### `backend\app\app\routers\platform_admin.py`
+### `backend/app/app/routers/platform_admin.py`
 
 ```python
 """
@@ -17511,7 +14112,7 @@ def _get_platform_admin(request: Request) -> dict:
     admin_id = int(payload["admin_id"])
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, email, is_platform_admin, totp_secret FROM admins WHERE id = ?", (admin_id,)
+            "SELECT id, username, email, is_platform_admin, totp_secret FROM admins WHERE id = %s", (admin_id,)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=401, detail="Platform admin not found")
@@ -17558,7 +14159,7 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until FROM admins WHERE username = ?",
+            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until FROM admins WHERE username = %s",
             (body.username,),
         ).fetchone()
     if not row:
@@ -17577,7 +14178,7 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
                 raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
             else:
                 with get_conn() as conn:
-                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
                     conn.commit()
         except HTTPException:
             raise
@@ -17592,7 +14193,7 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -17608,7 +14209,7 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
 
     # Reset failed attempts on success
     with get_conn() as conn:
-        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
         conn.commit()
 
     # 2FA gate: require a second factor whenever TOTP is configured OR a
@@ -17642,7 +14243,7 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
             """
             INSERT INTO admin_sessions
             (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now', ?), ?, 'Active')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now(), now() + %s::interval, %s, 'Active')
             """,
             (
                 session_id,
@@ -17681,7 +14282,7 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until FROM admins WHERE username = ?",
+            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until FROM admins WHERE username = %s",
             (body.username,),
         ).fetchone()
     if not row:
@@ -17700,7 +14301,7 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
                 raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
             else:
                 with get_conn() as conn:
-                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
                     conn.commit()
         except HTTPException:
             raise
@@ -17714,7 +14315,7 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -17736,7 +14337,7 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -17749,7 +14350,7 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
 
     # Reset failed attempts on success
     with get_conn() as conn:
-        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
         conn.commit()
 
     session_id, access_token = _create_session_token(row["id"])
@@ -17761,7 +14362,7 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
             """
             INSERT INTO admin_sessions
             (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now', ?), ?, 'Active')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now(), now() + %s::interval, %s, 'Active')
             """,
             (
                 session_id,
@@ -17800,7 +14401,7 @@ async def platform_login_otp_send(body: OtpSendRequest, request: Request):
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until, telegram_chat_id FROM admins WHERE username = ?",
+            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until, telegram_chat_id FROM admins WHERE username = %s",
             (body.username,),
         ).fetchone()
     if not row:
@@ -17819,7 +14420,7 @@ async def platform_login_otp_send(body: OtpSendRequest, request: Request):
                 raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
             else:
                 with get_conn() as conn:
-                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
                     conn.commit()
         except HTTPException:
             raise
@@ -17833,7 +14434,7 @@ async def platform_login_otp_send(body: OtpSendRequest, request: Request):
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -17906,7 +14507,7 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until, telegram_chat_id FROM admins WHERE username = ?",
+            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until, telegram_chat_id FROM admins WHERE username = %s",
             (body.username,),
         ).fetchone()
     if not row:
@@ -17925,7 +14526,7 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
                 raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
             else:
                 with get_conn() as conn:
-                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
                     conn.commit()
         except HTTPException:
             raise
@@ -17939,7 +14540,7 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -17960,7 +14561,7 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = ?, locked_until = ? WHERE id = ?",
+                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -17973,7 +14574,7 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
 
     # Reset failed attempts on success
     with get_conn() as conn:
-        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?", (row["id"],))
+        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
         conn.commit()
 
     session_id, access_token = _create_session_token(row["id"])
@@ -17985,7 +14586,7 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
             """
             INSERT INTO admin_sessions
             (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now', ?), ?, 'Active')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now(), now() + %s::interval, %s, 'Active')
             """,
             (
                 session_id,
@@ -18026,14 +14627,14 @@ async def platform_refresh(request: Request, response: Response):
 
     with get_conn() as conn:
         session = conn.execute(
-            "SELECT * FROM admin_sessions WHERE session_id = ? AND status = 'Active'",
+            "SELECT * FROM admin_sessions WHERE session_id = %s AND status = 'Active'",
             (session_id,),
         ).fetchone()
 
         if not session or not verify_pin(raw_token, session["refresh_token_hash"]):
             if session:
                 conn.execute(
-                    "UPDATE admin_sessions SET status = 'Revoked', revoked_at = datetime('now') WHERE session_id = ?",
+                    "UPDATE admin_sessions SET status = 'Revoked', revoked_at = now() WHERE session_id = %s",
                     (session_id,),
                 )
                 conn.commit()
@@ -18041,7 +14642,7 @@ async def platform_refresh(request: Request, response: Response):
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
         conn.execute(
-            "UPDATE admin_sessions SET status = 'Revoked', revoked_at = datetime('now') WHERE session_id = ?",
+            "UPDATE admin_sessions SET status = 'Revoked', revoked_at = now() WHERE session_id = %s",
             (session_id,),
         )
 
@@ -18055,7 +14656,7 @@ async def platform_refresh(request: Request, response: Response):
             """
             INSERT INTO admin_sessions
             (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'), datetime('now', ?), ?, 'Active')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now(), now() + %s::interval, %s, 'Active')
             """,
             (
                 new_session_id,
@@ -18084,7 +14685,7 @@ async def platform_logout(request: Request, response: Response):
 
     with get_conn() as conn:
         conn.execute(
-            "UPDATE admin_sessions SET status = 'Revoked', revoked_at = datetime('now') WHERE session_id = ?",
+            "UPDATE admin_sessions SET status = 'Revoked', revoked_at = now() WHERE session_id = %s",
             (session_id,),
         )
         conn.commit()
@@ -18180,10 +14781,10 @@ async def update_profile(request: Request, body: UpdateProfileRequest):
         existing = get_admin_by_username(body.username)
         if existing and existing["id"] != admin["id"]:
             raise HTTPException(status_code=409, detail="Username already taken")
-        updates.append("username = ?")
+        updates.append("username = %s")
         params.append(body.username)
     if body.email is not None:
-        updates.append("email = ?")
+        updates.append("email = %s")
         params.append(body.email)
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -18191,7 +14792,7 @@ async def update_profile(request: Request, body: UpdateProfileRequest):
     params.append(admin["id"])
     with get_conn() as conn:
         conn.execute(
-            f"UPDATE admins SET {', '.join(updates)}, updated_at = ? WHERE id = ?",
+            f"UPDATE admins SET {', '.join(updates)}, updated_at = %s WHERE id = %s",
             tuple(params),
         )
         conn.commit()
@@ -18353,12 +14954,12 @@ async def list_landlords(
     """
     params: list = []
     if search:
-        query += " AND (la.username LIKE ? OR la.full_name LIKE ? OR la.email LIKE ?)"
+        query += " AND (la.username LIKE %s OR la.full_name LIKE %s OR la.email LIKE %s)"
         params.extend([f"%{search}%"] * 3)
     if status:
-        query += " AND la.status = ?"
+        query += " AND la.status = %s"
         params.append(status)
-    query += " ORDER BY la.created_at DESC LIMIT ? OFFSET ?"
+    query += " ORDER BY la.created_at DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -18370,17 +14971,17 @@ async def get_landlord_details(landlord_id: int, request: Request):
     _get_platform_admin(request)
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT * FROM landlord_accounts WHERE id = ?", (landlord_id,)
+            "SELECT * FROM landlord_accounts WHERE id = %s", (landlord_id,)
         ).fetchone()
         if not landlord:
             raise HTTPException(status_code=404, detail="Landlord not found")
         stats = conn.execute(
             """
             SELECT
-                (SELECT COUNT(*) FROM tenants WHERE landlord_id = ?) as tenants,
-                (SELECT COUNT(*) FROM receipts WHERE landlord_id = ?) as receipts,
-                (SELECT COUNT(*) FROM occupants WHERE landlord_id = ?) as kyc,
-                (SELECT COALESCE(SUM(total), 0) FROM receipts WHERE landlord_id = ? AND paymentstatus = 'PENDING') as pending_revenue
+                (SELECT COUNT(*) FROM tenants WHERE landlord_id = %s) as tenants,
+                (SELECT COUNT(*) FROM receipts WHERE landlord_id = %s) as receipts,
+                (SELECT COUNT(*) FROM occupants WHERE landlord_id = %s) as kyc,
+                (SELECT COALESCE(SUM(total), 0) FROM receipts WHERE landlord_id = %s AND paymentstatus = 'PENDING') as pending_revenue
             """,
             (landlord_id, landlord_id, landlord_id, landlord_id),
         ).fetchone()
@@ -18398,7 +14999,7 @@ async def get_landlord_creator_info(landlord_id: int, request: Request):
     _get_platform_admin(request)
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, username, full_name, created_at FROM landlord_accounts WHERE id = ?",
+            "SELECT id, username, full_name, created_at FROM landlord_accounts WHERE id = %s",
             (landlord_id,),
         ).fetchone()
         if not landlord:
@@ -18408,7 +15009,7 @@ async def get_landlord_creator_info(landlord_id: int, request: Request):
             """
             SELECT ip_address, created_at, meta_json
             FROM landlord_audit_logs
-            WHERE landlord_id = ? AND action = 'signup_success'
+            WHERE landlord_id = %s AND action = 'signup_success'
             ORDER BY created_at DESC LIMIT 1
             """,
             (landlord_id,),
@@ -18417,7 +15018,7 @@ async def get_landlord_creator_info(landlord_id: int, request: Request):
             """
             SELECT created_at, ip_address
             FROM landlord_audit_logs
-            WHERE landlord_id = ? AND action = 'login_success'
+            WHERE landlord_id = %s AND action = 'login_success'
             ORDER BY created_at DESC LIMIT 1
             """,
             (landlord_id,),
@@ -18470,19 +15071,19 @@ async def preview_tenants(
     """
     params: list = []
     if search:
-        query += " AND (t.name LIKE ? OR t.phone LIKE ? OR t.email LIKE ? OR t.roomnumber LIKE ?)"
+        query += " AND (t.name LIKE %s OR t.phone LIKE %s OR t.email LIKE %s OR t.roomnumber LIKE %s)"
         params.extend([f"%{search}%"] * 4)
     if landlord_id:
-        query += " AND t.landlord_id = ?"
+        query += " AND t.landlord_id = %s"
         params.append(landlord_id)
     if status:
-        query += " AND t.status = ?"
+        query += " AND t.status = %s"
         params.append(status)
-    query += " ORDER BY t.id DESC LIMIT ? OFFSET ?"
+    query += " ORDER BY t.id DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with get_conn() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM tenants" + (" WHERE landlord_id = ?" if landlord_id else ""),
+            "SELECT COUNT(*) FROM tenants" + (" WHERE landlord_id = %s" if landlord_id else ""),
             (landlord_id,) if landlord_id else (),
         ).fetchone()[0]
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -18513,19 +15114,19 @@ async def preview_receipts(
     """
     params: list = []
     if search:
-        query += " AND (t.name LIKE ? OR t.roomnumber LIKE ? OR r.billNo LIKE ?)"
+        query += " AND (t.name LIKE %s OR t.roomnumber LIKE %s OR r.billNo LIKE %s)"
         params.extend([f"%{search}%"] * 3)
     if landlord_id:
-        query += " AND r.landlord_id = ?"
+        query += " AND r.landlord_id = %s"
         params.append(landlord_id)
     if status:
-        query += " AND r.paymentstatus = ?"
+        query += " AND r.paymentstatus = %s"
         params.append(status)
-    query += " ORDER BY r.rowid DESC LIMIT ? OFFSET ?"
+    query += " ORDER BY r.id DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with get_conn() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM receipts" + (" WHERE landlord_id = ?" if landlord_id else ""),
+            "SELECT COUNT(*) FROM receipts" + (" WHERE landlord_id = %s" if landlord_id else ""),
             (landlord_id,) if landlord_id else (),
         ).fetchone()[0]
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -18556,19 +15157,19 @@ async def preview_kyc(
     """
     params: list = []
     if search:
-        query += " AND (o.name LIKE ? OR t.name LIKE ? OR t.roomnumber LIKE ?)"
+        query += " AND (o.name LIKE %s OR t.name LIKE %s OR t.roomnumber LIKE %s)"
         params.extend([f"%{search}%"] * 3)
     if landlord_id:
-        query += " AND o.landlord_id = ?"
+        query += " AND o.landlord_id = %s"
         params.append(landlord_id)
     if status:
-        query += " AND o.status = ?"
+        query += " AND o.status = %s"
         params.append(status)
-    query += " ORDER BY o.rowid DESC LIMIT ? OFFSET ?"
+    query += " ORDER BY o.id DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with get_conn() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM occupants" + (" WHERE landlord_id = ?" if landlord_id else ""),
+            "SELECT COUNT(*) FROM occupants" + (" WHERE landlord_id = %s" if landlord_id else ""),
             (landlord_id,) if landlord_id else (),
         ).fetchone()[0]
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -18617,7 +15218,7 @@ async def toggle_landlord_totp(landlord_id: int, request: Request):
         # Disable: flip totp_enabled to 0, keep totp_secret
         with get_conn() as conn:
             conn.execute(
-                "UPDATE landlord_accounts SET totp_enabled = 0, updated_at = ? WHERE id = ?",
+                "UPDATE landlord_accounts SET totp_enabled = 0, updated_at = %s WHERE id = %s",
                 (now, landlord_id),
             )
             conn.commit()
@@ -18640,7 +15241,7 @@ async def toggle_landlord_totp(landlord_id: int, request: Request):
         # Enable: flip totp_enabled to 1, generate secret if missing
         with get_conn() as conn:
             conn.execute(
-                "UPDATE landlord_accounts SET totp_enabled = 1, updated_at = ? WHERE id = ?",
+                "UPDATE landlord_accounts SET totp_enabled = 1, updated_at = %s WHERE id = %s",
                 (now, landlord_id),
             )
             conn.commit()
@@ -18685,7 +15286,7 @@ async def reveal_landlord_password(landlord_id: int, request: Request):
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT encrypted_password, updated_at FROM landlord_password_admin_store WHERE landlord_id = ?",
+            "SELECT encrypted_password, updated_at FROM landlord_password_admin_store WHERE landlord_id = %s",
             (landlord_id,),
         ).fetchone()
 
@@ -18719,7 +15320,7 @@ async def reset_landlord_password(landlord_id: int, request: Request):
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, username, phone FROM landlord_accounts WHERE id = ?", (landlord_id,)
+            "SELECT id, username, phone FROM landlord_accounts WHERE id = %s", (landlord_id,)
         ).fetchone()
         if not landlord:
             raise HTTPException(status_code=404, detail="Landlord not found")
@@ -18734,17 +15335,18 @@ async def reset_landlord_password(landlord_id: int, request: Request):
     with get_conn() as conn:
         conn.execute(
             """UPDATE landlord_accounts
-               SET password_hash = ?,
+               SET password_hash = %s,
                    requires_password_change = 1,
-                   temp_password_created_at = ?,
+                   temp_password_created_at = %s,
                    temp_password_consumed = 0,
-                   updated_at = ?
-               WHERE id = ?""",
+                   updated_at = %s
+               WHERE id = %s""",
             (password_hash, now, now, landlord_id),
         )
         conn.execute(
-            """INSERT OR REPLACE INTO landlord_password_admin_store
-               (landlord_id, encrypted_password, updated_at) VALUES (?, ?, ?)""",
+            """INSERT INTO landlord_password_admin_store
+               (landlord_id, encrypted_password, updated_at) VALUES (%s, %s, %s)
+               ON CONFLICT (landlord_id) DO UPDATE SET encrypted_password = excluded.encrypted_password, updated_at = excluded.updated_at""",
             (landlord_id, encrypted_pw, now),
         )
         conn.commit()
@@ -18815,14 +15417,14 @@ async def preview_tenant_auth(tenant_id: int, request: Request):
     with get_conn() as conn:
         tenant = conn.execute(
             """SELECT id, name, status, failed_attempts, locked_until, tenantpin
-               FROM tenants WHERE id = ?""",
+               FROM tenants WHERE id = %s""",
             (tenant_id,),
         ).fetchone()
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
 
         pin_row = conn.execute(
-            "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = ?",
+            "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = %s",
             (tenant_id,),
         ).fetchone()
 
@@ -18865,13 +15467,13 @@ async def security_alerts(
                 'admin' AS actor_type,
                 (SELECT username FROM admins WHERE id = pal.actor_id) AS actor_name
             FROM platform_admin_audit_logs pal
-            WHERE action LIKE '%fail%' OR action LIKE '%block%' OR action LIKE '%invalid%'
+            WHERE action LIKE '%%fail%%' OR action LIKE '%%block%%' OR action LIKE '%%invalid%%'
         """
         params: list = []
         if type:
-            query += " AND action LIKE ?"
+            query += " AND action LIKE %s"
             params.append(f"%{type}%")
-        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
         params.extend([limit, offset])
         rows = conn.execute(query, tuple(params)).fetchall()
 
@@ -18884,8 +15486,8 @@ async def security_alerts(
                 'landlord' AS actor_type,
                 la.username AS actor_name
             FROM landlord_accounts la
-            WHERE la.locked_until IS NOT NULL AND la.locked_until > datetime('now')
-            ORDER BY la.locked_until DESC LIMIT ? OFFSET ?
+            WHERE la.locked_until IS NOT NULL AND la.locked_until > now()
+            ORDER BY la.locked_until DESC LIMIT %s OFFSET %s
             """,
             (limit, offset),
         ).fetchall()
@@ -19073,26 +15675,26 @@ async def list_audit_logs(
     query = _UNIFIED_AUDIT_QUERY
     params: list = []
     if app_source and app_source in ("platform_admin", "landlord", "tenant"):
-        query += " AND app_source = ?"
+        query += " AND app_source = %s"
         params.append(app_source)
     if action_type:
-        query += " AND action LIKE ?"
+        query += " AND action LIKE %s"
         params.append(f"%{action_type}%")
     if search:
-        query += " AND (action LIKE ? OR ip_address LIKE ? OR actor_name LIKE ?)"
+        query += " AND (action LIKE %s OR ip_address LIKE %s OR actor_name LIKE %s)"
         params.extend([f"%{search}%"] * 3)
     if date_from:
-        query += " AND created_at >= ?"
+        query += " AND created_at >= %s"
         params.append(date_from)
     if date_to:
-        query += " AND created_at <= ?"
+        query += " AND created_at <= %s"
         params.append(date_to + "T23:59:59")
 
     count_query = "SELECT COUNT(*) FROM (" + query + ")"
     with get_conn() as conn:
         total = conn.execute(count_query, tuple(params)).fetchone()[0]
 
-    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -19156,19 +15758,19 @@ async def export_audit_logs(
     query = _UNIFIED_AUDIT_QUERY
     params: list = []
     if app_source and app_source in ("platform_admin", "landlord", "tenant"):
-        query += " AND app_source = ?"
+        query += " AND app_source = %s"
         params.append(app_source)
     if action_type:
-        query += " AND action LIKE ?"
+        query += " AND action LIKE %s"
         params.append(f"%{action_type}%")
     if search:
-        query += " AND (action LIKE ? OR ip_address LIKE ? OR actor_name LIKE ?)"
+        query += " AND (action LIKE %s OR ip_address LIKE %s OR actor_name LIKE %s)"
         params.extend([f"%{search}%"] * 3)
     if date_from:
-        query += " AND created_at >= ?"
+        query += " AND created_at >= %s"
         params.append(date_from)
     if date_to:
-        query += " AND created_at <= ?"
+        query += " AND created_at <= %s"
         params.append(date_to + "T23:59:59")
     query += " ORDER BY created_at DESC"
 
@@ -19226,17 +15828,17 @@ async def list_feedback(
     query = "SELECT * FROM tenant_qr_feedback WHERE 1=1"
     params: list = []
     if status in ("open", "resolved"):
-        query += " AND status = ?"
+        query += " AND status = %s"
         params.append(status)
     if search:
-        query += " AND (tenant_name LIKE ? OR message LIKE ? OR qr_key LIKE ?)"
+        query += " AND (tenant_name LIKE %s OR message LIKE %s OR qr_key LIKE %s)"
         params.extend([f"%{search}%"] * 3)
 
     count_query = "SELECT COUNT(*) FROM (" + query + ")"
     with get_conn() as conn:
         total = conn.execute(count_query, tuple(params)).fetchone()[0]
 
-    query += " ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, created_at DESC LIMIT ? OFFSET ?"
+    query += " ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, created_at DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -19294,15 +15896,15 @@ async def reply_feedback(request: Request, feedback_id: int, body: FeedbackReply
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, status FROM tenant_qr_feedback WHERE id = ?", (feedback_id,)
+            "SELECT id, status FROM tenant_qr_feedback WHERE id = %s", (feedback_id,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Feedback not found")
         conn.execute(
             """
             UPDATE tenant_qr_feedback
-            SET admin_reply = ?, status = 'resolved', resolved_at = ?, resolved_by = ?
-            WHERE id = ?
+            SET admin_reply = %s, status = 'resolved', resolved_at = %s, resolved_by = %s
+            WHERE id = %s
             """,
             (body.admin_reply.strip(), now, admin["id"], feedback_id),
         )
@@ -19324,15 +15926,15 @@ async def resolve_feedback(request: Request, feedback_id: int):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id FROM tenant_qr_feedback WHERE id = ?", (feedback_id,)
+            "SELECT id FROM tenant_qr_feedback WHERE id = %s", (feedback_id,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Feedback not found")
         conn.execute(
             """
             UPDATE tenant_qr_feedback
-            SET status = 'resolved', resolved_at = ?, resolved_by = ?
-            WHERE id = ?
+            SET status = 'resolved', resolved_at = %s, resolved_by = %s
+            WHERE id = %s
             """,
             (now, admin["id"], feedback_id),
         )
@@ -19402,7 +16004,7 @@ async def serve_platform_admin_app(request: Request, path: str = ""):
     return await _serve_platform_admin_spa()
 ```
 
-### `backend\app\app\services\backup_service.py`
+### `backend/app/app/services/backup_service.py`
 
 ```python
 import os
@@ -19598,13 +16200,13 @@ def _stage_landlord_export(landlord_id: int, temp_dir: str):
 
     with get_conn() as conn:
         tenants = [dict(r) for r in conn.execute(
-            "SELECT * FROM tenants WHERE landlord_id = ?", (landlord_id,)
+            "SELECT * FROM tenants WHERE landlord_id = %s", (landlord_id,)
         ).fetchall()]
         receipts = [dict(r) for r in conn.execute(
-            "SELECT * FROM receipts WHERE landlord_id = ?", (landlord_id,)
+            "SELECT * FROM receipts WHERE landlord_id = %s", (landlord_id,)
         ).fetchall()]
         occupants = [dict(r) for r in conn.execute(
-            "SELECT * FROM occupants WHERE landlord_id = ?", (landlord_id,)
+            "SELECT * FROM occupants WHERE landlord_id = %s", (landlord_id,)
         ).fetchall()]
 
     with open(os.path.join(data_dir, "tenants.json"), "w", encoding="utf-8") as f:
@@ -19754,7 +16356,7 @@ def _landlord_tenants(landlord_id: int) -> list:
     from app.core.db import get_conn
     with get_conn() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT id, name, status, phone, roomnumber FROM tenants WHERE landlord_id = ?",
+            "SELECT id, name, status, phone, roomnumber FROM tenants WHERE landlord_id = %s",
             (landlord_id,),
         ).fetchall()]
 
@@ -19870,7 +16472,7 @@ def restore_backup(backupId):
 
 ```
 
-### `backend\app\app\services\billing_service.py`
+### `backend/app/app/services/billing_service.py`
 
 ```python
 # //File: app\app\services\billing_service.py
@@ -19889,7 +16491,7 @@ from app.core.paths import DB_DIR, BACKUPS_DIR as BACKUP_DIR, RECEIPTS_DIR
 
 def get_bill_details(tenantId, billNo):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s", (tenantId, billNo)).fetchone()
     if row:
         return _row_to_dict(row)
     return None
@@ -19969,14 +16571,14 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
     if landlord_id is not None and not get_tenant(tenantId, landlord_id):
         raise ValueError("Tenant not found")
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s", (tenantId, billNo)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
 
         # Normalize the chain first so validation and the PAID default use the
         # authoritative running balance entering this bill.
         recompute_tenant_arrear_chain(conn, tenantId)
-        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s", (tenantId, billNo)).fetchone()
 
         currentTotal = float(row["total"])
         previousArrears = float(row["previousarrears"])
@@ -20015,8 +16617,8 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
         
         conn.execute("""
             UPDATE receipts 
-            SET paymentstatus = ?, amountreceived = ?
-            WHERE tenantId = ? AND billNo = ?
+            SET paymentstatus = %s, amountreceived = %s
+            WHERE tenantId = %s AND billNo = %s
         """, (finalStatus, amountReceived, tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
@@ -20138,7 +16740,7 @@ def get_tenant_balance(tenant_id: int) -> float:
     with get_conn() as conn:
         row = conn.execute(
             "SELECT COALESCE(SUM(COALESCE(total,0)),0) - COALESCE(SUM(COALESCE(amountreceived,0)),0) AS balance "
-            "FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+            "FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
             (tenant_id,),
         ).fetchone()
     return round(float(row["balance"] or 0), 2)
@@ -20160,7 +16762,7 @@ def recompute_tenant_arrear_chain(conn, tenant_id: int) -> list:
     from app.services.landlord_config_service import get_effective_landlord_config
 
     rows = conn.execute(
-        "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+        "SELECT id AS rowid, * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
         (tenant_id,),
     ).fetchall()
 
@@ -20178,7 +16780,7 @@ def recompute_tenant_arrear_chain(conn, tenant_id: int) -> list:
         actual_prev = round(float(r["previousarrears"] or 0), 2)
         if abs(expected_prev - actual_prev) > 0.001:
             conn.execute(
-                "UPDATE receipts SET previousarrears = ? WHERE billNo = ? AND tenantId = ?",
+                "UPDATE receipts SET previousarrears = %s WHERE billNo = %s AND tenantId = %s",
                 (expected_prev, r["billNo"], tenant_id),
             )
             changed.append(r["billNo"])
@@ -20188,7 +16790,7 @@ def recompute_tenant_arrear_chain(conn, tenant_id: int) -> list:
         try:
             conf = get_effective_landlord_config(landlord_id) if landlord_id else {}
             fresh = conn.execute(
-                "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+                "SELECT id AS rowid, * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
                 (tenant_id,),
             ).fetchall()
             fresh_by_no = {r["billNo"]: r for r in fresh}
@@ -20227,11 +16829,11 @@ def get_all_receipts(include_archived_tenants: bool = False, landlord_id=None):
     clauses = []
     params: list = []
     if landlord_id is not None:
-        clauses.append("landlord_id = ?")
+        clauses.append("landlord_id = %s")
         params.append(landlord_id)
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with get_conn() as conn:
-        rows = conn.execute(f"SELECT * FROM receipts{where} ORDER BY rowid DESC", tuple(params)).fetchall()
+        rows = conn.execute(f"SELECT * FROM receipts{where} ORDER BY id DESC", tuple(params)).fetchall()
     
     receipts = [_row_to_dict(r) for r in rows]
     
@@ -20256,27 +16858,66 @@ def get_receipts_for_tenant(tenant_id: int, include_archived: bool = False, land
 def get_receipt(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
     with get_conn() as conn:
-        query = "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?"
+        query = "SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s"
         params: list = [tenantId, billNo]
         if landlord_id is not None:
-            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)"
+            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = %s)"
             params.append(landlord_id)
         row = conn.execute(query, tuple(params)).fetchone()
     if row:
         return _row_to_dict(row)
     return None
 
+def _bill_sequence(bill_no: str):
+    """Return the numeric sequence of a bill number for chain ordering.
+
+    Bill numbers are formatted T{tenantId}-{sequence:03d} (e.g. T1-001, T1-002).
+    The sequence is the trailing numeric component; unknown/unparseable bill
+    numbers sort last so they never shadow a valid predecessor.
+    """
+    s = str(bill_no or "").split("-")[-1].strip()
+    if s.isdigit():
+        return int(s)
+    return 1 << 60
+
+def _get_bill_predecessor(conn, tenant_id: int, target_bill_no: str):
+    """Return the active receipt immediately preceding a target bill.
+
+    The chain rule: a bill's `previous` reading is the current reading of the
+    bill with the highest sequence strictly below the target's own sequence.
+    The target bill is excluded from the candidate set so an edit cannot resolve
+    its predecessor from itself. Returns None when the target has no
+    predecessor (i.e. it is the tenant's first bill), in which case the caller
+    falls back to tenant.previousMeter.
+    """
+    rows = conn.execute(
+        "SELECT id AS rowid, * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
+        (tenant_id,),
+    ).fetchall()
+    target_seq = _bill_sequence(target_bill_no)
+    candidates = [
+        r for r in rows
+        if r["billNo"] != target_bill_no and _bill_sequence(r["billNo"]) < target_seq
+    ]
+    if not candidates:
+        return None
+    candidates.sort(key=lambda r: _bill_sequence(r["billNo"]))
+    return candidates[-1]
+
 def get_latest_receipt(tenantId: int, exclude_BillNo: str = None):
     with get_conn() as conn:
-        query = "SELECT * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'"
+        query = "SELECT * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'"
         params = [tenantId]
         if exclude_BillNo:
-            query += " AND billNo != ?"
+            query += " AND billNo != %s"
             params.append(exclude_BillNo)
-        query += " ORDER BY rowid DESC LIMIT 1"
-        row = conn.execute(query, tuple(params)).fetchone()
-    if row:
-        return _row_to_dict(row)
+        rows = conn.execute(query, tuple(params)).fetchall()
+    # Order by bill sequence (T{n}-{seq}) so chain resolution and create-bill
+    # fallbacks follow the same canonical ordering as bill edits, rather than
+    # insertion order (rowid) which can diverge.
+    if rows:
+        rows.sort(key=lambda r: _bill_sequence(r["billNo"]))
+        return _row_to_dict(rows[-1])
     return None
 
 def resolve_previous_reading(tenantId: int, exclude_BillNo: str = None) -> float:
@@ -20288,6 +16929,99 @@ def resolve_previous_reading(tenantId: int, exclude_BillNo: str = None) -> float
     if tenant:
         return float(getattr(tenant, "previousMeter", 0) or 0)
     return 0.0
+
+def _rebuild_meter_chain(conn, tenant_id: int, starting_bill_no: str,
+                         landlord_id=None) -> list:
+    """Recompute every billing field for bills downstream of an edited bill.
+
+    Maintains the meter-reading chain invariant:
+        bill[n].previous == bill[n-1].current    (n > 1)
+        bill[1].previous  == tenant.previousMeter
+
+    When a bill's current reading changes, every subsequent bill must have its
+    `previous`, `units`, `electricity`, and `total` recalculated so the chain
+    stays internally consistent. Each downstream bill's previous is resolved
+    from its own immediate predecessor (the single canonical rule).
+
+    Returns the list of bill numbers whose persisted charges changed, so the
+    caller can regenerate their PDFs.
+    """
+    from app.services.landlord_config_service import get_effective_landlord_config
+
+    rows = conn.execute(
+        "SELECT id AS rowid, * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
+        (tenant_id,),
+    ).fetchall()
+    if not rows:
+        return []
+
+    rows.sort(key=lambda r: _bill_sequence(r["billNo"]))
+    bills = {r["billNo"]: r for r in rows}
+
+    if starting_bill_no not in bills:
+        return []
+
+    changed = []
+    idx = next(i for i, r in enumerate(rows) if r["billNo"] == starting_bill_no)
+
+    for r in rows[idx + 1:]:
+        prev_bill = _get_bill_predecessor(conn, tenant_id, r["billNo"])
+        if prev_bill is not None:
+            new_prev = float(prev_bill["current"] or 0)
+        else:
+            from app.services.tenant_service import get_tenant
+            tenant = get_tenant(tenant_id, landlord_id)
+            new_prev = float(getattr(tenant, "previousMeter", 0) or 0) if tenant else 0.0
+
+        current = float(r["current"] or 0)
+        units = max(0.0, current - new_prev)
+        electricity = units * float(r["rate"] or 0)
+        total = (float(r["rent"] or 0) + float(r["additional"] or 0)
+                 + float(r["water"] or 0) + float(r["tankWater"] or 0)
+                 + float(r["maintenancecharge"] or 0) + electricity)
+
+        changed_fields = (
+            abs(float(r["previous"] or 0) - new_prev) > 0.001
+            or abs(float(r["units"] or 0) - units) > 0.001
+            or abs(float(r["electricity"] or 0) - electricity) > 0.001
+            or abs(float(r["total"] or 0) - total) > 0.001
+        )
+        if changed_fields:
+            conn.execute(
+                "UPDATE receipts SET previous = %s, units = %s, electricity = %s, total = %s "
+                "WHERE billNo = %s AND tenantId = %s",
+                (new_prev, units, electricity, total, r["billNo"], tenant_id),
+            )
+            changed.append(r["billNo"])
+
+    # Regenerate PDFs for every bill whose persisted values changed.
+    if changed:
+        try:
+            _lid = landlord_id
+            if _lid is None:
+                _lrow = conn.execute(
+                    "SELECT landlord_id FROM tenants WHERE id = %s", (tenant_id,)
+                ).fetchone()
+                _lid = _lrow["landlord_id"] if _lrow else None
+            conf = get_effective_landlord_config(_lid) if _lid else {}
+            for bill_no in changed:
+                fresh = conn.execute(
+                    "SELECT id AS rowid, * FROM receipts WHERE billNo = %s AND tenantId = %s",
+                    (bill_no, tenant_id),
+                ).fetchone()
+                if fresh is None:
+                    continue
+                try:
+                    pdf_name = fresh["pdf"] or f"{bill_no}.pdf"
+                    pdf_path = os.path.join(RECEIPTS_DIR, pdf_name)
+                    generate_professional_pdf(_row_to_dict(fresh), conf, pdf_path)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    return changed
+
 
 def get_billing_months():
     now = datetime.now()
@@ -20348,12 +17082,12 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
     # Count existing receipts for THIS specific tenant
     with get_conn() as conn:
         tenant_receipt_count = conn.execute(
-            "SELECT COUNT(*) FROM receipts WHERE tenantId = ?", 
+            "SELECT COUNT(*) FROM receipts WHERE tenantId = %s", 
             (tenant.id,)
         ).fetchone()[0]
         # Resolve the tenant's landlord so the receipt stays visible to them
         _lrow = conn.execute(
-            "SELECT landlord_id FROM tenants WHERE id = ?", (tenant.id,)
+            "SELECT landlord_id FROM tenants WHERE id = %s", (tenant.id,)
         ).fetchone()
         tenant_landlord_id = _lrow["landlord_id"] if _lrow else None
     
@@ -20431,7 +17165,7 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
                 archiveddate, archivedby, deleteddate, additionalpersons,
                 additionalpersonrate, receiptversion, generatedby, paymentstatus,
                 maintenancecharge, maintenancedesc, previousarrears, amountreceived, landlord_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             billNo, current_date, month, tenant.id, tenantName, prev, current_reading,
             charges["units"], tenant.rent, charges["additional"], tenant.water, tankWater,
@@ -20465,10 +17199,10 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     from app.core.paths import RECEIPTS_DIR
     
     with get_conn() as conn:
-        query = "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?"
+        query = "SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s"
         params: list = [tenantId, billNo]
         if landlord_id is not None:
-            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)"
+            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = %s)"
             params.append(landlord_id)
         row = conn.execute(query, tuple(params)).fetchone()
         if not row:
@@ -20494,7 +17228,18 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         if not get_property(landlord_id, int(property_id)):
             raise ValueError("Property not found or does not belong to this landlord")
 
-    prev = float(old_receipt["previous"])
+    # The previous reading is resolved from the chain — the current reading of
+    # the bill immediately preceding this one — NOT the receipt's stored
+    # snapshot. This preserves the invariant bill[n].previous == bill[n-1].current.
+    # The bill being edited is excluded so it cannot resolve its predecessor
+    # from itself; if it is the tenant's first bill, we fall back to the
+    # tenant.previousMeter baseline.
+    with get_conn() as conn:
+        pred = _get_bill_predecessor(conn, tenantId, billNo)
+    if pred is not None:
+        prev = float(pred["current"])
+    else:
+        prev = float(tenant.previousMeter or 0)
     if prev > 0 and current_reading < prev:
         raise ValueError("Current meter reading cannot be less than previous reading.")
         
@@ -20509,7 +17254,7 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     with get_conn() as conn:
         recompute_tenant_arrear_chain(conn, tenantId)
         _row = conn.execute(
-            "SELECT previousarrears FROM receipts WHERE tenantId = ? AND billNo = ?",
+            "SELECT previousarrears FROM receipts WHERE tenantId = %s AND billNo = %s",
             (tenantId, billNo),
         ).fetchone()
     previousArrears = float(_row["previousarrears"] or 0) if _row else 0.0
@@ -20542,7 +17287,7 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         "Month": month,
         "Tenant": tenantName,
         "Property": _property_name,
-        "Previous": old_receipt["previous"],
+        "Previous": prev,
         "Current": current_reading,
         "Units": charges["units"],
         "Rent": rent,
@@ -20578,21 +17323,24 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     except BaseException as e:
         print(f"Error generating PDF: {e}")
 
-    # Single atomic transaction: update the receipt snapshot AND the tenant's
-    # billing profile (for future bills) together. Either both commit or the
-    # whole change rolls back — never leaving receipt and profile inconsistent.
+    # Single atomic transaction: update the receipt snapshot (including the
+    # chain-resolved previous reading), rebuild any downstream meter readings,
+    # update the tenant's billing profile, and recompute the arrears chain —
+    # all in one transaction so either every change commits or none does.
+    old_current = float(old_receipt["current"] or 0)
+    new_current = float(current_reading or 0)
     with get_conn() as conn:
         conn.execute("""
             UPDATE receipts SET
-                month = ?, tenantId = ?, tenant = ?, current = ?, units = ?, rent = ?,
-                additional = ?, water = ?, tankWater = ?, electricity = ?, total = ?,
-                pdf = ?, tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?,
-                additionalpersons = ?, additionalpersonrate = ?, paymentstatus = ?,
-                maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?,
-                property_id = ?
-            WHERE billNo = ?
+                month = %s, tenantId = %s, tenant = %s, previous = %s, current = %s, units = %s, rent = %s,
+                additional = %s, water = %s, tankWater = %s, electricity = %s, total = %s,
+                pdf = %s, tenantphone = %s, tenantcompany = %s, tenantaddress = %s, rate = %s,
+                additionalpersons = %s, additionalpersonrate = %s, paymentstatus = %s,
+                maintenancecharge = %s, maintenancedesc = %s, previousarrears = %s, amountreceived = %s,
+                property_id = %s
+            WHERE billNo = %s
         """, (
-            month, tenant.id, tenantName, current_reading, charges["units"], rent,
+            month, tenant.id, tenantName, prev, current_reading, charges["units"], rent,
             charges["additional"], water, tankWater, charges["electricity"], charges["total"],
             pdf_filename, tenant.phone, tenant.company, tenant.address, electricity_rate,
             additional_persons, additional_person_rate, paymentStatus,
@@ -20605,9 +17353,15 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         # receipt snapshots (those keep the per-bill values written above) and
         # does NOT touch tenants.property_id.
         conn.execute(
-            "UPDATE tenants SET rent = ?, water = ?, electricityrate = ?, additionalpersoncharge = ? WHERE id = ?",
+            "UPDATE tenants SET rent = %s, water = %s, electricityrate = %s, additionalpersoncharge = %s WHERE id = %s",
             (rent, water, electricity_rate, additional_person_rate, tenantId),
         )
+        # If the edited bill's current reading changed, every downstream bill
+        # must have its previous/units/electricity/total recalculated so the
+        # meter chain stays consistent. Runs inside the same transaction.
+        if abs(old_current - new_current) > 0.001:
+            _rebuild_meter_chain(conn, tenantId, billNo, landlord_id=landlord_id)
+        # Recompute arrears AFTER the meter chain so downstream totals are final.
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
 
@@ -20629,15 +17383,15 @@ def archive_bill(tenantId, billNo, landlord_id=None):
         raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT status FROM receipts WHERE tenantId = ? AND billNo = ?",
+            "SELECT status FROM receipts WHERE tenantId = %s AND billNo = %s",
             (tenantId, billNo),
         ).fetchone()
         if not row:
             raise ValueError("Bill not found for this tenant.")
 
         conn.execute("""
-            UPDATE receipts SET status = 'ARCHIVED', archiveddate = ?, archivedby = 'Admin'
-            WHERE tenantId = ? AND billNo = ? AND status != 'ARCHIVED'
+            UPDATE receipts SET status = 'ARCHIVED', archiveddate = %s, archivedby = 'Admin'
+            WHERE tenantId = %s AND billNo = %s AND status != 'ARCHIVED'
         """, (datetime.now().strftime("%Y-%m-%d"), tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
@@ -20650,7 +17404,7 @@ def restore_bill(tenantId, billNo, landlord_id=None):
         raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT status, tenantId FROM receipts WHERE tenantId = ? AND billNo = ?",
+            "SELECT status, tenantId FROM receipts WHERE tenantId = %s AND billNo = %s",
             (tenantId, billNo),
         ).fetchone()
         if not row:
@@ -20658,7 +17412,7 @@ def restore_bill(tenantId, billNo, landlord_id=None):
 
         conn.execute("""
             UPDATE receipts SET status = 'ACTIVE', archiveddate = '', archivedby = ''
-            WHERE tenantId = ? AND billNo = ? AND status != 'ACTIVE'
+            WHERE tenantId = %s AND billNo = %s AND status != 'ACTIVE'
         """, (tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
@@ -20670,7 +17424,7 @@ def delete_bill(tenantId, billNo, landlord_id=None):
     if landlord_id is not None and not get_tenant(tenantId, landlord_id):
         raise ValueError("Tenant not found")
     with get_conn() as conn:
-        row = conn.execute("SELECT status, tenantId FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        row = conn.execute("SELECT status, tenantId FROM receipts WHERE tenantId = %s AND billNo = %s", (tenantId, billNo)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
 
@@ -20683,7 +17437,7 @@ def delete_bill(tenantId, billNo, landlord_id=None):
         if not (is_archived or is_tenant_archived):
             raise ValueError("Only archived receipts can be permanently deleted.")
 
-        conn.execute("DELETE FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo))
+        conn.execute("DELETE FROM receipts WHERE tenantId = %s AND billNo = %s", (tenantId, billNo))
         conn.commit()
 
 
@@ -20947,18 +17701,18 @@ def save_all_receipts(receipts_list):
 
             tenantName = r.get("Tenant", "")  # display snapshot only
 
-            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = %s", (billNo,)).fetchone()
 
             if exists:
                 conn.execute("""
                     UPDATE receipts SET
-                        date = ?, month = ?, tenantId = ?, tenant = ?, previous = ?, current = ?, units = ?, rent = ?,
-                        additional = ?, water = ?, tankWater = ?, electricity = ?, total = ?, pdf = ?,
-                        tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?, status = ?,
-                        archiveddate = ?, archivedby = ?, deleteddate = ?, additionalpersons = ?,
-                        additionalpersonrate = ?, receiptversion = ?, generatedby = ?, paymentstatus = ?,
-                        maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
-                    WHERE billNo = ?
+                        date = %s, month = %s, tenantId = %s, tenant = %s, previous = %s, current = %s, units = %s, rent = %s,
+                        additional = %s, water = %s, tankWater = %s, electricity = %s, total = %s, pdf = %s,
+                        tenantphone = %s, tenantcompany = %s, tenantaddress = %s, rate = %s, status = %s,
+                        archiveddate = %s, archivedby = %s, deleteddate = %s, additionalpersons = %s,
+                        additionalpersonrate = %s, receiptversion = %s, generatedby = %s, paymentstatus = %s,
+                        maintenancecharge = %s, maintenancedesc = %s, previousarrears = %s, amountreceived = %s
+                    WHERE billNo = %s
                 """, (
                     r.get("Date", ""), r.get("Month", ""), tenantId, tenantName, r.get("Previous", 0), r.get("Current", 0),
                     r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("tankWater", 0),
@@ -20978,7 +17732,7 @@ def save_all_receipts(receipts_list):
                         archiveddate, archivedby, deleteddate, additionalpersons,
                         additionalpersonrate, receiptversion, generatedby, paymentstatus,
                         maintenancecharge, maintenancedesc, previousarrears, amountreceived
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     billNo, r.get("Date", ""), r.get("Month", ""), tenantId, tenantName, r.get("Previous", 0), r.get("Current", 0),
                     r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("tankWater", 0),
@@ -21019,7 +17773,7 @@ def save_all_receipts(receipts_list):
 
 ```
 
-### `backend\app\app\services\google_oauth_service.py`
+### `backend/app/app/services/google_oauth_service.py`
 
 ```python
 import json
@@ -21079,7 +17833,7 @@ def google_login(credential: str, remember_me: bool, request, response):
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT * FROM landlord_accounts WHERE google_sub = ?", (google_sub,)
+            "SELECT * FROM landlord_accounts WHERE google_sub = %s", (google_sub,)
         ).fetchone()
 
     created_new = False
@@ -21089,7 +17843,7 @@ def google_login(credential: str, remember_me: bool, request, response):
         if landlord:
             with get_conn() as conn:
                 conn.execute(
-                    "UPDATE landlord_accounts SET google_sub = ?, avatar_url = ?, updated_at = ? WHERE id = ?",
+                    "UPDATE landlord_accounts SET google_sub = %s, avatar_url = %s, updated_at = %s WHERE id = %s",
                     (google_sub, avatar_url, datetime.utcnow().isoformat(), landlord["id"]),
                 )
                 conn.commit()
@@ -21115,9 +17869,9 @@ def google_login(credential: str, remember_me: bool, request, response):
         with get_conn() as conn:
             conn.execute(
                 """UPDATE landlord_accounts
-                   SET google_sub = ?, auth_provider = 'google', avatar_url = ?,
-                       requires_password_change = 1, updated_at = ?
-                   WHERE id = ?""",
+                   SET google_sub = %s, auth_provider = 'google', avatar_url = %s,
+                       requires_password_change = 1, updated_at = %s
+                   WHERE id = %s""",
                 (google_sub, avatar_url, datetime.utcnow().isoformat(), landlord["id"]),
             )
             conn.commit()
@@ -21208,7 +17962,7 @@ def _unique_username(base: str, max_length: int = 40) -> str:
     return f"{base[:20]}{uuid.uuid4().hex[:8]}"
 ```
 
-### `backend\app\app\services\landlord_config_service.py`
+### `backend/app/app/services/landlord_config_service.py`
 
 ```python
 """
@@ -21246,7 +18000,7 @@ def save_effective_landlord_config(landlord_id: int, section: Dict[str, Any]) ->
     config.reload("landlord")
 ```
 
-### `backend\app\app\services\payment_service.py`
+### `backend/app/app/services/payment_service.py`
 
 ```python
 # // File: app\app\services\payment_service.py
@@ -21309,7 +18063,7 @@ def _row_to_entry(row) -> dict:
 def _get_active_rows(conn, tenant_id, bill_no):
     return conn.execute(
         "SELECT * FROM payment_entries "
-        "WHERE tenantId = ? AND billNo = ? AND status = 'ACTIVE' "
+        "WHERE tenantId = %s AND billNo = %s AND status = 'ACTIVE' "
         "ORDER BY payment_date ASC, id ASC",
         (tenant_id, bill_no),
     ).fetchall()
@@ -21327,7 +18081,7 @@ def get_tenant_outstanding_balance(tenant_id: int) -> float:
     with get_conn() as conn:
         row = conn.execute(
             "SELECT COALESCE(SUM(COALESCE(total,0)),0) - COALESCE(SUM(COALESCE(amountreceived,0)),0) AS bal "
-            "FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+            "FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
             (tenant_id,),
         ).fetchone()
     return round(float(row["bal"] or 0), 2)
@@ -21335,7 +18089,7 @@ def get_tenant_outstanding_balance(tenant_id: int) -> float:
 
 def _ordered_bills(conn, tenant_id):
     rows = conn.execute(
-        "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+        "SELECT id AS rowid, * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
         (tenant_id,),
     ).fetchall()
     return sorted(rows, key=lambda r: (_month_sort_key(r["month"]), r["rowid"]))
@@ -21358,12 +18112,12 @@ def _recompute_tenant_settlement(conn, tenant_id):
     """
     now = _datetime.utcnow().isoformat(timespec="seconds")
     ordered = _ordered_bills(conn, tenant_id)
-    conn.execute("DELETE FROM payment_allocations WHERE tenant_id = ?", (tenant_id,))
+    conn.execute("DELETE FROM payment_allocations WHERE tenant_id = %s", (tenant_id,))
     for r in ordered:
         conn.execute(
             "UPDATE receipts SET settled_by_bill_no = NULL, settlement_type = 'NONE', "
             "settled_at = NULL, settlement_amount = 0 "
-            "WHERE tenantId = ? AND billNo = ?",
+            "WHERE tenantId = %s AND billNo = %s",
             (tenant_id, r["billNo"]),
         )
     if not ordered:
@@ -21379,7 +18133,7 @@ def _recompute_tenant_settlement(conn, tenant_id):
     bill_by_no = {b["billNo"]: b for b in bills}
 
     entries = conn.execute(
-        "SELECT * FROM payment_entries WHERE tenantId = ? AND status = 'ACTIVE' "
+        "SELECT * FROM payment_entries WHERE tenantId = %s AND status = 'ACTIVE' "
         "ORDER BY payment_date ASC, id ASC",
         (tenant_id,),
     ).fetchall()
@@ -21400,7 +18154,7 @@ def _recompute_tenant_settlement(conn, tenant_id):
             conn.execute(
                 "INSERT INTO payment_allocations "
                 "(payment_entry_id, tenant_id, bill_no, allocated_amount, allocation_type, created_at) "
-                "VALUES (?, ?, ?, ?, 'CURRENT_BILL', ?)",
+                "VALUES (%s, %s, %s, %s, 'CURRENT_BILL', %s)",
                 (e["id"], tenant_id, rec_bill, take, now),
             )
 
@@ -21417,7 +18171,7 @@ def _recompute_tenant_settlement(conn, tenant_id):
                 conn.execute(
                     "INSERT INTO payment_allocations "
                     "(payment_entry_id, tenant_id, bill_no, allocated_amount, allocation_type, created_at) "
-                    "VALUES (?, ?, ?, ?, 'ARREAR', ?)",
+                    "VALUES (%s, %s, %s, %s, 'ARREAR', %s)",
                     (e["id"], tenant_id, b["billNo"], take, now),
                 )
 
@@ -21426,7 +18180,7 @@ def _recompute_tenant_settlement(conn, tenant_id):
             conn.execute(
                 "INSERT INTO payment_allocations "
                 "(payment_entry_id, tenant_id, bill_no, allocated_amount, allocation_type, created_at) "
-                "VALUES (?, ?, ?, ?, 'ADVANCE', ?)",
+                "VALUES (%s, %s, %s, %s, 'ADVANCE', %s)",
                 (e["id"], tenant_id, rec_bill, round(remaining, 2), now),
             )
 
@@ -21445,15 +18199,15 @@ def _recompute_tenant_settlement(conn, tenant_id):
         if b["unpaid_current"] <= 0.001 and recv < grand - 0.001:
             # Fully settled now, but historically partial -> cleared by a later payment.
             conn.execute(
-                "UPDATE receipts SET settled_by_bill_no = ?, settlement_type = 'CURRENT_PAYMENT', "
-                "settled_at = ?, settlement_amount = ? WHERE tenantId = ? AND billNo = ?",
+                "UPDATE receipts SET settled_by_bill_no = %s, settlement_type = 'CURRENT_PAYMENT', "
+                "settled_at = %s, settlement_amount = %s WHERE tenantId = %s AND billNo = %s",
                 (settled_latest, now, round(grand - recv, 2), tenant_id, b["billNo"]),
             )
 
 
 def _prev_arrears_of(conn, tenant_id, bill_no):
     row = conn.execute(
-        "SELECT previousarrears FROM receipts WHERE tenantId = ? AND billNo = ?",
+        "SELECT previousarrears FROM receipts WHERE tenantId = %s AND billNo = %s",
         (tenant_id, bill_no),
     ).fetchone()
     return _safe_float(row["previousarrears"]) if row else 0.0
@@ -21495,7 +18249,7 @@ def get_tenant_settlement_state(tenant_id: int, conn=None):
         # advance = any allocations marked ADVANCE (or received > grand on current bill)
         adv = conn.execute(
             "SELECT COALESCE(SUM(allocated_amount),0) AS a FROM payment_allocations "
-            "WHERE tenant_id = ? AND allocation_type = 'ADVANCE' AND bill_no = ?",
+            "WHERE tenant_id = %s AND allocation_type = 'ADVANCE' AND bill_no = %s",
             (tenant_id, latest["billNo"]),
         ).fetchone()["a"] or 0.0
 
@@ -21555,7 +18309,7 @@ def _regenerate_bill_pdf(conn, tenant_id, bill_no):
         from app.services.landlord_config_service import get_effective_landlord_config
 
         row = conn.execute(
-            "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?",
+            "SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s",
             (tenant_id, bill_no),
         ).fetchone()
         if row is None:
@@ -21582,7 +18336,7 @@ def _recalculate_and_apply(conn, tenant_id, bill_no):
     Returns the resolved dict for the bill after recalculation.
     """
     row = conn.execute(
-        "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?",
+        "SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s",
         (tenant_id, bill_no),
     ).fetchone()
     if row is None:
@@ -21605,8 +18359,8 @@ def _recalculate_and_apply(conn, tenant_id, bill_no):
         status = "ADVANCE"
 
     conn.execute(
-        "UPDATE receipts SET amountreceived = ?, paymentstatus = ? "
-        "WHERE tenantId = ? AND billNo = ?",
+        "UPDATE receipts SET amountreceived = %s, paymentstatus = %s "
+        "WHERE tenantId = %s AND billNo = %s",
         (total_received, status, tenant_id, bill_no),
     )
 
@@ -21628,7 +18382,7 @@ def _recalculate_and_apply(conn, tenant_id, bill_no):
 def _tenant_outstanding(conn, tenant_id) -> float:
     row = conn.execute(
         "SELECT COALESCE(SUM(COALESCE(total,0)),0) - COALESCE(SUM(COALESCE(amountreceived,0)),0) AS bal "
-        "FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+        "FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
         (tenant_id,),
     ).fetchone()
     return round(float(row["bal"] or 0), 2)
@@ -21640,7 +18394,7 @@ def _validate_owner(conn, tenant_id, bill_no, landlord_id):
     if landlord_id is not None and not get_tenant(tenant_id, landlord_id):
         raise ValueError("Tenant not found")
     row = conn.execute(
-        "SELECT 1 FROM receipts WHERE tenantId = ? AND billNo = ?",
+        "SELECT 1 FROM receipts WHERE tenantId = %s AND billNo = %s",
         (tenant_id, bill_no),
     ).fetchone()
     if row is None:
@@ -21665,7 +18419,7 @@ def get_payment_entries(tenant_id, bill_no, landlord_id=None):
     with get_conn() as conn:
         _validate_owner(conn, tenant_id, bill_no, landlord_id)
         row = conn.execute(
-            "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?",
+            "SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s",
             (tenant_id, bill_no),
         ).fetchone()
         if row is None:
@@ -21676,7 +18430,7 @@ def get_payment_entries(tenant_id, bill_no, landlord_id=None):
         ordered = [
             e for e in conn.execute(
                 "SELECT * FROM payment_entries "
-                "WHERE tenantId = ? AND billNo = ? AND status = 'ACTIVE' "
+                "WHERE tenantId = %s AND billNo = %s AND status = 'ACTIVE' "
                 "ORDER BY payment_date ASC, id ASC",
                 (tenant_id, bill_no),
             ).fetchall()
@@ -21725,7 +18479,7 @@ def create_payment_entry(tenant_id, bill_no, payment_date, amount, landlord_id=N
             INSERT INTO payment_entries
                 (billNo, tenantId, landlord_id, payment_date, amount,
                  created_at, updated_at, created_by, status, payment_type, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'BILL', ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'ACTIVE', 'BILL', %s)
             """,
             (bill_no, tenant_id, landlord_id, payment_date, amount, now, now, "Landlord", source),
         )
@@ -21746,15 +18500,15 @@ def update_payment_entry(tenant_id, bill_no, payment_id, payment_date, amount, l
     with get_conn() as conn:
         _validate_owner(conn, tenant_id, bill_no, landlord_id)
         row = conn.execute(
-            "SELECT 1 FROM payment_entries WHERE id = ? AND billNo = ? AND tenantId = ? AND status = 'ACTIVE'",
+            "SELECT 1 FROM payment_entries WHERE id = %s AND billNo = %s AND tenantId = %s AND status = 'ACTIVE'",
             (payment_id, bill_no, tenant_id),
         ).fetchone()
         if row is None:
             raise ValueError("Payment entry not found")
         now = _datetime.utcnow().isoformat(timespec="seconds")
         conn.execute(
-            "UPDATE payment_entries SET payment_date = ?, amount = ?, updated_at = ?, updated_by = ? "
-            "WHERE id = ?",
+            "UPDATE payment_entries SET payment_date = %s, amount = %s, updated_at = %s, updated_by = %s "
+            "WHERE id = %s",
             (payment_date, amount, now, "Landlord", payment_id),
         )
         result = _recalculate_and_apply(conn, tenant_id, bill_no)
@@ -21769,14 +18523,14 @@ def delete_payment_entry(tenant_id, bill_no, payment_id, landlord_id=None):
     with get_conn() as conn:
         _validate_owner(conn, tenant_id, bill_no, landlord_id)
         row = conn.execute(
-            "SELECT 1 FROM payment_entries WHERE id = ? AND billNo = ? AND tenantId = ? AND status = 'ACTIVE'",
+            "SELECT 1 FROM payment_entries WHERE id = %s AND billNo = %s AND tenantId = %s AND status = 'ACTIVE'",
             (payment_id, bill_no, tenant_id),
         ).fetchone()
         if row is None:
             raise ValueError("Payment entry not found")
         now = _datetime.utcnow().isoformat(timespec="seconds")
         conn.execute(
-            "UPDATE payment_entries SET status = 'DELETED', updated_at = ?, updated_by = ? WHERE id = ?",
+            "UPDATE payment_entries SET status = 'DELETED', updated_at = %s, updated_by = %s WHERE id = %s",
             (now, "Landlord", payment_id),
         )
         result = _recalculate_and_apply(conn, tenant_id, bill_no)
@@ -21808,13 +18562,13 @@ def sync_bill_payment_from_receipt(tenant_id, bill_no, amount_received):
         return
     with get_conn() as conn:
         exists = conn.execute(
-            "SELECT 1 FROM payment_entries WHERE billNo = ? AND tenantId = ? AND status = 'ACTIVE' LIMIT 1",
+            "SELECT 1 FROM payment_entries WHERE billNo = %s AND tenantId = %s AND status = 'ACTIVE' LIMIT 1",
             (bill_no, tenant_id),
         ).fetchone()
         if exists:
             return
         row = conn.execute(
-            "SELECT date FROM receipts WHERE tenantId = ? AND billNo = ?",
+            "SELECT date FROM receipts WHERE tenantId = %s AND billNo = %s",
             (tenant_id, bill_no),
         ).fetchone()
         if row is None:
@@ -21825,14 +18579,14 @@ def sync_bill_payment_from_receipt(tenant_id, bill_no, amount_received):
             INSERT INTO payment_entries
                 (billNo, tenantId, payment_date, amount, created_at, updated_at,
                  created_by, status, payment_type, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'BILL', 'MANUAL')
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'ACTIVE', 'BILL', 'MANUAL')
             """,
             (bill_no, tenant_id, row["date"] or _date.today().isoformat(), amount_received, now, now, "Landlord"),
         )
         conn.commit()
 ```
 
-### `backend\app\app\services\pdf_service.py`
+### `backend/app/app/services/pdf_service.py`
 
 ```python
 import io
@@ -22454,7 +19208,7 @@ def generate_professional_pdf(data, landlord_config, output_path=None, payment_e
 generateprofessionalpdf = generate_professional_pdf
 ```
 
-### `backend\app\app\services\phone_service.py`
+### `backend/app/app/services/phone_service.py`
 
 ```python
 """
@@ -22513,7 +19267,7 @@ def is_valid_phone(raw, default_region="IN"):
     return phonenumbers.is_valid_number(number)
 ```
 
-### `backend\app\app\services\qr_service.py`
+### `backend/app/app/services/qr_service.py`
 
 ```python
 # app/services/qr_service.py
@@ -22810,7 +19564,7 @@ def build_branded_qr(url: str, size: int = 200, fmt: str = "svg", validate: bool
     return data_uri, fmt, count
 ```
 
-### `backend\app\app\services\signature_service.py`
+### `backend/app/app/services/signature_service.py`
 
 ```python
 ﻿import os
@@ -22891,7 +19645,7 @@ def delete_signature():
 
 ```
 
-### `backend\app\app\services\telegram_otp_service.py`
+### `backend/app/app/services/telegram_otp_service.py`
 
 ```python
 """
@@ -22945,7 +19699,7 @@ def get_admin_chat_id(admin_id: int) -> str | None:
     """Return the linked Telegram chat_id for an admin, or None."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT telegram_chat_id FROM admins WHERE id = ?", (admin_id,)
+            "SELECT telegram_chat_id FROM admins WHERE id = %s", (admin_id,)
         ).fetchone()
     if not row:
         return None
@@ -22960,7 +19714,7 @@ def set_admin_chat_id(admin_id: int, chat_id: str | None) -> None:
         value = str(chat_id).strip() or None
     with get_conn() as conn:
         conn.execute(
-            "UPDATE admins SET telegram_chat_id = ?, updated_at = ? WHERE id = ?",
+            "UPDATE admins SET telegram_chat_id = %s, updated_at = %s WHERE id = %s",
             (value, datetime.utcnow().isoformat(), admin_id),
         )
         conn.commit()
@@ -23057,8 +19811,8 @@ def store_otp(admin_id: int, otp: str) -> None:
         conn.execute(
             """
             DELETE FROM admin_login_otps
-            WHERE admin_id = ?
-              AND (used = 1 OR attempts >= ? OR expires_at < ?)
+            WHERE admin_id = %s
+              AND (used = 1 OR attempts >= %s OR expires_at < %s)
             """,
             (admin_id, OTP_MAX_ATTEMPTS, now.isoformat()),
         )
@@ -23066,7 +19820,7 @@ def store_otp(admin_id: int, otp: str) -> None:
         pending = conn.execute(
             """
             SELECT id FROM admin_login_otps
-            WHERE admin_id = ? AND used = 0 AND expires_at >= ?
+            WHERE admin_id = %s AND used = 0 AND expires_at >= %s
             ORDER BY created_at DESC
             """,
             (admin_id, now.isoformat()),
@@ -23074,7 +19828,7 @@ def store_otp(admin_id: int, otp: str) -> None:
         overflow = len(pending) - (OTP_MAX_PENDING_PER_ADMIN - 1)
         if overflow > 0:
             drop_ids = [row["id"] for row in pending[overflow:]]
-            placeholders = ",".join("?" * len(drop_ids))
+            placeholders = ",".join("%s" * len(drop_ids))
             conn.execute(
                 f"DELETE FROM admin_login_otps WHERE id IN ({placeholders})",
                 drop_ids,
@@ -23084,7 +19838,7 @@ def store_otp(admin_id: int, otp: str) -> None:
             """
             INSERT INTO admin_login_otps
                 (admin_id, otp_hash, expires_at, attempts, used, created_at)
-            VALUES (?, ?, ?, 0, 0, ?)
+            VALUES (%s, %s, %s, 0, 0, %s)
             """,
             (
                 admin_id,
@@ -23105,7 +19859,7 @@ def delete_pending_otp(admin_id: int) -> None:
             DELETE FROM admin_login_otps
             WHERE id IN (
                 SELECT id FROM admin_login_otps
-                WHERE admin_id = ? AND used = 0 AND expires_at >= ?
+                WHERE admin_id = %s AND used = 0 AND expires_at >= %s
                 ORDER BY created_at DESC LIMIT 1
             )
             """,
@@ -23121,7 +19875,7 @@ def cooldown_remaining(admin_id: int) -> int:
         row = conn.execute(
             """
             SELECT created_at FROM admin_login_otps
-            WHERE admin_id = ? AND used = 0 AND expires_at >= ?
+            WHERE admin_id = %s AND used = 0 AND expires_at >= %s
             ORDER BY created_at DESC LIMIT 1
             """,
             (admin_id, now.isoformat()),
@@ -23146,7 +19900,7 @@ def verify_otp(admin_id: int, otp: str) -> bool:
         row = conn.execute(
             """
             SELECT id, otp_hash, attempts, expires_at FROM admin_login_otps
-            WHERE admin_id = ? AND used = 0
+            WHERE admin_id = %s AND used = 0
             ORDER BY created_at DESC LIMIT 1
             """,
             (admin_id,),
@@ -23157,7 +19911,7 @@ def verify_otp(admin_id: int, otp: str) -> bool:
         # Expired or exhausted codes are treated as invalid.
         if row["expires_at"] < now.isoformat() or row["attempts"] >= OTP_MAX_ATTEMPTS:
             conn.execute(
-                "DELETE FROM admin_login_otps WHERE id = ?", (row["id"],)
+                "DELETE FROM admin_login_otps WHERE id = %s", (row["id"],)
             )
             conn.commit()
             return False
@@ -23165,23 +19919,23 @@ def verify_otp(admin_id: int, otp: str) -> bool:
         if constant_time_eq(str(otp), "") or not verify_pin(str(otp), row["otp_hash"]):
             new_attempts = row["attempts"] + 1
             conn.execute(
-                "UPDATE admin_login_otps SET attempts = ? WHERE id = ?",
+                "UPDATE admin_login_otps SET attempts = %s WHERE id = %s",
                 (new_attempts, row["id"]),
             )
             if new_attempts >= OTP_MAX_ATTEMPTS:
-                conn.execute("DELETE FROM admin_login_otps WHERE id = ?", (row["id"],))
+                conn.execute("DELETE FROM admin_login_otps WHERE id = %s", (row["id"],))
             conn.commit()
             return False
 
         # Success: single-use invalidation.
         conn.execute(
-            "UPDATE admin_login_otps SET used = 1 WHERE id = ?", (row["id"],)
+            "UPDATE admin_login_otps SET used = 1 WHERE id = %s", (row["id"],)
         )
         conn.commit()
         return True
 ```
 
-### `backend\app\app\services\tenant_recovery_service.py`
+### `backend/app/app/services/tenant_recovery_service.py`
 
 ```python
 # app/app/services/tenant_recovery_service.py
@@ -23268,9 +20022,16 @@ def _hash_file(filepath: str) -> str:
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _init_snapshots_table():
-    """Ensure the tenant_recovery_snapshots table exists (idempotent)."""
+    """Ensure the tenant_recovery_snapshots table exists (idempotent).
+
+    The table is created by the versioned migration (001_initial); this remains
+    as a lightweight Postgres-idiomatic reconciler so the landlord_id column and
+    its index are present even if the table predates them. Uses one statement
+    per execute (psycopg connections do not support executescript / multi-
+    statement strings).
+    """
     with get_conn() as conn:
-        conn.executescript("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS tenant_recovery_snapshots (
                 id TEXT PRIMARY KEY,
                 tenant_id INTEGER NOT NULL,
@@ -23285,17 +20046,21 @@ def _init_snapshots_table():
                 metadata_json TEXT NOT NULL,
                 restored_at TEXT,
                 purged_at TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_tenant_recovery_expiry
-                ON tenant_recovery_snapshots(expires_at, status);
-            CREATE INDEX IF NOT EXISTS idx_tenant_recovery_landlord
-                ON tenant_recovery_snapshots(landlord_id, status);
+            )
         """)
         try:
-            conn.execute("ALTER TABLE tenant_recovery_snapshots ADD COLUMN landlord_id INTEGER")
+            conn.execute("ALTER TABLE tenant_recovery_snapshots ADD COLUMN IF NOT EXISTS landlord_id INTEGER")
             conn.commit()
         except Exception:
             pass
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_tenant_recovery_expiry
+                ON tenant_recovery_snapshots(expires_at, status)
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_tenant_recovery_landlord
+                ON tenant_recovery_snapshots(landlord_id, status)
+        """)
 
 
 # ── Snapshot creation ─────────────────────────────────────────────────────────
@@ -23324,7 +20089,7 @@ def create_tenant_recovery_snapshot(tenant_id: int, admin_id: Optional[int] = No
     # ── Gather all data from DB ──────────────────────────────────────────────
     with get_conn() as conn:
         tenant_row = conn.execute(
-            "SELECT * FROM tenants WHERE id = ?", (tenant_id,)
+            "SELECT * FROM tenants WHERE id = %s", (tenant_id,)
         ).fetchone()
         if not tenant_row:
             raise ValueError(f"Tenant {tenant_id} not found in database.")
@@ -23333,23 +20098,23 @@ def create_tenant_recovery_snapshot(tenant_id: int, admin_id: Optional[int] = No
             landlord_id = tenant_row["landlord_id"] if tenant_row.keys() and "landlord_id" in tenant_row.keys() else None
 
         receipt_rows = conn.execute(
-            "SELECT * FROM receipts WHERE tenantId = ?", (tenant_id,)
+            "SELECT * FROM receipts WHERE tenantId = %s", (tenant_id,)
         ).fetchall()
 
         occupant_rows = conn.execute(
-            "SELECT * FROM occupants WHERE tenantId = ?", (tenant_id,)
+            "SELECT * FROM occupants WHERE tenantId = %s", (tenant_id,)
         ).fetchall()
 
         pin_history_rows = conn.execute(
-            "SELECT * FROM tenantPin_history WHERE tenantId = ?", (tenant_id,)
+            "SELECT * FROM tenantPin_history WHERE tenantId = %s", (tenant_id,)
         ).fetchall()
 
         pin_store_row = conn.execute(
-            "SELECT * FROM tenantPin_admin_store WHERE tenantId = ?", (tenant_id,)
+            "SELECT * FROM tenantPin_admin_store WHERE tenantId = %s", (tenant_id,)
         ).fetchone()
 
         audit_rows = conn.execute(
-            "SELECT * FROM tenant_audit_logs WHERE tenantId = ?", (tenant_id,)
+            "SELECT * FROM tenant_audit_logs WHERE tenantId = %s", (tenant_id,)
         ).fetchall()
 
     tenant_dict = dict(tenant_row)
@@ -23447,7 +20212,7 @@ def create_tenant_recovery_snapshot(tenant_id: int, admin_id: Optional[int] = No
                 INSERT INTO tenant_recovery_snapshots
                     (id, tenant_id, tenant_name, landlord_id, created_at, expires_at, deleted_by,
                      status, archive_path, sha256, metadata_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'AVAILABLE', %s, %s, %s)
                 """,
                 (
                     snapshot_id,
@@ -23512,23 +20277,23 @@ def permanently_delete_tenant_data(tenant_id: int) -> dict:
         # Collect KYC filenames before deleting occupants
         occ_rows = conn.execute(
             "SELECT aadhaar_front, aadhaar_back, aadhaar_combined, emp_front, emp_back "
-            "FROM occupants WHERE tenantId = ?",
+            "FROM occupants WHERE tenantId = %s",
             (tenant_id,),
         ).fetchall()
 
         # Collect PDF filenames before deleting receipts
         pdf_rows = conn.execute(
-            "SELECT pdf FROM receipts WHERE tenantId = ?", (tenant_id,)
+            "SELECT pdf FROM receipts WHERE tenantId = %s", (tenant_id,)
         ).fetchall()
 
         # Delete all DB rows (FK cascades handle sessions/pin history/pin store/occupants)
-        conn.execute("DELETE FROM tenant_audit_logs WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM tenant_sessions WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM tenantPin_history WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM tenantPin_admin_store WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM occupants WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM receipts WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM tenants WHERE id = ?", (tenant_id,))
+        conn.execute("DELETE FROM tenant_audit_logs WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM tenant_sessions WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM tenantPin_history WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM tenantPin_admin_store WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM occupants WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM receipts WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM tenants WHERE id = %s", (tenant_id,))
         conn.commit()
 
     # Delete KYC files from disk
@@ -23586,7 +20351,7 @@ def get_tenant_recovery_snapshots(landlord_id: Optional[int] = None) -> list:
         """
         params: list = []
         if landlord_id is not None:
-            query += " WHERE landlord_id = ?"
+            query += " WHERE landlord_id = %s"
             params.append(landlord_id)
         query += " ORDER BY created_at DESC"
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -23644,7 +20409,7 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
 
     with get_conn() as conn:
         snap_row = conn.execute(
-            "SELECT * FROM tenant_recovery_snapshots WHERE id = ?", (snapshot_id,)
+            "SELECT * FROM tenant_recovery_snapshots WHERE id = %s", (snapshot_id,)
         ).fetchone()
 
     if not snap_row:
@@ -23711,11 +20476,11 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
         # 1. Check if original tenant ID already exists in live DB (within this landlord)
         if landlord_id is not None:
             existing_tenant = conn.execute(
-                "SELECT id, name, status FROM tenants WHERE id = ? AND landlord_id = ?", (orig_id, landlord_id)
+                "SELECT id, name, status FROM tenants WHERE id = %s AND landlord_id = %s", (orig_id, landlord_id)
             ).fetchone()
         else:
             existing_tenant = conn.execute(
-                "SELECT id, name, status FROM tenants WHERE id = ?", (orig_id,)
+                "SELECT id, name, status FROM tenants WHERE id = %s", (orig_id,)
             ).fetchone()
         if existing_tenant:
             conflicts["tenantId"] = orig_id
@@ -23728,12 +20493,12 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
         if room:
             if landlord_id is not None:
                 occupied = conn.execute(
-                    "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(?) AND landlord_id = ? AND status NOT IN ('Archived', 'Inactive')",
+                    "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(%s) AND landlord_id = %s AND status NOT IN ('Archived', 'Inactive')",
                     (room, landlord_id),
                 ).fetchone()
             else:
                 occupied = conn.execute(
-                    "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(?) AND status NOT IN ('Archived', 'Inactive')",
+                    "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(%s) AND status NOT IN ('Archived', 'Inactive')",
                     (room,),
                 ).fetchone()
             if occupied:
@@ -23746,11 +20511,11 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
         if phone:
             if landlord_id is not None:
                 phone_conflict = conn.execute(
-                    "SELECT id, name FROM tenants WHERE phone = ? AND id != ? AND landlord_id = ?", (phone, orig_id, landlord_id)
+                    "SELECT id, name FROM tenants WHERE phone = %s AND id != %s AND landlord_id = %s", (phone, orig_id, landlord_id)
                 ).fetchone()
             else:
                 phone_conflict = conn.execute(
-                    "SELECT id, name FROM tenants WHERE phone = ? AND id != ?", (phone, orig_id)
+                    "SELECT id, name FROM tenants WHERE phone = %s AND id != %s", (phone, orig_id)
                 ).fetchone()
             if phone_conflict:
                 conflicts["phone"] = phone
@@ -23759,11 +20524,11 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
         if email:
             if landlord_id is not None:
                 email_conflict = conn.execute(
-                    "SELECT id, name FROM tenants WHERE email = ? AND id != ? AND landlord_id = ?", (email, orig_id, landlord_id)
+                    "SELECT id, name FROM tenants WHERE email = %s AND id != %s AND landlord_id = %s", (email, orig_id, landlord_id)
                 ).fetchone()
             else:
                 email_conflict = conn.execute(
-                    "SELECT id, name FROM tenants WHERE email = ? AND id != ?", (email, orig_id)
+                    "SELECT id, name FROM tenants WHERE email = %s AND id != %s", (email, orig_id)
                 ).fetchone()
             if email_conflict:
                 conflicts["email"] = email
@@ -23776,11 +20541,11 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
             if bill_no:
                 if landlord_id is not None:
                     exists = conn.execute(
-                        "SELECT 1 FROM receipts WHERE billNo = ? AND landlord_id = ?", (bill_no, landlord_id)
+                        "SELECT 1 FROM receipts WHERE billNo = %s AND landlord_id = %s", (bill_no, landlord_id)
                     ).fetchone()
                 else:
                     exists = conn.execute(
-                        "SELECT 1 FROM receipts WHERE billNo = ?", (bill_no,)
+                        "SELECT 1 FROM receipts WHERE billNo = %s", (bill_no,)
                     ).fetchone()
                 if exists:
                     bill_conflicts.append(bill_no)
@@ -23839,7 +20604,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
 
     with get_conn() as conn:
         snap_row = conn.execute(
-            "SELECT * FROM tenant_recovery_snapshots WHERE id = ?", (snapshot_id,)
+            "SELECT * FROM tenant_recovery_snapshots WHERE id = %s", (snapshot_id,)
         ).fetchone()
 
     if not snap_row:
@@ -23892,11 +20657,11 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
         # Check if original ID is free or if we need a new one
         if landlord_id is not None:
             id_taken = conn.execute(
-                "SELECT 1 FROM tenants WHERE id = ? AND landlord_id = ?", (orig_id, landlord_id)
+                "SELECT 1 FROM tenants WHERE id = %s AND landlord_id = %s", (orig_id, landlord_id)
             ).fetchone()
         else:
             id_taken = conn.execute(
-                "SELECT 1 FROM tenants WHERE id = ?", (orig_id,)
+                "SELECT 1 FROM tenants WHERE id = %s", (orig_id,)
             ).fetchone()
 
         if id_taken and not force_new_id:
@@ -23930,7 +20695,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
                 additionalpersoncharge, securitydeposit, defaulttankwatercharge,
                 meterid, viewToken, tenantpin, failed_attempts, locked_until, landlord_id,
                 qr_key
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 new_tenant_id,
@@ -23969,11 +20734,11 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
                 continue
             if restore_landlord_id is not None:
                 existing_bill = conn.execute(
-                    "SELECT 1 FROM receipts WHERE billNo = ? AND landlord_id = ?", (bill_no, restore_landlord_id)
+                    "SELECT 1 FROM receipts WHERE billNo = %s AND landlord_id = %s", (bill_no, restore_landlord_id)
                 ).fetchone()
             else:
                 existing_bill = conn.execute(
-                    "SELECT 1 FROM receipts WHERE billNo = ?", (bill_no,)
+                    "SELECT 1 FROM receipts WHERE billNo = %s", (bill_no,)
                 ).fetchone()
             if existing_bill:
                 skipped_receipts += 1
@@ -23990,8 +20755,8 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
                     paymentstatus, maintenancecharge, maintenancedesc,
                     previousarrears, amountreceived, landlord_id
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 """,
                 (
@@ -24038,7 +20803,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
             if not occ_uuid:
                 continue
             existing_occ = conn.execute(
-                "SELECT 1 FROM occupants WHERE occupantUuid = ?", (occ_uuid,)
+                "SELECT 1 FROM occupants WHERE occupantUuid = %s", (occ_uuid,)
             ).fetchone()
             if not existing_occ:
                 conn.execute(
@@ -24047,7 +20812,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
                         tenantId, occupantUuid, name, mobile, status,
                         aadhaar_front, aadhaar_back, aadhaar_combined,
                         emp_front, emp_back, uploaddate, uploadmonth
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         new_tenant_id,
@@ -24069,18 +20834,18 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
         if not force_new_id:
             for ph in pin_history:
                 conn.execute(
-                    "INSERT OR IGNORE INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)",
+                    "INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
                     (new_tenant_id, ph.get("pin_hash", ""), ph.get("changed_at", now_iso)),
                 )
             if pin_store:
                 conn.execute(
-                    "INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)",
+                    "INSERT INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (%s, %s, %s) ON CONFLICT (tenantId) DO UPDATE SET encrypted_pin = excluded.encrypted_pin, updated_at = excluded.updated_at",
                     (new_tenant_id, pin_store.get("encrypted_pin", ""), pin_store.get("updated_at", now_iso)),
                 )
 
         # Mark snapshot as RESTORED
         conn.execute(
-            "UPDATE tenant_recovery_snapshots SET status = 'RESTORED', restored_at = ? WHERE id = ?",
+            "UPDATE tenant_recovery_snapshots SET status = 'RESTORED', restored_at = %s WHERE id = %s",
             (now_iso, snapshot_id),
         )
 
@@ -24137,7 +20902,7 @@ def purge_expired_tenant_recovery_snapshots() -> int:
         expired_rows = conn.execute(
             """
             SELECT id, archive_path FROM tenant_recovery_snapshots
-            WHERE status = 'AVAILABLE' AND expires_at <= ?
+            WHERE status = 'AVAILABLE' AND expires_at <= %s
             """,
             (now_iso,),
         ).fetchall()
@@ -24157,7 +20922,7 @@ def purge_expired_tenant_recovery_snapshots() -> int:
         # Mark as PURGED in DB
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenant_recovery_snapshots SET status = 'PURGED', purged_at = ? WHERE id = ?",
+                "UPDATE tenant_recovery_snapshots SET status = 'PURGED', purged_at = %s WHERE id = %s",
                 (now_iso, snap_id),
             )
             conn.commit()
@@ -24168,7 +20933,7 @@ def purge_expired_tenant_recovery_snapshots() -> int:
     return purged_count
 ```
 
-### `backend\app\app\services\tenant_service.py`
+### `backend/app/app/services/tenant_service.py`
 
 ```python
 # //File: app\app\services\tenant_service.py
@@ -24187,7 +20952,7 @@ def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = No
     if not include_archived:
         clauses.append("status != 'Archived'")
     if landlord_id is not None:
-        clauses.append("landlord_id = ?")
+        clauses.append("landlord_id = %s")
         params.append(landlord_id)
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with get_conn() as conn:
@@ -24228,10 +20993,10 @@ def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Ten
     """Get a single tenant by ID. Optionally scoped to a landlord. Returns None if not found."""
     if tenantId is None:
         return None
-    clauses = ["id = ?"]
+    clauses = ["id = %s"]
     params: list = [tenantId]
     if landlord_id is not None:
-        clauses.append("landlord_id = ?")
+        clauses.append("landlord_id = %s")
         params.append(landlord_id)
     with get_conn() as conn:
         row = conn.execute(
@@ -24271,7 +21036,7 @@ def tenant_belongs_to_landlord(tenantId: int, landlord_id: Optional[int]) -> boo
         return False
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT 1 FROM tenants WHERE id = ? AND landlord_id = ?",
+            "SELECT 1 FROM tenants WHERE id = %s AND landlord_id = %s",
             (tenantId, landlord_id),
         ).fetchone()
     return row is not None
@@ -24281,7 +21046,7 @@ def get_tenant_by_name(name: str) -> Optional[Tenant]:
     if not name:
         return None
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM tenants WHERE name COLLATE NOCASE = ?", (name,)).fetchone()
+        row = conn.execute("SELECT * FROM tenants WHERE LOWER(name) = LOWER(%s)", (name,)).fetchone()
     if not row:
         return None
     return Tenant(
@@ -24330,22 +21095,38 @@ def add_tenant(t: Tenant):
         qr_key = uuid.uuid4().hex
     
     with get_conn() as conn:
-        conn.execute('''
-            INSERT INTO tenants (
-                id, name, company, phone, email, address, roomnumber, occupation,
-                notes, status, rent, water, electricityrate, previousmeter,
-                additionalpersoncharge, securitydeposit, defaulttankWatercharge,
-                meterid, viewToken, tenantpin, landlord_id, qr_key, property_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
-            t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
-            t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
-            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id,
-            qr_key, t.propertyId
-        ))
         if t.id is None:
-            t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            row = conn.execute('''
+                INSERT INTO tenants (
+                    name, company, phone, email, address, roomnumber, occupation,
+                    notes, status, rent, water, electricityrate, previousmeter,
+                    additionalpersoncharge, securitydeposit, defaulttankWatercharge,
+                    meterid, viewToken, tenantpin, landlord_id, qr_key, property_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (
+                t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
+                t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
+                t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
+                t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id,
+                qr_key, t.propertyId
+            )).fetchone()
+            t.id = row["id"]
+        else:
+            conn.execute('''
+                INSERT INTO tenants (
+                    id, name, company, phone, email, address, roomnumber, occupation,
+                    notes, status, rent, water, electricityrate, previousmeter,
+                    additionalpersoncharge, securitydeposit, defaulttankWatercharge,
+                    meterid, viewToken, tenantpin, landlord_id, qr_key, property_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (
+                t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
+                t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
+                t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
+                t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id,
+                qr_key, t.propertyId
+            ))
         conn.commit()
     return t.id
 
@@ -24358,7 +21139,7 @@ def update_tenant(t: Tenant):
     with get_conn() as conn:
         # Detect status change and record timestamp
         if t.id is not None:
-            existing = conn.execute("SELECT status, qr_key FROM tenants WHERE id = ?", (t.id,)).fetchone()
+            existing = conn.execute("SELECT status, qr_key FROM tenants WHERE id = %s", (t.id,)).fetchone()
             if existing and (existing["status"] or "").strip().lower() != (t.status or "").strip().lower():
                 t.statusChangedAt = datetime.utcnow().isoformat()
             # Preserve the existing qr_key when the model doesn't carry one
@@ -24367,11 +21148,11 @@ def update_tenant(t: Tenant):
 
         conn.execute('''
             UPDATE tenants SET
-                name=?, company=?, phone=?, email=?, address=?, roomnumber=?, occupation=?,
-                notes=?, status=?, rent=?, water=?, electricityrate=?, previousmeter=?,
-                additionalpersoncharge=?, securitydeposit=?, defaulttankWatercharge=?,
-                meterid=?, viewToken=?, tenantpin=?, qr_key=?, status_changed_at=?, property_id=?
-            WHERE id=?
+                name=%s, company=%s, phone=%s, email=%s, address=%s, roomnumber=%s, occupation=%s,
+                notes=%s, status=%s, rent=%s, water=%s, electricityrate=%s, previousmeter=%s,
+                additionalpersoncharge=%s, securitydeposit=%s, defaulttankWatercharge=%s,
+                meterid=%s, viewToken=%s, tenantpin=%s, qr_key=%s, status_changed_at=%s, property_id=%s
+            WHERE id=%s
         ''', (
             t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
@@ -24385,11 +21166,11 @@ def update_tenant(t: Tenant):
         conn.execute(
             """
             UPDATE receipts
-            SET tenant = ?,
-                tenantphone = ?,
-                tenantcompany = ?,
-                tenantaddress = ?
-            WHERE tenantId = ?
+            SET tenant = %s,
+                tenantphone = %s,
+                tenantcompany = %s,
+                tenantaddress = %s
+            WHERE tenantId = %s
             """,
             (
                 t.name,
@@ -24470,7 +21251,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
 
     with get_conn() as conn:
         tenant_row = conn.execute(
-            "SELECT * FROM tenants WHERE id = ?",
+            "SELECT * FROM tenants WHERE id = %s",
             (tenantId,)
         ).fetchone()
 
@@ -24481,9 +21262,9 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
             raise ValueError("Tenant not found.")
 
         if action in {"hard", "delete"}:
-            conn.execute("DELETE FROM occupants WHERE tenantId = ?", (tenantId,))
-            conn.execute("DELETE FROM receipts WHERE tenantId = ?", (tenantId,))
-            conn.execute("DELETE FROM tenants WHERE id = ?", (tenantId,))
+            conn.execute("DELETE FROM occupants WHERE tenantId = %s", (tenantId,))
+            conn.execute("DELETE FROM receipts WHERE tenantId = %s", (tenantId,))
+            conn.execute("DELETE FROM tenants WHERE id = %s", (tenantId,))
             conn.commit()
             return {"tenantId": tenantId, "deleted": True, "archived": False, "restored": False}
 
@@ -24492,7 +21273,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
             now_iso = datetime.utcnow().isoformat()
 
             conn.execute(
-                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                "UPDATE tenants SET status = %s, status_changed_at = %s WHERE id = %s",
                 ("Archived", now_iso, tenantId),
             )
             receipt_result = conn.execute(
@@ -24500,20 +21281,20 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
                 UPDATE receipts
                    SET status = 'ARCHIVED',
                        archiveddate = CASE
-                           WHEN archiveddate IS NULL OR archiveddate = '' THEN ?
+                           WHEN archiveddate IS NULL OR archiveddate = '' THEN %s
                            ELSE archiveddate
                        END
-                 WHERE tenantId = ?
+                 WHERE tenantId = %s
                 """,
                 (archived_at, tenantId),
             )
             conn.commit()
 
             tenant_after = conn.execute(
-                "SELECT * FROM tenants WHERE id = ?", (tenantId,)
+                "SELECT * FROM tenants WHERE id = %s", (tenantId,)
             ).fetchone()
             receipt_rows = conn.execute(
-                "SELECT * FROM receipts WHERE tenantId = ? ORDER BY date DESC, billNo DESC",
+                "SELECT * FROM receipts WHERE tenantId = %s ORDER BY date DESC, billNo DESC",
                 (tenantId,),
             ).fetchall()
 
@@ -24529,7 +21310,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
         if action == "restore":
             now_iso = datetime.utcnow().isoformat()
             updated_tenant = conn.execute(
-                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                "UPDATE tenants SET status = %s, status_changed_at = %s WHERE id = %s",
                 ("Active", now_iso, tenantId),
             )
             if updated_tenant.rowcount == 0:
@@ -24541,7 +21322,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
                    SET status = 'ACTIVE',
                        archiveddate = '',
                        archivedby = ''
-                 WHERE tenantId = ?
+                 WHERE tenantId = %s
                    AND UPPER(COALESCE(status, '')) = 'ARCHIVED'
                 """,
                 (tenantId,),
@@ -24549,10 +21330,10 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
             conn.commit()
 
             tenant_after = conn.execute(
-                "SELECT * FROM tenants WHERE id = ?", (tenantId,)
+                "SELECT * FROM tenants WHERE id = %s", (tenantId,)
             ).fetchone()
             receipt_rows = conn.execute(
-                "SELECT * FROM receipts WHERE tenantId = ? ORDER BY date DESC, billNo DESC",
+                "SELECT * FROM receipts WHERE tenantId = %s ORDER BY date DESC, billNo DESC",
                 (tenantId,),
             ).fetchall()
 
@@ -24568,7 +21349,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
         if action == "inactive":
             now_iso = datetime.utcnow().isoformat()
             conn.execute(
-                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                "UPDATE tenants SET status = %s, status_changed_at = %s WHERE id = %s",
                 ("Inactive", now_iso, tenantId)
             )
             conn.commit()
@@ -24578,7 +21359,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
 
 def get_occupants(tenantId: int) -> List[dict]:
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM occupants WHERE tenantId = ?", (tenantId,)).fetchall()
+        rows = conn.execute("SELECT * FROM occupants WHERE tenantId = %s", (tenantId,)).fetchall()
 
     result = []
     for r in rows:
@@ -24603,11 +21384,11 @@ def save_occupant(tenantId: int, occ_data: dict):
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE occupants SET
-                name = ?, mobile = ?, address = ?, residentSince = ?,
-                status = ?, aadhaar_front = ?, aadhaar_back = ?,
-                aadhaar_combined = ?, emp_front = ?, emp_back = ?,
-                uploaddate = ?, uploadmonth = ?
-            WHERE occupantUuid = ?
+                name = %s, mobile = %s, address = %s, residentSince = %s,
+                status = %s, aadhaar_front = %s, aadhaar_back = %s,
+                aadhaar_combined = %s, emp_front = %s, emp_back = %s,
+                uploaddate = %s, uploadmonth = %s
+            WHERE occupantUuid = %s
         ''', (
             occ_data.get("name", ""),
             occ_data.get("mobile", ""),
@@ -24630,7 +21411,7 @@ def save_occupant(tenantId: int, occ_data: dict):
                     tenantId, occupantUuid, name, mobile, address, residentSince,
                     status, aadhaar_front, aadhaar_back, aadhaar_combined,
                     emp_front, emp_back, uploaddate, uploadmonth
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', (
                 tenantId, uuid_val,
                 occ_data.get("name", ""), occ_data.get("mobile", ""),
@@ -24645,17 +21426,17 @@ def save_occupant(tenantId: int, occ_data: dict):
 
 def update_occupant_status(occupantUuid: str, status: str):
     with get_conn() as conn:
-        conn.execute("UPDATE occupants SET status = ? WHERE occupantUuid = ?", (status, occupantUuid))
+        conn.execute("UPDATE occupants SET status = %s WHERE occupantUuid = %s", (status, occupantUuid))
         conn.commit()
 
 def delete_occupant(occupantUuid: str):
     with get_conn() as conn:
-        conn.execute("DELETE FROM occupants WHERE occupantUuid = ?", (occupantUuid,))
+        conn.execute("DELETE FROM occupants WHERE occupantUuid = %s", (occupantUuid,))
         conn.commit()
 
 ```
 
-### `backend\app\config\domain.json`
+### `backend/app/config/domain.json`
 
 ```json
 {
@@ -24712,7 +21493,7 @@ def delete_occupant(occupantUuid: str):
 }
 ```
 
-### `backend\app\config\receipt.json`
+### `backend/app/config/receipt.json`
 
 ```json
 {
@@ -24740,7 +21521,7 @@ def delete_occupant(occupantUuid: str):
 }
 ```
 
-### `backend\app\config\system.json`
+### `backend/app/config/system.json`
 
 ```json
 {
@@ -24802,7 +21583,7 @@ def delete_occupant(occupantUuid: str):
 }
 ```
 
-### `backend\app\config\ui.json`
+### `backend/app/config/ui.json`
 
 ```json
 {
@@ -24833,7 +21614,7 @@ def delete_occupant(occupantUuid: str):
 }
 ```
 
-### `backend\app\diagnose.py`
+### `backend/app/diagnose.py`
 
 ```python
 import paramiko
@@ -24875,7 +21656,7 @@ for cmd in commands:
 ssh.close()
 ```
 
-### `backend\app\static\privacy_policy_landlord.md`
+### `backend/app/static/privacy_policy_landlord.md`
 
 ```markdown
 # PROPAURA — Privacy Policy for Landlord Account Creation
@@ -25170,7 +21951,7 @@ By selecting the checkbox below and submitting account creation, I declare that:
 *Version 2.0 — Effective 28 August 2026.*
 ```
 
-### `backend\app\static\terms_conditions_landlord.md`
+### `backend/app/static/terms_conditions_landlord.md`
 
 ```markdown
 # PropAura Terms and Conditions — Landlord Account and Platform Use
@@ -25426,7 +22207,7 @@ Address: 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana,
 *Version 1.0 — Effective 28 August 2026.*
 ```
 
-### `backend\app\templates\error.html`
+### `backend/app/templates/error.html`
 
 ```html
 <!DOCTYPE html>
@@ -25442,7 +22223,7 @@ Address: 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana,
 </html>
 ```
 
-### `backend\app\templates\landing.html`
+### `backend/app/templates/landing.html`
 
 ```html
 <!DOCTYPE html>
@@ -25809,26 +22590,28 @@ Address: 1E, Shiv Durga Vihar Lakarpur, Surajkund Faridabad, Faridabad, Haryana,
 </html>
 ```
 
-### `backend\compose.test.yml`
+### `backend/compose.test.yml`
 
 ```yaml
 services:
-  legacy-backend:
+  backend:
     ports:
-      - "28001:28001"
-```
+      - "28002:28002"```
 
-### `backend\compose.yml`
+### `backend/compose.yml`
 
 ```yaml
+# Standalone backend manifest for manual dev runs. The canonical dev topology
+# lives in compose.dev.yml at the repo root (backend_dev = propaura_backend_dev,
+# container port 28002, database propaura_database_dev:28004).
 services:
-  legacy-backend:
+  backend:
     build:
       context: .
-    container_name: propaura_legacy_backend
+    container_name: propaura_backend_dev
     restart: unless-stopped
     expose:
-      - "28001"
+      - "28002"
     env_file:
       - .env
     volumes:
@@ -25836,7 +22619,7 @@ services:
     networks:
       - propaura-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28001/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28002/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -25849,18 +22632,12 @@ services:
         reservations:
           cpus: '0.5'
           memory: 128M
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 5
-        window: 120s
 
 networks:
   propaura-network:
-    external: true
-```
+    external: true```
 
-### `backend\deploy\deploy_backend.py`
+### `backend/deploy/deploy_backend.py`
 
 ```python
 #!/usr/bin/env python3
@@ -26046,7 +22823,7 @@ if __name__ == "__main__":
     main()
 ```
 
-### `backend\deploy\deploy_frontend.py`
+### `backend/deploy/deploy_frontend.py`
 
 ```python
 #!/usr/bin/env python3
@@ -26238,7 +23015,7 @@ if __name__ == "__main__":
     main()
 ```
 
-### `backend\deploy\deploy_gateway.py`
+### `backend/deploy/deploy_gateway.py`
 
 ```python
 #!/usr/bin/env python3
@@ -26396,7 +23173,7 @@ if __name__ == "__main__":
     main()
 ```
 
-### `backend\requirements.txt`
+### `backend/requirements.txt`
 
 ```text
 fastapi>=0.115.0
@@ -26417,118 +23194,12 @@ pydantic>=2.0.0
 google-auth>=2.38.0
 requests>=2.32.0
 phonenumbers>=8.13.0
+psycopg[binary,pool]>=3.2.0
+psycopg-pool>=3.2.0
+minio>=7.2.7
 ```
 
-### `backend\scripts\backfill_tenant_ids.py`
-
-```python
-import sys
-import os
-import sqlite3
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app")))
-from app.core.db import DB_PATH  # type: ignore
-db_path = DB_PATH
-
-def backfill():
-    if not os.path.exists(db_path):
-        print(f"Database not found at {db_path}")
-        return
-
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    # Check if tenantId column exists
-    cursor.execute("PRAGMA table_info(receipts)")
-    columns = [col["name"] for col in cursor.fetchall()]
-    if "tenantId" not in columns:
-        print("Adding tenantId column to receipts table...")
-        cursor.execute("ALTER TABLE receipts ADD COLUMN tenantId INTEGER")
-        conn.commit()
-
-    # Get all tenants
-    cursor.execute("SELECT id, name FROM tenants")
-    tenants = cursor.fetchall()
-    tenant_map = {t["name"].lower(): t["id"] for t in tenants}
-
-    # Get all receipts that might be missing a tenantId
-    cursor.execute("SELECT billNo, tenant, tenantId FROM receipts")
-    receipts = cursor.fetchall()
-
-    updated_count = 0
-    missing_count = 0
-
-    for r in receipts:
-        # If tenantId is not set, or we just want to ensure it's correct based on name
-        if not r["tenantId"]:
-            t_name = (r["tenant"] or "").strip().lower()
-            if t_name in tenant_map:
-                t_id = tenant_map[t_name]
-                cursor.execute("UPDATE receipts SET tenantId = ? WHERE billNo = ?", (t_id, r["billNo"]))
-                updated_count += 1
-            else:
-                print(f"Warning: Tenant name '{r['tenant']}' not found for bill {r['billNo']}")
-                missing_count += 1
-
-    conn.commit()
-    conn.close()
-
-    print(f"Backfill complete. Updated {updated_count} receipts. {missing_count} receipts had unresolved tenants.")
-
-if __name__ == "__main__":
-    backfill()
-```
-
-### `backend\scripts\migrate_platform_admin.py`
-
-```python
-import sqlite3
-import os
-
-# the rent.db is in app/app/database/rent.db actually wait, no, final_schema.py says DB_PATH = os.environ.get("RENT_DB_PATH", "/code/storage/database/rent.db")
-# But in development, where is it? 
-# Let me check where the current rent.db is. In the file list, there's `app\app\database\rent.db`.
-DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'storage', 'database', 'rent.db'))
-
-def migrate():
-    print(f"Connecting to database: {DB_PATH}")
-    if not os.path.exists(DB_PATH):
-        print("Database not found. Exiting.")
-        return
-
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    try:
-        # Check if the column already exists
-        cursor.execute("PRAGMA table_info(admins)")
-        columns = [col[1] for col in cursor.fetchall()]
-        
-        if "is_platform_admin" not in columns:
-            print("Adding is_platform_admin column to admins table...")
-            cursor.execute("ALTER TABLE admins ADD COLUMN is_platform_admin INTEGER NOT NULL DEFAULT 0")
-            
-            # Set the default admin to be a platform admin
-            print("Setting 'admin' as platform admin...")
-            cursor.execute("UPDATE admins SET is_platform_admin = 1 WHERE username = 'admin'")
-            
-            conn.commit()
-            print("Migration successful.")
-        else:
-            print("Column is_platform_admin already exists. Skipping migration.")
-            
-    except Exception as e:
-        print(f"Migration failed: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
-
-if __name__ == "__main__":
-    migrate()
-```
-
-### `backend\scripts\validate_routes.py`
+### `backend/scripts/validate_routes.py`
 
 ```python
 import os
@@ -26697,7 +23368,7 @@ if __name__ == "__main__":
     main()
 ```
 
-### `backend\shared\routes.json`
+### `backend/shared/routes.json`
 
 ```json
 {
@@ -26983,189 +23654,21 @@ if __name__ == "__main__":
   }
 }```
 
-### `branding\stale\fevicon.svg`
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<!-- Creator: CorelDRAW 2021 (64-Bit) -->
-<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="3300px" height="3300px" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
-viewBox="0 0 1993.96 1993.96"
- xmlns:xlink="http://www.w3.org/1999/xlink"
- xmlns:xodm="http://www.corel.com/coreldraw/odm/2003">
- <defs>
-  <font id="FontID0" horiz-adv-x="752" font-variant="normal" style="fill-rule:nonzero" font-weight="400">
-	<font-face 
-		font-family="Nevan RUS">
-		<font-face-src>
-			<font-face-name name="Nevan RUS"/>
-		</font-face-src>
-	</font-face>
-   <missing-glyph><path d="M0 0z"/></missing-glyph>
-   <glyph unicode="." horiz-adv-x="267" d="M133.001 -10.9998c23.3333,0 42.833,8.00048 58.5006,24.0001 15.6662,15.9996 23.4993,34.9999 23.4993,56.9995 0,23.3333 -7.8331,42.8344 -23.4993,58.5006 -15.6676,15.6662 -35.1673,23.5007 -58.5006,23.5007 -22.001,0 -40.9999,-7.83445 -57.0009,-23.5007 -15.9996,-15.6662 -24.0001,-35.1673 -24.0001,-58.5006 0,-21.9996 8.00048,-40.9999 24.0001,-56.9995 16.001,-15.9996 34.9999,-24.0001 57.0009,-24.0001z"/>
-   <glyph unicode="A" horiz-adv-x="752" d="M746.002 0l-156.999 0 -214.002 558.002 -218 -558.002 -151.001 0 288.001 700.002 114 0c33.3329,0 57.9998,-16.6664 73.9994,-50.0006l264.001 -650.002z"/>
-   <glyph unicode="P" horiz-adv-x="718" d="M229.001 0l-145.001 0 0 384.001 338.002 0c29.3333,0.666819 53.4994,9.16674 72.4997,25.4998 19.0003,16.333 28.5004,39.5003 28.5004,69.5004 0,30.0001 -9.50015,53.3334 -28.5004,69.9998 -19.0003,16.6678 -43.1664,25.3337 -72.4997,26.0006l-288.001 0c-14.0005,0 -25.8345,4.83376 -35.5007,14.4999 -9.66618,9.66618 -14.4999,21.5002 -14.4999,35.5007l0 74.9996 351.001 0c68.0007,0 124.167,-20.3339 168.501,-61.0005 44.3327,-40.6665 66.4997,-93.6665 66.4997,-159 0,-62.6675 -21.9996,-114.334 -66.0003,-155 -44.0006,-40.6665 -100.333,-61.0005 -169.001,-61.0005l-206 0 0 -264.001z"/>
-  </font>
-  <style type="text/css">
-   <![CDATA[
-    @font-face { font-family:"Nevan RUS";font-variant:normal;font-weight:normal;src:url("#FontID0") format(svg)}
-    .fil2 {fill:none}
-    .fil1 {fill:#151B54}
-    .fil0 {fill:#E5611B}
-    .fnt0 {font-weight:normal;font-size:1057.4px;font-family:'Nevan RUS'}
-   ]]>
-  </style>
- </defs>
- <g id="Layer_x0020_1">
-  <metadata id="CorelCorpID_0Corel-Layer"/>
-  <g id="_2814477173552">
-   <path class="fil0" d="M996.98 996.98l0 996.98c-550.62,0 -996.98,-446.36 -996.98,-996.98 0,-550.62 446.36,-996.98 996.98,-996.98l0 996.98z"/>
-   <path class="fil1" d="M996.98 996.98l0 -996.98c550.62,0 996.98,446.36 996.98,996.98 0,550.62 -446.36,996.98 -996.98,996.98l0 -996.98z"/>
-   <text x="51.66" y="1367.07"  class="fil1 fnt0">P</text>
-   <text x="810.88" y="1367.07"  class="fil2 fnt0">.</text>
-   <text x="1093.2" y="1367.07"  class="fil0 fnt0">A</text>
-  </g>
- </g>
-</svg>
-```
-
-### `branding\stale\logo-propaura-raw.svg`
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<!-- Creator: CorelDRAW 2021 (64-Bit) -->
-<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="16.5287in" height="2.10583in" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
-viewBox="0 0 5867.74 747.57"
- xmlns:xlink="http://www.w3.org/1999/xlink"
- xmlns:xodm="http://www.corel.com/coreldraw/odm/2003">
- <defs>
-  <font id="FontID0" horiz-adv-x="751" font-variant="normal" style="fill-rule:nonzero" font-weight="400">
-	<font-face 
-		font-family="Nevan RUS">
-		<font-face-src>
-			<font-face-name name="Nevan RUS"/>
-		</font-face-src>
-	</font-face>
-   <missing-glyph><path d="M0 0z"/></missing-glyph>
-   <glyph unicode="A" horiz-adv-x="751" d="M745.999 0l-156.999 0 -214.001 558 -217.999 -558 -151 0 288 700 114 0c33.3327,0 57.9996,-16.6664 73.9991,-50.0005l264 -649.999z"/>
-   <glyph unicode="O" horiz-adv-x="842" d="M421 -10.9998c70.6664,0 133.999,16.333 190,49.0002 56.0005,32.6659 100.167,76.333 132.499,131 32.3339,54.6668 48.5008,115 48.5008,181 0,70.6664 -16.9998,132.999 -51.0007,186.999 -33.9996,54 -79.1663,96.5008 -135.5,127.501 -56.3325,30.9989 -117.832,46.499 -184.499,46.499 -70.0009,0 -133,-16.333 -189.001,-49.0002 -55.9991,-32.6659 -100.167,-76.333 -132.499,-131 -32.3339,-54.6668 -48.5008,-114.999 -48.5008,-180.999 0,-70.6677 17.1672,-133.168 51.5001,-187.501 34.3343,-54.3334 79.6671,-96.8329 136.001,-127.5 56.3325,-30.6668 117.167,-45.9996 182.5,-45.9996zm0 133c-62.6673,0 -115.168,21.8322 -157.501,65.4992 -42.3321,43.6671 -63.4988,97.8331 -63.4988,162.501 0,65.3332 21.1667,119.667 63.4988,162.999 42.3334,43.3337 94.8338,64.9998 157.501,64.9998 64.6664,0 117.832,-21.8322 159.5,-65.4992 41.6666,-43.6671 62.4999,-97.8331 62.4999,-162.5 0,-64.6677 -20.8333,-118.834 -62.4999,-162.501 -41.668,-43.6671 -94.8338,-65.4992 -159.5,-65.4992z"/>
-   <glyph unicode="P" horiz-adv-x="717" d="M229 0l-145 0 0 384 338.001 0c29.3332,0.666817 53.4992,9.16671 72.4995,25.4997 19.0002,16.333 28.5004,39.5001 28.5004,69.5001 0,30 -9.50012,53.3332 -28.5004,69.9996 -19.0002,16.6677 -43.1663,25.3336 -72.4995,26.0005l-288 0c-14.0005,0 -25.8344,4.83375 -35.5006,14.4999 -9.66615,9.66615 -14.4999,21.5001 -14.4999,35.5006l0 74.9994 350.999 0c68.0005,0 124.167,-20.3339 168.501,-61.0003 44.3325,-40.6664 66.4995,-93.6662 66.4995,-158.999 0,-62.6673 -21.9996,-114.333 -66,-155 -44.0005,-40.6664 -100.333,-61.0003 -169,-61.0003l-205.999 0 0 -264z"/>
-   <glyph unicode="R" horiz-adv-x="720" d="M685.999 0l-131 0c-18.6668,0 -33.6662,8.99933 -44.9993,26.9993l-109 214.001c-10.6664,18 -25.6671,26.9993 -44.9993,26.9993l-127 0 0 -268 -145 0 0 386.999 329 0c33.3327,0 59.6666,8.66727 79.0003,26.0005 19.3336,17.3332 28.9998,39.9996 28.9998,68.0005 0,27.9996 -9.66615,50.6659 -28.9998,67.9991 -19.3336,17.3332 -45.6675,26.0005 -79.0003,26.0005l-278.999 0c-14.0005,0 -25.8344,4.83375 -35.5006,14.4999 -9.66615,9.66615 -14.4999,21.5001 -14.4999,35.5006l0 74.9994 342 0c69.9996,0 127.833,-19.8331 173.499,-59.4992 45.6675,-39.6675 68.4999,-92.1679 68.4999,-157.501 0,-45.9996 -12.8329,-85.8331 -38.4999,-119.499 -25.6657,-33.6675 -58.499,-58.8338 -98.4999,-75.5001l155 -288z"/>
-   <glyph unicode="U" horiz-adv-x="759" d="M380.001 -10.9998c92.666,0 167.499,27.6662 224.5,82.9998 56.9994,55.3337 85.4997,132 85.4997,230.001l0 347c0,13.9991 -4.83375,25.8331 -14.4999,35.4992 -9.6675,9.6675 -21.5001,14.4999 -35.5006,14.4999l-94.9998 0 0 -396.999c0,-52.6677 -14.4999,-95.6666 -43.4997,-129.001 -28.9998,-33.3327 -69.1667,-50.0005 -120.501,-50.0005 -50.6659,0 -90.9989,16.3343 -120.999,49.0002 -30,32.6673 -45.0007,76.0009 -45.0007,130.001l0 396.999 -145 0 0 -396.999c0,-95.3346 27.6675,-171.334 82.9998,-228 55.3337,-56.6673 131.001,-85.0003 227.001,-85.0003z"/>
-  </font>
-  <style type="text/css">
-   <![CDATA[
-    @font-face { font-family:"Nevan RUS";font-variant:normal;font-weight:normal;src:url("#FontID0") format(svg)}
-    .fil0 {fill:#151B54}
-    .fil1 {fill:#E5611B}
-    .fnt0 {font-weight:normal;font-size:1035.42px;font-family:'Nevan RUS'}
-   ]]>
-  </style>
- </defs>
- <g id="Layer_x0020_1">
-  <metadata id="CorelCorpID_0Corel-Layer"/>
-  <text x="-86.98" y="736.19"  class="fil0 fnt0">PROP</text>
-  <text x="2823.6" y="736.19"  class="fil1 fnt0">AURA</text>
- </g>
-</svg>
-```
-
-### `branding\stale\qr-raw.svg`
-
-```xml
-��< ? x m l   v e r s i o n = " 1 . 0 "   e n c o d i n g = " U T F - 1 6 " ? > 
- 
- < ! D O C T Y P E   s v g   P U B L I C   " - / / W 3 C / / D T D   S V G   1 . 1 / / E N "   " h t t p : / / w w w . w 3 . o r g / G r a p h i c s / S V G / 1 . 1 / D T D / s v g 1 1 . d t d " > 
- 
- < ! - -   C r e a t o r :   C o r e l D R A W   2 0 2 1   ( 6 4 - B i t )   - - > 
- 
- < s v g   x m l n s = " h t t p : / / w w w . w 3 . o r g / 2 0 0 0 / s v g "   x m l : s p a c e = " p r e s e r v e "   w i d t h = " 3 3 0 0 p x "   h e i g h t = " 3 3 0 0 p x "   v e r s i o n = " 1 . 1 "   s t y l e = " s h a p e - r e n d e r i n g : g e o m e t r i c P r e c i s i o n ;   t e x t - r e n d e r i n g : g e o m e t r i c P r e c i s i o n ;   i m a g e - r e n d e r i n g : o p t i m i z e Q u a l i t y ;   f i l l - r u l e : e v e n o d d ;   c l i p - r u l e : e v e n o d d " 
- 
- v i e w B o x = " 0   0   1 9 9 3 . 9 6   1 9 9 3 . 9 6 " 
- 
-   x m l n s : x l i n k = " h t t p : / / w w w . w 3 . o r g / 1 9 9 9 / x l i n k " 
- 
-   x m l n s : x o d m = " h t t p : / / w w w . c o r e l . c o m / c o r e l d r a w / o d m / 2 0 0 3 " > 
- 
-   < d e f s > 
- 
-     < f o n t   i d = " F o n t I D 0 "   h o r i z - a d v - x = " 7 5 2 "   f o n t - v a r i a n t = " n o r m a l "   s t y l e = " f i l l - r u l e : n o n z e r o "   f o n t - s t y l e = " n o r m a l "   f o n t - w e i g h t = " 4 0 0 " > 
- 
- 	 < f o n t - f a c e   
- 
- 	 	 f o n t - f a m i l y = " N e v a n   R U S " > 
- 
- 	 	 < f o n t - f a c e - s r c > 
- 
- 	 	 	 < f o n t - f a c e - n a m e   n a m e = " N e v a n   R U S " / > 
- 
- 	 	 < / f o n t - f a c e - s r c > 
- 
- 	 < / f o n t - f a c e > 
- 
-       < m i s s i n g - g l y p h > < p a t h   d = " M 0   0 z " / > < / m i s s i n g - g l y p h > 
- 
-       < g l y p h   u n i c o d e = " . "   h o r i z - a d v - x = " 2 6 7 "   d = " M 1 3 3 . 0 0 1   - 1 0 . 9 9 9 8 c 2 3 . 3 3 3 3 , 0   4 2 . 8 3 3 , 8 . 0 0 0 4 8   5 8 . 5 0 0 6 , 2 4 . 0 0 0 1   1 5 . 6 6 6 2 , 1 5 . 9 9 9 6   2 3 . 4 9 9 3 , 3 4 . 9 9 9 9   2 3 . 4 9 9 3 , 5 6 . 9 9 9 5   0 , 2 3 . 3 3 3 3   - 7 . 8 3 3 1 , 4 2 . 8 3 4 4   - 2 3 . 4 9 9 3 , 5 8 . 5 0 0 6   - 1 5 . 6 6 7 6 , 1 5 . 6 6 6 2   - 3 5 . 1 6 7 3 , 2 3 . 5 0 0 7   - 5 8 . 5 0 0 6 , 2 3 . 5 0 0 7   - 2 2 . 0 0 1 , 0   - 4 0 . 9 9 9 9 , - 7 . 8 3 4 4 5   - 5 7 . 0 0 0 9 , - 2 3 . 5 0 0 7   - 1 5 . 9 9 9 6 , - 1 5 . 6 6 6 2   - 2 4 . 0 0 0 1 , - 3 5 . 1 6 7 3   - 2 4 . 0 0 0 1 , - 5 8 . 5 0 0 6   0 , - 2 1 . 9 9 9 6   8 . 0 0 0 4 8 , - 4 0 . 9 9 9 9   2 4 . 0 0 0 1 , - 5 6 . 9 9 9 5   1 6 . 0 0 1 , - 1 5 . 9 9 9 6   3 4 . 9 9 9 9 , - 2 4 . 0 0 0 1   5 7 . 0 0 0 9 , - 2 4 . 0 0 0 1 z " / > 
- 
-       < g l y p h   u n i c o d e = " A "   h o r i z - a d v - x = " 7 5 2 "   d = " M 7 4 6 . 0 0 2   0 l - 1 5 6 . 9 9 9   0   - 2 1 4 . 0 0 2   5 5 8 . 0 0 2   - 2 1 8   - 5 5 8 . 0 0 2   - 1 5 1 . 0 0 1   0   2 8 8 . 0 0 1   7 0 0 . 0 0 2   1 1 4   0 c 3 3 . 3 3 2 9 , 0   5 7 . 9 9 9 8 , - 1 6 . 6 6 6 4   7 3 . 9 9 9 4 , - 5 0 . 0 0 0 6 l 2 6 4 . 0 0 1   - 6 5 0 . 0 0 2 z " / > 
- 
-       < g l y p h   u n i c o d e = " P "   h o r i z - a d v - x = " 7 1 8 "   d = " M 2 2 9 . 0 0 1   0 l - 1 4 5 . 0 0 1   0   0   3 8 4 . 0 0 1   3 3 8 . 0 0 2   0 c 2 9 . 3 3 3 3 , 0 . 6 6 6 8 1 9   5 3 . 4 9 9 4 , 9 . 1 6 6 7 4   7 2 . 4 9 9 7 , 2 5 . 4 9 9 8   1 9 . 0 0 0 3 , 1 6 . 3 3 3   2 8 . 5 0 0 4 , 3 9 . 5 0 0 3   2 8 . 5 0 0 4 , 6 9 . 5 0 0 4   0 , 3 0 . 0 0 0 1   - 9 . 5 0 0 1 5 , 5 3 . 3 3 3 4   - 2 8 . 5 0 0 4 , 6 9 . 9 9 9 8   - 1 9 . 0 0 0 3 , 1 6 . 6 6 7 8   - 4 3 . 1 6 6 4 , 2 5 . 3 3 3 7   - 7 2 . 4 9 9 7 , 2 6 . 0 0 0 6 l - 2 8 8 . 0 0 1   0 c - 1 4 . 0 0 0 5 , 0   - 2 5 . 8 3 4 5 , 4 . 8 3 3 7 6   - 3 5 . 5 0 0 7 , 1 4 . 4 9 9 9   - 9 . 6 6 6 1 8 , 9 . 6 6 6 1 8   - 1 4 . 4 9 9 9 , 2 1 . 5 0 0 2   - 1 4 . 4 9 9 9 , 3 5 . 5 0 0 7 l 0   7 4 . 9 9 9 6   3 5 1 . 0 0 1   0 c 6 8 . 0 0 0 7 , 0   1 2 4 . 1 6 7 , - 2 0 . 3 3 3 9   1 6 8 . 5 0 1 , - 6 1 . 0 0 0 5   4 4 . 3 3 2 7 , - 4 0 . 6 6 6 5   6 6 . 4 9 9 7 , - 9 3 . 6 6 6 5   6 6 . 4 9 9 7 , - 1 5 9   0 , - 6 2 . 6 6 7 5   - 2 1 . 9 9 9 6 , - 1 1 4 . 3 3 4   - 6 6 . 0 0 0 3 , - 1 5 5   - 4 4 . 0 0 0 6 , - 4 0 . 6 6 6 5   - 1 0 0 . 3 3 3 , - 6 1 . 0 0 0 5   - 1 6 9 . 0 0 1 , - 6 1 . 0 0 0 5 l - 2 0 6   0   0   - 2 6 4 . 0 0 1 z " / > 
- 
-     < / f o n t > 
- 
-     < s t y l e   t y p e = " t e x t / c s s " > 
- 
-       < ! [ C D A T A [ 
- 
-         @ f o n t - f a c e   {   f o n t - f a m i l y : " N e v a n   R U S " ; f o n t - v a r i a n t : n o r m a l ; f o n t - s t y l e : n o r m a l ; f o n t - w e i g h t : n o r m a l ; s r c : u r l ( " # F o n t I D 0 " )   f o r m a t ( s v g ) } 
- 
-         . f i l 2   { f i l l : n o n e } 
- 
-         . f i l 1   { f i l l : # 1 5 1 B 5 4 } 
- 
-         . f i l 0   { f i l l : # E 5 6 1 1 B } 
- 
-         . f n t 0   { f o n t - w e i g h t : n o r m a l ; f o n t - s i z e : 1 0 5 7 . 4 p x ; f o n t - f a m i l y : ' N e v a n   R U S ' } 
- 
-       ] ] > 
- 
-     < / s t y l e > 
- 
-   < / d e f s > 
- 
-   < g   i d = " L a y e r _ x 0 0 2 0 _ 1 " > 
- 
-     < m e t a d a t a   i d = " C o r e l C o r p I D _ 0 C o r e l - L a y e r " / > 
- 
-     < g   i d = " _ 2 8 1 3 8 1 2 4 8 4 3 5 2 " > 
- 
-       < p a t h   c l a s s = " f i l 0 "   d = " M 9 9 6 . 9 8   9 9 6 . 9 8 l 0   9 9 6 . 9 8 c - 5 5 0 . 6 2 , 0   - 9 9 6 . 9 8 , - 4 4 6 . 3 6   - 9 9 6 . 9 8 , - 9 9 6 . 9 8   0 , - 5 5 0 . 6 2   4 4 6 . 3 6 , - 9 9 6 . 9 8   9 9 6 . 9 8 , - 9 9 6 . 9 8 l 0   9 9 6 . 9 8 z " / > 
- 
-       < p a t h   c l a s s = " f i l 1 "   d = " M 9 9 6 . 9 8   9 9 6 . 9 8 l 0   - 9 9 6 . 9 8 c 5 5 0 . 6 2 , 0   9 9 6 . 9 8 , 4 4 6 . 3 6   9 9 6 . 9 8 , 9 9 6 . 9 8   0 , 5 5 0 . 6 2   - 4 4 6 . 3 6 , 9 9 6 . 9 8   - 9 9 6 . 9 8 , 9 9 6 . 9 8 l 0   - 9 9 6 . 9 8 z " / > 
- 
-       < t e x t   x = " 5 1 . 6 6 "   y = " 1 3 6 7 . 0 7 "     c l a s s = " f i l 1   f n t 0 " > P < / t e x t > 
- 
-       < t e x t   x = " 8 1 0 . 8 8 "   y = " 1 3 6 7 . 0 7 "     c l a s s = " f i l 2   f n t 0 " > . < / t e x t > 
- 
-       < t e x t   x = " 1 0 9 3 . 2 "   y = " 1 3 6 7 . 0 7 "     c l a s s = " f i l 0   f n t 0 " > A < / t e x t > 
- 
-     < / g > 
- 
-   < / g > 
- 
- < / s v g > 
- 
- ```
-
 ### `compose.dev.yml`
 
 ```yaml
 # Development stack — isolated from production.
-#   propaura_backend_dev   API on container port 28001 (hot reload), tunneled by ngrok
-#   propaura_frontend_dev  Vite dev server for tenant-app, container port 28002 (host 28003)
-#   propaura_ngrok_dev     tunnels to propaura_backend_dev:28001, dashboard on host 28004 (profile: ngrok)
-#   propaura_nginx_gateway_dev  dev edge nginx, container port 28003 (host 28080)
+#   propaura_frontend_dev       Vite dev server for tenant-app, port 28001 (host published)
+#   propaura_backend_dev        API on container port 28002 (hot reload), host published
+#   propaura_storage_dev        shared storage tree, port 28003 (expose only)
+#   propaura_database_dev       PostgreSQL, port 28004 (expose only; runs on -p 28004)
+#   propaura_nginx_gateway_dev  dev edge nginx, port 28005 (host published, ngrok target)
+#   propaura_ngrok_dev          tunnels to propaura_nginx_gateway_dev:28005,
+#                               dashboard on host 28006 (profile: ngrok)
+#
+# Canonical ports are the single source of truth in deploy/ports.py
+# (regenerated into deploy/ports.env by deploy.py). Host published ports use the
+# same values by default here; override via the *_DEV_PORT vars from the env file.
 #
 # Usage:
 #   docker compose --env-file .env.development -f compose.dev.yml up -d
@@ -27177,11 +23680,33 @@ viewBox="0 0 5867.74 747.57"
 # you run the dev stack somewhere without a host ngrok.
 #
 # Separate network (dev-net) and separate storage (./storage/dev) so dev
-# changes can never touch release traffic.
+# changes can never touch release traffic. PostgreSQL and storage are
+# expose-only: reachable only from inside the compose network.
 
 name: propaura-dev
 
 services:
+  frontend_dev:
+    image: node:22-alpine
+    container_name: propaura_frontend_dev
+    restart: unless-stopped
+    # Mount the whole frontend/ tree so tenant-app's `@shared` alias
+    # (../shared) resolves inside the container, mirroring local dev layout.
+    working_dir: /app/tenant-app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 28001"
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+      - VITE_APP_BASE_PATH=${VITE_APP_BASE_PATH}
+      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+    ports:
+      - "${FRONTEND_DEV_PORT:-28001}:28001"
+    volumes:
+      - ./frontend:/app
+    networks:
+      - dev-net
+    depends_on:
+      - backend_dev
+
   backend_dev:
     build:
       context: ./backend
@@ -27189,16 +23714,23 @@ services:
     container_name: propaura_backend_dev
     restart: unless-stopped
     ports:
-      - "${BACKEND_DEV_PORT:-28001}:28001"
+      - "${BACKEND_DEV_PORT:-28002}:28002"
     env_file:
       - .env.development
+    environment:
+      # PostgreSQL access — connection.py falls back to these defaults, but the
+      # password always comes from .env.development (RENT_PGPASSWORD / POSTGRES_PASSWORD).
+      RENT_PGHOST: ${RENT_PGHOST:-propaura_database_dev}
+      RENT_PGPORT: ${RENT_PGPORT:-28004}
+      RENT_PGDATABASE: ${RENT_PGDATABASE:-rent}
+      RENT_PGUSER: ${RENT_PGUSER:-rent}
     command:
       - uvicorn
       - app.main:app
       - --host
       - 0.0.0.0
       - --port
-      - "28001"
+      - "28002"
       - --reload
       - --proxy-headers
       - --forwarded-allow-ips
@@ -27211,33 +23743,50 @@ services:
       - ./frontend:/code/frontend
     networks:
       - dev-net
+    depends_on:
+      database_dev:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28001/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28002/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
 
-  frontend_dev:
-    image: node:22-alpine
-    container_name: propaura_frontend_dev
+  storage_dev:
+    build:
+      context: ./docker/storage
+    image: propaura-storage
+    container_name: propaura_storage_dev
     restart: unless-stopped
-    # Mount the whole frontend/ tree so tenant-app's `@shared` alias
-    # (../shared) resolves inside the container, mirroring local dev layout.
-    working_dir: /app/tenant-app
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 28002"
-    environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
-      - VITE_APP_BASE_PATH=${VITE_APP_BASE_PATH}
-      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
-    ports:
-      - "${FRONTEND_DEV_PORT:-28003}:28002"
+    expose:
+      - "28003"
     volumes:
-      - ./frontend:/app
+      - ./storage/dev:/data
     networks:
       - dev-net
-    depends_on:
-      - backend_dev
+
+  database_dev:
+    image: postgres:16-alpine
+    container_name: propaura_database_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rent}
+      POSTGRES_USER: ${POSTGRES_USER:-rent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.development}
+    command: ["postgres", "-p", "28004"]
+    expose:
+      - "28004"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    networks:
+      - dev-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 28004 -U $$POSTGRES_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   nginx_gateway_dev:
     image: nginx:alpine
@@ -27246,7 +23795,7 @@ services:
     depends_on:
       - backend_dev
     ports:
-      - "127.0.0.1:28080:28003"
+      - "${NGINX_DEV_PORT:-28005}:28005"
     volumes:
       - ./nginx/dev-gateway.conf:/etc/nginx/nginx.conf:ro
     networks:
@@ -27262,34 +23811,45 @@ services:
       - ngrok
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTH_TOKEN}
-    command: http propaura_backend_dev:28001
+    command: http propaura_nginx_gateway_dev:28005
     ports:
-      - "${NGROK_DASHBOARD_PORT:-28004}:4040"
+      - "${NGROK_DASHBOARD_PORT:-28006}:4040"
     networks:
       - dev-net
     depends_on:
       - backend_dev
 
+volumes:
+  pgdata_dev:
+
 networks:
   dev-net:
-    driver: bridge
-```
+    driver: bridge```
 
 ### `compose.prod.yml`
 
 ```yaml
 # Production (release) stack — single active backend slot.
-#   propaura_backend_prod        API, container port 28005 (exposed internally)
-#   propaura_frontend_prod       static SPA build, host 28004 -> container 28006
+#   propaura_backend_prod        API, container port 28011 (exposed internally)
+#   propaura_storage_prod        shared storage tree, port 28012 (expose only)
+#   propaura_database_prod       PostgreSQL, port 28013 (expose only; -p 28013),
+#                                data in named volume pgdata_prod
 #   propaura_nginx_gateway_prod  edge: api.vijaykrsha.online / app.vijaykrsha.online,
-#                                host 28005 -> container 28007
+#                                host 28014 -> container 28014, serves the SPA
+#                                directly from ./frontend/build-output
+#
+# No separate frontend container: the edge nginx serves the static build
+# (frontend/build-output) itself, mirroring the frontend_release.conf logic.
+# rent.vijaykrsha.online is served by Cloudflare Pages (unchanged).
 #
 # Usage:
 #   docker compose --env-file .env.release -f compose.prod.yml up -d
 #   ./deploy/deploy-release.sh          (deploy/restart the backend slot)
 #
-# A single backend container runs at a time, sharing ./storage/release (SQLite).
-# The edge nginx proxies to it via gateway/nginx/upstream/active.conf.
+# A single backend container runs at a time, sharing ./storage/release for
+# keys/uploads/backups. Application data lives in PostgreSQL (pgdata_prod);
+# SQLite is retired. The edge nginx proxies API to it via
+# gateway/nginx/upstream/active.conf.
 #
 # Requires external network: docker network create propaura-network
 
@@ -27303,16 +23863,23 @@ services:
     container_name: propaura_backend_prod
     restart: unless-stopped
     expose:
-      - "28005"
+      - "28011"
     env_file:
       - .env.release
+    environment:
+      # PostgreSQL access — connection.py falls back to these defaults, but the
+      # password always comes from .env.release (RENT_PGPASSWORD / POSTGRES_PASSWORD).
+      RENT_PGHOST: ${RENT_PGHOST:-propaura_database_prod}
+      RENT_PGPORT: ${RENT_PGPORT:-28013}
+      RENT_PGDATABASE: ${RENT_PGDATABASE:-rent}
+      RENT_PGUSER: ${RENT_PGUSER:-rent}
     command:
       - uvicorn
       - app.main:app
       - --host
       - 0.0.0.0
       - --port
-      - "28005"
+      - "28011"
       - --proxy-headers
       - --forwarded-allow-ips
       - "*"
@@ -27320,8 +23887,11 @@ services:
       - ./storage/release:/code/storage
     networks:
       - propaura-network
+    depends_on:
+      database_prod:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28005/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28011/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -27335,35 +23905,58 @@ services:
           cpus: '0.5'
           memory: 128M
 
-  frontend_prod:
-    image: nginx:1.27-alpine
-    container_name: propaura_frontend_prod
+  storage_prod:
+    build:
+      context: ./docker/storage
+    image: propaura-storage
+    container_name: propaura_storage_prod
     restart: unless-stopped
-    ports:
-      - "${FRONTEND_RELEASE_PORT:-28004}:28006"
+    expose:
+      - "28012"
     volumes:
-      - ./gateway/nginx/frontend_release.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./frontend/build-output:/usr/share/nginx/html:ro
+      - ./storage/release:/data
     networks:
       - propaura-network
-    depends_on:
-      - backend_prod
+
+  database_prod:
+    image: postgres:16-alpine
+    container_name: propaura_database_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rent}
+      POSTGRES_USER: ${POSTGRES_USER:-rent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.release}
+    command: ["postgres", "-p", "28013"]
+    expose:
+      - "28013"
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    networks:
+      - propaura-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 28013 -U $$POSTGRES_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   nginx_gateway_prod:
     image: nginx:1.27-alpine
     container_name: propaura_nginx_gateway_prod
     restart: unless-stopped
     ports:
-      - "28005:28007"
+      - "${NGINX_RELEASE_PORT:-28014}:28014"
     volumes:
       - ./gateway/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./gateway/nginx/conf.d:/etc/nginx/conf.d:ro
       - ./gateway/nginx/routes:/etc/nginx/routes:ro
       - ./gateway/nginx/upstream:/etc/nginx/upstream:ro
+      - ./frontend/build-output:/usr/share/nginx/html:ro
     networks:
       - propaura-network
+    depends_on:
+      - backend_prod
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:28007/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:28014/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -27372,7 +23965,10 @@ services:
 networks:
   propaura-network:
     external: true
-```
+
+volumes:
+  pgdata_prod:
+    name: pgdata_prod```
 
 ### `copy.py`
 
@@ -27414,6 +24010,7 @@ EXCLUDE_FILES = [
     "*.tsbuildinfo",
     ".gitkeep",
     "rent.md",
+    "propaura.md",
     "update.zip",
 ]
 
@@ -27435,10 +24032,12 @@ IGNORE_DIRS = {
     ".rent_test_assets", ".sample", "venv", ".venv",
     ".opencode", ".gstack",
     ".restore_backup_*",".env",
+    # Not used in the runtime project / dead artifacts:
+    ".agents", "audit", "docs", "legacy", "referenceScripts", "branding",
 }
 BINARY_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".xlsx",
               ".xls", ".db", ".pyc", ".pyd", ".so", ".woff", ".woff2",
-              ".ttf", ".eot", ".mp3", ".mp4", ".pdf", ".exe"}
+              ".ttf", ".eot", ".mp3", ".mp4", ".pdf", ".exe", ".cdr"}
 
 LANG_MAP = {
     ".py": "python",
@@ -27537,7 +24136,8 @@ def main():
         size_kb = size / 1024
         print(f"  [{i:3d}/{len(files)}]  {rel:70s}  {size_kb:>7.1f} KB")
         lang = guess_lang(rel)
-        sections.append(f"### `{rel}`\n\n```{lang}\n{content}```")
+        rel_posix = rel.replace(os.sep, "/")
+        sections.append(f"### `{rel_posix}`\n\n```{lang}\n{content}```")
         size_total += size
 
     print()
@@ -27601,6 +24201,11 @@ except ImportError:
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOCAL_DIR = BASE_DIR
+DEPLOY_DIR = os.path.join(BASE_DIR, "deploy")
+if DEPLOY_DIR not in sys.path:
+    sys.path.insert(0, DEPLOY_DIR)
+
+import ports as deploy_ports  # noqa: E402  (single source of truth for canonical ports)
 ZIP_FILE = os.path.join(BASE_DIR, "update.zip")
 REMOTE_ZIP = "/home/vega/update.zip"
 REMOTE_DIR_DEV = "/home/vega/propaura-dev"
@@ -27681,8 +24286,8 @@ parser = argparse.ArgumentParser(
            "  --all         ship the entire repo (default)\n"
            "  --frontend    ship only frontend/\n"
            "  --backend     ship only backend/\n"
-           "  --storage     ship storage/ incl. SQLite DBs (overwrites server data)\n"
-           "  --database    ship database schema code + rent.db\n"
+"  --storage     ship storage/ data (keys, backups; overwrites server data)\n"
+            "  --database    ship database schema + migrations (backend/app/app/db)\n"
            "  e.g. python deploy.py --dev --sshPublic --backend   # only backend fixes\n"
            "\n"
            "Exit codes: 1 build/zip, 2 connectivity, 3 auth, 4 upload,\n"
@@ -27705,8 +24310,8 @@ scope_group = parser.add_mutually_exclusive_group()
 scope_group.add_argument("--all", action="store_true", help="Ship the entire repo (default).")
 scope_group.add_argument("--frontend", action="store_true", help="Ship only frontend/ (and root infra files).")
 scope_group.add_argument("--backend", action="store_true", help="Ship only backend/ (and root infra files).")
-scope_group.add_argument("--storage", action="store_true", help="Ship storage/ including SQLite DBs — overwrites server data with local data.")
-scope_group.add_argument("--database", action="store_true", help="Ship database schema code (backend/app/app/database, core/db.py) + rent.db.")
+scope_group.add_argument("--storage", action="store_true", help="Ship storage/ data (keys, backups) — overwrites server data with local data. PostgreSQL data lives in named volumes and is NOT shipped.")
+scope_group.add_argument("--database", action="store_true", help="Ship database schema + migrations (backend/app/app/db, database/, core/db.py).")
 
 parser.add_argument("--clean", action="store_true", help="Full rebuild: remove containers, images, volumes, and rebuild from scratch. NOT supported with --prod/--release or scoped flags (implies --all).")
 parser.add_argument("--no-build", action="store_true", help="Skip frontend npm builds (useful for backend-only changes).")
@@ -27722,7 +24327,7 @@ github_mode = args.main or args.release
 REMOTE_DIR = REMOTE_DIR_PROD if env == ENV_PROD else REMOTE_DIR_DEV
 
 if env == ENV_PROD and args.clean:
-    parser.error("--clean is not supported for --prod/--release: it would delete the server repo and wipe storage/release (SQLite). Use the rollback path in deploy/deploy-release.sh instead.")
+    parser.error("--clean is not supported for --prod/--release: it would delete the server repo and wipe storage/release and the pgdata_prod PostgreSQL volume. Use the rollback path in deploy/deploy-release.sh instead.")
 
 # Scope: which components are shipped. Default --all.
 SCOPES = ("all", "frontend", "backend", "storage", "database")
@@ -27743,6 +24348,7 @@ SCOPE_PATHS = {
     "backend": ["backend"],
     "storage": ["storage"],
     "database": [
+        "backend/app/app/db",
         "backend/app/app/database",
         "backend/app/app/core/db.py",
     ],
@@ -27959,6 +24565,16 @@ def _load_barsep_env(path):
     return data
 
 
+def write_ports_env():
+    """Regenerate deploy/ports.env from deploy/ports.py (canonical port
+    registry) so bash scripts (deploy-release.sh, self-pull.sh) and the
+    compose env files always agree with the single source of truth."""
+    path = os.path.join(DEPLOY_DIR, "ports.env")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(deploy_ports.ports_env_lines())
+    print(f"  Regenerated {path} from deploy/ports.py")
+
+
 def provision_frontend_env(env_source):
     """Write the canonical frontend/.env used by the vite builds (all apps read
     it via `envDir: '../'`). Only VITE_GOOGLE_CLIENT_ID and VITE_APP_BASE_PATH
@@ -28067,6 +24683,23 @@ def sync_env_files():
             print(f"  Synced env: .env/{src_name} -> {dst_name}")
 
 
+def _is_excluded_rel(path, base_dir, exclude):
+    """True if a path (relative to base_dir) should be excluded from the zip.
+
+    Excludes a directory when *any* of its segments is in the exclude set, but
+    never the docker/storage build context: that `storage` segment is a
+    legitimate image build context, not the top-level storage/ data tree.
+    """
+    rel = os.path.relpath(path, base_dir).replace("\\", "/")
+    if rel == ".":
+        return False
+    segs = rel.split("/")
+    for i, seg in enumerate(segs):
+        if seg in exclude and not (i > 0 and segs[i - 1] == "docker" and seg == "storage"):
+            return True
+    return False
+
+
 def create_zip():
     sync_env_files()
     if os.path.exists(ZIP_FILE):
@@ -28099,10 +24732,11 @@ def create_zip():
                     write_file(zipf, root_abs, arc_root)
                     continue
                 for root, dirs, files in os.walk(root_abs):
-                    dirs[:] = [d for d in dirs if d not in exclude]
-                    rel_parts = os.path.relpath(root, LOCAL_DIR).replace("\\", "/").split("/")
-                    if any(part in exclude for part in rel_parts):
+                    if _is_excluded_rel(root, LOCAL_DIR, exclude):
+                        dirs[:] = []
                         continue
+                    dirs[:] = [d for d in dirs
+                               if not _is_excluded_rel(os.path.join(root, d), LOCAL_DIR, exclude)]
                     for file in files:
                         local_path = os.path.join(root, file)
                         arcname = os.path.relpath(local_path, LOCAL_DIR)
@@ -28161,11 +24795,6 @@ def get_deploy_commands():
             f"cd {REMOTE_DIR} && {base} build",
             f"cd {REMOTE_DIR} && {base} up -d",
         ])
-    elif scope == "storage":
-        # No backend code changed — the storage volume is overlaid and the
-        # backend restarts so the in-memory config cache reloads from disk.
-        cmds = extract_zip_cmds()
-        cmds.append(f"cd {REMOTE_DIR} && {base} restart {svc}")
     elif scope == "frontend":
         # Dev frontend is a live bind-mounted Vite container (image-only, no
         # build context). Target the exact container with a docker restart so the
@@ -28174,11 +24803,15 @@ def get_deploy_commands():
         cmds = extract_zip_cmds()
         cmds.append("docker restart propaura_frontend_dev")
     else:
+        # Unified path for backend/storage/database dev scopes. The dev backend
+        # is a bind-mounted image with uvicorn --reload, so code and config
+        # changes are picked up live. Target the exact container with a docker
+        # restart instead of `compose build/restart <container_name>`, which
+        # would fail because compose subcommands expect the service name, not
+        # the container_name (SCOPE_SERVICES holds container names). For storage
+        # scope the restart also reloads the in-memory config cache from disk.
         cmds = extract_zip_cmds()
-        cmds.extend([
-            f"cd {REMOTE_DIR} && {base} build {svc}",
-            f"cd {REMOTE_DIR} && {base} up -d --no-deps {svc}",
-        ])
+        cmds.append("docker restart propaura_backend_dev")
     return cmds
 
 
@@ -28311,6 +24944,8 @@ def main():
     print(f" BUILD: {'skip' if not build_enabled else 'yes'}")
     print("=" * 50)
 
+    write_ports_env()
+
     if args.self_test:
         run_self_test()
 
@@ -28347,15 +24982,16 @@ def main():
                     f"cd {LOCAL_DIR} && {base} build",
                     f"cd {LOCAL_DIR} && {base} up -d",
                 ])
-            elif scope == "storage":
-                commands.append(f"cd {LOCAL_DIR} && {base} restart {svc}")
             elif scope == "frontend":
                 commands.append("docker restart propaura_frontend_dev")
             else:
-                commands.extend([
-                    f"cd {LOCAL_DIR} && {base} build {svc}",
-                    f"cd {LOCAL_DIR} && {base} up -d --no-deps {svc}",
-                ])
+                # Unified path for backend/storage/database dev scopes. The dev
+                # backend is a bind-mounted image with uvicorn --reload. Target
+                # the exact container with a docker restart instead of
+                # `compose build/restart <container_name>`, which would fail
+                # because compose subcommands expect the service name, not the
+                # container_name (SCOPE_SERVICES holds container names).
+                commands.append("docker restart propaura_backend_dev")
 
         for cmd in commands:
             if not run_local(cmd):
@@ -28410,7 +25046,7 @@ if __name__ == "__main__":
         )
 ```
 
-### `deploy\README.md`
+### `deploy/README.md`
 
 ```markdown
 # Dev/Release Split — Single-Slot Deployment
@@ -28420,28 +25056,39 @@ Two fully isolated environments. `release` is production; `main` is development.
 ```
 RELEASE (production, api.vijaykrsha.online)        DEVELOPMENT (ngrok)
 ──────────────────────────────────────────        ─────────────────────────
-cloudflared / DNS  →  propaura_nginx_gateway_prod  ngrok tunnel  →  propaura_backend_dev (28001)
-                      (host 28005 → cont 28007)                    │
-                         │                                         │
-                      storage/release/rent.db                  storage/dev/rent.db
-                         │
-   propaura_backend_prod (28005) ──── propaura_frontend_prod (host 28004 → cont 28006)
-      rent.vijaykrsha.online         (Cloudflare Pages, release build)
+cloudflared / DNS  →  propaura_nginx_gateway_prod  ngrok tunnel  →  propaura_nginx_gateway_dev (28005)
+                      (host 28014 → cont 28014)                           │
+                          │                                                ├─ API → propaura_backend_dev (28002)
+                          ├─ /health, /api, /ws → propaura_backend_prod    └─ tenant pages → propaura_frontend_dev
+                          │  (cont 28011, expose only)                        (Vite, host 28001)
+                          └─ /rent/* SPA from frontend/build-output
+                             (no frontend container)
+   data: PostgreSQL pgdata_prod (28013) │ storage/release (28012)          data: pgdata_dev (28004) │ storage/dev (28003)
 ```
 
-A single release backend container runs at a time (SQLite is shared via
-`storage/release`), so there is never a second writer on the database. The edge
-nginx points at it via `gateway/nginx/upstream/active.conf`. A deploy rebuilds
-and force-recreates that one container (brief restart), then reloads the edge.
+A single release backend container runs at a time; application data lives in
+PostgreSQL (`pgdata_prod` named volume) plus the shared `storage/release` tree
+for keys/uploads/backups — SQLite is retired. The edge nginx points at the
+backend via `gateway/nginx/upstream/active.conf` and serves the SPA directly
+from `frontend/build-output`. A deploy rebuilds and force-recreates that one
+backend container (brief restart), then reloads the edge.
+
+Canonical ports are single-sourced in `deploy/ports.py` and regenerated into
+`deploy/ports.env` by `deploy.py` — never hand-edit either file's values.
 
 ## Ports
 
-| Service         | Dev  | Release |
-|-----------------|------|---------|
-| Backend         | 28001 → 28001 (ngrok) | 28005 → 28005 (single slot) |
-| Frontend        | 28003 → 28002 (Vite) | 28004 → 28006 (static SPA container) |
-| Edge            | 28080 → 28003 (dev nginx) | 28005 → 28007 (nginx_gateway) |
-| ngrok dashboard | 28004 → 4040 | — |
+| Service    | Dev                     | Release                    |
+|------------|-------------------------|----------------------------|
+| Frontend   | 28001 → 28001 (Vite)    | — (SPA served by the edge) |
+| Backend    | 28002 → 28002 (exposed) | 28011 → 28011 (expose only)|
+| Storage    | 28003 → 28003 (expose)  | 28012 → 28012 (expose only)|
+| Database   | 28004 → 28004 (expose)  | 28013 → 28013 (expose only)|
+| Edge       | 28005 → 28005 (dev nginx) | 28014 → 28014 (nginx_gateway) |
+| ngrok dash | 28006 → 4040 (profile)  | —                          |
+
+PostgreSQL and storage are expose-only (never published to the host); only the
+edge (and Vite/backend in dev) get host-published ports.
 
 ## Required Docker network
 
@@ -28449,9 +25096,9 @@ and force-recreates that one container (brief restart), then reloads the edge.
 docker network create propaura-network
 ```
 
-`compose.prod.yml` joins this network so the edge nginx can resolve the backend
-by container name. If you keep the legacy `gateway/compose.yml` edge, it must
-also be connected: `docker network connect propaura-network propaura_legacy_gateway`.
+`compose.prod.yml` joins this external network so the edge nginx can resolve
+the backend by container name. `compose.dev.yml` uses a private bridge
+(`dev-net`) and needs no external network.
 
 ## Env files (both gitignored — never commit)
 
@@ -28462,10 +25109,10 @@ cp .env.development.example .env.development
 
 - `.env.release` — `APP_ENV=release`, `SERVE_FRONTEND=false`, `ENABLE_SWAGGER=false`,
   separate secrets, `CORS_ALLOW_ORIGINS=https://rent.vijaykrsha.online,...`,
-  DB in `storage/release/rent.db`.
+  `RENT_PG*`/`POSTGRES_*` for PostgreSQL (`propaura_database_prod`).
 - `.env.development` — `APP_ENV=development`, `SERVE_FRONTEND=true`,
-  `ENABLE_SWAGGER=true`, separate secrets, DB in `storage/dev/rent.db`, plus the
-  ngrok auth token and `NGROK_API_BASE_URL`.
+  `ENABLE_SWAGGER=true`, separate secrets, same `RENT_PG*`/`POSTGRES_*` against
+  `propaura_database_dev`, plus the ngrok auth token and `NGROK_API_BASE_URL`.
 
 **Never** share JWT/pin-vault secrets between the two files. Generate unique ones:
 
@@ -28473,6 +25120,9 @@ cp .env.development.example .env.development
 openssl rand -hex 32        # JWT secrets
 openssl rand -base64 32     # tenantPin_VAULT_KEY
 ```
+
+`POSTGRES_PASSWORD` / `RENT_PGPASSWORD` must be set in each file (compose fails
+fast if `POSTGRES_PASSWORD` is missing) and should differ between environments.
 
 ## Google OAuth parity (audit)
 
@@ -28539,6 +25189,9 @@ Existing flags still work: `--local`, `--sshLocal`, `--sshPublic`, `--clean`
 machine instead. For manual push deploys, `DEPLOY_PASSWORD` (server password,
 default `1010`) overrides the embedded password.
 
+Deploy writes `deploy/ports.env` from `deploy/ports.py` before provisioning the
+frontend env so every `*_DEV_PORT` / `*_RELEASE_PORT` stays in sync.
+
 ### Scoped deploys — ship only what was fixed
 
 Add a scope flag to limit the upload (and the dev compose step) to the
@@ -28549,8 +25202,8 @@ components you actually changed. Default is `--all` (the whole repo).
 | `--all`     | entire repo (default) | `build` + `up -d` all services |
 | `--frontend`| `frontend/` + root infra | `build`/`up` `propaura_frontend_dev` |
 | `--backend` | `backend/` + root infra | `build`/`up` `propaura_backend_dev` |
-| `--storage` | `storage/` incl. SQLite DBs + config + backups | `restart propaura_backend_dev` (reloads config) |
-| `--database`| `backend/app/app/database/`, `core/db.py`, `rent.db` + root infra | `build`/`up` `propaura_backend_dev` (runs `init_db`) |
+| `--storage` | `storage/` incl. config + backups (dev) | `restart propaura_backend_dev` (reloads config) |
+| `--database`| `backend/app/app/database/`, `core/db.py` + root infra | `build`/`up` `propaura_backend_dev` (runs `init_db`) |
 
 - Scoped zips **always** also carry the small root infra set
   (`compose.dev.yml`, `compose.prod.yml`, `.env*`, `nginx/`, `gateway/`,
@@ -28560,14 +25213,14 @@ components you actually changed. Default is `--all` (the whole repo).
 - `--clean` **requires `--all`**: it wipes the server repo and re-extracts the
   package, so combining it with a scope is rejected by the parser.
 - `--storage` and `--database` **overwrite server data with your local files**
-  (SQLite DBs, config). Only use them when you intentionally want to ship those.
+  (config, dev backups). Only use them when you intentionally want to ship those.
 
 ```bash
 python3 deploy.py --dev --sshPublic --clean             # full clean dev deploy
 python3 deploy.py --dev --sshPublic --backend           # only backend/ fixes
 python3 deploy.py --dev --sshPublic --frontend          # only frontend/ fixes
-python3 deploy.py --dev --sshPublic --storage           # storage incl. DBs
-python3 deploy.py --dev --sshPublic --database          # schema code + rent.db
+python3 deploy.py --dev --sshPublic --storage           # storage incl. dev data
+python3 deploy.py --dev --sshPublic --database          # schema code (+ init_db)
 python3 deploy.py --dev --sshPublic --clean --backend   # ERROR (clean implies --all)
 ```
 
@@ -28583,17 +25236,20 @@ python3 deploy.py --prod --sshPublic
 
 Uploads the repo (no npm builds — Vite runs live), then on the server:
 `docker compose --env-file .env.development -f compose.dev.yml build && up -d`.
-Backend on port 28001 (hot reload), tenant-app Vite on host 28003 (container 28002).
+Backend on container port 28002 (hot reload, host-published), tenant-app Vite on
+host 28001, edge dev nginx on host 28005.
 
 The dev ngrok tunnel on the server is the **systemd-hosted** agent
 (`ngrok.service`, `/home/vega/.config/ngrok/ngrok.yml`) — it owns the account's
-reserved URL and is repointed to `http://localhost:28001`. The docker `ngrok`
-service is behind the `ngrok` compose profile (avoids a port/URL clash):
+reserved URL and is repointed to `http://localhost:28005` (the dev edge nginx,
+not the backend directly — the edge splits API vs tenant/Vite traffic). The
+docker `ngrok` service is behind the `ngrok` compose profile (avoids a
+port/URL clash):
 
 ```bash
 # only where no host ngrok exists (e.g. a laptop):
 docker compose --env-file .env.development -f compose.dev.yml --profile ngrok up -d
-# dashboard: http://localhost:28004
+# dashboard: http://localhost:28006
 ```
 
 Copy the tunnel URL into `NGROK_API_BASE_URL` and `VITE_API_BASE_URL` in
@@ -28601,10 +25257,11 @@ Copy the tunnel URL into `NGROK_API_BASE_URL` and `VITE_API_BASE_URL` in
 
 ### What `--prod` runs
 
-Uploads the repo (building the 4 frontend apps unless `--no-build`), then on the
-server runs `./deploy/deploy-release.sh`: builds the backend image, force-recreates
-`propaura_backend_prod`, waits for `/health`, reloads the edge nginx, and
-smoke-tests. Requires `.env.release` on the server (shipped inside the upload).
+Uploads the repo (building the frontend to `frontend/build-output` unless
+`--no-build`), then on the server runs `./deploy/deploy-release.sh`: builds the
+backend image, force-recreates `propaura_backend_prod`, waits for `/health`,
+reloads the edge nginx, and smoke-tests. Requires `.env.release` on the server
+(shipped inside the upload).
 
 ```bash
 # First deploy
@@ -28613,11 +25270,13 @@ python3 deploy.py --prod --sshPublic
 ```
 
 The script:
-1. Builds `propaura_backend_prod`.
+1. Builds `propaura_backend_prod` (image `propaura-backend-release`).
 2. Starts/force-recreates the backend container.
 3. Waits for `/health` (30 × 3s) inside the container.
-4. Brings up `propaura_frontend_prod` + `propaura_nginx_gateway_prod` if needed.
-5. Reloads the edge nginx and smoke-tests `/health` through the edge.
+4. Brings up `propaura_nginx_gateway_prod` if needed (SPA is served by the edge
+   from `frontend/build-output` — there is no frontend container).
+5. Reloads the edge nginx and smoke-tests `/health` through the edge
+   (`127.0.0.1:28014`).
 
 ### Rollback
 
@@ -28678,9 +25337,9 @@ systemctl enable --now rent-deploy-dev.timer rent-deploy-release.timer
 
 Release deploys are gated: `deploy/self-pull.sh release` exits without deploying
 until `/home/vega/rent-secrets/RELEASE_READY` exists. Create it only after the
-cloudflared tunnel ingress has been switched from the legacy `propaura_legacy_gateway`
-(port 80) to `propaura_nginx_gateway_prod` (host 28005) — the first deploy retires
-the legacy edge.
+cloudflared tunnel ingress has been switched from the legacy
+`propaura_legacy_gateway` (port 80) to `propaura_nginx_gateway_prod`
+(host 28014).
 
 ### First-time migration (one-time manual sequence)
 
@@ -28688,19 +25347,22 @@ The scripted initial deploy (`deploy-release.sh`) starts the backend before
 `propaura_nginx_gateway_prod` is up, so the first migration is done by hand on the
 release clone (`/home/vega/rent-app-release`):
 
-1. Seed data into `storage/release/` (copy the legacy `rent.db` + `uploads/`,
-   `receipts/`, `config/` from the old backend's storage), and set
-   `tenantPin_VAULT_KEY` in `.env.release` to the legacy value so the migrated
-   DB can be decrypted.
+1. Data seed:
+   - PostgreSQL: restore the migrated dump into `pgdata_prod` (verify the
+     replica's PG major version matches postgres:16-alpine first), or let
+     `database_prod` start empty and run the app's `init_db`/backfill.
+   - Storage: copy `config/`, keys, `tenantPin_VAULT_KEY` (legacy value, so
+     migrated data decrypts) and any uploads into `storage/release/`.
 2. Build and start the stack, edge LAST, then flip the tunnel:
    ```
    docker compose --env-file .env.release -f compose.prod.yml build propaura_backend_prod
+   docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps propaura_database_prod
    docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps propaura_backend_prod   # wait for /health
-   docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps propaura_nginx_gateway_prod propaura_frontend_prod
-   curl -f http://127.0.0.1:28005/health
+   docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps propaura_nginx_gateway_prod
+   curl -f http://127.0.0.1:28014/health
    ```
 3. Cloudflare dashboard: point the tunnel's `api.vijaykrsha.online` public
-   hostname at `http://localhost:28005`.
+   hostname at `http://localhost:28014`.
 4. Verify `https://api.vijaykrsha.online/health` returns the backend JSON
    health, then retire the legacy edge:
    ```
@@ -28734,25 +25396,25 @@ server-side via self-pull. The server only needs `docker` (with compose v2),
 ### Cloudflare Pages: set production branch to `release`
 
 In the Cloudflare dashboard (Workers & Pages → your `rent` project → Settings →
-Builds & deployments), set **Production branch = `release`**. The `deploy-cloudflare-pages.yml`
-workflow deploys with `--branch=release`.
+Builds & deployments), set **Production branch = `release`**. The
+`deploy-cloudflare-pages.yml` workflow deploys with `--branch=release`.
 
-## API-only release backend
+## API + static-SPA release backend
 
 The release backend sets `SERVE_FRONTEND=false`:
 
-- Landing page, tenant/landlord SPA routers and the 4 frontend static mounts are
+- Landing page, tenant/landlord SPA routers and the frontend static mounts are
   **not registered** (`backend/app/app/core/router_registry.py`,
   `backend/app/app/core/startup.py`).
 - Swagger/docs are disabled (`ENABLE_SWAGGER=false`).
 - CORS is read from `CORS_ALLOW_ORIGINS`.
 
-All page serving is moved to `propaura_frontend_prod` (host 28004) and Cloudflare
-Pages. The edge nginx routes `/rent/*` and tenant deep links to the frontend;
-everything else (API, `/static/uploads`, WebSockets) goes to the backend slot.
-```
+All page serving is done by the edge nginx from `frontend/build-output`
+(no separate frontend container; `rent.vijaykrsha.online` remains Cloudflare
+Pages). The edge routes `/rent/*` and tenant deep links to the static SPA;
+everything else (API, `/static/uploads`, WebSockets) goes to the backend slot.```
 
-### `deploy\deploy-cloudflare-pages.sh`
+### `deploy/deploy-cloudflare-pages.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -28789,7 +25451,7 @@ npx wrangler pages deploy build-output \
 echo "=== Deploy complete ==="
 ```
 
-### `deploy\deploy-github-release.sh`
+### `deploy/deploy-github-release.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -28814,7 +25476,7 @@ gh release create "$VERSION" --generate-notes
 echo "=== GitHub Release $VERSION created ==="
 ```
 
-### `deploy\deploy-release.sh`
+### `deploy/deploy-release.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -28822,8 +25484,9 @@ echo "=== GitHub Release $VERSION created ==="
 #
 # Strategy: the backend image is built, the existing propaura_backend_prod
 # container is force-recreated (brief restart), waited on via /health, then the
-# edge nginx is reloaded and smoke-tested. SQLite lives in ./storage/release and
-# is only ever written by this one container.
+# edge nginx is reloaded and smoke-tested. Data lives in PostgreSQL (pgdata_prod);
+# SQLite is retired. The edge nginx serves the SPA directly from
+# frontend/build-output (no separate frontend container).
 #
 # Usage:
 #   ./deploy/deploy-release.sh [--no-frontend] [--no-build]
@@ -28839,13 +25502,11 @@ ENV_FILE=".env.release"
 COMPOSE="compose.prod.yml"
 # Compose service names (used with `docker compose build/up`).
 BACKEND_SVC="backend_prod"
-FRONTEND_SVC="frontend_prod"
 EDGE_SVC="nginx_gateway_prod"
 # Container names (used with `docker exec/inspect`).
 BACKEND="propaura_backend_prod"
-FRONTEND="propaura_frontend_prod"
 EDGE_NGINX="propaura_nginx_gateway_prod"
-BACKEND_PORT=28005
+BACKEND_PORT=28011
 
 WITH_FRONTEND=1
 WITH_BUILD=1
@@ -28879,23 +25540,16 @@ wait_health() {
 }
 
 reload_edge() {
-  local reloaded=0
   if docker exec "$EDGE_NGINX" nginx -s reload >/dev/null 2>&1; then
     ok "reloaded edge nginx ($EDGE_NGINX)"
-    reloaded=1
-  fi
-  if docker exec propaura_legacy_gateway nginx -s reload >/dev/null 2>&1; then
-    ok "reloaded legacy edge nginx (propaura_legacy_gateway)"
-    reloaded=1
-  fi
-  if [ "$reloaded" -eq 0 ]; then
-    warn "no edge nginx container found to reload — is compose.prod.yml $EDGE_NGINX running?"
+  else
+    warn "edge nginx container not running — cannot nginx -s reload (is compose.prod.yml $EDGE_NGINX up?)"
   fi
 }
 
 smoke_test() {
-  if curl -fsS "http://127.0.0.1:28005/health" >/dev/null 2>&1; then
-    ok "edge smoke test passed (/health via 127.0.0.1:28005)"
+  if curl -fsS "http://127.0.0.1:28014/health" >/dev/null 2>&1; then
+    ok "edge smoke test passed (/health via 127.0.0.1:28014)"
     return 0
   fi
   if curl -fsS "https://api.vijaykrsha.online/health" >/dev/null 2>&1; then
@@ -28909,8 +25563,8 @@ smoke_test() {
 build_frontend() {
   if ! command -v node >/dev/null 2>&1; then
     warn "node not found on server — skipping frontend build"
-    warn "propaura_frontend_prod (host 28004) needs frontend/build-output; build it locally and scp it,"
-    warn "or install node on the server and rerun the deploy"
+    warn "$EDGE_NGINX serves frontend/build-output directly via its bind mount;"
+    warn "build it locally and scp it, or install node on the server and rerun the deploy"
     return 0
   fi
   log "building frontend (VITE_API_BASE_URL=$VITE_API_BASE_URL)"
@@ -28945,7 +25599,7 @@ main() {
   docker network create propaura-network 2>/dev/null || true
 
   if [ "$WITH_FRONTEND" -eq 1 ] && frontend_missing; then
-    warn "frontend/build-output missing — building (release frontend for host port 28004)"
+    warn "frontend/build-output missing — building (release build mounted into the gateway)"
     build_frontend
   fi
 
@@ -28966,8 +25620,8 @@ main() {
   fi
   wait_health "$BACKEND" "$BACKEND_PORT"
 
-  # ── Bring up the edge + frontend if they are not already running ────────
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps "$FRONTEND_SVC" "$EDGE_SVC"
+  # ── Bring up the edge if it is not already running ──────────────────────
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps "$EDGE_SVC"
   sleep 3
   reload_edge
   smoke_test
@@ -28977,7 +25631,102 @@ main() {
 main "$@"
 ```
 
-### `deploy\self-pull.sh`
+### `deploy/ports.env`
+
+```
+# Generated from deploy/ports.py - do not edit by hand.
+# Single source of truth: DEV_PORTS / PROD_PORTS in deploy/ports.py.
+FRONTEND_DEV_PORT=28001
+BACKEND_DEV_PORT=28002
+STORAGE_DEV_PORT=28003
+DATABASE_DEV_PORT=28004
+NGINX_DEV_PORT=28005
+NGROK_DASHBOARD_PORT=28006
+BACKEND_RELEASE_PORT=28011
+STORAGE_RELEASE_PORT=28012
+DATABASE_RELEASE_PORT=28013
+NGINX_RELEASE_PORT=28014
+NGROK_RELEASE_PORT=28015
+```
+
+### `deploy/ports.py`
+
+```python
+"""
+Canonical port registry for PROPAURA (Phase G — SQLite -> PostgreSQL cutover).
+
+These are the ONLY port numbers that matter. Every layer derives from here:
+
+  - deploy/ports.env        (bash form, regenerated by deploy.py at run time)
+  - compose.dev.yml         (frontend 28001, backend 28002, storage 28003,
+                             database 28004, nginx 28005, ngrok dashboard 28006)
+  - compose.prod.yml        (backend 28011, storage 28012, database 28013,
+                             nginx 28014, ngrok dashboard 28015)
+  - nginx listen/upstreams  (dev: gateway listen 28005 -> frontend 28001 /
+                             backend 28002; prod: edge listen 28014 ->
+                             backend 28011)
+  - backend/Dockerfile      (default/dev port 28002)
+  - .env.development.example / .env.release.example
+
+PostgreSQL and storage are compose `expose`-only services: they are reachable
+only inside the compose network and are NEVER published on a host port, so the
+production database is never internet-accessible.
+"""
+
+DEV_PORTS = {
+    "frontend": 28001,          # Vite dev server (tenant-app), host-published for HMR
+    "backend": 28002,           # uvicorn dev API, host-published for direct access
+    "storage": 28003,           # storage container — expose only
+    "database": 28004,          # postgres — expose only (postgres -p 28004)
+    "nginx": 28005,             # dev edge gateway, host-published (ngrok target)
+    "ngrok": 28006,             # ngrok dashboard host port (container 4040)
+    "cloudflared": 80,          # host-network tunnel (production only, not dev)
+}
+
+PROD_PORTS = {
+    "backend": 28011,           # uvicorn release API — expose only
+    "storage": 28012,           # storage container — expose only
+    "database": 28013,          # postgres — expose only (postgres -p 28013)
+    "nginx": 28014,             # edge nginx (api/app hosts), host-published
+    "ngrok": 28015,             # reserved (unused; prod uses cloudflared on 80)
+    "cloudflared": 80,          # host-network tunnel -> 127.0.0.1:28014
+}
+
+# Mapping of ports.env keys -> (env, role). deploy.py renders deploy/ports.env
+# from DEV_PORTS/PROD_PORTS so bash scripts (deploy-release.sh, self-pull.sh)
+# and compose env files always match the registry above.
+PORT_ENV_KEYS = [
+    # (key, env, role)
+    ("FRONTEND_DEV_PORT", "dev", "frontend"),
+    ("BACKEND_DEV_PORT", "dev", "backend"),
+    ("STORAGE_DEV_PORT", "dev", "storage"),
+    ("DATABASE_DEV_PORT", "dev", "database"),
+    ("NGINX_DEV_PORT", "dev", "nginx"),
+    ("NGROK_DASHBOARD_PORT", "dev", "ngrok"),
+    ("BACKEND_RELEASE_PORT", "prod", "backend"),
+    ("STORAGE_RELEASE_PORT", "prod", "storage"),
+    ("DATABASE_RELEASE_PORT", "prod", "database"),
+    ("NGINX_RELEASE_PORT", "prod", "nginx"),
+    ("NGROK_RELEASE_PORT", "prod", "ngrok"),
+]
+
+
+def ports_env_lines() -> str:
+    """Render the bash-compatible deploy/ports.env file content."""
+    lines = ["# Generated from deploy/ports.py - do not edit by hand.",
+             "# Single source of truth: DEV_PORTS / PROD_PORTS in deploy/ports.py."]
+    for key, env, role in PORT_ENV_KEYS:
+        table = DEV_PORTS if env == "dev" else PROD_PORTS
+        lines.append(f"{key}={table[role]}")
+    return "\n".join(lines) + "\n"
+
+
+def port(env: str, role: str) -> int:
+    """Look up a canonical port by environment ('dev'|'prod') and role."""
+    table = DEV_PORTS if env == "dev" else PROD_PORTS
+    return table[role]```
+
+### `deploy/self-pull.sh`
 
 ```bash
 #!/usr/bin/env bash
@@ -29013,9 +25762,9 @@ RELEASE_READY_FILE="${RELEASE_READY_FILE:-$SECRETS_DIR/RELEASE_READY}"
 
 log() { printf '\033[36m[self-pull]\033[0m %s\n' "$*"; }
 
-# Release deploys retire the legacy propaura_legacy_gateway/propaura_legacy_backend edge
-# on first run. Gate them behind a marker so that only happens once the operator has
-# switched the cloudflared tunnel ingress to propaura_nginx_gateway_prod (host 28005).
+# Release deploys are gated behind a marker so they only run once the operator
+# has switched the cloudflared tunnel ingress to propaura_nginx_gateway_prod
+# (host port 28014).
 if [ "$BRANCH" = "release" ] && [ ! -f "$RELEASE_READY_FILE" ]; then
   log "release deploy gated — create $RELEASE_READY_FILE to enable"
   exit 0
@@ -29053,7 +25802,7 @@ fi
 log "$BRANCH deployed OK"
 ```
 
-### `frontend\.env.example`
+### `frontend/.env.example`
 
 ```text
 # Frontend build-time VITE_* vars — sourced by frontend/build.sh if present.
@@ -29074,7 +25823,7 @@ VITE_API_BASE_URL=
 VITE_GOOGLE_CLIENT_ID=
 ```
 
-### `frontend\admin-app\index.html`
+### `frontend/admin-app/index.html`
 
 ```html
 <!DOCTYPE html>
@@ -29092,7 +25841,7 @@ VITE_GOOGLE_CLIENT_ID=
 </html>
 ```
 
-### `frontend\admin-app\package.json`
+### `frontend/admin-app/package.json`
 
 ```json
 {
@@ -29123,7 +25872,7 @@ VITE_GOOGLE_CLIENT_ID=
 }
 ```
 
-### `frontend\admin-app\src\App.tsx`
+### `frontend/admin-app/src/App.tsx`
 
 ```typescript
 import { Routes, Route, Navigate } from "react-router";
@@ -29175,7 +25924,7 @@ export default function App() {
 }
 ```
 
-### `frontend\admin-app\src\api\client.ts`
+### `frontend/admin-app/src/api/client.ts`
 
 ```typescript
 import { getApiUrl } from "@shared/api-config";
@@ -29242,7 +25991,7 @@ export async function fetchApi(path: string, init: RequestInit = {}): Promise<Re
 }
 ```
 
-### `frontend\admin-app\src\components\AuthLayout.tsx`
+### `frontend/admin-app/src/components/AuthLayout.tsx`
 
 ```typescript
 import type { ReactNode } from "react";
@@ -29307,7 +26056,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 }
 ```
 
-### `frontend\admin-app\src\components\BroadcastBanner.css`
+### `frontend/admin-app/src/components/BroadcastBanner.css`
 
 ```css
 .broadcast-banner {
@@ -29385,7 +26134,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 }
 ```
 
-### `frontend\admin-app\src\components\BroadcastBanner.tsx`
+### `frontend/admin-app/src/components/BroadcastBanner.tsx`
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
@@ -29456,7 +26205,7 @@ export default function BroadcastBanner({ healthUrl }: BroadcastBannerProps) {
 }
 ```
 
-### `frontend\admin-app\src\components\ErrorBoundary.tsx`
+### `frontend/admin-app/src/components/ErrorBoundary.tsx`
 
 ```typescript
 import { Component, type ErrorInfo, type ReactNode } from "react";
@@ -29549,7 +26298,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 }
 ```
 
-### `frontend\admin-app\src\components\Layout.tsx`
+### `frontend/admin-app/src/components/Layout.tsx`
 
 ```typescript
 import { Link, useLocation, useNavigate } from "react-router";
@@ -29701,7 +26450,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 }
 ```
 
-### `frontend\admin-app\src\contexts\AuthContext.tsx`
+### `frontend/admin-app/src/contexts/AuthContext.tsx`
 
 ```typescript
 import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from "react";
@@ -29945,7 +26694,7 @@ export function useAuth(): AuthContextValue {
 }
 ```
 
-### `frontend\admin-app\src\hooks\useAuthSync.ts`
+### `frontend/admin-app/src/hooks/useAuthSync.ts`
 
 ```typescript
 import { useEffect, useRef } from "react";
@@ -30045,7 +26794,7 @@ export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled 
 }
 ```
 
-### `frontend\admin-app\src\hooks\useHealthStream.ts`
+### `frontend/admin-app/src/hooks/useHealthStream.ts`
 
 ```typescript
 import { useEffect, useRef, useState } from "react";
@@ -30137,7 +26886,7 @@ export function useHealthStream(enabled = true) {
 }
 ```
 
-### `frontend\admin-app\src\lib\runtime.ts`
+### `frontend/admin-app/src/lib/runtime.ts`
 
 ```typescript
 import { getApiBaseUrl } from "@shared/api-config";
@@ -30147,7 +26896,7 @@ export const API_BASE = getApiBaseUrl() + "/rent/admin/api";
 
 ```
 
-### `frontend\admin-app\src\main.tsx`
+### `frontend/admin-app/src/main.tsx`
 
 ```typescript
 import React from "react";
@@ -30171,7 +26920,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 
 ```
 
-### `frontend\admin-app\src\pages\AuditLogsPage.tsx`
+### `frontend/admin-app/src/pages/AuditLogsPage.tsx`
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
@@ -30553,7 +27302,7 @@ const btnSecondary: React.CSSProperties = {
 };
 ```
 
-### `frontend\admin-app\src\pages\DashboardPage.tsx`
+### `frontend/admin-app/src/pages/DashboardPage.tsx`
 
 ```typescript
 import { useEffect, useState } from "react";
@@ -30664,7 +27413,7 @@ export default function DashboardPage() {
 }
 ```
 
-### `frontend\admin-app\src\pages\DataExplorerPage.tsx`
+### `frontend/admin-app/src/pages/DataExplorerPage.tsx`
 
 ```typescript
 import { useEffect, useState, useCallback } from "react";
@@ -31131,7 +27880,7 @@ export default function DataExplorerPage() {
 }
 ```
 
-### `frontend\admin-app\src\pages\FeedbackInboxPage.tsx`
+### `frontend/admin-app/src/pages/FeedbackInboxPage.tsx`
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
@@ -31481,7 +28230,7 @@ const btnPrimary: React.CSSProperties = {
 };
 ```
 
-### `frontend\admin-app\src\pages\LandlordDetailPage.tsx`
+### `frontend/admin-app/src/pages/LandlordDetailPage.tsx`
 
 ```typescript
 import { useEffect, useState } from "react";
@@ -31649,7 +28398,7 @@ export default function LandlordDetailPage() {
 }
 ```
 
-### `frontend\admin-app\src\pages\LandlordsPage.tsx`
+### `frontend/admin-app/src/pages/LandlordsPage.tsx`
 
 ```typescript
 import { useEffect, useState, useCallback } from "react";
@@ -32109,7 +28858,7 @@ export default function LandlordsPage() {
 }
 ```
 
-### `frontend\admin-app\src\pages\LoginPage.tsx`
+### `frontend/admin-app/src/pages/LoginPage.tsx`
 
 ```typescript
 import { useState, useEffect, type FormEvent } from "react";
@@ -32558,7 +29307,7 @@ const inputStyle: React.CSSProperties = {
 };
 ```
 
-### `frontend\admin-app\src\pages\SettingsPage.tsx`
+### `frontend/admin-app/src/pages/SettingsPage.tsx`
 
 ```typescript
 import { useState, useEffect } from "react";
@@ -33207,7 +29956,7 @@ const dialogStyle: React.CSSProperties = {
 };
 ```
 
-### `frontend\admin-app\tsconfig.json`
+### `frontend/admin-app/tsconfig.json`
 
 ```json
 {
@@ -33242,7 +29991,7 @@ const dialogStyle: React.CSSProperties = {
 }
 ```
 
-### `frontend\admin-app\tsconfig.node.json`
+### `frontend/admin-app/tsconfig.node.json`
 
 ```json
 {
@@ -33259,14 +30008,14 @@ const dialogStyle: React.CSSProperties = {
 }
 ```
 
-### `frontend\admin-app\vite.config.d.ts`
+### `frontend/admin-app/vite.config.d.ts`
 
 ```typescript
 declare const _default: import("vite").UserConfig;
 export default _default;
 ```
 
-### `frontend\admin-app\vite.config.js`
+### `frontend/admin-app/vite.config.js`
 
 ```javascript
 import path from "path";
@@ -33304,7 +30053,7 @@ export default defineConfig({
 });
 ```
 
-### `frontend\admin-app\vite.config.ts`
+### `frontend/admin-app/vite.config.ts`
 
 ```typescript
 import path from "path";
@@ -33343,7 +30092,7 @@ export default defineConfig({
 });
 ```
 
-### `frontend\build-dev.sh`
+### `frontend/build-dev.sh`
 
 ```bash
 #!/bin/bash
@@ -33375,7 +30124,7 @@ echo "=== Running the standard build (see build.sh) ==="
 exec bash build.sh
 ```
 
-### `frontend\build.sh`
+### `frontend/build.sh`
 
 ```bash
 #!/bin/bash
@@ -33466,7 +30215,7 @@ echo "--- _redirects ---"
 cat build-output/_redirects
 ```
 
-### `frontend\functions\_middleware.js`
+### `frontend/functions/_middleware.js`
 
 ```javascript
 const SPA_INDEXES = [
@@ -33525,7 +30274,7 @@ export async function onRequest(context) {
 }
 ```
 
-### `frontend\landing-app\index.html`
+### `frontend/landing-app/index.html`
 
 ```html
 <!DOCTYPE html>
@@ -33545,7 +30294,7 @@ export async function onRequest(context) {
 </html>
 ```
 
-### `frontend\landing-app\package.json`
+### `frontend/landing-app/package.json`
 
 ```json
 {
@@ -33575,7 +30324,7 @@ export async function onRequest(context) {
 }
 ```
 
-### `frontend\landing-app\src\App.tsx`
+### `frontend/landing-app/src/App.tsx`
 
 ```typescript
 import Navbar from "./components/Navbar";
@@ -33617,7 +30366,7 @@ export default function App() {
 }
 ```
 
-### `frontend\landing-app\src\components\BroadcastBanner.css`
+### `frontend/landing-app/src/components/BroadcastBanner.css`
 
 ```css
 .broadcast-banner {
@@ -33703,7 +30452,7 @@ export default function App() {
 }
 ```
 
-### `frontend\landing-app\src\components\BroadcastBanner.tsx`
+### `frontend/landing-app/src/components/BroadcastBanner.tsx`
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
@@ -33774,7 +30523,7 @@ export default function BroadcastBanner({ healthUrl }: BroadcastBannerProps) {
 }
 ```
 
-### `frontend\landing-app\src\components\CTA.tsx`
+### `frontend/landing-app/src/components/CTA.tsx`
 
 ```typescript
 import { ArrowUpRightIcon } from "./Icons";
@@ -33801,7 +30550,7 @@ export default function CTA() {
 }
 ```
 
-### `frontend\landing-app\src\components\FAQ.tsx`
+### `frontend/landing-app/src/components/FAQ.tsx`
 
 ```typescript
 import { useState } from "react";
@@ -33846,7 +30595,7 @@ export default function FAQ() {
 }
 ```
 
-### `frontend\landing-app\src\components\Features.tsx`
+### `frontend/landing-app/src/components/Features.tsx`
 
 ```typescript
 import { features } from "../data";
@@ -33897,7 +30646,7 @@ export default function Features() {
 }
 ```
 
-### `frontend\landing-app\src\components\FeaturesGrid.tsx`
+### `frontend/landing-app/src/components/FeaturesGrid.tsx`
 
 ```typescript
 import { featureCategories } from "../data";
@@ -33936,7 +30685,7 @@ export default function FeaturesGrid() {
 }
 ```
 
-### `frontend\landing-app\src\components\Footer.tsx`
+### `frontend/landing-app/src/components/Footer.tsx`
 
 ```typescript
 import { Logo } from "@shared/brand/Logo";
@@ -34021,7 +30770,7 @@ export default function Footer() {
 }
 ```
 
-### `frontend\landing-app\src\components\Hero.tsx`
+### `frontend/landing-app/src/components/Hero.tsx`
 
 ```typescript
 import { heroInlineBadges } from "../data";
@@ -34088,7 +30837,7 @@ export default function Hero() {
 }
 ```
 
-### `frontend\landing-app\src\components\Icons.tsx`
+### `frontend/landing-app/src/components/Icons.tsx`
 
 ```typescript
 import type { JSX, ReactNode } from "react";
@@ -34257,7 +31006,7 @@ export function ArrowUpRightIcon({ size = 24, ...p }: IconProps) {
 }
 ```
 
-### `frontend\landing-app\src\components\Navbar.tsx`
+### `frontend/landing-app/src/components/Navbar.tsx`
 
 ```typescript
 import { useState } from "react";
@@ -34335,7 +31084,7 @@ export default function Navbar() {
 }
 ```
 
-### `frontend\landing-app\src\components\NextStep.tsx`
+### `frontend/landing-app/src/components/NextStep.tsx`
 
 ```typescript
 import { HomeIcon, UserIcon, ShieldIcon, ArrowRightIcon, type IconComponent } from "./Icons";
@@ -34425,7 +31174,7 @@ export default function NextStep() {
 }
 ```
 
-### `frontend\landing-app\src\components\Roadmap.tsx`
+### `frontend/landing-app/src/components/Roadmap.tsx`
 
 ```typescript
 import { roadmapMilestones } from "../data";
@@ -34465,7 +31214,7 @@ export default function Roadmap() {
 }
 ```
 
-### `frontend\landing-app\src\components\RoleLoginStrip.tsx`
+### `frontend/landing-app/src/components/RoleLoginStrip.tsx`
 
 ```typescript
 import { ArrowRightIcon, HomeIcon, ShieldIcon, UserIcon } from "./Icons";
@@ -34522,7 +31271,7 @@ export default function RoleLoginStrip() {
 }
 ```
 
-### `frontend\landing-app\src\components\Security.tsx`
+### `frontend/landing-app/src/components/Security.tsx`
 
 ```typescript
 import { securityPillars } from "../data";
@@ -34568,7 +31317,7 @@ export default function Security() {
 }
 ```
 
-### `frontend\landing-app\src\components\TrustBadges.tsx`
+### `frontend/landing-app/src/components/TrustBadges.tsx`
 
 ```typescript
 import { trustBadges } from "../data";
@@ -34605,7 +31354,7 @@ export default function TrustBadges() {
 }
 ```
 
-### `frontend\landing-app\src\components\WhyChoose.tsx`
+### `frontend/landing-app/src/components/WhyChoose.tsx`
 
 ```typescript
 import { useState } from "react";
@@ -34674,7 +31423,7 @@ export default function WhyChoose() {
 }
 ```
 
-### `frontend\landing-app\src\data.ts`
+### `frontend/landing-app/src/data.ts`
 
 ```typescript
 export const navLinks = [
@@ -34924,7 +31673,7 @@ export const supportLinks = [
 ];
 ```
 
-### `frontend\landing-app\src\index.css`
+### `frontend/landing-app/src/index.css`
 
 ```css
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
@@ -36132,7 +32881,7 @@ main { position: relative; }
 }
 ```
 
-### `frontend\landing-app\src\main.tsx`
+### `frontend/landing-app/src/main.tsx`
 
 ```typescript
 import React from "react";
@@ -36149,7 +32898,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 );
 ```
 
-### `frontend\landing-app\tsconfig.json`
+### `frontend/landing-app/tsconfig.json`
 
 ```json
 {
@@ -36184,7 +32933,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 }
 ```
 
-### `frontend\landing-app\tsconfig.node.json`
+### `frontend/landing-app/tsconfig.node.json`
 
 ```json
 {
@@ -36201,14 +32950,14 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 }
 ```
 
-### `frontend\landing-app\vite.config.d.ts`
+### `frontend/landing-app/vite.config.d.ts`
 
 ```typescript
 declare const _default: import("vite").UserConfig;
 export default _default;
 ```
 
-### `frontend\landing-app\vite.config.js`
+### `frontend/landing-app/vite.config.js`
 
 ```javascript
 import path from "path";
@@ -36243,7 +32992,7 @@ export default defineConfig({
 });
 ```
 
-### `frontend\landing-app\vite.config.ts`
+### `frontend/landing-app/vite.config.ts`
 
 ```typescript
 import path from "path";
@@ -36279,7 +33028,7 @@ export default defineConfig({
 });
 ```
 
-### `frontend\landlord-app\.env.example`
+### `frontend/landlord-app/.env.example`
 
 ```text
 # Google OAuth client id for the landlord "Sign in with Google" button
@@ -36288,7 +33037,7 @@ export default defineConfig({
 VITE_GOOGLE_CLIENT_ID=682816703845-ek2up1l56iah950pohj1ol3h7ijlidmr.apps.googleusercontent.com
 ```
 
-### `frontend\landlord-app\.gitignore`
+### `frontend/landlord-app/.gitignore`
 
 ```
 # Logs
@@ -36317,7 +33066,7 @@ dist-ssr
 *.sw?
 ```
 
-### `frontend\landlord-app\.oxlintrc.json`
+### `frontend/landlord-app/.oxlintrc.json`
 
 ```json
 {
@@ -36330,7 +33079,7 @@ dist-ssr
 }
 ```
 
-### `frontend\landlord-app\components.json`
+### `frontend/landlord-app/components.json`
 
 ```json
 {
@@ -36357,7 +33106,7 @@ dist-ssr
 }
 ```
 
-### `frontend\landlord-app\eslint.config.js`
+### `frontend/landlord-app/eslint.config.js`
 
 ```javascript
 import js from '@eslint/js'
@@ -36385,7 +33134,7 @@ export default defineConfig([
 ])
 ```
 
-### `frontend\landlord-app\index.html`
+### `frontend/landlord-app/index.html`
 
 ```html
 <!doctype html>
@@ -36403,7 +33152,7 @@ export default defineConfig([
 </html>
 ```
 
-### `frontend\landlord-app\info.md`
+### `frontend/landlord-app/info.md`
 
 ```markdown
 Using Node.js 20, Tailwind CSS v3.4.19, and Vite v7.2.4
@@ -36439,7 +33188,7 @@ Structure:
   postcss.config.js    Config file for CSS post-processing tools
 ```
 
-### `frontend\landlord-app\package.json`
+### `frontend/landlord-app/package.json`
 
 ```json
 {
@@ -36524,7 +33273,7 @@ Structure:
 }
 ```
 
-### `frontend\landlord-app\src\App.css`
+### `frontend/landlord-app/src/App.css`
 
 ```css
 /* Custom scrollbar */
@@ -36579,7 +33328,7 @@ table {
 }
 ```
 
-### `frontend\landlord-app\src\App.tsx`
+### `frontend/landlord-app/src/App.tsx`
 
 ```typescript
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
@@ -36695,7 +33444,7 @@ function App() {
 export default App;
 ```
 
-### `frontend\landlord-app\src\components\BroadcastBanner.css`
+### `frontend/landlord-app/src/components/BroadcastBanner.css`
 
 ```css
 .broadcast-banner {
@@ -36773,7 +33522,7 @@ export default App;
 }
 ```
 
-### `frontend\landlord-app\src\components\BroadcastBanner.tsx`
+### `frontend/landlord-app/src/components/BroadcastBanner.tsx`
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
@@ -36842,7 +33591,7 @@ export default function BroadcastBanner({ healthUrl = "/health" }: BroadcastBann
 }
 ```
 
-### `frontend\landlord-app\src\components\ErrorBoundary.tsx`
+### `frontend/landlord-app/src/components/ErrorBoundary.tsx`
 
 ```typescript
 import { Component, type ErrorInfo, type ReactNode } from 'react'
@@ -36935,7 +33684,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 }
 ```
 
-### `frontend\landlord-app\src\components\archive\ArchiveTenantCard.tsx`
+### `frontend/landlord-app/src/components/archive/ArchiveTenantCard.tsx`
 
 ```typescript
 import { useState } from 'react';
@@ -37260,7 +34009,7 @@ export function ArchiveTenantCard({
 export default ArchiveTenantCard;
 ```
 
-### `frontend\landlord-app\src\components\dashboard\DuePaymentsModal.tsx`
+### `frontend/landlord-app/src/components/dashboard/DuePaymentsModal.tsx`
 
 ```typescript
 import { useEffect, useMemo, useState } from 'react';
@@ -37639,7 +34388,7 @@ export default function DuePaymentsModal({ open, onOpenChange, onChanged }: Prop
 }
 ```
 
-### `frontend\landlord-app\src\components\dashboard\MeterReadingDetailsModal.tsx`
+### `frontend/landlord-app/src/components/dashboard/MeterReadingDetailsModal.tsx`
 
 ```typescript
 import { useEffect, useMemo, useState } from 'react';
@@ -37933,7 +34682,7 @@ export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId,
 }
 ```
 
-### `frontend\landlord-app\src\components\layout\AuthLayout.tsx`
+### `frontend/landlord-app/src/components/layout/AuthLayout.tsx`
 
 ```typescript
 import type { ReactNode } from "react";
@@ -37983,7 +34732,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 }
 ```
 
-### `frontend\landlord-app\src\components\layout\Header.tsx`
+### `frontend/landlord-app/src/components/layout/Header.tsx`
 
 ```typescript
 import { Search, Sun, Moon, Laptop, Bell } from 'lucide-react';
@@ -38067,7 +34816,7 @@ export default function Header() {
 }
 ```
 
-### `frontend\landlord-app\src\components\layout\MainLayout.tsx`
+### `frontend/landlord-app/src/components/layout/MainLayout.tsx`
 
 ```typescript
 import { Outlet, Navigate } from 'react-router';
@@ -38106,7 +34855,7 @@ export default function MainLayout() {
 }
 ```
 
-### `frontend\landlord-app\src\components\layout\Sidebar.tsx`
+### `frontend/landlord-app/src/components/layout/Sidebar.tsx`
 
 ```typescript
 import { Link, useLocation } from 'react-router';
@@ -38255,7 +35004,7 @@ export default function Sidebar() {
 }
 ```
 
-### `frontend\landlord-app\src\components\modals\BillsModal.tsx`
+### `frontend/landlord-app/src/components/modals/BillsModal.tsx`
 
 ```typescript
 import { useEffect, useMemo, useState } from 'react';
@@ -38945,7 +35694,7 @@ export default function BillsModal({
 // }
 ```
 
-### `frontend\landlord-app\src\components\modals\ExportPreviewModal.tsx`
+### `frontend/landlord-app/src/components/modals/ExportPreviewModal.tsx`
 
 ```typescript
 import { useEffect, useMemo, useState } from 'react';
@@ -39542,7 +36291,7 @@ export default function ExportPreviewModal({
 }
 ```
 
-### `frontend\landlord-app\src\components\modals\ExportService.ts`
+### `frontend/landlord-app/src/components/modals/ExportService.ts`
 
 ```typescript
 // ExportService.ts
@@ -39668,7 +36417,7 @@ export function downloadBlob(blob: Blob, filename: string) {
 }
 ```
 
-### `frontend\landlord-app\src\components\modals\ImportPreviewModal.tsx`
+### `frontend/landlord-app/src/components/modals/ImportPreviewModal.tsx`
 
 ```typescript
 import { useEffect, useMemo, useState } from 'react';
@@ -40422,7 +37171,7 @@ export default function ImportPreviewModal({
 }
 ```
 
-### `frontend\landlord-app\src\components\modals\OccupantsModal.tsx`
+### `frontend/landlord-app/src/components/modals/OccupantsModal.tsx`
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
@@ -40916,7 +37665,7 @@ export default function OccupantsModal({ tenant, open, onOpenChange }: Occupants
 }
 ```
 
-### `frontend\landlord-app\src\components\modals\PaymentModal.tsx`
+### `frontend/landlord-app/src/components/modals/PaymentModal.tsx`
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
@@ -41177,7 +37926,7 @@ export default function PaymentModal({ open, onOpenChange, receipt, onChange }: 
 }
 ```
 
-### `frontend\landlord-app\src\components\modals\SchemaMismatchDialog.tsx`
+### `frontend/landlord-app/src/components/modals/SchemaMismatchDialog.tsx`
 
 ```typescript
 import {
@@ -41463,7 +38212,7 @@ export default function SchemaMismatchDialog({
 }
 ```
 
-### `frontend\landlord-app\src\components\modals\TotpSetupModal.tsx`
+### `frontend/landlord-app/src/components/modals/TotpSetupModal.tsx`
 
 ```typescript
 import { useState } from "react";
@@ -41581,7 +38330,7 @@ export function TotpSetupModal({
 }
 ```
 
-### `frontend\landlord-app\src\components\modals\importService.ts`
+### `frontend/landlord-app/src/components/modals/importService.ts`
 
 ```typescript
 import { ROUTES } from '@/lib/routes';
@@ -41824,7 +38573,7 @@ export function parseSchemaMismatch(
 }
 ```
 
-### `frontend\landlord-app\src\components\privacy\MarkdownView.tsx`
+### `frontend/landlord-app/src/components/privacy/MarkdownView.tsx`
 
 ```typescript
 import React from 'react';
@@ -42025,7 +38774,7 @@ export default function MarkdownView({ content }: { content: string }) {
 }
 ```
 
-### `frontend\landlord-app\src\components\privacy\PrivacyPolicyModal.tsx`
+### `frontend/landlord-app/src/components/privacy/PrivacyPolicyModal.tsx`
 
 ```typescript
 import { useEffect, useState } from 'react';
@@ -42143,7 +38892,7 @@ export default function PrivacyPolicyModal({ open, onOpenChange, onAgree }: Priv
 }
 ```
 
-### `frontend\landlord-app\src\components\privacy\TermsConditionsModal.tsx`
+### `frontend/landlord-app/src/components/privacy/TermsConditionsModal.tsx`
 
 ```typescript
 import { useEffect, useState } from 'react';
@@ -42261,7 +39010,7 @@ export default function TermsConditionsModal({ open, onOpenChange, onAgree }: Te
 }
 ```
 
-### `frontend\landlord-app\src\components\shared\EditBillModal.tsx`
+### `frontend/landlord-app/src/components/shared/EditBillModal.tsx`
 
 ```typescript
 import { useState, useEffect, useMemo } from 'react';
@@ -42751,7 +39500,7 @@ export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: Ed
 }
 ```
 
-### `frontend\landlord-app\src\components\shared\PDFPreviewModal.tsx`
+### `frontend/landlord-app/src/components/shared/PDFPreviewModal.tsx`
 
 ```typescript
 import {
@@ -42813,7 +39562,7 @@ export default function PDFPreviewModal({ billNo, tenantId, onClose }: PDFPrevie
 }
 ```
 
-### `frontend\landlord-app\src\components\shared\ReceiptRow.tsx`
+### `frontend/landlord-app/src/components/shared/ReceiptRow.tsx`
 
 ```typescript
 import { FileText, Eye, Download, Pencil, Archive, Trash2, RotateCcw, Check, MessageCircle } from 'lucide-react';
@@ -43141,7 +39890,7 @@ export default function ReceiptRow({ receipt, onAction, onPreview, onEdit, varia
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\accordion.tsx`
+### `frontend/landlord-app/src/components/ui/accordion.tsx`
 
 ```typescript
 import * as React from "react"
@@ -43210,7 +39959,7 @@ function AccordionContent({
 export { Accordion, AccordionItem, AccordionTrigger, AccordionContent }
 ```
 
-### `frontend\landlord-app\src\components\ui\alert-dialog.tsx`
+### `frontend/landlord-app/src/components/ui/alert-dialog.tsx`
 
 ```typescript
 import * as React from "react"
@@ -43370,7 +40119,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\alert.tsx`
+### `frontend/landlord-app/src/components/ui/alert.tsx`
 
 ```typescript
 import * as React from "react"
@@ -43441,7 +40190,7 @@ function AlertDescription({
 export { Alert, AlertTitle, AlertDescription }
 ```
 
-### `frontend\landlord-app\src\components\ui\aspect-ratio.tsx`
+### `frontend/landlord-app/src/components/ui/aspect-ratio.tsx`
 
 ```typescript
 "use client"
@@ -43457,7 +40206,7 @@ function AspectRatio({
 export { AspectRatio }
 ```
 
-### `frontend\landlord-app\src\components\ui\avatar.tsx`
+### `frontend/landlord-app/src/components/ui/avatar.tsx`
 
 ```typescript
 import * as React from "react"
@@ -43513,7 +40262,7 @@ function AvatarFallback({
 export { Avatar, AvatarImage, AvatarFallback }
 ```
 
-### `frontend\landlord-app\src\components\ui\badge.tsx`
+### `frontend/landlord-app/src/components/ui/badge.tsx`
 
 ```typescript
 import * as React from "react"
@@ -43564,7 +40313,7 @@ function Badge({
 export { Badge, badgeVariants }
 ```
 
-### `frontend\landlord-app\src\components\ui\breadcrumb.tsx`
+### `frontend/landlord-app/src/components/ui/breadcrumb.tsx`
 
 ```typescript
 import * as React from "react"
@@ -43678,7 +40427,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\button-group.tsx`
+### `frontend/landlord-app/src/components/ui/button-group.tsx`
 
 ```typescript
 import { Slot } from "@radix-ui/react-slot"
@@ -43766,7 +40515,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\button.tsx`
+### `frontend/landlord-app/src/components/ui/button.tsx`
 
 ```typescript
 import * as React from "react"
@@ -43833,7 +40582,7 @@ function Button({
 export { Button, buttonVariants }
 ```
 
-### `frontend\landlord-app\src\components\ui\calendar.tsx`
+### `frontend/landlord-app/src/components/ui/calendar.tsx`
 
 ```typescript
 "use client"
@@ -44058,7 +40807,7 @@ function CalendarDayButton({
 export { Calendar, CalendarDayButton }
 ```
 
-### `frontend\landlord-app\src\components\ui\card.tsx`
+### `frontend/landlord-app/src/components/ui/card.tsx`
 
 ```typescript
 import * as React from "react"
@@ -44155,7 +40904,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\carousel.tsx`
+### `frontend/landlord-app/src/components/ui/carousel.tsx`
 
 ```typescript
 import * as React from "react"
@@ -44399,7 +41148,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\chart.tsx`
+### `frontend/landlord-app/src/components/ui/chart.tsx`
 
 ```typescript
 "use client"
@@ -44761,7 +41510,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\checkbox.tsx`
+### `frontend/landlord-app/src/components/ui/checkbox.tsx`
 
 ```typescript
 "use client"
@@ -44798,7 +41547,7 @@ function Checkbox({
 export { Checkbox }
 ```
 
-### `frontend\landlord-app\src\components\ui\collapsible.tsx`
+### `frontend/landlord-app/src/components/ui/collapsible.tsx`
 
 ```typescript
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible"
@@ -44834,7 +41583,7 @@ function CollapsibleContent({
 export { Collapsible, CollapsibleTrigger, CollapsibleContent }
 ```
 
-### `frontend\landlord-app\src\components\ui\command.tsx`
+### `frontend/landlord-app/src/components/ui/command.tsx`
 
 ```typescript
 import * as React from "react"
@@ -45021,7 +41770,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\context-menu.tsx`
+### `frontend/landlord-app/src/components/ui/context-menu.tsx`
 
 ```typescript
 "use client"
@@ -45278,7 +42027,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\dialog.tsx`
+### `frontend/landlord-app/src/components/ui/dialog.tsx`
 
 ```typescript
 import * as React from "react"
@@ -45424,7 +42173,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\drawer.tsx`
+### `frontend/landlord-app/src/components/ui/drawer.tsx`
 
 ```typescript
 "use client"
@@ -45564,7 +42313,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\dropdown-menu.tsx`
+### `frontend/landlord-app/src/components/ui/dropdown-menu.tsx`
 
 ```typescript
 import * as React from "react"
@@ -45824,7 +42573,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\empty.tsx`
+### `frontend/landlord-app/src/components/ui/empty.tsx`
 
 ```typescript
 import { cva, type VariantProps } from "class-variance-authority"
@@ -45933,7 +42682,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\field.tsx`
+### `frontend/landlord-app/src/components/ui/field.tsx`
 
 ```typescript
 import { useMemo } from "react"
@@ -46184,7 +42933,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\form.tsx`
+### `frontend/landlord-app/src/components/ui/form.tsx`
 
 ```typescript
 "use client"
@@ -46356,7 +43105,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\hover-card.tsx`
+### `frontend/landlord-app/src/components/ui/hover-card.tsx`
 
 ```typescript
 "use client"
@@ -46405,7 +43154,7 @@ function HoverCardContent({
 export { HoverCard, HoverCardTrigger, HoverCardContent }
 ```
 
-### `frontend\landlord-app\src\components\ui\input-group.tsx`
+### `frontend/landlord-app/src/components/ui/input-group.tsx`
 
 ```typescript
 "use client"
@@ -46580,7 +43329,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\input-otp.tsx`
+### `frontend/landlord-app/src/components/ui/input-otp.tsx`
 
 ```typescript
 import * as React from "react"
@@ -46660,7 +43409,7 @@ function InputOTPSeparator({ ...props }: React.ComponentProps<"div">) {
 export { InputOTP, InputOTPGroup, InputOTPSlot, InputOTPSeparator }
 ```
 
-### `frontend\landlord-app\src\components\ui\input.tsx`
+### `frontend/landlord-app/src/components/ui/input.tsx`
 
 ```typescript
 import * as React from "react"
@@ -46686,7 +43435,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
 export { Input }
 ```
 
-### `frontend\landlord-app\src\components\ui\item.tsx`
+### `frontend/landlord-app/src/components/ui/item.tsx`
 
 ```typescript
 import * as React from "react"
@@ -46884,7 +43633,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\kbd.tsx`
+### `frontend/landlord-app/src/components/ui/kbd.tsx`
 
 ```typescript
 import { cn } from "@/lib/utils"
@@ -46917,7 +43666,7 @@ function KbdGroup({ className, ...props }: React.ComponentProps<"div">) {
 export { Kbd, KbdGroup }
 ```
 
-### `frontend\landlord-app\src\components\ui\label.tsx`
+### `frontend/landlord-app/src/components/ui/label.tsx`
 
 ```typescript
 "use client"
@@ -46946,7 +43695,7 @@ function Label({
 export { Label }
 ```
 
-### `frontend\landlord-app\src\components\ui\menubar.tsx`
+### `frontend/landlord-app/src/components/ui/menubar.tsx`
 
 ```typescript
 import * as React from "react"
@@ -47225,7 +43974,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\navigation-menu.tsx`
+### `frontend/landlord-app/src/components/ui/navigation-menu.tsx`
 
 ```typescript
 import * as React from "react"
@@ -47398,7 +44147,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\pagination.tsx`
+### `frontend/landlord-app/src/components/ui/pagination.tsx`
 
 ```typescript
 import * as React from "react"
@@ -47530,7 +44279,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\popover.tsx`
+### `frontend/landlord-app/src/components/ui/popover.tsx`
 
 ```typescript
 "use client"
@@ -47583,7 +44332,7 @@ function PopoverAnchor({
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor }
 ```
 
-### `frontend\landlord-app\src\components\ui\progress.tsx`
+### `frontend/landlord-app/src/components/ui/progress.tsx`
 
 ```typescript
 import * as React from "react"
@@ -47617,7 +44366,7 @@ function Progress({
 export { Progress }
 ```
 
-### `frontend\landlord-app\src\components\ui\radio-group.tsx`
+### `frontend/landlord-app/src/components/ui/radio-group.tsx`
 
 ```typescript
 "use client"
@@ -47667,7 +44416,7 @@ function RadioGroupItem({
 export { RadioGroup, RadioGroupItem }
 ```
 
-### `frontend\landlord-app\src\components\ui\resizable.tsx`
+### `frontend/landlord-app/src/components/ui/resizable.tsx`
 
 ```typescript
 import * as React from "react"
@@ -47726,7 +44475,7 @@ function ResizableHandle({
 export { ResizablePanelGroup, ResizablePanel, ResizableHandle }
 ```
 
-### `frontend\landlord-app\src\components\ui\scroll-area.tsx`
+### `frontend/landlord-app/src/components/ui/scroll-area.tsx`
 
 ```typescript
 "use client"
@@ -47789,7 +44538,7 @@ function ScrollBar({
 export { ScrollArea, ScrollBar }
 ```
 
-### `frontend\landlord-app\src\components\ui\select.tsx`
+### `frontend/landlord-app/src/components/ui/select.tsx`
 
 ```typescript
 import * as React from "react"
@@ -47985,7 +44734,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\separator.tsx`
+### `frontend/landlord-app/src/components/ui/separator.tsx`
 
 ```typescript
 "use client"
@@ -48018,7 +44767,7 @@ function Separator({
 export { Separator }
 ```
 
-### `frontend\landlord-app\src\components\ui\sheet.tsx`
+### `frontend/landlord-app/src/components/ui/sheet.tsx`
 
 ```typescript
 import * as React from "react"
@@ -48160,7 +44909,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\sidebar.tsx`
+### `frontend/landlord-app/src/components/ui/sidebar.tsx`
 
 ```typescript
 "use client"
@@ -48891,7 +45640,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\skeleton.tsx`
+### `frontend/landlord-app/src/components/ui/skeleton.tsx`
 
 ```typescript
 import { cn } from "@/lib/utils"
@@ -48909,7 +45658,7 @@ function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
 export { Skeleton }
 ```
 
-### `frontend\landlord-app\src\components\ui\slider.tsx`
+### `frontend/landlord-app/src/components/ui/slider.tsx`
 
 ```typescript
 "use client"
@@ -48977,7 +45726,7 @@ function Slider({
 export { Slider }
 ```
 
-### `frontend\landlord-app\src\components\ui\sonner.tsx`
+### `frontend/landlord-app/src/components/ui/sonner.tsx`
 
 ```typescript
 import {
@@ -49020,7 +45769,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
 export { Toaster }
 ```
 
-### `frontend\landlord-app\src\components\ui\spinner.tsx`
+### `frontend/landlord-app/src/components/ui/spinner.tsx`
 
 ```typescript
 import { Loader2Icon } from "lucide-react"
@@ -49041,7 +45790,7 @@ function Spinner({ className, ...props }: React.ComponentProps<"svg">) {
 export { Spinner }
 ```
 
-### `frontend\landlord-app\src\components\ui\switch.tsx`
+### `frontend/landlord-app/src/components/ui/switch.tsx`
 
 ```typescript
 "use client"
@@ -49077,7 +45826,7 @@ function Switch({
 export { Switch }
 ```
 
-### `frontend\landlord-app\src\components\ui\table.tsx`
+### `frontend/landlord-app/src/components/ui/table.tsx`
 
 ```typescript
 import * as React from "react"
@@ -49196,7 +45945,7 @@ export {
 }
 ```
 
-### `frontend\landlord-app\src\components\ui\tabs.tsx`
+### `frontend/landlord-app/src/components/ui/tabs.tsx`
 
 ```typescript
 "use client"
@@ -49267,7 +46016,7 @@ function TabsContent({
 export { Tabs, TabsList, TabsTrigger, TabsContent }
 ```
 
-### `frontend\landlord-app\src\components\ui\textarea.tsx`
+### `frontend/landlord-app/src/components/ui/textarea.tsx`
 
 ```typescript
 import * as React from "react"
@@ -49290,7 +46039,7 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
 export { Textarea }
 ```
 
-### `frontend\landlord-app\src\components\ui\toggle-group.tsx`
+### `frontend/landlord-app/src/components/ui/toggle-group.tsx`
 
 ```typescript
 import * as React from "react"
@@ -49376,7 +46125,7 @@ function ToggleGroupItem({
 export { ToggleGroup, ToggleGroupItem }
 ```
 
-### `frontend\landlord-app\src\components\ui\toggle.tsx`
+### `frontend/landlord-app/src/components/ui/toggle.tsx`
 
 ```typescript
 import * as React from "react"
@@ -49426,7 +46175,7 @@ function Toggle({
 export { Toggle, toggleVariants }
 ```
 
-### `frontend\landlord-app\src\components\ui\tooltip.tsx`
+### `frontend/landlord-app/src/components/ui/tooltip.tsx`
 
 ```typescript
 "use client"
@@ -49492,7 +46241,7 @@ function TooltipContent({
 export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider }
 ```
 
-### `frontend\landlord-app\src\contexts\AuthContext.tsx`
+### `frontend/landlord-app/src/contexts/AuthContext.tsx`
 
 ```typescript
 import {
@@ -49917,7 +46666,7 @@ export function useAuth() {
 }
 ```
 
-### `frontend\landlord-app\src\contexts\ThemeContext.tsx`
+### `frontend/landlord-app/src/contexts/ThemeContext.tsx`
 
 ```typescript
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
@@ -50022,7 +46771,7 @@ export function useTheme() {
 }
 ```
 
-### `frontend\landlord-app\src\hooks\use-mobile.ts`
+### `frontend/landlord-app/src/hooks/use-mobile.ts`
 
 ```typescript
 import * as React from "react"
@@ -50046,7 +46795,7 @@ export function useIsMobile() {
 }
 ```
 
-### `frontend\landlord-app\src\hooks\useApi.ts`
+### `frontend/landlord-app/src/hooks/useApi.ts`
 
 ```typescript
 import { useState, useCallback } from "react";
@@ -50188,7 +46937,7 @@ export async function apiPost(endpoint: string, body: any) {
 }
 ```
 
-### `frontend\landlord-app\src\hooks\useAuthSync.ts`
+### `frontend/landlord-app/src/hooks/useAuthSync.ts`
 
 ```typescript
 import { useEffect, useRef } from "react";
@@ -50288,7 +47037,7 @@ export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled 
 }
 ```
 
-### `frontend\landlord-app\src\hooks\useSync.ts`
+### `frontend/landlord-app/src/hooks/useSync.ts`
 
 ```typescript
 import { useEffect, useRef, useCallback } from "react";
@@ -50391,7 +47140,7 @@ export function useSync(channel: string, onEvent: EventHandler, enabled = true) 
 }
 ```
 
-### `frontend\landlord-app\src\hooks\useToast.ts`
+### `frontend/landlord-app/src/hooks/useToast.ts`
 
 ```typescript
 import { toast } from 'sonner';
@@ -50427,7 +47176,7 @@ export function useToast() {
 }
 ```
 
-### `frontend\landlord-app\src\index.css`
+### `frontend/landlord-app/src/index.css`
 
 ```css
 @import 'tailwindcss';
@@ -50539,7 +47288,7 @@ export function useToast() {
 }
 ```
 
-### `frontend\landlord-app\src\lib\auth.ts`
+### `frontend/landlord-app/src/lib/auth.ts`
 
 ```typescript
 /**
@@ -50588,7 +47337,7 @@ export async function silentRefresh(): Promise<RefreshResult> {
 }
 ```
 
-### `frontend\landlord-app\src\lib\encryption.ts`
+### `frontend/landlord-app/src/lib/encryption.ts`
 
 ```typescript
 /**
@@ -50694,7 +47443,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 ```
 
-### `frontend\landlord-app\src\lib\privacy.ts`
+### `frontend/landlord-app/src/lib/privacy.ts`
 
 ```typescript
 /**
@@ -50708,7 +47457,7 @@ export const TERMS_CONDITIONS_VERSION = "1.0";
 export const TERMS_CONDITIONS_EFFECTIVE_DATE = "2026-08-28";
 ```
 
-### `frontend\landlord-app\src\lib\routes.ts`
+### `frontend/landlord-app/src/lib/routes.ts`
 
 ```typescript
 /**
@@ -51082,7 +47831,7 @@ export type RoutesType = typeof ROUTES;
 export default ROUTES;
 ```
 
-### `frontend\landlord-app\src\lib\runtime.ts`
+### `frontend/landlord-app/src/lib/runtime.ts`
 
 ```typescript
 /**
@@ -51121,7 +47870,7 @@ export function getFullApiUrl(path: string): string {
 }
 ```
 
-### `frontend\landlord-app\src\lib\utils.ts`
+### `frontend/landlord-app/src/lib/utils.ts`
 
 ```typescript
 import { clsx, type ClassValue } from "clsx"
@@ -51132,7 +47881,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 ```
 
-### `frontend\landlord-app\src\main.tsx`
+### `frontend/landlord-app/src/main.tsx`
 
 ```typescript
 import { StrictMode } from 'react'
@@ -51155,7 +47904,7 @@ createRoot(document.getElementById('root')!).render(
 )
 ```
 
-### `frontend\landlord-app\src\pages\ActivityPage.tsx`
+### `frontend/landlord-app/src/pages/ActivityPage.tsx`
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
@@ -51431,7 +48180,7 @@ export default function ActivityPage() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\AdminSetupPage.tsx`
+### `frontend/landlord-app/src/pages/AdminSetupPage.tsx`
 
 ```typescript
 import { useState, useEffect } from 'react';
@@ -51705,7 +48454,7 @@ export default function AdminSetupPage() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\Archive.tsx`
+### `frontend/landlord-app/src/pages/Archive.tsx`
 
 ```typescript
 import { useState, useEffect, useMemo } from 'react';
@@ -51936,7 +48685,7 @@ export default function ARCHIVEPAGE() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\Backups.tsx`
+### `frontend/landlord-app/src/pages/Backups.tsx`
 
 ```typescript
 import { useState, useEffect } from 'react';
@@ -52516,7 +49265,7 @@ export default function Backups() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\Billing.tsx`
+### `frontend/landlord-app/src/pages/Billing.tsx`
 
 ```typescript
 import { useState, useEffect, useCallback } from 'react';
@@ -53013,7 +49762,7 @@ export default function Billing() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\ChangePasswordPage.tsx`
+### `frontend/landlord-app/src/pages/ChangePasswordPage.tsx`
 
 ```typescript
 import { useState, useEffect } from 'react';
@@ -53251,7 +50000,7 @@ export default function ChangePasswordPage() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\Dashboard.tsx`
+### `frontend/landlord-app/src/pages/Dashboard.tsx`
 
 ```typescript
 import { useEffect, useState } from 'react';
@@ -53793,7 +50542,7 @@ export default function Dashboard() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\History.tsx`
+### `frontend/landlord-app/src/pages/History.tsx`
 
 ```typescript
 import { useState, useEffect, useMemo } from 'react';
@@ -53959,7 +50708,7 @@ export default function History() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\Home.tsx`
+### `frontend/landlord-app/src/pages/Home.tsx`
 
 ```typescript
 import { useState } from 'react'
@@ -53984,7 +50733,7 @@ export default function Home() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\LandlordLoginPage.tsx`
+### `frontend/landlord-app/src/pages/LandlordLoginPage.tsx`
 
 ```typescript
 import { useState, useEffect } from 'react';
@@ -54249,7 +50998,7 @@ export default function LandlordLoginPage() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\LandlordSignupPage.tsx`
+### `frontend/landlord-app/src/pages/LandlordSignupPage.tsx`
 
 ```typescript
 import { useState, useRef, useCallback } from 'react';
@@ -54789,7 +51538,7 @@ export default function LandlordSignupPage() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\Login.tsx`
+### `frontend/landlord-app/src/pages/Login.tsx`
 
 ```typescript
 import { useState } from 'react';
@@ -54920,7 +51669,7 @@ export default function Login() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\PrivacyConsentPage.tsx`
+### `frontend/landlord-app/src/pages/PrivacyConsentPage.tsx`
 
 ```typescript
 import { useEffect, useRef, useState } from 'react';
@@ -55145,7 +51894,7 @@ export default function PrivacyConsentPage() {
 
 ```
 
-### `frontend\landlord-app\src\pages\PrivacyPolicyPage.tsx`
+### `frontend/landlord-app/src/pages/PrivacyPolicyPage.tsx`
 
 ```typescript
 import { useEffect, useState } from 'react';
@@ -55236,7 +51985,7 @@ export default function PrivacyPolicyPage() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\SecuritySettingsPage.tsx`
+### `frontend/landlord-app/src/pages/SecuritySettingsPage.tsx`
 
 ```typescript
 import { useState, useEffect } from 'react';
@@ -55705,7 +52454,7 @@ export default function SecuritySettingsPage() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\Settings.tsx`
+### `frontend/landlord-app/src/pages/Settings.tsx`
 
 ```typescript
 import { useState, useEffect, useRef } from 'react';
@@ -56796,7 +53545,7 @@ export default function Settings() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\SetupPage.tsx`
+### `frontend/landlord-app/src/pages/SetupPage.tsx`
 
 ```typescript
 import { useMemo, useState } from "react";
@@ -57344,7 +54093,7 @@ export default function SetupPage() {
 }
 ```
 
-### `frontend\landlord-app\src\pages\Tenants.tsx`
+### `frontend/landlord-app/src/pages/Tenants.tsx`
 
 ```typescript
 import { useState, useEffect } from 'react';
@@ -58767,7 +55516,7 @@ function TenantForm({
 }
 ```
 
-### `frontend\landlord-app\src\pages\TermsConditionsPage.tsx`
+### `frontend/landlord-app/src/pages/TermsConditionsPage.tsx`
 
 ```typescript
 import { useEffect, useState } from 'react';
@@ -58858,7 +55607,7 @@ export default function TermsConditionsPage() {
 }
 ```
 
-### `frontend\landlord-app\src\services\api.ts`
+### `frontend/landlord-app/src/services/api.ts`
 
 ```typescript
 import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, PaymentState, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig } from "@/types";
@@ -59521,7 +56270,7 @@ export const api = {
 };
 ```
 
-### `frontend\landlord-app\src\services\base.ts`
+### `frontend/landlord-app/src/services/base.ts`
 
 ```typescript
 // frontend/landlord-app/src/services/base.ts
@@ -59562,7 +56311,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<unknow
 }
 ```
 
-### `frontend\landlord-app\src\types\index.ts`
+### `frontend/landlord-app/src/types/index.ts`
 
 ```typescript
 // Types matching backend models
@@ -60064,7 +56813,7 @@ export interface PermanentDeleteResult {
 }
 ```
 
-### `frontend\landlord-app\tsconfig.app.json`
+### `frontend/landlord-app/tsconfig.app.json`
 
 ```json
 {
@@ -60134,7 +56883,7 @@ export interface PermanentDeleteResult {
 }
 ```
 
-### `frontend\landlord-app\tsconfig.json`
+### `frontend/landlord-app/tsconfig.json`
 
 ```json
 {
@@ -60156,7 +56905,7 @@ export interface PermanentDeleteResult {
 }
 ```
 
-### `frontend\landlord-app\tsconfig.node.json`
+### `frontend/landlord-app/tsconfig.node.json`
 
 ```json
 {
@@ -60187,7 +56936,7 @@ export interface PermanentDeleteResult {
 }
 ```
 
-### `frontend\landlord-app\vite.config.ts`
+### `frontend/landlord-app/vite.config.ts`
 
 ```typescript
 import path from "path"
@@ -60258,7 +57007,7 @@ export default defineConfig({
 })
 ```
 
-### `frontend\package.json`
+### `frontend/package.json`
 
 ```json
 {
@@ -60269,7 +57018,7 @@ export default defineConfig({
 }
 ```
 
-### `frontend\shared\api-config.ts`
+### `frontend/shared/api-config.ts`
 
 ```typescript
 /**
@@ -60313,7 +57062,7 @@ export function getApiUrl(path: string): string {
 }
 ```
 
-### `frontend\shared\brand\Logo.tsx`
+### `frontend/shared/brand/Logo.tsx`
 
 ```typescript
 import type { CSSProperties } from "react";
@@ -60357,7 +57106,7 @@ export function Logo({ height = 24, className, style, variant = "default" }: Log
 
 export default Logo;```
 
-### `frontend\shared\brand\assets\icon.svg`
+### `frontend/shared/brand/assets/icon.svg`
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -60403,7 +57152,7 @@ viewBox="0 0 1993.96 1993.96"
 </svg>
 ```
 
-### `frontend\shared\brand\assets\logo.svg`
+### `frontend/shared/brand/assets/logo.svg`
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -60445,7 +57194,7 @@ viewBox="0 0 3520.56 448.53"
 </svg>
 ```
 
-### `frontend\shared\loading\BrandLoading.css`
+### `frontend/shared/loading/BrandLoading.css`
 
 ```css
 /* PropAura brand loading — single source of truth for all frontend apps. */
@@ -60530,7 +57279,7 @@ viewBox="0 0 3520.56 448.53"
   color: #6b7280;
 }```
 
-### `frontend\shared\loading\BrandWave.tsx`
+### `frontend/shared/loading/BrandWave.tsx`
 
 ```typescript
 import "./BrandLoading.css";
@@ -60571,7 +57320,7 @@ export function BrandWave({ label, size = "md", stacked = false, className = "" 
 
 export default BrandWave;```
 
-### `frontend\shared\loading\LoadingOverlay.tsx`
+### `frontend/shared/loading/LoadingOverlay.tsx`
 
 ```typescript
 import BrandWave from "./BrandWave";
@@ -60589,7 +57338,7 @@ export default function LoadingOverlay({ label }: LoadingOverlayProps) {
 }
 ```
 
-### `frontend\shared\loading\LoadingScreen.tsx`
+### `frontend/shared/loading/LoadingScreen.tsx`
 
 ```typescript
 import { useState, useEffect } from "react";
@@ -60623,7 +57372,7 @@ export default function LoadingScreen({ isLoading }: LoadingScreenProps) {
   );
 }```
 
-### `frontend\shared\phone\PhoneInput.tsx`
+### `frontend/shared/phone/PhoneInput.tsx`
 
 ```typescript
 import { useState } from "react";
@@ -60781,7 +57530,7 @@ export default function PhoneInputField({
 }
 ```
 
-### `frontend\shared\routes.json`
+### `frontend/shared/routes.json`
 
 ```json
 {
@@ -61068,7 +57817,7 @@ export default function PhoneInputField({
   }
 }```
 
-### `frontend\tenant-app\.gitignore`
+### `frontend/tenant-app/.gitignore`
 
 ```
 # Logs
@@ -61097,7 +57846,7 @@ dist-ssr
 *.sw?
 ```
 
-### `frontend\tenant-app\.oxlintrc.json`
+### `frontend/tenant-app/.oxlintrc.json`
 
 ```json
 {
@@ -61110,7 +57859,7 @@ dist-ssr
 }
 ```
 
-### `frontend\tenant-app\index.html`
+### `frontend/tenant-app/index.html`
 
 ```html
 <!doctype html>
@@ -61128,7 +57877,7 @@ dist-ssr
 </html>
 ```
 
-### `frontend\tenant-app\package.json`
+### `frontend/tenant-app/package.json`
 
 ```json
 {
@@ -61181,7 +57930,7 @@ dist-ssr
 }
 ```
 
-### `frontend\tenant-app\src\App.css`
+### `frontend/tenant-app/src/App.css`
 
 ```css
 .counter {
@@ -61370,7 +58119,7 @@ dist-ssr
 }
 ```
 
-### `frontend\tenant-app\src\App.tsx`
+### `frontend/tenant-app/src/App.tsx`
 
 ```typescript
 import { useState, useMemo } from "react";
@@ -61652,7 +58401,7 @@ export default function App() {
 }
 ```
 
-### `frontend\tenant-app\src\components\ActivityLog.tsx`
+### `frontend/tenant-app/src/components/ActivityLog.tsx`
 
 ```typescript
 import { useState, useEffect } from "react";
@@ -61745,7 +58494,7 @@ export default function ActivityLog() {
 }
 ```
 
-### `frontend\tenant-app\src\components\ArchiveReceiptCard.tsx`
+### `frontend/tenant-app/src/components/ArchiveReceiptCard.tsx`
 
 ```typescript
 import { useState } from "react";
@@ -61933,7 +58682,7 @@ export default function ArchiveReceiptCard({
 }
 ```
 
-### `frontend\tenant-app\src\components\AuthLayout.tsx`
+### `frontend/tenant-app/src/components/AuthLayout.tsx`
 
 ```typescript
 import type { ReactNode } from "react";
@@ -61983,7 +58732,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 }
 ```
 
-### `frontend\tenant-app\src\components\BroadcastBanner.css`
+### `frontend/tenant-app/src/components/BroadcastBanner.css`
 
 ```css
 .broadcast-banner {
@@ -62061,7 +58810,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
 }
 ```
 
-### `frontend\tenant-app\src\components\BroadcastBanner.tsx`
+### `frontend/tenant-app/src/components/BroadcastBanner.tsx`
 
 ```typescript
 import { useState, useEffect, useCallback } from "react";
@@ -62130,7 +58879,7 @@ export default function BroadcastBanner({ healthUrl = "/health" }: BroadcastBann
 }
 ```
 
-### `frontend\tenant-app\src\components\ErrorBoundary.tsx`
+### `frontend/tenant-app/src/components/ErrorBoundary.tsx`
 
 ```typescript
 import { Component, type ReactNode } from "react";
@@ -62171,7 +58920,7 @@ export default class ErrorBoundary extends Component<Props, State> {
 }
 ```
 
-### `frontend\tenant-app\src\components\OccupantCard.tsx`
+### `frontend/tenant-app/src/components/OccupantCard.tsx`
 
 ```typescript
 import { Card, CardContent } from "@/components/ui/card";
@@ -62273,7 +59022,7 @@ export default function OccupantCard({
 }
 ```
 
-### `frontend\tenant-app\src\components\OccupantDocumentViewer.tsx`
+### `frontend/tenant-app/src/components/OccupantDocumentViewer.tsx`
 
 ```typescript
 import React, { useState } from "react";
@@ -62440,7 +59189,7 @@ export function OccupantDocumentViewer({
 }
 ```
 
-### `frontend\tenant-app\src\components\OccupantKycUploadDialog.tsx`
+### `frontend/tenant-app/src/components/OccupantKycUploadDialog.tsx`
 
 ```typescript
 import React, { useState } from "react";
@@ -62611,7 +59360,7 @@ export function OccupantKycUploadDialog({
 }
 ```
 
-### `frontend\tenant-app\src\components\OccupantList.tsx`
+### `frontend/tenant-app/src/components/OccupantList.tsx`
 
 ```typescript
 import { useState } from "react";
@@ -62687,7 +59436,7 @@ export default function OccupantList() {
 }
 ```
 
-### `frontend\tenant-app\src\components\PaymentStatusCard.tsx`
+### `frontend/tenant-app/src/components/PaymentStatusCard.tsx`
 
 ```typescript
 import { Card, CardContent } from "@/components/ui/card";
@@ -62850,7 +59599,7 @@ export default function PaymentStatusCard({
 }
 ```
 
-### `frontend\tenant-app\src\components\Skeletons.tsx`
+### `frontend/tenant-app/src/components/Skeletons.tsx`
 
 ```typescript
 import { Card, CardContent } from "@/components/ui/card";
@@ -62956,7 +59705,7 @@ export function DashboardSkeleton() {
 }
 ```
 
-### `frontend\tenant-app\src\components\StatusBadge.tsx`
+### `frontend/tenant-app/src/components/StatusBadge.tsx`
 
 ```typescript
 import { Badge } from "@/components/ui/badge";
@@ -62985,7 +59734,7 @@ export default function StatusBadge({ status }: { status: PaymentState }) {
 }
 ```
 
-### `frontend\tenant-app\src\components\TenantProfileDetails.tsx`
+### `frontend/tenant-app/src/components/TenantProfileDetails.tsx`
 
 ```typescript
 import { User, Phone, Mail, MapPin, DoorOpen, Briefcase, Building2 } from "lucide-react";
@@ -63095,7 +59844,7 @@ export default function TenantProfileDetails() {
 }
 ```
 
-### `frontend\tenant-app\src\components\modals\PdfPreviewModal.tsx`
+### `frontend/tenant-app/src/components/modals/PdfPreviewModal.tsx`
 
 ```typescript
 import { useState, useEffect } from "react";
@@ -63289,7 +60038,7 @@ export default function PdfPreviewModal({
 }
 ```
 
-### `frontend\tenant-app\src\components\receipts.tsx`
+### `frontend/tenant-app/src/components/receipts.tsx`
 
 ```typescript
 import { Card, CardContent } from "@/components/ui/card";
@@ -63381,7 +60130,7 @@ export function ReceiptRoller({
 }
 ```
 
-### `frontend\tenant-app\src\components\theme-provider.tsx`
+### `frontend/tenant-app/src/components/theme-provider.tsx`
 
 ```typescript
 import { createContext, useContext, useEffect, useState } from "react"
@@ -63455,7 +60204,7 @@ export const useTheme = () => {
 }
 ```
 
-### `frontend\tenant-app\src\components\theme-toggle.tsx`
+### `frontend/tenant-app/src/components/theme-toggle.tsx`
 
 ```typescript
 import { Moon, Sun } from "lucide-react"
@@ -63496,7 +60245,7 @@ export function ThemeToggle() {
 }
 ```
 
-### `frontend\tenant-app\src\components\ui\alert.tsx`
+### `frontend/tenant-app/src/components/ui/alert.tsx`
 
 ```typescript
 import * as React from "react"
@@ -63567,7 +60316,7 @@ function AlertDescription({
 export { Alert, AlertTitle, AlertDescription }
 ```
 
-### `frontend\tenant-app\src\components\ui\badge.tsx`
+### `frontend/tenant-app/src/components/ui/badge.tsx`
 
 ```typescript
 import * as React from "react"
@@ -63618,7 +60367,7 @@ function Badge({
 export { Badge, badgeVariants }
 ```
 
-### `frontend\tenant-app\src\components\ui\button.tsx`
+### `frontend/tenant-app/src/components/ui/button.tsx`
 
 ```typescript
 import * as React from "react"
@@ -63685,7 +60434,7 @@ function Button({
 export { Button, buttonVariants }
 ```
 
-### `frontend\tenant-app\src\components\ui\card.tsx`
+### `frontend/tenant-app/src/components/ui/card.tsx`
 
 ```typescript
 import * as React from "react"
@@ -63782,7 +60531,7 @@ export {
 }
 ```
 
-### `frontend\tenant-app\src\components\ui\collapsible.tsx`
+### `frontend/tenant-app/src/components/ui/collapsible.tsx`
 
 ```typescript
 import * as CollapsiblePrimitive from "@radix-ui/react-collapsible"
@@ -63818,7 +60567,7 @@ function CollapsibleContent({
 export { Collapsible, CollapsibleTrigger, CollapsibleContent }
 ```
 
-### `frontend\tenant-app\src\components\ui\command.tsx`
+### `frontend/tenant-app/src/components/ui/command.tsx`
 
 ```typescript
 import * as React from "react"
@@ -64005,7 +60754,7 @@ export {
 }
 ```
 
-### `frontend\tenant-app\src\components\ui\dialog.tsx`
+### `frontend/tenant-app/src/components/ui/dialog.tsx`
 
 ```typescript
 import * as React from "react"
@@ -64151,7 +60900,7 @@ export {
 }
 ```
 
-### `frontend\tenant-app\src\components\ui\dropdown-menu.tsx`
+### `frontend/tenant-app/src/components/ui/dropdown-menu.tsx`
 
 ```typescript
 import * as React from "react"
@@ -64411,7 +61160,7 @@ export {
 }
 ```
 
-### `frontend\tenant-app\src\components\ui\input.tsx`
+### `frontend/tenant-app/src/components/ui/input.tsx`
 
 ```typescript
 import * as React from "react"
@@ -64437,7 +61186,7 @@ function Input({ className, type, ...props }: React.ComponentProps<"input">) {
 export { Input }
 ```
 
-### `frontend\tenant-app\src\components\ui\label.tsx`
+### `frontend/tenant-app/src/components/ui/label.tsx`
 
 ```typescript
 "use client"
@@ -64466,7 +61215,7 @@ function Label({
 export { Label }
 ```
 
-### `frontend\tenant-app\src\components\ui\popover.tsx`
+### `frontend/tenant-app/src/components/ui/popover.tsx`
 
 ```typescript
 "use client"
@@ -64519,7 +61268,7 @@ function PopoverAnchor({
 export { Popover, PopoverTrigger, PopoverContent, PopoverAnchor }
 ```
 
-### `frontend\tenant-app\src\components\ui\scroll-area.tsx`
+### `frontend/tenant-app/src/components/ui/scroll-area.tsx`
 
 ```typescript
 "use client"
@@ -64582,7 +61331,7 @@ function ScrollBar({
 export { ScrollArea, ScrollBar }
 ```
 
-### `frontend\tenant-app\src\components\ui\separator.tsx`
+### `frontend/tenant-app/src/components/ui/separator.tsx`
 
 ```typescript
 "use client"
@@ -64615,7 +61364,7 @@ function Separator({
 export { Separator }
 ```
 
-### `frontend\tenant-app\src\components\ui\tabs.tsx`
+### `frontend/tenant-app/src/components/ui/tabs.tsx`
 
 ```typescript
 "use client"
@@ -64686,7 +61435,7 @@ function TabsContent({
 export { Tabs, TabsList, TabsTrigger, TabsContent }
 ```
 
-### `frontend\tenant-app\src\context\TenantContext.tsx`
+### `frontend/tenant-app/src/context/TenantContext.tsx`
 
 ```typescript
 import {
@@ -64813,7 +61562,7 @@ export function useTenant() {
 }
 ```
 
-### `frontend\tenant-app\src\index.css`
+### `frontend/tenant-app/src/index.css`
 
 ```css
 @import 'tailwindcss';
@@ -64912,7 +61661,7 @@ export function useTenant() {
 }
 ```
 
-### `frontend\tenant-app\src\lib\api.ts`
+### `frontend/tenant-app/src/lib/api.ts`
 
 ```typescript
 import axios from "axios";
@@ -65047,7 +61796,7 @@ export const tenantApi = {
 };
 ```
 
-### `frontend\tenant-app\src\lib\encryption.ts`
+### `frontend/tenant-app/src/lib/encryption.ts`
 
 ```typescript
 /**
@@ -65164,7 +61913,7 @@ function base64ToArrayBuffer(base64: string): ArrayBuffer {
 }
 ```
 
-### `frontend\tenant-app\src\lib\login-api.ts`
+### `frontend/tenant-app/src/lib/login-api.ts`
 
 ```typescript
 import { getPublicKey, encryptPayload } from "./encryption";
@@ -65337,7 +62086,7 @@ export async function logoutTenant(basePath: string): Promise<void> {
 }
 ```
 
-### `frontend\tenant-app\src\lib\queryClient.ts`
+### `frontend/tenant-app/src/lib/queryClient.ts`
 
 ```typescript
 import { QueryClient } from "@tanstack/react-query";
@@ -65352,7 +62101,7 @@ export const queryClient = new QueryClient({
 });
 ```
 
-### `frontend\tenant-app\src\lib\tenant-runtime.ts`
+### `frontend/tenant-app/src/lib/tenant-runtime.ts`
 
 ```typescript
 // frontend/tenant-app/src/lib/tenant-runtime.ts
@@ -65395,7 +62144,7 @@ export function getTenantRuntime(pathname = window.location.pathname): TenantRun
 }
 ```
 
-### `frontend\tenant-app\src\lib\utils.ts`
+### `frontend/tenant-app/src/lib/utils.ts`
 
 ```typescript
 import { clsx, type ClassValue } from "clsx"
@@ -65507,7 +62256,7 @@ export function formatResidentSince(dateStr: string): string {
 }
 ```
 
-### `frontend\tenant-app\src\main.tsx`
+### `frontend/tenant-app/src/main.tsx`
 
 ```typescript
 import React from "react";
@@ -65538,7 +62287,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 );
 ```
 
-### `frontend\tenant-app\src\pages\PortalLoginPage.tsx`
+### `frontend/tenant-app/src/pages/PortalLoginPage.tsx`
 
 ```typescript
 import { useState } from "react";
@@ -65935,7 +62684,7 @@ export default function PortalLoginPage() {
 }
 ```
 
-### `frontend\tenant-app\src\pages\QrUnlockPage.tsx`
+### `frontend/tenant-app/src/pages/QrUnlockPage.tsx`
 
 ```typescript
 import { useState, useRef } from "react";
@@ -66229,7 +62978,7 @@ export default function QrUnlockPage({ tenant, basePath }: Props) {
 }
 ```
 
-### `frontend\tenant-app\src\types\index.ts`
+### `frontend/tenant-app/src/types/index.ts`
 
 ```typescript
 export interface TenantProfile {
@@ -66345,7 +63094,7 @@ export interface ApiError {
 }
 ```
 
-### `frontend\tenant-app\tsconfig.app.json`
+### `frontend/tenant-app/tsconfig.app.json`
 
 ```json
 {
@@ -66388,7 +63137,7 @@ export interface ApiError {
 }
 ```
 
-### `frontend\tenant-app\tsconfig.json`
+### `frontend/tenant-app/tsconfig.json`
 
 ```json
 {
@@ -66400,7 +63149,7 @@ export interface ApiError {
 }
 ```
 
-### `frontend\tenant-app\tsconfig.node.json`
+### `frontend/tenant-app/tsconfig.node.json`
 
 ```json
 {
@@ -66428,7 +63177,7 @@ export interface ApiError {
 }
 ```
 
-### `frontend\tenant-app\vite.config.ts`
+### `frontend/tenant-app/vite.config.ts`
 
 ```typescript
 import { defineConfig } from 'vite'
@@ -66478,29 +63227,14 @@ export default defineConfig({
 })
 ```
 
-### `gateway\compose.yml`
+### `gateway/compose.yml`
 
 ```yaml
+# Legacy standalone gateway edge is retired — see compose.dev.yml (dev) and
+# compose.prod.yml (release) at the repo root. This file now only runs the
+# cloudflared tunnel (ingress set by CLOUDFLARE_TUNNEL_TOKEN; Cloudflare state
+# itself is untouched — only the local ingress target differs per stack).
 services:
-  gateway:
-    image: nginx:1.27-alpine
-    container_name: propaura_legacy_gateway
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./html:/usr/share/nginx/html:ro
-    networks:
-      - propaura_net
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: propaura_cloudflared
@@ -66511,46 +63245,9 @@ services:
       - --no-autoupdate
       - run
       - --token
-      - ${CLOUDFLARE_TUNNEL_TOKEN}
+      - ${CLOUDFLARE_TUNNEL_TOKEN}```
 
-networks:
-  propaura_net:
-    external: true
-```
-
-### `gateway\nginx\frontend_release.conf`
-
-```nginx
-server {
-    listen 28006;
-    server_name _;
-    root /usr/share/nginx/html;
-    index index.html;
-
-    # Hashed assets — cache aggressively
-    location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|ico|woff2?|eot|ttf)$ {
-        add_header Cache-Control "public, max-age=31536000, immutable";
-        try_files $uri =404;
-    }
-
-    # Per-app SPA fallbacks (mirror the Cloudflare Pages _redirects/_headers)
-    location /rent/admin/    { try_files $uri $uri/ /rent/admin/index.html; }
-    location /rent/landlord/ { try_files $uri $uri/ /rent/landlord/index.html; }
-    location /rent/t/        { try_files $uri $uri/ /rent/t/index.html; }
-    location /rent/tenant/   { try_files $uri $uri/ /rent/t/index.html; }
-
-    # /rent/{uuid}/t/{propertyId}/{tenantId}/{viewToken} deep links → tenant SPA
-    location ~ ^/rent/[^/]+/t/[0-9]+/[0-9]+/[^/]+(/.*)?$ {
-        try_files /rent/t/index.html =404;
-    }
-
-    location /rent/ { try_files $uri $uri/ /rent/index.html; }
-
-    location / { return 404; }
-}
-```
-
-### `gateway\nginx\nginx.conf`
+### `gateway/nginx/nginx.conf`
 
 ```nginx
 worker_processes auto;
@@ -66575,7 +63272,7 @@ http {
     # redirected to the public frontend on rent.vijaykrsha.online. No frontend
     # HTML is ever served on this host.
     server {
-        listen 28007;
+        listen 28014;
         server_name api.vijaykrsha.online;
 
         # Active release backend slot — set in /etc/nginx/upstream/active.conf
@@ -66595,10 +63292,13 @@ http {
         }
     }
 
-    # Frontend edge — app.vijaykrsha.online (served by propaura_frontend_prod:28006)
+    # Frontend edge — app.vijaykrsha.online. Serves the SPA statically from
+    # /usr/share/nginx/html (frontend/build-output mounted into this gateway).
     server {
-        listen 28007;
+        listen 28014;
         server_name app.vijaykrsha.online;
+        root /usr/share/nginx/html;
+        index index.html;
 
         include /etc/nginx/routes/frontend.conf;
 
@@ -66609,7 +63309,7 @@ http {
 }
 ```
 
-### `gateway\nginx\routes\api.conf`
+### `gateway/nginx/routes/api.conf`
 
 ```nginx
 # API routes → the release backend slot (propaura_backend_prod).
@@ -66725,45 +63425,44 @@ location ^~ /static/ {
 }
 ```
 
-### `gateway\nginx\routes\frontend.conf`
+### `gateway/nginx/routes/frontend.conf`
 
 ```nginx
-# Frontend routes → propaura_frontend_prod container (serves frontend/build-output).
-# Included after api.conf so API locations win; this file only serves pages.
+# Frontend routes — static SPA served directly from /usr/share/nginx/html
+# (frontend/build-output mounted into this gateway; no frontend container).
+# Included inside the app.vijaykrsha.online server block, which sets root.
+# Absorbs the try_files logic of the retired frontend_release.conf.
 
 location = /rent {
     return 301 /rent/;
 }
 
-# SPA build under /rent/ — landing, admin, landlord, tenant apps
-location ^~ /rent/ {
-    proxy_pass http://propaura_frontend_prod;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_set_header X-Request-ID $request_id;
-    proxy_connect_timeout 10s;
-    proxy_send_timeout 60s;
-    proxy_read_timeout 60s;
-    proxy_redirect off;
+# Hashed assets — cache aggressively (mirror Cloudflare Pages _headers)
+location ~* \.(?:js|css|png|jpg|jpeg|gif|svg|ico|woff2?|eot|ttf)$ {
+    add_header Cache-Control "public, max-age=31536000, immutable";
+    try_files $uri =404;
 }
 
-# Tenant portal deep links: /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken} at the
-# root level. The /api/ sibling regex in api.conf is evaluated first, so only
-# non-API deep links reach here. Serve the tenant SPA entry point.
+# Per-app SPA fallbacks (mirror the Cloudflare Pages _redirects/_headers)
+location /rent/admin/    { try_files $uri $uri/ /rent/admin/index.html; }
+location /rent/landlord/ { try_files $uri $uri/ /rent/landlord/index.html; }
+location /rent/t/        { try_files $uri $uri/ /rent/t/index.html; }
+location /rent/tenant/   { try_files $uri $uri/ /rent/t/index.html; }
+
+# /rent/{uuid}/t/{propertyId}/{tenantId}/{viewToken} deep links → tenant SPA
+location ~ ^/rent/[^/]+/t/[0-9]+/[0-9]+/[^/]+(/.*)?$ {
+    try_files /rent/t/index.html =404;
+}
+
+# Root-level tenant portal deep links (legacy share links without the /rent
+# prefix): /{uuid}/t/{propertyId}/{tenantId}/{viewToken} → tenant SPA entry.
 location ~ ^/[^/]+/t/[0-9]+/[0-9]+/[^/]+(/.*)?$ {
-    rewrite ^ /rent/t/index.html break;
-    proxy_pass http://propaura_frontend_prod;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
+    try_files /rent/t/index.html =404;
 }
-```
 
-### `gateway\nginx\routes\redirect.conf`
+location /rent/ { try_files $uri $uri/ /rent/index.html; }```
+
+### `gateway/nginx/routes/redirect.conf`
 
 ```nginx
 # Frontend routes are NOT served on the API host. The public frontend lives on
@@ -66788,15 +63487,7 @@ location ~ ^/[^/]+/t/[0-9]+/[0-9]+/[^/]+(/.*)?$ {
 }
 ```
 
-### `gateway\nginx\routes\rent.conf`
-
-```nginx
-# Frontend routes have moved to frontend.conf (see api.conf and frontend.conf).
-# Kept as an empty placeholder to avoid a missing-file error if the old
-# deployment's nginx still glob-includes this directory.
-```
-
-### `gateway\nginx\routes\tenant-api.conf`
+### `gateway/nginx/routes/tenant-api.conf`
 
 ```nginx
 # /rent/-prefixed API routes → the release backend slot (propaura_backend_prod).
@@ -66942,10 +63633,10 @@ location ^~ /rent/static/ {
 }
 ```
 
-### `gateway\nginx\upstream\active.conf`
+### `gateway/nginx/upstream/active.conf`
 
 ```nginx
-set $release_backend "propaura_backend_prod:28005";
+set $release_backend "propaura_backend_prod:28011";
 ```
 
 ### `logs.py`
@@ -116673,7 +113364,7 @@ if __name__ == "__main__":
 ```
 ```
 
-### `nginx\dev-gateway.conf`
+### `nginx/dev-gateway.conf`
 
 ```nginx
 # Development Nginx gateway — mirrors gateway/nginx/routes/tenant-api.conf so the
@@ -116684,10 +113375,13 @@ if __name__ == "__main__":
 # /rent prefix before proxying and pass X-Forwarded-Prefix /rent so auth cookie
 # paths are set under /rent (see forwarded_prefix_middleware in backend main.py).
 #
-# Only genuine API/asset paths are stripped. Frontend page paths under /rent/
-# (/rent/admin/login, /rent/landlord/{uuid}, /rent/t/...) are passed through
-# unchanged so the dev-only frontend router (app/pages/frontend.py) serves them.
+# Only genuine API/asset paths are stripped. Tenant portal pages and assets
+# (/rent/t, /rent/t/, /rent/tenant/... and both deep-link forms) are served by
+# the tenant-app Vite dev server (frontend_dev, base /rent/t/) so devs get HMR.
+# Everything else — admin/landlord/landing apps, API, uploads — stays on the
+# dev-only frontend router (app/pages/frontend.py) in backend_dev.
 #
+# Ports follow deploy/ports.py: gateway 28005, backend 28002, frontend Vite 28001.
 # Production gateway/containers/DNS are untouched by this file.
 
 events {
@@ -116703,11 +113397,15 @@ http {
     }
 
     upstream backend_dev_upstream {
-        server propaura_backend_dev:28001;
+        server propaura_backend_dev:28002;
+    }
+
+    upstream frontend_dev_upstream {
+        server propaura_frontend_dev:28001;
     }
 
     server {
-        listen 28003;
+        listen 28005;
         server_name _;
 
         # Backend liveness — no prefix, direct pass-through.
@@ -116866,13 +113564,63 @@ http {
             proxy_read_timeout 60s;
         }
 
+        # ─── Tenant portal pages & assets → tenant-app Vite dev server ──────────
+
+        # Tenant portal entry: /rent/t → /rent/t/ (mirrors frontend.conf)
+        location = /rent/t {
+            return 301 /rent/t/;
+        }
+
+        # Tenant SPA root + hashed assets: /rent/t/... → Vite dev server (base /rent/t/)
+        location ^~ /rent/t/ {
+            proxy_pass http://frontend_dev_upstream;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Request-ID $request_id;
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+
+        # Tenant auth/login app pages: /rent/tenant/... → tenant SPA entry.
+        # Must appear after the ^/rent/tenant/api/ location above. Mirrors
+        # production frontend_release.conf (/rent/tenant/ → /rent/t/index.html).
+        location ~ ^/rent/tenant(/.*)?$ {
+            rewrite ^ /rent/t/ break;
+            proxy_pass http://frontend_dev_upstream;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Request-ID $request_id;
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+
+        # Tenant portal deep links: /rent/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken} →
+        # tenant SPA. Must appear after the ^/rent/{...}/t/{...}/api/ location above.
+        location ~ ^/rent/[^/]+/t/[0-9]+/[0-9]+/[^/]+(/.*)?$ {
+            rewrite ^ /rent/t/ break;
+            proxy_pass http://frontend_dev_upstream;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Request-ID $request_id;
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+
         # Root-level tenant portal deep links (legacy share links without the /rent
         # prefix): /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken} → tenant SPA.
-        # Mirrors gateway/nginx/routes/frontend.conf — rewrite to the /rent/t/index.html
-        # entry point that the dev frontend router (app/pages/frontend.py) serves.
+        # Mirrors gateway/nginx/routes/frontend.conf.
         location ~ ^/[^/]+/t/[0-9]+/[0-9]+/[^/]+(/.*)?$ {
-            rewrite ^ /rent/t/index.html break;
-            proxy_pass http://backend_dev_upstream;
+            rewrite ^ /rent/t/ break;
+            proxy_pass http://frontend_dev_upstream;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -117140,1020 +113888,6 @@ Implement in this order so you do not break routing mid-change:
 4. Migrate existing `landlords` rows into `landlordaccounts.routeslug/adminid/active`.  
 5. Update platform-admin CRUD and landlord alias validation to use `landlordaccounts`.  
 6. Remove or deprecate direct use of the old `landlords` table after validation.  ```
-
-### `propaura.cdr`
-
-```
-PK    ��]"���-   -      mimetypeapplication/x-vnd.corel.zcf.draw.document+zipPK   ��].��  !     font/fontTable.datu�MJA�?�q2Q<�����舸Q�����1*�(�x���R^��5Dq�yMwU���`��*u|	��HBz]��䕂G:����V������bTh�"-)G���d���aW�>/LxS.c[{�lj���V��Yjb��Ը��k��Z��9�t��U�9���b��!��k�q���y���p�W*4e���[��l���2��/yZ�m���In��w���RZ�|D�n���s���y��Z\5H9����|PK   ��]e�
-M/       content/data/masterPage.dat����j��y�Afy����������� � 6!����M�&�s�?{��܉@qV b �b  � � �f �{���p����C�C��5�fg�˺N�f���I�= ��6�����8�;C)C&C
-C*C1����2i��:�	/*��t_Y�c�:P����=���ˁ��q ��|r���v���!{����u��v��9�%�@~�ܺGﯺﴖ��Q�b2����8k2g�8sk1{��vÙjY�Y)au��!<a�tN20�r���:NzE��c`  PK   ��]<��*  _u     content/data/page1.dat�t��%DBhA�����&�nv�M�!|�������vv�a!z 멢(����U�Pj��E9�p�R��B������7��7��n�4yo�M��w������s����Ao����G߿b��c����3��������g�T��D��,1j�
-��f>��%���r�-���� ���` �9��Щ��MFHچ�S�?\�gd�����x�C�H)Yx����K w0JQٱ���¹['ş�ƃ����G%e4� �0
- l ��Ż/oZq"X��|��Gk�����SO���[_�Wl�{�Mo�<��^�pez��	�ʁ�� �0ޙ>m9��/�>=S��׵9�Ω]�	��@MH@~ģ(����l�o��]�5�?�"�ѴU��j%�Fq����|����mUϜ�zYù�q�H��P�Î<=`��uw��U�'#X�&��{��ġ��&���@^_u��$m	áo�h�q 7O���8p�<)�0��B![i�-��m�6��n�ै$�1��P�����<5
-Kд`���m_X]���t؝�v���`Y{���+�=�����]uE%�%%.?�.�n�-,���pQ���bu��������f�b/� �D� �˳ǁ��XHyL��2N������6��&�J��rX���ª%��V`���KRxey,&	uM1>�g_mx��On�E�T.U)Y)�cAu~.,�74E�%JB}0�)�B@�q1!,j	r�͋�� �v���*ϸ�H���5�>mJ��1^��a$��dk��9�(�x�R���r�e�c��X�/���B.Q�u��Z5FavLǴ]���81����f��x|��oT��k�e�t�ܿL�	��	8k��m��*GE��A90��[Z���1JoO�E{�ǻ\���헋���ى�z�r��*��06��]��2���WkP���O�9C*:�� s���VK��dPe�f@%�bO}u�Ӂ�8d���n[�4e��E[��*8��I.�,�Ě�|��&�j&lD;P*D�#DA}��p��W�Xepc����ȁ���*~'2V'��|Dy��1�a#�q�3��G�s��ݢ�e,;qVS��)�3N��N��M�x.�Ga/gQQ!S�ʯ��� k)�
-k�Ͱd���]����ܠs"e{W�}AM%ezW3]�qǎn%�"�i����B1i0'���h��
-fi@1f�
-6�1v�A�jX�7XD�������Er�`xF̴'&C��%
-2��%a�1���a
-4F��tv$
-5b����7F����мA�!�gRd<O�s[@�5�VZ����%.L�, ߼4�[�|��`�
-������ ���O�1N��B�_�����[>W=N�h�"���$�R��ȭ��)Y��J
-�RR��hT��[���.�P;1�,��E�!U�2��=Ƒ��	 XA��h�#�t:�Q�Q�Ms�X0�Oy}jj� �{���Xh�a'���s����%�D�IѰRmѩvW�S���;H`5
-����)�-O-���'��	�f&�NB��{kM-�՚	Ѯ��X�4AGL%:!���{<�
-��4�XOH๋�"�Y�呠+�$Y�ʼ9ˉ�� ;��e6X�3��}3��l��� ��ű��o���nx�Be���k��(�~ѯg���{I1���c���Rg�:�Ա�-L��5u�{�c�'��Jv����̝W�pA�܀���Cc�xdG�բ8�M���{P)��k�{�FTF������Fc�M~7ݙ�,ڋ,^ߎ��d'�Z�e�����v��z{�\o�?�Tb-n�-Ү�u�}��ǟ0�>��
-~��z��^	ϏC���QPw/��2����Г:գM�G�yV�~�f|�(�k�d-;5o��3I�#tJY�2��i�I��Z����v]%�����C�X��=Q6a;w׳���/�+��퓯��l»�r=��\��쳉5�.�3+&�{��3B���P2����?|7�P����]�΃�k�������!��w!����N�j�	0`<@~�?_�z'loB�!�KB��>ڱ7��!t4홱����}�:B�6
-ԑ�2���a!t��S�G>u�{ө�O]���cC�1tC�w���i��л*��=�Lc�Yr}G����t�k0ԯ�~u/b:���_ݣ�꼸Z�FV��czGT�h?*�����h�V����?�`T|q�����E�7OV��G6�Q�A�9��o�o��M�f��S�&��VucT|����ǅ	�ߨ�0�a�b��0�U��}ödD˼>���2Ʋ��%�����d�;��51E��I��YC��]�r�0A.Ƴ[N�9�is��"�6E���IR�tqv͏��͛��h=y���Y��C���O/�»�ǖ�gs��u��tOg��jՅ��g�*ۋC�k�k��M���z���������iY#X/�Y$Z]�"�u�/�4�2f ���w���ZW��A}�L>	^F�|�Xl
-�H���L��Uf�Qe@]�����BwS1^�%o�~���X:惃���>�Y�/z��a(]=�ī�g�}g�o֦}r��~�+�l���P֢>hk.����Kh�ͻj{�\�j���]�߾-��l�U��c�z�S�CyWV�t"D���]bry��azˌ��l����Io�No���=��0ơiW4튦]�JӮh�M�ꊴ+�'��s4����נ~5��{"ө_M��^�Wk�
-}��V��Op��Mj�Pk��0�Z+�Z��֊u�x��#1��w$��6�ytZ#�$�ջM���i��o�\���p�e���o��{�b��ҝ��M�����KW�M��:	�,��Ȥ�C�8I���3\�u�+�=�]��3ĵ�O������h7-z��f�W����.��v����G�,���e3�����}u����w^�P3��j��Ί�ޚ�^�FY
-��	0`@�E*˾�,�B3��dߡ�&�1�MǻzJ�mߪv�s��̟v�6�΁���R��G��(������#w�w��g�7�l��Rl�΃/���/p�PK   ��]D@ZUhg  �E    embed/embedding0�}	`T��p� ���,"dB6 ��$�=3��I&�L2��B�L&�j�Z��V�Zڢ�Z��Lp�Zm�U@T�Ewq��hQ�U�����}o�L&�~�[�/�����{�s�=��s�݂���&M
-
-�قZ��A�A[�Z�ɂV����������A��ۚ���
-��rw
-�gۂ��M[�	ζ�}w
-�6�e���=#(-�� 3�h�����,x ���OJJлA>_}�N�{����?���A��d��M�k�!��>�?ƮNE�K���|����~���_x�M�|��Ϣ����_�����(�ܿ�V�䮠 �܃����@�]�\�ϖ��nU�RJ�T���A�������/\��{��x��O�,_x�'���?��A��z��#gt���s�)��W�k~�(xA�����"�A�O�{<�=_}S���2>��#<���/���ϖ��^W]��S��/;i����.}lmP���ߑ�?�Q���7����������p-����BVP&;�?h��h�/
-�����>w�@�|�e��|X�G�p�®����	���{F�S�y60�of���ȡ1������6�>�y�Z0!?/�?��7Yt�7ߏ���~ ��>�{o2�_�z,���]_����s����sǭ�}�
-�z�a&7,u����}_�?:�9���y���%~ׂ��q۲2�>0x� �~
-�M��G�K�Ҕþ�q.~
-�E����_�;����X���,u���gn��ڇ������_(�y�y�5��</|�Ͽ����?::�~�۾��_�������_�����s�w���G�w�P?>	��ƞ_��]�(�[N���� @my���
- A�A��g_��Y��$����ajYH*5~��{�	�	�ʞ�`o�)~^�P˳^���㟱S�Q�@�����K毄���"�{�����6�������Y�!��7A��~������1?C丗Oak�}������c���*N�"˟;��|{�����S���!��58<\��ࠢu��{.�Q^A�+�P�1�?gi���߸1$:
-�m��uk��~�A߽3}��B�_-F!dD/ 
-Z��:���%o�_�f��'��pW%õsVЂI�4�	�"4xr֤�17�<�$�
-!�u��A�C��^ϧ�� [�Sބ��6�4̔-^����O���������_"��3+]�Vv�=�ýpس���+�� �
-�mY���^�g������kd��!�N�*^� [���Gs��TJo�lC�[oG�v��y|�������+!���;�9�i����<���2��JH�on�����Ո ��T؆[QQ�=p{�M$ɇ��_H����~�
-�#�U�S'��p��O��(
-�U	�ֈЪ��9��:��8�������pO�$'i�!W�������d×!3F��(jմ�2r
-��<d�G�p��{�&��~3��P#�#+i�N�#^��I:r�#�E�C]dj%��E�I�"ه���X���C�����L,�TS��6�%[Q(��h��^ǭ(T� �-��h�) ?�ߟ�ߟ�� ��������,*"�br7J�057]W"=�֒ː�Fq�u@jY��'���#�w����OG9�Z�Z�I�Ɔ�~T
-pzɃHK�u���Lc����
-(<K��[t
-עfR�N��v�aG���)�ˏ������x`�Z�s���p���Cj.O҃�� �
-8�]�-���7wP����ّO:�L�w��pG-���x;w����Ï���c�(_��	�S�<����n�# _�Qqp���<�Ae=��_V�8h=���V�j����
-�dC(gz(�����V�N�m�7��+��Jr	<��}���6-��|Y�����tinAQ�Nk�p�	�t/����mȠ����+^������}⿜�&࿕�/�����B���N��)�TDqmCm3�0�����\�a���;��Y@��\
-eCuޫ��{h}�B����3]�t�T����_�lH�߽�/��c�C�E��8=G�m��>	=_�2��_f�Xn���̤�K�/;D8^���3��?�Ѱ���������+�-�f�(�˺�*�9��
-���A�p6�D�
-����GJ���V���*�J��V��.V��zEu�3�Y�T9[��3γ������֔�d�b�rg�N�N��Ɲ�;����0g��L_�7�_���X��x`z�K�&9`"*��E�Z�zA���vg���Y�t��Lx�|g�β��;v6팹O~��������?���_��~{���7��Nn.ƞ���z�zX�@�1�?P�������;xߪ�.�o�}�w��k��k��&��x�?\{]{\#�]�W]G]/�:�w��x�ǅ�l�o��A�h
-JC�/�m-Z��($@Ǖ�h��6<A�0�P��EU`�� ңZT��1ɑ�<���� �"�lJP)HQ9R!5���"7jC��u�<u�ԋ�P?@���@�Z�ِ9PjD�PX�ͨm�F1(šx��f�D4���h������Q�2=MAah*����t4�D(� п-G��ы�e�=��B��^��AϢ��sh?:�>���F�@�D���� �_�4~���ϡ
-���~��g��:��7���hz~��������Y�J��Y����d��k�S�i�އw�=Pzw�?�y����"*M����D�!t<֗�1��(z��^C��@r�������a9N���[��DN��Br��&g�u�a�CӣY�yJ��B[��Ȩ8Uqs�#��ʮʸ�#�W��Z�Y�'��k�V�W٫����T��:YuUuuu_�����;��)����Z��f_��j��yL�յ�t�t��}�����*}�~��9�Y�v�c����6�6����+�*����V������~28
-�G
-W
-�zc��zy�<T�%�Q��"F�PqBqenunIn}���c���>�W�g���{.��������K�LQU��|��� ���B]���3�W����(:Qtg��8�xW�ŗ�[R_�V���RCiT�ҳ���Ֆu�%��*;[����]嗪��l�)���|u�z����a�Ι�Lu�r�unuU�\9��\w�ƴm���u���row�h�i��v����;ۻ�S���_�Q���Yǽ��:ww������:�uU����{]�s�'�o龭��gSό��=���س���7�7����7{/ｻ��/�/��վ}W�W���G���]��m�G��15xd������������eZg:k�לh>e��2��UnͲ>g��z���e�a;e{�n�7ؓ�o�owX9���4�7�4�j���������#�'wn�ߔ��覛��M�M/7m�ܳ9i��Om�����ޜ��i�͏��D����E�Ζ[ʶ�lI���/�l�"QQ�cQg�.��;�5:$���_Š���#1'b.����Ħ���*��������q{�ޏ��#�+>!~]������r�J�(Ᏻzfe�zn��DgbRⓉW�V��}h�����#�3gќO�\1W77n��}l�j^ȼ}��_0�����矘��+�?6GRIRCҔ�EI���LzxA����/�;�6�%('詠w��
-6�'�
->|[H~HTHJ�ʐ�!��6�`Rä�IG'}6iۤ�B��]��/��zE���'GMΞ�����MI���S.�rWX}�ʰ7��Z65b꾩�LC�z�͘�kگ�sÓ��|�sz��]ӯ��;cΌ3ޛ��̒�	3/���%3�h�H��q}��}���#�LiK�Hy=彔Gdm�y���SsS7�f�>��mM�yk^]sb��iδ��iW���OI?�~2�ጢ�y�2�g�2�2s2?˼*K�5/�ɬ�k�k�k�=���ud�y]��W׽������֯Z���G�K�C���޹�dÜ
-�6�ٰ3�:Ǟ��s*g{��6� mTA�2�9	-P%�!�uc�����f�p�j��[���SC�a�M��:8�+�ŕ���+����'8�_1��m�7�J�ڨ\�
-%�y֎^�w�=8�v��O1�+��z}�������D3�ߤ9��<��n5bK�:���muM�����Տ��O�n/|]��@k�\�����bin���b.P�WY��Jۋ��Nx�7���o�#	�S�����l��r$���<����U��
-�Ѻ�UY��w=�rE'����7�%��q&�8S���V�u��N�6�ZZTik���Al+(,�@�::mn���X��9@h~
-��x��ȳ���,9�e���-��[��Д�i0O)�����,M���hsL�Lmv��I�5��������s*2"�&+��TU�U�YSj#���ݮ�;�k�mm=@k%*����\�X �D�P��l��l�sa�Vcv@�T����OΙ�8gJ��N���+;+J�x��R����xZƂ�������M�����&OD19]<4�������?����`���*@� �;������i*�tY̎N*
-vGA�VCO��'	�Z�Ů
-u��fo���4y�c�d/�zss|{���āuy�E�T��7���e7�F��f&�̘;o~��ٱݎg}���V�إ��(P�
-G幒�gQ���/<?�,~J�
-���gh�;:��*N
-���>c�%�Ƣ:Æ�K��
-������]Q3���O�L���b/�Y��)4;8�`���NUa�FC��3�EF�<�&q��� �gwn"�g@s'\t������A+r!��
-تƎ*�-�!sjj�u��s��Y8On#skj���Bڲ�8�H*�+��1�:e��7&ب������]_t����nA�jC�R��b�7c���TBA�c-G<�be�����U��7˕�U�lX�,?�je9�0����ʬ�|�y�x���5�v�~Q�Q,.
-����)�q{�2��9+负 ,��F{��2Q������aM����%x$l�Գ1}@9��c��,ÿ!ϒ�f!-q��#��g�ק�;��ׂg�	�9Cç~q㙏oYzh���G6���h�/�<�7\
-�SȆC����a����jtN�7�}�
-��M��ƷY�`s���
-ՆGʶJ��L)�'l�mn���+oZ9������MN�fw�s���5���ɩ�Y[�Nrl�)	���li���c���a煑��ŀ�����
-�c�?66�F���QAs7E�����ɍu
-���d~=�]
-�
-	�V�7��t�����\\�����uvۖ쩶�������,x�$�$��
-
-�v���7a� ��?�K��ܕ�甴���w�6���A�ExY�g:d	�B�� N������ri�BaLs��5� w|���ؠ{�itz�AU�5M���Z�j
-E�z�ѵ�K����I��"MA���_�h���?��tZ	-Yk��	�WɊ�����%�5a-��kk��K�?y�ps�1vf��$����e�7�6i����پ�%�D��l6o�<BFI���� L���J-w�ݞ�$>//�B��m<I�����(�d�K)+�JK�����������z�Y���kS0�iRpsKpH�iv����ߘ�0��h�e��E�,�
-�4D�4/l�ߴ��ۭ=]GW������,~1uo b��	$j��s|�y�M�ByV 7O��8w���L�g�^��3��r���(�N �|����y4��x�p�9**
-��AW=�������|��^ep8
-�����������Y���F�
-'{����+s�-�"
-��k��z�yQ���K�5��w�̓j�J�N�tb�Ľ,}�,���O(�ɀ�G��!G
-�[��O�|Z^��m[�\_[`�5<�R(�*�G�� moՄ���[��$J�%,�����ӎ��5`"�hn����&�� ��eZ�`�`�-h]h��"�����mW'6_cr���l���^�
-%P���Y���iu��S%ɋP��BM
-_Q�o����i�޸aݤD��Y�Zsk
-4:RR�2)}^C{Ex��iӳK^��Ã����������|��7��Г�Y{A����zl����5o�+���v2=6{׻�|RS�W[��ǈ���Ǡ�VS]��njx�Ǟ�b��\d."C���f��Px�^���І�~On�˫����ݭrU�	�{\%W�m��������`��������.s�����w�$9�nJ�ܢ�`ی�>��m�6�%����UL_zYG�?��,2�̩��
-F�1vR��C���pjH�<�_sF�y:2qSC��z(5�IW�hJ�E��b>_��	�kdds:꜅�d��_4����3e�?e*�	V,] [5t9q*u��3�m�|�J��`a�
-�E
-���}�y�j2�C~��:��M��SI�I˪���Nϵ�f�x9��0�5�Z%��"�ڌ�e#����Ke�z���V�	��T�����vmɹ���ٚ��S��1C�ƨ)�Ϝ�iX����ܒ���)g��2#���FLM;�(�]��L����6�m��ZR�&�y{�s[�\���	ڡd�ҝFF�ʡ	����@N-
-�Hv�+#����8�����o�h��E!Ħ���I�S�
-�T�n����=���)�K;23�j�Yh��P�?4B�xn�=�]%��p?8�qx#�_���g��M��uc.S�P�����;��$��'�C����2�@�ͅ�Ԡ�`D�֣��K�������I�ѣ�d��<�o�B���!����st�o�ީ R[;���\r��cG�K=�_�V�P؇���85~��GN�=o!f7j�@���[T� ��\��u��2>O[��,��Ԉի#d_�O=�f�'3���/��:,���~���˙�w\�ͼ(��>4�C��<;�1�/�܎_���~3.W�]�����a��V�/�R���N�DeRmY��W����?__Q{x��VG�?V*>���*����iO=��*2t���+}��T�a�HU�P��'ZY~����sQ�A,(�$_U��e�
-��ՠ�̛6�=�B���=>s���;�akO�2�45>����E �K���9��1t�І�TK5�$i���[�F㌴��ͯ�߻r���X���.4�!��z�G��1�-ƚ������"y�����XC�����VU�:����P��x
-���Q�RZx��*y�����fg�C7�s	@�@u����vt�+���6^�ȧ�O���C�Z� -5��Y�������R�&\�mؙR_��+����&r��ё�ͼ�KL�1�#�-��N=�XJi�W�ɳ���Z
-ֹ=�t��y�¥k���j�7y���IO;��M����%�����\��BK!vw���U@�o���E|��ݡ����K�W{rK�q��C;.���w�s(���\^.8U�R}�G_��P�'F�Jzy��z袞�ױ������گ�����'�ۍ���8uKR�����̳k7zn�-U�����>�IZ���āo�PӇP^�O�ܶ����:�*y�fd.hС�yN�g�Lާ����'3=Kg�ҁtΧ�ڇgq$��p��u��đ�����x�����[I)_����Z����/����/&�*�+JI�--�|Xz�ե\����O�?�Y
-'_���!Q��<�\9 ��LCp��4~ D�E�v&/,ViH�;�`��e&l�	[f��e&l��-�
-��Mj��F$�r��u�@	m:ܴJsrS����9\�qp5�^ת�j�T*W���Z�f,��k
-�V�vV��u�][j۫]��ڪvKz�fW��"��#�٩RMoom���_K��$� �����3�oKqyZAn��<�9�Ϣ'4�t�U!���5�v,��Y!/��y)�߄��wHb�Ԣ�[h��2PXP�e�Һ;i�q�JM'd����i��4`k����� +4ѝd3ކT�q[i
-���";UL�*I�������#Zaו9H�L���W�k�)sh��,�8Í��%ڂ�v]�QU^U��ˆm�*t%�=��'��qk��^�!����L�Zc���շ�?�O����18|;)"��4&k��Y�*Ũ��B����đ���˕�:���� W���[�;�����ߐ�6k
-*qOU�Nn�ED��Y�nwm�}���j���~�<I~M��+�6��� ]
-���d�����-���M�u\h�-2��5;"Dc��k��.�ّQ����EqR���X��OQ�]��3�mn�W���i��v�2�ܙT�v�<�{n�������VYj�j�A|_���&�#��-�"�t��	<]܌�����h5b*qP��1�]�Bf��OMh��)J�t)fK�Ai���M	�n��+Jkuf�f�
-k6��nn��
-���ة��Zyz]Q]M�@?�X��ŇM�k�˧?>�e�h�S���F�mspI�Li?�^[
-�\��ﾪ�2�]�|�zlqW�gKz.zl����E�K����v[U��ڠ�ҷ{�:��\��,��z���J�57����W��)O�GN��M����Q��d�봡��4�-d]��^PJy�\�0�%�op�Yf�dm�����J�
-3�O����?i]SG�šӗ�g��X|�+�X�:4�֚W�_��o�T�W�4L�eu+b��෎"5�n�+�/i�P����[F�Əh���G�H�oP��:�}}��{{��ݽ�����˩�i�J����S�d����9�eQ����d��!TV!�zI����d|��I�>�fʑ�g�Oyq��oR(K������Ʈ���4?�<�'d�"j�d��k&�t��З��*�x��.��UV�7
-4���<�+g��u,��ΐvR -��N��ע���Ο���27qN^şĳ3������B;2b}�h~ߪy��Ft��ӭt��ڬঀ�DG'��uJ��K��kK�;j�&�W��%K��1mVXجةSID_ALZIq]�qs����S�,�G�����g%̠z�<��4o�.[�m��e�l�%1�R��..q��s����x�uV�����]R����t�j�$@r��+^���}�����m���re�� Y�,�E辁z}
-���l��%��Z����=Ǩס��Mj�Hs�лU'vH���c�qz��u�P	��wX�7^>۪P���tyJ���,��c��_������������M�;CYi��e�����
-OQW��I̭,���X<=��e���V��/�\q����q��ݜ��V���t���ii�qѨ�Ŵc��C\������}�o��hW�v7�N)�O[M����.�<���?&F>,T"��(XЄEB�se3����3Q��nU��E��1��٭)��{��B�T���j���`z�;��t�|���ĬfЎf��e���M�<�����F�P��<NӱN�Wvjqyoy�\U�m���=NCC���P�0����vhw���q�\��?[�*U��'�ڕG�b@����x��[�g�y��%q����.����\��s���	6~�zD��_�ɝc�<4�;�.϶�*y�����J�>��ٹg�����᧝Cqki��V
-����XnVW/�/��:,c�-�3�Z��׈�x~�M/Jb]�/�X��x%_�+�x�.�*��!`�jETI��Ej�h�&O�+�,T��8<�Ҋ�U3
-	W��8�2�1��*Ԙ��L�V[1W��%�r%�+��b8O1���
-��1*A������~G��� o.�WK��,2��
-m�*?�Amq�2�d�x�}�LPW�=��d�Zx/x�EJ�=쫭h`?=Ń�K����� x�G%Bӌ�4JU������f׶�x���sY0WiQ�����'�[�
-:|p�E�V�DE��F�Q݋g�V�N�\�ےq[�)�$�{=��bV��c(W����U,�#��i��U�Pɨ@����i���x��#y�H��Fw/�X��#{y���᳠-h��X5☚s?��לEw�Ĭ��XTS����87���{�<���b��ӋۢA��s�A�]c�����4��h������X*A�8[	�,5�{u�@~���Z]y_qV�X��Z�!O՚�W�����f^��h�2?Gy�������GۍA�S���\���tp��swtpr$8�U4$C;����7߳���T�'_������6�����>pƟ�[cP��P���=��F
-��ߎJ|/��r���!�� �:Jj� A.�Չ!�AG����t��({2>���4�F��Zvq��@��a 2�HmL
-�\7�,.V˓�מ���0�J���aY_�0���N��� ��O�w�H�PͥY�gm�nthVS���s�Z�i�����^���nI��!�oSU��]a�Nq�bߘ�CT���~�M �Ł䓷W/~�8��?J,�<�hq.c�4j��1U��#������9RZX��������[S_<*{�mT7�56v���<�25�iN[o�����|B�q��������ք��q�P�᪰���[U?�1y˻��kw�y�ك�e����.��x.�UXd�/5���4o���(�Z��d�&Ct���?�i�O�l��%��)eY�ںZ%.��3L�c�؄?6�M�c�؄?6�M�c�!��� �&���C.�l��f�>����7�4Ѡ=�?b�}|��u&g� ��3k���?�M�c���c��Sm�t܆?uc�Ɨ�I~��z�h�~�J��k����k��{�å}f������J|=��cc5��B|����T^j���K��3Е�[j���j[f˰�v�;�r��4`��Hf�:���8c� W���享�]s�Ѕs/�m�
-sǾq����m`����s���~�ӟ�z��ӂZ����t=��Ua�s�C��Hm��q�����1����izʩ���I�s�/����^5衱ʪPPC?@:� ��E�Fo����T�O�I�-�^2E%��J��~��p�"�^(��&��&��O7K�s��)J	��ł/�.���8�M��ۄ-�[V��S~X7����3MJ<��E�"�����'�|�p�a�w����;`�淣�p� �Vژ��s���~iL�pt�h�$��_��Gn���w�G�B�����8���Ԁ�^���`cxf ���|�����X�fmZ5SY+��5��%
-j�>XP.�A퍊%�DP�N~NN%�����y�����{��\_�m�y[�?���@[�y�6Z��y9�4�8�%J�?���F�C�� ;7uԽ}*go�84���~�4�r�'���yҤ����1`	������܆����X�GϚC<=��]�^U����h��s<A������<��:QGO��U��@C}bJ�->�~��=�W3v�ƛ͢��2
-�xp7y_D�������7yj�o����˕�d�-�&÷�f��Z
-]��+hM{��ŨY�Nu���w��n�� ���� ����O����:�2؛�泏�����rQ<���W�P���ե�"�	l�����˗8:�Yxه݈Λ뻐���E��T� ���m�
-
-}0��o��,�����Y��lX��:��<��m�
-��"7�IퟟE�?��=��M����-
-J��x�Y�[��;�\��~���%(`���WJ�ۀ�?�Ͽ��yj\��,x!�'�
-���٬x֙�
-� ��s��|`�� y�m�fT	P�|����k�ȓ/���:(�2���m]�J��;p
-��H�CxA�"TiR���jn��7�o�������N�Qp��C	�S����& v vQ�OE��7��r���ٮ�8�����%�+x�[k�p�j�h�����I����&���[�r+�
-Q4\�?�4A-��ğK!�Xb�}��9~��`���
-��b�ha�Gq�z1��]�!^��X4�"`�5cY5�(�_�w�Z�.}����5��~a?e֎�j2�ik�wx�(������D�����@\č3P�c�VGDy�c�?���.q��p��s�������n�+R;�B�0~��l�P���r�7&�.g���BU�,
-N� d_�Z�,�J����47A=*�+"uc��v�u�
-����U��Kڴ�䡎��ig"5��F�gK�G���?����8��X�<b�EEH��?-8=�>{���ꈈի"#V�x�5m��)��U�[�Fl��\��#�X��!����p�~����8?���~*�a"�n��գᛱ�	'�۽���8�ڶ11_�����mbS���[OI�P`�7WT�!���J��ιw����=@[ӿI����H���ynJ�C�����|��%��(6М��z~#	-���~�<��\yYR�c�s�8a�"s�<�/�.��O��#/���K^��88y�j��<z1*�6��!�
-$4~͙2
-6yf���#I�����t����!�_Hqݨ��;�C�5�-���wU�<?�
-��m�i��ٚy�Q%�L��}
-�πv0�%x�Hd$Ͳ\�~d$nK>�<��?O3��s}MG��9�B:��5�t�@ysGOo���A����b��B�<ם�`��;.�B���W��#��{����5�O9��>Cf�7��X�?��Xs��N}���R��2���
-Oq+]����-�d�^U�!��d>x�EK���\*fJ�o�q_@a�>pҵI���.^%��4�
-��*χ��9̬��jjl�:~j$|���He��9�Y���Q�=���� �V���c��J����å��>�6C��P\�Կ�;�b����vrZ5�w���������Q�?�߄�� q�_o�t��i_ܷ����ӡ�ח��s�]aV�h��7���]q6�s�M��F��t ��*v%	p������(;~������H�_�(�b	��w����ڃ������m��(Ӂ�.��[��e���??`yv֋Sت��~U�ϓ��I�o��2�����/�u��l&�mҵ�%����ө��55&=��_����)T��ce'
-�G�^}��+�R}����KוrzU]����4L������:�
-��ʘ�}-�{ε��'LM{b�e4�]ېk�agy�
-��mek���M���.�Ïg;/w������?��{Y���X��	�1���׿,�"\K��y�W3 ������&�b�>��e-	�����":5��,���2��t�0V��uu��[�h�}Z
-�f�Q�$,tW� �9��D,��j)Gܩ���\�q�'pF�ѳ{d�l
-�۵肝�op�� 
-q>�w�/���ʇPN5t5}qG:l�B�z��G�t�����PȇC��Z<|��07���j�v{�d=�߬���viQ��x�?i�zYU҉�(i�#W<�o��+qǕ�	)S�ov�
-�@+�=�\Md#�\�h,�b
-�X)��y��>$������!��b��,%��=#B<��w��ưnﾰF�<��� �F�v��Z��ZW�4Ķ웽ro�a��#R�Vj7��Md��Y}����\e��7oL�m2XdY�D��RՅ�b"����8�������z?|�smIǑaWiۚ0���y_�-�T=zL�?�v_k���1�a~B}by���q5H�����~�2�[
-���7"_�,���w�����UÍB~Ι7���
-��߇���;�K�����fq����y��=�����~ߙ�n����w� -�˙NA��|qs��T��g��8��2B��v�!��AQ +�i��r5�Q^n
-7���!c��b��S�
-ݤ���~��|��Un28� �É+T��-37Ȭ�%�O�b�uj�[fn�7�/$[t
-�ͅ�紮����ԗcHڎ����t
-��}�|�{���h
-�E��g��?������gBc��"�i�2�+�D x��'n��[Q��p�,Jm�����"#��}�хO�o�������L�<5�������KA��R��b����=Fi�i���Z�ަ�R�<�D�o`s4�2��>0;y`y�LK O� O�����P��Z�� �<��@v��6;#��k��1_���ձ�_��A�F���b�!XQG��qh�8�R����87^�s
-� &/��SR���'�91��r,d�������KH�b~2p���I�X����N=t02$�j�`�3S�>O��췞�mr^�Ohr��L�#SYu5
-�#Og�ά�}�N��[0���8�������ߕҵ�:l��B� }�+���ǝF'4##��
-~�?ߘ�����3�
-{k)��	���])�����Y͍9�������)P555��l\[zE)v�ǧ.��,��C���'��	�y�n���'��	�y�n���'��	��<��Jܛɔf?�!ӹ-b� ���8���l�i/ o#� ��-qM�J����\:�(�n�O��]�I�dy���&Q�4g����Y�(��.N��7�ֳq�>��첀���
-�%Vأ�K�|�8x��<*�V�l�	��X�YB���%H����~��:|/��x�1�G���.��C��]��;�f̑�>�f'�$B�L{����Na\GT���8r^���#�"ɏXƯ����;}��	��_�9�x9a�T��rL�!�L}gx*�S'����@@�C?����I��n�����^�x߫t��%U
-�<����I���
-�9��w*���4�2�kc��|01j����4����˓�`"����v�����N�MY�#��.r1��{�Q������H��\|�#jx�L.ƕ�V��i�k�W�#������g��}�~d���gB���Lx�r�#��S�����+��'z�x��p���ߨj���CG�k�ǟ +�n�߻����\ƿHI�|��wqq/oq�����
-\��VW�l�f�^���~���h���^�w�r���-�y@� Z�ã	�7���>Hw8i��7����c2�Ę�c��Y�O<��r{?�i��ϻ�8Q�GY+�T��������t��W\�Ib)�8����r�mrO���rR]]�\0����V�4��
-j-���<W?A�$��ln����r!'��Fdiǆ�m!.�T��Re��BR��*�oZ����Bco��������\��(S��'�kL�.�ّQ����L�[蝋�gi�����yEAw4�u�[��%*EuG�NQ�o�S6��j�i����W�k�y�
-p����*K�Um9�L�@�L����9&qKQ�����ܬ�^nt�u*n$6G����UM�U�s1N����U��n�+��rE]Ȇ"���e_ɟ�6��ֶ��7�\��ZUTT��z��
-g,&88��I�pƄhpkT._�=dy
-�Y
-�4��X�Q�R��
-�g�����.c��73I��L��$/�G�ș�l�����*\X�lY���O�}�Y���H��B��P��iTf���g�����K�)�S���i��<.!��U�߲9\Y�����˕�te|�YC��O���f�w�T���G-F핑��?�{��y~���Bf|5iF���~�-���>�+q����7�l�<J�z�}e$������n�.C�G����ӧ��䪵)�u.�w��̘�2:��-��e�38/��P�7ڇW��u�����Ǥ�B��L��e�Kͦ)/fy������tՇZ��7ΰ�gNY7��ʍ������^��_�ž�X����� ���c���
-��/�Lj<�.���*W.`�8I?X�7����#��SI,�[tF��	��v8��e~M`]�٫�,|���my��
-�E��S+���}\�	��9E)Vh��y���w��f�x�%Co������
-�68��c���mk�����`n5�O��\�k$�P�W�5x��V��i��q�#r��TS���^�>���(�x�J���7Xǹ5�^ٯ���
-��HMF�z1N7en�b[��C�#^4:k��KZ����tnu�S�e���4絻Rj�|%ԁVj��w�rk�F�;x�_�g� ����Ini��ټ �����stRE�-:\�g��\X�8|X^�䙧Ӗ-K.7���˒�-K{��y� �����]��f���0���'��r�y�bs��;��_{n�gUg�k�~��s��^�C\7=��ʳ�uͰP//����GL0���Ջ�J�<[�s�l=~��s'ַ{�<w���|��ټSn�>��	��
-7�il�$�ʡ��r��Ȕ�H|c�*.�����Y�p���K�9��|4(����l�g��;p�E`����Ӈ�⿭�E\���,�*���-U�`x�-�q���s�X$�NFP8�N��e����S�<n]I* \\0��(2�~�4�=ۍ:�4�����z�k��:�k&]yrB�M�����c���g4J�Iv���z�θR�w\�g�\p%;���v���+�d�}ssi�Ǣ�g]�~;�J��]F�]��Q���Y�k�v��l�+�g���3'��qן��w��m�+���������ږ�s��=�r��?������1�=�I�ӭ���v�h���Wؓ,���,�ѻ��*�Q� H�U�d>_.���9 ^aU�����_4���L:��@�����%�w6�,����i��&��ֵ�_��ʒ/
-N������yϛ>(��A{2c���@���4����Ӝ%�MS �;�5f��iXC�zK��U��K�?���^⺂?�=��Z�L2�Z�����Q��g+�v&��=Ih?4o����z��lɆ���-yڿ?�2��`�v�cݎڕi���-�(�W��սd�2��N+�$>e�X�uT�ȪU~(q[�$��5��
-J��ұ}��Q��վ����
-�q�B^4��F����GZ���}����\�j���s�A���ɧ�>��9�l+��p?k�g�p���*۠��p�o��w�p�k!n.����q���ћ����{�4g����=Nqx�>�1r8����"%"�N��Ƀ��h"x� ���v=�d�0 7�6��C�k����[��2�w*�\�>�]�2b�p�~e��=~o*)�@�T�q�S��G�KՎ��U��J���l��4�0�#V±���X5�.��G��c��VE?D�^����ӎ�IE�U�E*����ޛ��r8FE3ǣ��@����vn�Uı𯊀��"I=t���<��*�o�@;��͸�J~-qZ�x�ʸd,t�k��>v
-�_`�>R����08"�*y5��>���H�^||�tt��g���Ѧ���ٸ�~\:��[Vyl�Qކ��x��"��0@��v
-��P	u�'R�y�0�����X3�7�"_�}`��?���n4o�� �Ș���2�oD���2��A�|~�&x�������w��p����º�u�_�û����U�p�-@��_���*�V駠�A$��2�qla������x�]  �4���������������G��у�v������S�Qȁ#���>�f�X��H��k��1wJ�)��gȝ��E����>Z.��'���Y��7�)�@��dˏ{��f{��`!l_4�+`�c��w~[{���/Oڀ��6�GXjp�ϊ��X�Za�8[qZ��m�S֡+���q����=Z���a��)n
-7���l��CΨ1h��	8�H�7��n��N�x���G�)Na<�^�E�}��������h>Qv߱��Z�%�D܅AO���ra��O^h����_-߾I#�~�����"���>�
-��Ղ��e�E�|е����.��x^	��|��(�����/��Y <�3��Bl��^�Rg!W���r�a��� ��Ta Y�k"�a�k�y|��Y^��"��@����a����ۋI}1��������+�I�G��wտ��ߙ�w��w��w��w��w��w��w��w��w��w��w��w��w��w��w��w��w��w��w��w�?��"�U� O8o�
-=���Q�g\��z#ѷ�rʉw �cy�(�����^7>��.(9�3�R�9��;'�O?b�hK�d����y%j�ϲs-�����A�ٹU�c���� ����2=�(�b���+v�A}�fv^�r���W�����k�_��k�<�'v�\i�ő�PJG"�I��88_����hܑ�d�m��pό깃�G�l�s��������U:�����PR������8��%��˒�n�p�������lg��̬��ΐ���.L�/H�	A��$F�d8��3��lxb\�g.ɖ-
-��&4��c1��	�� �^/��iJ���@��4P_.�c�kBs8���o(/��P�l2������m�0#;�Y�w;��~�
-8�����9K��;-}�6�$�Rfn\�4Y���l�[�vk��diF���rA�7��qW���	�,�� 3��r#�Bu������w&-Y�A�LZ�(m�,g�rY�s�Oq�
-gElEtECE	pDU�T�+�+� x,�Z��3v#|S1J���P|�𷖣%pfn�:����^�XTe%'/\�ippm��dY�"ن�57�I)B����
-TFG��/��R�J���ڣ�ZSuш䠩r���O� tf��%��ˠMQ���V����o}�	j7�A�  ���A(x�
-���@
-�2݄6�fԂ��(�a1��8b4%�� hs�<4
-k
-B�P��@oN�CS�4���h&�H�^2tA/��n�:�^G�@
-FF���5��	���tK*0vp���[�6t+��5ڎE�2t	��
-�64��@��CQ�=���u�v*D���SP @�-�
-&dp)z-C+@�.B�0��>F��*�:�GD�kp��Z\���W���6���ut!fl�r0�rqΧ�y�B\�����\�Kq.�L��Ќ�b7n���w�.І����܋�p?������9+�a;�=��7�M`Yl�͸o�Q8��X��Do�x��g�D<��s�<<'�ߡ�A�^��p0��p(����0<O��x:��g��S���58
-}��q��Y�a�{����8o�9x#^�/���b�����R�/�+�Ex%��«�� >��#�E|������e�
-~��_�o�]x?�����O��xދ�����9�<ޏ�S�c�	>����O�?�g�s��>���_���-|�����=��>�+�� ������u�g�z|�߄o�?Ƿ�_�m���W���z����nD�w�M������~���[ѫ�O�
-|	��_�/�?�W���+�O�V�_�*|5�_�w������ ~?����������	�G�'|�o|;�߉��¿�w�{��wx�<L��
-� �DK�H5�!:�'�����ȉ��<�O����"RLJH))#�DE��I\���Ii'��t�n�CzI�'d��1��i �di"�I3i![H�&1$�đx�@f�D2��!s�<2�$�$��2����d
-	#S�4N��d&� �$��H*YC�H:� �$��%��z�M6���*z�l͢�9U2>�F�.J�0]+㒪荙s��W��T�f��5K6dd�/ӯ��b�6&�֬I�I֭O�qkdd��|YrU<C���s�t�^��iU<ßΧ�xT:��gI�ɔP3�+S<���z��]dJ.�8Y���T٢�,���N^����]�%U�Yֲ,��y����lF�ZƳ9���s������\����-�I[�F;O�fIr�6�Kj�I�˖\h���撊y��l��&�����'I�ϑ��Ŀ��%���LMzNf��Ս,���n䒺YKr2e��lȖ-I��(�҆�x�xC�xI��x��$���\��$a�b	�B�В��By0�<Bi&����� '�\-a����j	�TN^�6'�r	�����%ҫ�ɬ�����P�Tr>Mr��{�
-��Kt�^�]� Kr�֛��4>��1�hJ��L<��$��b������>�8��j��e�]k����3�C<k�����3�xfϬ�M<��g"d��,B���-"d��"�gqXD�E�aqXDV�U�aqx�aqXEV�U�aqXEv�
-���]|�.�a�p�T9DZ"-���!Bv��"d��A�� �A�� �hq4�8D
-"�G���Q��(�hq4�8E�"�FG�7&*���z3K-|j�gi�Zص�][�Y�޷YYjc���>uĲ4N=h��|��Υ\R��6}Q�ⵋk�
-g�{
-�,��N�_\�%�k�*�,�H��C�a��OM�,e��,,�����X�Ʊ4�O��}3{�lg���
-,mdi4KcX���\s<K|�oa�-����08���XY��,?V�+ˏ��ietZ\+�ketZ|+�o�3:��NO��$�&��Yja���6��Y�`iKY���Ʋ4���,��0��0��0�~3�of��?+/+/+/+/+/+/+/+/+/+/+/+/���0�����[~�������da�Y9�X9�X9�,���2�V��Ɂ�Ɂ�Ɂ���������������I(W�gc�l�������X~l,?6�ˏ������~�oc�m���3�v�����~;�og�����3�v�����~;�og�����w0�����;~��`����w0�����;~��`�����70�
-����70�
-�����95���s�rx��$�]�"�pM������1�P8��%�E�k�/�F�ٲ���=� ��p�$gd�,;/�7ш�m�\��HΧ�
-~}
-�b�+�~
-~�{��
-<���C�z���%��R�P!z1�פ���eĈB��D���0�$��~��ג2|�້
-��X�D��@��ĄC�@Sʣ+��è
-Q:;��Z�O�l��Y�h��j�$��E��%��ӕh5R�#�Wy���C����v���:��ގ�p�A�4����� ��G�K(p~������zݜW��������'/����&Z���X�s�H3�))�[I!~|�x�iǏ�N�{�����'��^� �{3����
-�~5��R����y�� ��bǿ#
-x�eLZ�C��#>F#`V1��b\4�%ıV���*��4y���A�@o���7��M�f�st�چ~�"V�A�E���I�@>1�F1�rG�ŝ�U�u�S��AlbTH5�ĕ�&jj�ml����΃a���{�q�  ��0���Tp y�( ���D���X��Y�5+R4��/�QI�o�s�̙���IV�^�����w�����qι�]�ϑ>�t���n��>������?���J��rs�"���gw����JY�.�^���o<f)��h�^�z���S��E���������ʜ���o��^�|���k���X�Iz��į�߇��b�&�6b<�Շɯ�+e���'�f��#��Op�Z�l�+��u��������ꧠY��I��k�l�����'�wu�������S�&�]Hɚ�{������[��J�p����\M�W��Gj��h�~���WpuW�r��6[�{p�%l��aJSI�&�/B�������|�4p�Tx<Cʽ�/�O�O�����{�_����������~�|�?�?���Ǹv�8�p~�0�������N�����g�߂+�m�s���o������f���$�U��jZ3m���_��AZ� Z�-WҭFO��G����ᣰ��+��RK��Ӓi��DZ-��BK��mW�7к�V�9�����-d,~���.r��ڿ}������M�L�"��+�[�K��1��̀�� s�۟�A�����o���?����)�
-����賾lX�T�چ�N�_��)�{�'����5'��~�d�w�?���.����[�"���)l��_@nB;����j�ӯ��K�Hk�g���;�������n��[NT��h�VJl$-�uz�/<���H�R_�%�u9��%ة��=¹�;���=�"h�����r-gӾ��1�/h�5�����é����y4[";"]�j�M�l�:��Î��/��e�Y������uG�_�E�_��h�^������o���":��K�{�)jY�]�X�u��ʭ�w�ީ�����q�'��޻���Z5m=lm���-��`���+�:�cm��\��M���N���n7\fu'��5hxK��}�ԟ����y;RY�Q���#���e�e'��{�o��"]R�y�2h���ڻj�^qN_���ItdB�h�e+�6S�EfY�3N��ȪW�����?��ő�^����˟����w��ލ�]iTbG}�����jX�J��;:t�b���L����>DcQL�B;�	5����:mg;۠)�A���ׅ;tD�ZDe�mY��?�~�nwU��ja�dS�-xy;�H�#�>��[�D��VƝ�e�DuԻ��Y��;\;ۋ^ݫ_���(����+��!�o�Ƕ�Օ�Sͩ��!���z��� ��1ү����{�n3s�nǉF���2��as�V�_�ws��9�|fm�?�ܗ;�M�������2x n��X:��	YGD���	����״k�����n3gd�����<_�7�k�N�r�B��X�C�X���]�[�뛡�/���͎�X;ԑ�$h�����D�
-P3�ɤ�%��N!��P�̀Jd&Tj����aP����ι������e$�_FA%̄G��h sⱤ0�e�|#���P�Ly��}�<�ҽ(Oo��U�WI���s��)�P�\��סR��WN�
-mw�LN�
-m��k�3(�_@��P	����Lh ��pTˊ�/)ϗ��9���P�P�I��/�ճ~��^
-%�2��v?��Q��v?�P��Z�$���Zf��h��r�A	y*�}���ʇr�T(������V^�n�נZ�Kɓ�r'�.���\�Z:!�e.m�U�m�J�����F��v]���˗rW�J��+u��Dwd�kp�R릸�2Q�/!�����;&���G7�я�� ��oSd�6e�&�p��K��{JJm��V��}����T�����t�u���;�� ����\>v��QG��1w��_v/s��{�2��^%���k�|� �����
-������޷���?�s���R���$d�[J
-��2RX�s�
-��{�r+�w�[M�Yn1g�[�}Cw�$�\7�4ow�	_��õs�{��׹�H�a��4q�P�M�Hm)��ooHaP�� ?ȗDPJ~�J/
-&��)}Cʂ��F��`L0FJ���xR�|���	���^�o�����f#���A AmD�وr��f#��F��(1�oy%l}Zd���2j)jГR������י�l���ًR���A�I�I�)�I�I�����_e��3�W��
-�i�Ɛ�WΆ���!?i8O�S����:ix�0<W���y��j�s��9mx��P�!9iH.�]��Л4��n��ۤ��p�������4��J��Ҥ���P�6|�
-���3i�{��̤!3�`@qXa8�4V�
-�i�a�p�4��
-�a��0e��3�U��@]��.m�K���bC]����}�>D�;�Ғ��j�X�a,m���R�PT�]3qKi�Rư���p�\�rj
-!Ն�|CH��1�Ԃ�|	������Qk�6�҆��a���fz/66:����"�1�nNE���T�N !�73Кo���a�G�-?�4��i@o,��Q������z~��S�����ZO�3�<}ي5}Ƭ�ﱦ3� =4Jc�/-���6k���������k�?�j�\-������
-�U�\��\����L�����nm n<�ﾆ���zb-z�oR��l�
-��_��>���~��Ư����?s|��
-���z"��૙��x���Ѧ��Y⎲�=9�2�W���^����s�7r�����K����gk�
-v�ɬa�fJ�c���b�|��^��e��+t�h��m��vV��Wwy��Rw���L+��!��8ZO�D�E��^]Z`���ή�?G��¯�O��#��0�O�Gʱ��������<�[�Ŝ�۔;J̚d�m����fZc3%�b�6��!&Gwެsy]+���nr#+�g#w)��j|dӛ����-c}�|���/�V@��v���R���S�2<�C�A�_
-]ۅۆ����T��fc���{���&#�8�s��!���yC;z��<C��n�e���S��|����Ayz�Ǎ�3��XH(���h-�h��-�&�G�Zb���U��_��i��~��.�b6��T�A_)�Ko��@��vW���4��xr�R�C1��z�#��h�úOa֤<Qu�f[?bT��t@[����4�a���˻X��r��Aa	-G1�$��5��v�,�V�w,�������Q�؝���ӭ�7��ˑC��_˩k!a��l��8��'w�u��c9�p<�t�n�84|\�Tg�UO����p�*9�v�{�&�T��ۡ7{���/��A��B�E�k:xG$�CBy���/������% qz7�y�B7V�P����s~�rº��zqRt�՘�x�f��������v�y{Ǹ]?��`�[��E5���
-w����XmqL�N��W�Ol��a���M�
-t��-b{��ܙi$��I�M9����1��S�ɦ��;sB��d+����О��=��u9tv�������Aw�O1[�a�p5ڸ�y��]C
-���I�=�3��Ǖ�3K���(e��J���W�Y�i_^Ͱ��70�N l���-�	���1����k:���̍�Ø(O�\uU�=4�������C���tC_��JW�f�U����r��d�U?J�����:�����N_B��B�r�12�[ky����Ek�㍯7l���D����\,g�J�*��9��X0y���nx���gD���+7����?X�N���屐P��Q.-9�sM��-�ʽ�|�����:վ�B5��}w\E��!��#;cܑC��Lیo`VzC�����`Z�EY��'��BB9W��GZ]͍��hC�8�fu�]��3ѿ�}r5��>�b!�ܥ�m��5�<�0jnT�,r�ca�r�uO+iˌ�\粓c!�����sȣ�����;���r���ه����s~
-��XH(��o!�ݞOW��^���i�g��}uee�i$��|�|M��n�4!ׂ�kb!�\�ܬ��>��ʧE�`w�c5of�����f��?-d����t�z�
-/$t[��CLnO�U_��ff�K��t�;�k�:�����_�����?�_��]�]�府Pn�?6^���(�YƳ���*soŏ� G)��r������n�<��8t۳oD�����l�z�#}_bMg�Q�Y���Ps]�֛�w����0��#��(�j���O΍�܇i} ��h��9VvwZ�I�s�
-[�V�
-*e_0Wٮu��0mO�2�6g��6eϴ���δ{��i�=�<�Ӯ�=�|C\��i���=�"��Ŕ篡bƍ�p�]���^¹>=������Q��M��7TZ��G�B�C��_B5�O��=�ۣ��=�=[�,�byr�T"�����.��%PR�B)i�R�����
-����P���R2JɭPJ�@)���yP�,�&�Bh�,���f�V�@d+T'۠�l�2�e�ߠIrT/�C7�Z�F�A5�T#���d���MS.p�T��K�`W�*q�]5n�ed���v�E����-p��.�[�qK]�T�2W�[��q��������ֻz)p
-�A��5�NqS��Ms�pg��C�P�3�
-熻��5 ��n��{�{���˥��v����q{p�s�� �������I��������݋�O�'���r��Y'��"{+;���M`:^k�>�)1��K�N6E��vo��<��D�H���5���r��x���CvV����Pg�̒��TD�\	�h%"N[iB����$+g�tF>(�<���$�7N�bĹ��+%�bI���Է���ۡ�{&h�ns̑؉��[��^�]X��u
-�r<W���8'���S�(���S�����[�Z�l:�̆��m�k�=�u�@��.Y�Bת������W&���/4|�z)�4����6����v�^�3�籜/`3_����Oa/`'��>�..�6c�������������þ-ĮmƞmŎm�_|���[�6j�lB�,R%�(���)��ciʰ0�,uX�{��c(Vc8�B�����k�+�"������{o����5��l���~��PK   ��]�,;�   "      content/dataFileList.datKI,I4�KI,��M,.I-
-HLOs�� PK   ��]T���I  �     content/root.dat�VOh�P~ͦ�� ���V�(�'�@��f�1=�pڦ]�F��I6;�n�(�a��<춃�sxTuq�9�	�"(�/m^�������/_��~��^hW{*�|!Ҿ�C�P�'���+
-�?���ɐii*8�\���GvP�󉁼R�Wam!�e��
-�����iSܹO�53pW4�Vt��l���v9A�W7�'���s��>�v��U��P��A����0�$��
-*v�����3��8s-0�q��j냶J9�P�\Nu�'�8~*��Ǔ��k�ri"�g�_��d䊽�Z��k��H"c��}�~��H5�K��2��w�,{x�-:�F ����<L�
-��yc$r�Wdt�,TR�B�rn@u2�0�h��G����u�
-�/G�ֿu��<���BjrBr�x0ɥ-�x.T�\Ι�̅����P�ЇQ��%rq8ξ�f8O��>	����w��o���"aZ��w)dѼ�b�^��pS��Ä�Z�տ�6��-�=�q��}*ŷA}]Vۻ
-�Ay��B�_^��ek��/�r���~o�0t����0w�4Hq̓�$�I��t��:�	��f��I~�B��>Y����Y�N�[���
-x��[���Zgz2}�ᵙf���s��U��"�Ɉ�{2&➌p<��0%��%�'"�i����㔄�8-�=�rz��0/�=J)~��i�l�M�=~J�=�H�=^cz;�+�>'�l6�:�f�'���@_O_�YNF���\�h����{�Þ�|'v��x�ټ���������
-�䑆{R�x�ì�{����Df8��8S�{|S�{\(�=sz<�`�=v��G�~�]i/�}�?�7��PK    ��]�(��*  �*     previews/thumbnail.png�PNG
-
-   
-IHDR  �      �g��   sRGB ���   gAMA  ���a   	pHYs  �  ��o�d  *aIDATx^�������'���Rv���^pC���zm)Xm��kY*V
-V�"������
-X7AD��"TdS�t��L�Y:���}q�a�yN2I&�d��~=?5'��t�{�yrNr� @��6��|��W��Aa���j�������*�t��j[8z���i�ix�nY��Oy��s��-)(ܸ�d���mh𰇋snb�  �$��K�����';f�Ӗ�T�B�T�Ϟ���*��������o��ǥ*�c�X K�|�X����~�VR!o1&��7yμ
-G~<�~p� �`E��
-��ыJ*b���w����-�.W��by`1 �����ڥ����TO
-C�ń�[���_x�`Y9{Z�*4�[��@j%����x��r��{�=EK�{����0��H[�b1!�xr�w?�bO�b�b Ē��ҹj��=G���ń{���TT԰�n`1 bD(��j}�ۨ��}-&D��F�]�E(b���b Ā`mE��T@���g�\���MLX ����r|j��8�%$�v����e�%�X 	���7F�P�	1gކ@ �^]��� 0����v�P*���%$�>3��zK,Ʉ� 0�@mEU�C�8F�9KHL���Vb�b N�~Ξs/ՍAa��S�����
-����XZ*Nۧ�E]c\�i�����ݲ~��w��M�@��)wS�&[,!1�˝Yg��؋7X �:+�{R��[,!1��{G�j~?,�!�|��T1&DL,������i��^�"�� B��%#�_̉XY,!1u��f�#�� П�ߠr1-bh������mb��``1 t���^�g��Gl-�*)m��#l�	,���퓻Q����XBb��]3UN�j@Oj�z�j�䈹�SӇ��V�a�b ���v���
-KHLݲ�k���@B�:����)�E,v�/��ֳ�d � ��*�M�����Ssf�b�� `1 t��򯶬d*���u,��փ���V���b �@�[�&�
-�X,!1u���le�
-,@�4�;JUð��S�7�]p� ���Fܰ��?k�X��h�8ۙ�4�f�VIi�>� *\�S��6�f����I�V��� �	�+�t��mX�b����X �x�S��<,h����5�v�է� ک~�I*1�>�z�3�j��ϵ�T�,���t�Ώ3ѣ�@ZR[��V�N�b h$P[!����̭�1+��M��ϲ���C��R��h�d`���iy��*)��?l%�,�FܻV�6QZL��}UuʹY�P��.Kv��5��l%�,�Fj�H�
-><����;e,ַ���8�ѷ��t/�����V��b h!�䱍jK[{x�
-�@[r4�Pd,V�`���>x/�Km��&݈׋�b h���>��it�4�6f�1��-�Z,9�iz��=I�U����Ve��b h�a�B��i�
-�ݳo��)���c����0��b��CBc�}}�j��٪�X -�,L۹^Q6���κwD�3��b2y��8��� ��g�U5� Z���������I-�$;��bO��(=Bn��>M�����;�GP�o��ʨ�� PM��F[��q����	���<~'-�,�|�����=ɝ>�|���j���j�B�@5M��i7"��ʈ�1��܎��@�&��>ǿ竣l�F,�j<_�G��a��r��GwO����N��>ǿv�l�F,�j>(��ۈ0�btߊ��Fܩ�����Z�Vht�b ����ڼu��b��3��{�2��؉K�
-�X ՘�p��Q��=�y�w*Y��*um8,�j��}sei��q�X�N鎟��������?�:?�@5U�hæ!L^U�هǦ�w�bB�Ÿ�{1��.[n��hI���CS�
-�X �T��G6
-}�iqu,v7'�E#�ŤfQp�#�M�U��HK*����Vht�b �Ƒ�����b
-��+�WL2O����:nJ�����
-�X �T�ԟ�j:ZL�X�{�Q�	b�����}'�� �����jzY,�1&�-�a�V��߇��� ��)L�M�F4��iPvϾ�ޡ�&��Ÿ��{��%Ã�8\[����f+4:`1 TS�4�6iR�%�
-������=�74"�HcX��B�@5ε9�=Ӱ�Ÿ�X�<�BJr��,g+4:`1 T���"ڞiX�bܼ��Eܡ(�(1濶����� P����i{�a5�q�(�׏�;]�1J6�a+4:`1 T�?u�6fV�����������L4�ƷN�� �	��hc�a)��"��VS�㯪v�� Z�O��6f&,e1������CJ��s�]��b�2j`1 �P�Vm�LX�b��*���]�<�?d�|�*�@��-���	�X��pRۊn�C)��/�O)[�Q�����hKf�:�v��ͼ��8�0�����ʨ�� �D��r쭴1��E,&��R����1%9�6���-lMF
-,�F�EX�d�q��<�ECjqx�Ř��=�� Јg�&ڒ��
-� j��w�X�	�Jv���� 	��l#����y1+����5��l%�,�vj��yX�biC���	X �����J$�aM�m�� [}:��f�$�$�؆-v�/455���� QѰm>�HlÂ�/(f+N?`1 �"��F��*�aX�b��I���a+N?`1 �Źf*UI�j7i)[e��-�����ra)�ݜ�~�|%[e�����3�Mb����"���@�N{�NT(1	�X,��0����,��� Ї�O�C������X���&�� Љ�&ǋP���X��|>?[K ���S�l�IT+&�,�*)��A�%�@O\%/Q��V����wت1X ]i�U�=H�bf��b����5e,) ��3-�~���H�bZ��b�;<{��[)F��?޲�\L��Zl�}lu,�!�oΧ~1'bh��ְa<� �
-�.��`~�"V�� ��`<� F�{��?E-ct��b�
-z���U`
-� ��W�}����0�b��q���ś,���L����hNu�!�Q,��\푙8�4�b�
-z1��0X 3�}�%�M�ذ�o{���`�`��9T:��9��һ1�#I�� 0oY��3���X�Ͼ��k��b,�ٴ\��*�!j��P���?����%�X�X��s��g�c|�X���/�6s��B`1 b����U��Q
-EFX������� k �SZ���U����Hs�k����/YZ����gn`1 bO���U����y���-mҧ�x�n�cO�b�b X�@�%������TL�"z�%�:u����p��hI`1 �E�����u��;��F4�rg���6�N��,,�%	���|^�4�6���|h������������3�<� �&���Z�"�r|g*,n(�X���ً���u}����� N��u�ZU�b�c��2s�d,�*)�����FѪO~<z&���(�� �KB���sG���h�t��dv���j
-�)L�~e�s
-����6� {ܒ��W/YZ�}ǁ��il���`1 @|� �X ��b �� �7�  ���  �
-, �o`1 @|� �X ��b �� �7�  ���  �
-, �o`1 @|� �X ��b �� �7�  ���  �
-, �o`1 @|� �X ��b �� �7�  ���  �
-,�
-G��m�x��ç�+�7�u��\�xX�����=Q��Pjjރ�?����N�7r�♳W����J�9���5���, ,�
-@K�������-��ۖ�T�B�T�sovBb�T�㮑iC濶�˽G].7�A� �%`?�޽�v�0[v{j+���Xx�JJ{�Yn����P(�~�Y�b \oj.7~��* 5�����,�w���5�\Ź���-|o���S��9f�Ӄ��}xZ��TaLt힝����Ogٳ1X��P���Ϋ=/��md��W�Jf{�7�=l�c� ������߷�~3o~�3C^iw�*2!�=����^������<�/�8f��1WfR��'�/��>|���`0x���۫?MZ��n(uY�۟�/(�\Q��i � qL��k���r�T^5�)�/��vv��x���8�\�¤�����v��٫++k�}t >	=_�g�r�/��n�[�������t6�������0.Kj?t���Ƙ� ��TY�ˏ0���{����WZ�li�ٷ��������]ֹ[V��=F�ʄ� �'B�sm���z�aߑ�٢����s�20��A)yg~���X����|�}���3~���{h�:8z�Ñӏ
-z1\d�톮X�C�N,@<��ߜ���j۰}a�oT�I_�~��˝Y�.K����d�i��k+�_��.Li�8Ö�6Ng�䜢�dY�;���-�X K����}R��.X��EVBʳ竣ᝲ���W��	[H%� ��{p�mT[Qa��>�O��⍚��!�燏.g��:���`Q?~+<V�VF�k��h 
-��hK��r���|��b X�����a
-����(R��v~��q�(���u{����� ��_���J���Ė�^8z��ݮ���練�n�"�� �
-ۮ��l�훎�bK\_��Pywϱ��R��Z�b X��ϖ�
-����˷l���ս�LE��s����d?,�U��PL�۲����-q�RQQsO�k=��Y����b X���m�ډ�0���| I9��G�"[�r[BX��t9�Hz���%n��<߶�p�bk=��o��%x�b Ě@Kua�������n$v�>�փ��z��.G~Z,,@�i��PTX��^��Բ�?��rPJ^�i�� ���L��;f�r��xgD���-��n�_`1 bF����K��7���-q��r��w�`����O�_`K��3�7�ǒ�;��ol���-~l��2X���|�'[VkAa����%nx^��NW��|�,@l�~�_�ƒ���#p{|w�#X��m#��]l������_�Z�y.����~�cS��d7�X �	4�I}��n!o[ ��6�@��},��x�ڀi��9}�8v��=X si�ۧu�s�ج^	�� a��e��Z%������VX S�~������n<.\�ߜ�.�l��e�VX S��{�ώ����]����
-�{�!����`1 ���˷bG̽{5�Hs���x�r����`1 ̣��q��*�����@���,ֵ{v�qX ����� ��s�� �8(v�v}yD�;,�Ix����IL�׀��r{�L�b�㖈�� 0�����U�=�nʘ�һ���v���UI� fl��~���);��8�����a1 ��{p�8�l���n���p?qNU�=gc�bA������l!��B�F&M[!���ݝt̼���5�v�U1%��]?���Gn��b4~��-��s����z�(�/� fP9��w'Kf��"��bBJ�3�k�|�U�޲R��N���L�4a5,���~���ǝ��HDi1!���o)��ۇ-�uu��3`�m���NX ����$6�`}�W�1�b�����'α���P���+<����}t�w�)����X 3p���geVov��'U����g���c��oY)5Wx��������+�+�� 0��ABî[9�ݦ��y��|ͺ�
-�W���b	���J�a�n^�	��W�/�%\N��4��	�`B��1��Vm��;���bj�A)yl9M�O�1�r���^��]����pJ����~�� 0�@�e�U7���6����Tdl!M���0��z���jc�ԃ�F�x9�o��X�������4��H�_�!F�9�����J<r�nP�_\P��⭰ ��=�Ul�!���l$�O�3�b��%&��eImҗs�˙8u9,��4~�Thϕ���� ����8Rn:���dP�?3{�p9�C_�� 0����	��1���`�,-��r���W��(n�N"3"�?=��r~l,��8WOsMa
-��HΞ�Q�	�������tB�9�7WtW�17����pA��U�v��=�V��0�fJNQF�B!��׬۩�;�����F�(�5y�'��E�1�|�[Hf�P��-��S"{���#˜g�SE�o=�n3���lR��׬S��)n����rW���X�r�pE�d�D�SID\+/U�#��X���2ܻ�L,YZ�\��䂒�����Ux�;vu��,孔f^�;���K�c���$j
-S�e��/��mH�ObPN���-�nS���DCշ�B��&M��o)`E�굟W��q�F�	!�V>�z��Z��2�O����,K��*��j����ك����P~��~Ϣ�Xݲ,�����*4?󀞡j���P�������nSF��I��C����G��(��.ʆ���Eݜ��ń�v�t�w)ER�YL����ń>&{\���
-o�p�@l!i��YL��3mHQ�hj�HN�S�q۩*�y}����e��4S�ޗ�u���`,��.��Ddn�O�R>����XLIJ��0����P�x�jȲ��nC
-n��-����V��ϧ��%��}/��ח��щc������NZwxV�ѵ�z���kPJ�KCȋL�O��r�~��I&�}xP
-)�Q��.e1qT�!�w�B����BݲL��j��`�)C��z���f�N%i��p�W2�;��B����ءs�Mƭ�Wu�%KK��,��zW1������x�P�eI��A{�"�mJz�R!�=��S��/�y}&�$�����p7JX=�$���'�ې4�4��&�V��3�6eP�	z�
-��6�,�b�W57�+�wS��7�Uѵ{���b\wD�4E���q�,������BȌ�����t���.a����e�"B�m�YL-�{�ʳ��G�H�|]����pb�_�F-����-d04q.+��Y�!��J�~��h���k�=2����-)?j�R̒�z�G�O��G8�Z��m�s�TCֱ��@#b{�;���t��ׅƏ�'f�r�M�d�Ÿ�Ȉ_E�X�!��%BU<=x�F�q-�m�j��0�Ÿ�*L�{		��:�ù�An?���	�G���9~�!KY�+#%��F4��:���g�F�l�IWZ�|�*��d��l��o�ˏC�3�T���oi����.SxdnG���;�Է;F�O-���6Q�DT��]¡�+��*����|�K�U��������߈'��g7+ ��#��h�_'���]�gUQ��f�Yl[�7��L�K��d����_h=>�M�c"
-_ ���-$
-�]�bTAO/b_�[∆V�^?��p\O�����f��b�+������E?�����k�J6��h1�,Sn�Z-J2n���١��	z
-*����;ܮDx���A���α������Z�ψ]'��_��=�.?���F��ʽk�U�o���P���X��8~�X���E��Z+/����,%�S��hC���H��g�q�>2�U�!�X,�����x�����T���MU� ᬜ�Na�) ����#����~�#�nɳy�>�*\.�:�)_+���2��i'��A�?�;���>U�N����I���v�d�`TCY�>�B>hJ��"�f�������8WON���G�m
-���~����Ԏֹ_`�a���Z��w��7�і�-��$�wm��o�b�x'�Ѹi8m��;�mOUއ۞�B��ݥ,C?E[D�цDo�r�/�	D3q�Y+��-3)�m`7G��&n��n�j�F�/�����<>S���G������ֻ����͵ђqa1z���w�Ϯ��Nj�Ր�-Q4܆��P�q�/��v�'���#A[�9�v��lD�_`�C~��wsr�PE�>��b�B���Ơ�<�,;-l}��gZp{�Rn�O����Ŕ��ӆ$�&����T��U8�����[#A[�9��)����k�+W��{T������b�&@�]U�?�����OU���b\�Ҽ��q"7��-����n���}(�R�7�|ݩ����)U��0�-4ˬ|v�f�c��/��~�@ϫ�	�/��U�.�@P��"����b��]8�� l!e(�G�����z��׉�{D�+n��j�j��5�{%�է#t��f��j�p>�̤`m�(�g�	B�9f���bz�����GoM�bJ:V��j�V����Z�V���#�Zr3�?t4������[��&�S�e�̏��Twj��d���ڥ�n&��$��{�jv3P���bܼ��#k��QՓԑ��W�%u|��I:�k1��Zh�AJ"܎	ͣq[2-&�!J�B�p���EF�X��=�<��T�{B8��W��n�((�(4����t6
-��Ÿ*�*,Bw��>
-w%�a�n1n'b���W1��|F�k@�)R��ʖ),B��ܾ'['���Y$��-3)��n��B��+4��#
-ſ��bR�1��=���p�&��d���y}��>��8�;�SҒ�NF7�Kr{U�Dw��i8��R(q�	�\�e&	�����F���?�
-0������;FGv�=>��JD&�0�3�btԣ��)�+q-YS�"/J�^2whI)�I�W���>S_s�X��M���g�����@3�����7��ױK��w�G�����7;&���S�g�ҷ�k1��d�?5 ��p�#�ȸj���T�"�0���S�g.BM�$�&�5��1��w�3�e���4\�'���	�d�i�I�O��ݗ���k1�+�i�nއ&塞$���w�p���.���]ZX�b���Wyܒ\�	D���-��=�S���(�H�ҜuB�k��v��᛬b1)%ї������z;�L�OG�q��)�"�Ns��&���
-yq���㞹#�%W�Ly��T�4�o���t�+v3�QS[߶�p��
-�X�l��Ÿ�1n�=�X���-�nOJa�G����Q�j8�������[LJ.̠�+��'����=�A�|���;�T=�	v3������<�3��B��q3��y�
-#��-F�G�nއ���,2%
-���b��3n�^��n�j���4�X,�����_��������]J�\v��,��;&p��9�����b�G�����}�MiE��[�J�]n�M&��1�Ŕt��4m)-n�W~�lW�c�!��cVoܬ�g��eb�;��/�f�YLj������r��2�)zY�.�Q���@�>M�vEt�#��g�:�z%�zܫ��Σ����ߧM�F�޹R<+�Ε�f�G��&>b�f�n2h�|4���W���	�%��S���P���ba)([:��`)����0P��h45�t9�����]W�,K��-޲R
-gBO@����^���2�C)�I��1o�N�������Ï�vK���g����=� �M?��c�KF����+ˊ>G?s�m`7�,@̨[1��������76�N_��w�+�� �A��r|�?Ǖco�q�����9bGl�cl�0`1 b���v�;vu�X˵�72�]S�N�p� �8WME�Z?��|�Q�ᷢ��{���9X��6������Ȗ��8Y~�M�a��=~�<[� �{Z.�Z9��`1��6M���76[m���bG��{�<`1 ,���G�3+����;��b�1.���#�2�9�V�%$�� �
-��++'vm�8͖�~q�}�
-zQTX�Ђ�� [HX �|w�(2��{Z*ϲ%�G�nߓ��#*��#9��^��4� V"_�j�ܭ��A4�.�;�v�UJ�8�b X���a׆���Ob�\/�l�Ṱ{z��\Q��,��h��.�Ef��{�C�L�S���n=F���**j�B
-�� �$��s��k"�L��:�J(��[��8 �KHL��h�ځ�,�ui(}M��磽���K֧��E|�xGRU:���x��l��Z�RW�<�V��\zp��p���ZD�Ǆ� �:�g�اu�9�Ly\l9k�}$>lGX`T�i[N=� q@��Z|�����)w������*??���»`��L��>��`1 ���ն����)+Li�p�-g%����S����brNQ�'U( �h�<˼~Ŗ�TW4���[4���5̛_�v#Rxj�{��E� ��<�J*'v��e��+�|^�q��zμ
-�n�[ڤϙ�A�.�,@\��7�l�&�eW[��=�-��_	�B����5�͛�������:tD���� �	T]t��j�Jf\V9�v׺�W�ST�d�h8Y~��p�=��2�JHL}�9e�9���X��'`?�Z?�I�����]��L����U�O���mڻ������=�ʫUR�����4X��`CM��K3zQ�	7/>�\3���z������|��'�o��u^��soi��h�s3g��������p}
-5��w��\9�3u�M���D݊Q��܆��?[�޽ڳ�xۖ=��l���/ڒ��f�����u�1��-��-m�Ӈ�����^�ٯq�� �Ni�7���U��ޓ*L&��ړ�#F���ً6�����Ȟ�Y�b \��T�����\�S5��-�55�*�u�1���o���ǣg�\�� 7;�ǽ�6|��s�ԚEC��>f�޳r�?*�t�e%��5:����3�v���HNJj����
-7�/�u��<�}.)�'כ�9��K    IEND�B`�PK    ��]��lx  x     previews/page1.png�PNG
-
-   
-IHDR   �      �%   sRGB ���   gAMA  ���a   	pHYs  �  ��o�d  
-IDATx^��_����'���R��x����O�a�w���UAAED�"�GE)ZT<�w���}���hբ�J.r������gcv���~=?5�b����3�3!6!�?>@|"���D�	��'�'N�O��8!>pB|"���D�	��'�'N�O��8!>pB|"���D�	��'�'N�O��8!>pB|"���D�	��'�'N�O��8!>pB|"���D�	��'o�O&�YXk�}V[V�>��ܳT�%�qM�l�h����~lX�݈���:l��KF�g�����p�����:Qz�N�3�F�,!}��j����s;;fI�
-��ćՏe�.��[��0G��q_|=kJ����G.\�-�)���$>YD��e���3$s>q�4��	�}�&���s�ʪ�V�~�7� ���)���7����D��4���;�����s�i�@��C��d��4�6K*Hh�j�u��=L_�����~�`'`|�t*������ng��B�)�%���5nHV��T�Q[�9Y�=�M{a���s�v�n(8�&���ܽ�s�LLY=|䒁_�ڥ���a��4�ħ�f�; 5����O����[҅IPE�AB�8s@�d��<}E������T;��Ƈ����V�o<2%m��g���C�i.�n3|Ը奧n}��c��FmY�d��..C�ڭqM��x���u���g{��Z}��m%SV��;	u�et�=qU^�B��.X�O�F�>�'����`|[iv���Z���W���dێ�Q㖷�0�DDԨ̹[�Չ�_	|���������Pu�4J�l\����W�?�o�F�s7���m���$z��fxjz~�Y��(�Ju�war'Ԟ�ŇI�ct��|,���h4/�6v��w�Gej�w�O��P_/��&<���j�nN�Fj
-Qj7垥�#xl  iP������25EX����wk���}l�g��5e��$�3mY��l�G ��T� ��)�{%�=(��U!n\��
-���U��a�Oe��ɫ�
-���/�˼{� ��'mY�0�?�C�hX6�x�2<&�x�������Iߍ��Sd4��a��k�,�z���C���d�<�	^�������}�v�V-<��p��CΨF��[{�/���.9u��߀T�'��ߪ�� �U��'J��oNC5z96�FY��ҩ�1of�e��#�G�J�
-���y/��1������ų�����7���
-�"�F��
-��UhLT��g�݄��}�_;첿[0����Z��x�)>P�)��䙷��+��<�M�(J�g���%����_܅���!�ț���_���l�D���x�$A|�r�\��   l(8�bV�g�g�vB+>YU҆Eߠ2	S:n��ل橪~һ����}�����'��8�*�$�S��1�&��\�vy�k�闲K�{��쓹��˷�'RF�&�EQK��F;���ŝ<�/��+8}2=�r9M@�oL%xN����F� J�1���+0�`������$�ў�S	�Rv�
-���V��}�/�T?��'s�t|W0����)�J����Ϻ�LJ��f����T��'��V���$L�2�\��<~"���w��-��9��d��M�
-eJ�l��S	�xQ����)@�6F�s�L��|�t*I֧P�䎦'�0�����O��@��.c��R�>Y��L&aR�k0��u�%�?�����?.��O��ӁL��H��<h�!�>��{P��3
-L�/}Ҝ�e��_?��s��ID�(�����`'x���u����'�1�� ��f;y�_������c��J�(��I�u�#p��'�O��q�O?��'��f�����Y�M��##� (ճ�$�R���3�����Di��������L�/��JMH^����LOo#�2	#��x�@ ��
->���w汆�>QF�x�ǠqҜ,�ySv�
-�l��8��U\��IY��$�	��`�ҝ���i�"��n�dzR)Hw*��F[��G�&�y��@����X�
-����A�q2�,�i>Q[[��g�O�u� e}�e�4'����a���?�����$ܴ��U� L�H�I8��U$��7����3�>�����|Rl�'ݥ=0��W*o?�0������䓹�����~�I~3;k3�뱺�O`z� >��]p���.c�>u�=���,��d�w���[�a!(�r4Q�6�I�h�'���2	��H�S�b�X?t^��K��:=+Kܺ��x�"h�T��a!p8t�4Q��$��I���8%w��
-�D(�004Ql����'ӓJ�8�&��%�@������u�|C�s���
-_�2h���&��'�`��@�,�z�沈p!�!({�] M��0�7�O�}��e$�����~ #&�9��	t�F�Z
-�|��'���D�~�0H�V�0�+Q;���(�8Y� Ȑ��`�ڕ�8d�|����.�$�3���� i�t�z�I�(
-&y�k���0�K��%�˫AU~��6L��>i�ns��#)
-O%&�X�'=c���>�>��5�N�� be��O��Y,x�z�U)7;�Ճ0�,<x����]����+��g�;��&�����L���?��t��u#���W>���t�[�	�����}��'	fx�K��F��I╷�
-��	��������;O�-����0�s�>kʜnv�ax�΁�%���*���� �c~�p��~&�P��Uѽ�֝�2#��r��onX0f�j����?-V��!�eC�a~b��u�3��t�O
-K���`�S1Q	�Ǫ�b��ϻ�YD�P{\���Vx�?8x�i�fD�(�{
-Bl&=X������g#���_��E�Qu�x�?h�*�9���u������)H��j���g/��eТ�0O� �[��	Q[K�����`�ϠW���W+�b%�'UԔ�����8)fxHH�D��T�S|fU^1z���l�,��*
-sXD��ر�4����?fxH��^WVSp��R"�~61=����b(��?�9�����[�X[�0lgz�m�@�գ=����j7�����M�<������(���v���S�o���	!��'H��|ғ4Z���;P�@�����0W���A>T��?�F?o;w�����x���s�ҢR�˫�1�=��)�
-1���Uy�\�y˚�Sߘ�O�5�	� ������C䨐��~���\����0��|R�� ~�c�&�1&a<����QE��Q�2���*/�s�~��i'�4�6��yL��G�F��ؒ�*�񬏚��0�W��Wk��-��h��	N>�<t���\��_w�1�X�L�yQ� N�\�� ��O�:�jX,��'��<T���*^oI�l�%���
-���e"��O�F~M'b���:��>�f4�Yˏy*{�~��1z�ԕ_��n���l���1	+P����Q�;�r���[���x*��;��p��>	�:�y�R"��Rv7�bho������cU��s�Η.��>�f��eb��y�\s��;��X����~����n�ڧ���\^=-=���w�f�+q:�6תq �"�Y�f��k�$s�11&a��J���/`�k\� �!]6=�)�U�'Oͣ��e���y�S�¯���@�7���J��OW^���S!7��XO?���nC�i��CL�����`~&sg7�v��mc�W�
-��z�<���;�|bm���,21O�S̓ 0�0����?�1s���64�}
-?�z��d���<<엪��|y��G�=����;滕�����h_(ۤ����L<��8s ����\��\M3W�t�����'$���ҕ�8�Ĭ�g��cV�-��j� 
-s��~7���M���Ϧ�ۼu`����[&�?�jCS|;$}�98v�	���8�����Υ_���n�<lae�=T���` .���<���܉�b�^�nfG�]�n�<_E.��� �(�|b�Cy�P�\�{T��N�n	��˫N>�_܅�� �(�|bc�%s��
-F(���ݽW����'C%�
-���'�z���J���0gU�P(E*S�$�q�2�(�|b�u<���0?0����;�\�G�"m;�����/��T����Y̗I�Z�T���_�_��>M����S�	�s��O�+q:|���B�?��fx��O,m �j@>1W;W��T哦8M~����;�N>	Ʒe�
-�(P|j���df�&��g�S�&�[���"���������we��(P|b��q
-���,��f˻#�W��5���B�3������Ja�(P|b���k" �����p�^�r��U�|��Bdy����ƒ�F���9+q:�%?�Uy�^��0z��3<$D}(���}S|�( |b���v17��Ϭ��
-x/G���E�W�oK1OLC5��X��J�s��^U�ѧi�˱n��o�9����������F������c|���Q�+��a���q��}��!��6$�ӿ�����PP����H
-�핍�,(�.�h4�$y�Ю,�������}j�O���Go��wC��ϱ�d�u����[nh0��9�M��
-�Xbt���`��a�;���w��O���3<��e�	#�J�a�
-��gj	���k��{��A�I^0&����G�2u�@QL�W>iJ7�}&w���0�D�v6ݧ�x��^�di�y�
-��0�P�\z
-��\�I^��'��z��v��mLqJ$k��e��8�`�3��O��
-N���(J�q�%`�ʤ)xnvN>Y�/�-O{a�S.!(�y��.S�Иғ7`��������C����a��c���%����-N>������:��h�����jt(N>����.t��2�Ζm%t�Z������$p��>�7��`B{�J
-r
-EQ`�����|�dւ�\u�w�CP��\����x�,7}��l�?��}M���&�w�fH]�^}'Y,V��.|BgkhJ7�$B�Qv�
-4N�<�|ƅO���_:5Q��)�&
-�8��<F���q���q�D����I�����[�q��)�I8p퓽�Z�4	X8%��y����|��,�8)��g;h�'í���R.�I�@`Ͼ�q�2�%���r��7t��ا��F�3D�?�.�{]ǱQ99`��x�*h�d��I~�|e!h�6m��X��O����M J���%j	����e�p@*��_�|��ۜЎ�(�J��~�.34N��V�$�����fS/M�b��D�;w�2ō�i�9wh�'ʨ��!�'A|���[`8@(�u���Lm;��{.�y�i�'{a^S��3�R:�#����[ �����<p�'��&�<���'�$? ��
-��կV+�_����������]������1X�042�N�3������'L�2����#
-��J�*4&#w:�d��Y�4Q�����@QT��e@��F,�yl�O6�Q2��T���0��V��2��u�P(�yl�O�]l�;�T�������W�+��bϜ�	�X�c�쳣*JA!e��/�2����o�o�3h�rVy�
-��x��NsAb���e�G`���ĝ��L#���e�O��'e���&w2=���6��}�O2}8 ���r-�O/���:�q�ΐ5���ώ�ǟ��\��#��ɾΤ\(��(%���"~S	�Q��������+�T��'{B�aJg����a-L%�C����iJx�И�;��qz_}��J[{C��J����ք�,������L�>���$�������T�T�o����LCeڲ���<>�߇�<
-�v�n���o�S�[�@&,����Ov���&v J	µg��T�眻p+����M���`�q��?p��r�+�I��^n�7�feq|гu{�;m��2��u���>���G�
-�tE��fǐ����`0�����w�߷�"��7�}��k��sG��?0=�z�2�y���dr�0^v��C��d��T��|�*%H�PϷ�ch)�8|�JT���L��N���9��l�dǤ�oHF����V�ʅ0��?�:Cڌ��I�Bc��>S,��x�>�DS�Q��UJ8�+�
-݂��5`�˦��,0�|��UX����'J�*e_!w�E�s}ـF��͘�	L�sDX��]�g����^���9q�O�>O�������q��cW]�U�
-���ɴ���b��';�9�^��*U?.T2�C�xț���gCb�뗎h��Y����q��s]�d��O���1���<&x��3g�>5�UhLמ�������
-\�d�bR�E�!��oL	�����y���������|�"����O/1��w�A�ʪ�6�?��TO�P�`�Έ�Q�F����~�U���|r���W��������m��Lj�>KI]^�GDԨUyŸ�6�~��1]U��ZB2��� ]`�h4�?ti�.;�:,6%u�H�4����b�����L�����ӌ��e����ɼ��;F�C�G��e�U����	_|r`�<��
-�Q��!��C�W���5~�Us��o+�n����q���� v����b[��XS�囦�ʋ�*N��G����ndd��;	�D�ر�W^��O|�ɁU%U�N�F5BC�.�?X�k���a�F��ruI����v}���H�et����?�gl���!��O�0tWHWCWL`QZ/Y�H垥��{MO*)
-�y�V_s������9E�į��/���Fc���?����k���{���E�H�o�8�j�;!L�$�?H��ؖ�ڷL}<_[V��琾��Py�x���+Ug��<^r������7Y�|��Y��'��fV�5us�):~ƬM7����OM��T*��g�E��%�t�KJ��ǥ�X��mnV����S�������fƘ=
-�}j;�_�s�n���MӨ� ��	ʠ5T_Pȑ����w�;�B#��a���;��*�dw+^��''(���=������c�3��؛�O��b��L�iĢy��*<{��6��F� �|B��,�'�;�v��*w͕oL���5,�Z���x��3�����Yj�>I}�O��gi��:l���܌̂윢�[O�:S�^8�����C�O��8!>pB|"���D�	��'�'N�O��8!>pB|"���D�	��'�'N�O��8!>pB|"���D�	��'�'N�O��8!>pB|"���D�	��'�'N�O��8!>pB|"���D���t@d�{p~    IEND�B`�PK   ��]4�6~�   �     color/color.xml��A�0E�&ޡa�!� 1�]�da0�FSmi�V�������ϼ?�?�j�
-��Cu���z�3� $ Q�<v,<bY�FYB�pǋ�q���Qu?{$��j�B�����:S���<�~Qʕ�(�έ�@�fɾ�ԘA]��1krՎ0�܉+t�P��(q�M�3�cl�m&��	Jg�3��g�Eڨ/}��>��jK
-�����A��PK   ��]R�.
-  H  /   color/profiles/rgb/srgb color space profile.icm��wTS��Ͻ7�P����khRH
-�H�.*1	J�� "6DTpDQ��2(���C��"��Q��D�qp�Id�߼y�͛��~k����g�}ֺ ����LX	��X��ň��g`� l �p��B�F�|،l���� ��*�?�� ����Y"1 P������\�8=W�%�Oɘ�4M�0J�"Y�2V�s�,[|��e9�2�<�s��e���'�9���`���2�&c�tI�@�o�|N6 (��.�sSdl-c�(2�-�y �H�_��/X������Z.$��&\S�������M���07�#�1ؙY�r f��Yym�";�8980m-m�(�]����v�^��D���W~�
- ��e����mi ]�P����`/ ���u}q�|^R��,g+���\K�k)/����C_|�R����ax�8�t1C^7nfz�D����p�柇��u�$��/�ED˦L L��[���B�@�������ٹ����ЖX�!@~ (* 	{d+��}�G�͋љ���ς�}W�L��$�cGD2�Q���Z4  E@�@����� �A(�q`1���D ������`'�u�4�6pt�c�48.��`�R0��)�
-�@���R�t C���X��CP�%CBH@�R����f�[�(t� 
-C��Qh�z#0	��Z�l�`O8�����28.����p|�O×�X
-?���:��0�FB�x$	!���i@ڐ���H���[EE1PL���⢖�V�6��QP��>�U�(j
-�MFk����� t,:��.FW������8���c�1�L&���ӎ9�ƌa��X�:��
-�r�bl1�
-{{{;�}�#�tp�8_\<N�+�U�Zp'pWp���������e�F|~?��!(�	��HB*a-���F8K�KxA$��N�p����XI<D<O%�%QHf$6)�$!m!�'�"�"� ��Fdr<YL�Bn&�!�'�Q�*X*(�V+�(t*\Qx��W4T�T\���X�xDqH�^�H���QZ�T�tT�Ҵ2U�F9T9Cy�r���G,ň�C�Q�(�(g(cT��OeS��u�F�Y�8
-C3��Ri��oh��)���J�J�J��q)�����2�a�u�;U-UOU��&�6�+����y���J���F�ީ3�}��Է�w���@i�i�k�j��8��tm��9���ք5�4#4Wh��М������Ҫ�:��T�������C����U�MG��C��c�
-Ó�Ψd�1�t5u�u%�����3z�zQz�z�z��	�,�$����S:!��
-�,��]�������b�6u=2V30�7n5�kB6q7Yf�`r�c�2M3�mz�6�7K1�12����͇-�NB��Lӓ��le�Z�-�--�,�YX�[m���hmo�n�h}ǆbhSh�c󫭙-׶���\�\߹��v�}ngnǷ�cwӞjb���������ȡ�a���1ѱ����
-cmf�wB;y9�v:�����Y�|���K�K�ˣy����獹�r\�]�n�D��nRw]w�{��}�G�Ǆ��g��A�g^�^"���lg�J�)o��ϻ�{Ї��S�s�W�7ٷ�w���o��)���6�Z܀怩@����}A��A�A�͂E�=!pH`�����
-��w��Ѐ����Ö�}�	�	aQѿ��`ɂ��"�"�"�D�DI�z�����_�xǔ�Hc�bW�^�ӈ�u�c����,ܹp<�>�8��"�Ey�.,�X�����%�%Gщ1�-��9����Ҁ��K��l�.��oo���/�O$�&�'=JvMޞ<��R��T�T����֥�NM۟�)=&�=���qTH�	�2�3�2��̳���˜��\6%
-5eCً���4��Ԁ�D�^2��S��&7:�H�r�0o`���M�'�}�^�Z�]�[�[��`t����UЪ��zW�.Z=��ó���ik(�.,/|�.f]O�Vњ���~�[��E�76�l�ۈ�(�8�iMKx%K�K+J�o�n����W�_}ڒ�e�̡l�V�V����ܷ(W.�/���scGɎ�;��PaWQ���K�KZ\�]eP���}uJ�H�WM{�f���׻y������V�UWZ�n�`��z������}�}9�6F7�����I�����~�~遈}͎��-�-e�p��u�`����x���l�o����$������A�{����}g�]m����\�9Օ�%��>x��ǥ��{����=Vs\�x�	��N柜>�u�����c�Kz=s�/�o�l����|ϝ���?y������^d]��p�s�~���:;���/;]��7|����W����p�������Q�o�H�!�ɻ��V���sn��Ys}��ҽ����~4��]� =>�=:�`��;cܱ'?e��~��!�ań�D�#�G�&}'/?^�x�I֓���?+�\����w�x�20;5�\��ӯ�_������e�t���W�f^��Qs�-�m���w3���+?�~����O�~PK   ��]*�?:=  �     META-INF/textinfo.xml���n�0��}�(;�K{YQ��V�4�k���� ����-B��i�4��Ib1m�}���Bzܱ�����8���7�u�����m�2'����m<�q�k��e����G���
-�.�DӺt꺶�]���d��F�ɰ����X���(=iNU��R��XcXl���ߣ%�T���2���1V�v��#���F�hE��
-�l%����r�a�!�p<��*X�f�`&�K=��-�_}��[ڿ�\�����L�x����	�s��2�;R��.�^�RO`��.���U��[�b�	�����.z7H�M�>��|PK   ��]�\�x)  �     color/docPalette.xml}�Mj�0����A��㙑�3'��-���!ԱK����'��Y�$��=F�\����]� ׫Ǉ�oB��=�6��h�
-ʥ~B��N�ѧZy��u,E����/]}ڇ��g�\-���U�nø���oUyQ<���������%,\2~2�Q=���&H0��_�EEV�.�X�#���	�v�b��s�;bQq��fej�a�+p����3ͣX�G5�hͭ�HkQ�(�����v�B6��8�6��~[��XP̢� �z�B���3�b d��.���g�PK   ��]���!  �k     styles/document.cdss�]�n�6���0���,ɒ�a��M i�8��C@K��E]�n��)�,{�=�(ʒE���T���*�3y����(Q�׽VK�q�H��e��n;i��ui�W����_���{�:	�e3%��0,��|�(� �>@!���znXV����Y;����t������}���������g�^��d�khNB~z��m`������Iw�%�!Zc��b.E�k�E�<�G��@:�A� ��{]��f���u��S���|��Y_1��)Oi�StgW=�wq #��F�J������p]Fnmk7}ɺx��5�G�p�L���3��&=�\� �;�>b�s�w}��K� /[�"�m�U��.�$k����$�\�ݗ��~	bR���[ᦄ��0p�y�A�p�2-vq0�\B�O�gL|F�{<}��4F����
-�$�ɉĐq�S2t���e��^+
-�\k��˖��4��_�+'l��_��N϶�b˅�Ѯ�a �ڠ��J��u�&-pv~����k1�� �$�LG�o�8�e�b����`0��$������A4�̂1$Ue�Ads��}A3�\��ΠKJ�囅틬���Qa��m
-���~C�+Hf�%cw�"3����eqK�Q�.s}�$��Q��9���-�G1��TűV��f�z��9�����T����ȫ��~`Lm󖺜̭2��\Ϩڏ��zڕr��aX�K�́��$N�)��+"�ۋ�	�^����m���e�� �!Lf*� �#����S���xP��a�gVb!�\a9s�W�Lr̾�w���r^��}�s��ݵ�������Ū23
-gG��\��~��Ī�6�ngBn*�������.� ���}3�z�%>o�L(.��+�䒳����B�X#�^N0�%�#Qǝ�֊��� �o>�{D?��%N��u?f���􌤤ZNݏy��5P�c6m��p?�!�F�pL�1F�Y,��Ta�e�;��7z��	��u�7g���l�1�gQˇT���O�tAzO+yq�S%�����>���
-GU8���";�
-g���*�'^��q�eM�YQ\^~�+�$���d�꓇�^ڧc�k�;������F��[�T�]vP��6�_w(��L��<�F��<!9pL�ގ���F�M��{�!�,��G>�9\��d+�fO���	��̈��aT&��Q!�ø�u��,���:r�I�jTS9턗�&�1bM�btY�J������Ũ����� ���$¨ua�1���9�cV���h(*�
-�����|:��E�^^3���_�X�O���}&��=�8rù��X#����f!�a�f�H+���U:lf`Ԭ/�R��1��	p��ޥ��R�V�.͡Ip�6nh+pgdn�����2���n���2���n�[W�V�V��Mp[�,W�V��Mpۛ �z�$+p+p�pwp���+������!�!���v�4��j�M;�6���e�/[{��h�xu���2����"54z��1y3N`�q��3wHk�)�6��<��.��ӗ(uݔU��9:���4��c�%����.MG�.���]��5���Fv�8��R��v~�����
-��6���e���f�3~��/�_,p�*���#@�i%|��8��U��m� ?u3	 ns�P>�#D>�4��ʗ����hv f�"*�d1bs��\�!�z��J3?gɂiI�=W�{�e�֎�Ht�I�z[��z�,��!F�sxU[?4q��(U'���zb�&����\E�������k�x�×>n��K�Q�)��?�#���&uU���΢js�T�����BCZ|=�B���N��5�Q1�
-�8x�W+i������B�"�U�����Q�j]�(���撎d���h��Gy¬��B�]�^�&-�
-�Ӧ!$��'>�X,e��I���~yɚ�"��~-��4�b�!���	mhyO���4���c,�ˁ��sDq¿��M���` ܁m���wz]��L��<o`�л&����K;��[Zƭ��Q���C�uhE5EQ������':FӖXHx�w�?PK   ��]%�e��  $     META-INF/metadata.xml�Zms�8�>��孺��-�6���[B���-dvn>
-K�o��E��W���H����J*���q��-�
-׿��H�d��W���$�0J�C�����گ��뽿ߦ[D�� I��:�x�|�?�z�Ic?����dZ���P�P������v��\a�6m��L�cv:�0�CB��H��
-��i���D)e�i|�xG��^z�M+�$�]�xk�Aj�ɘ�!+�tGb�M�-Jh�lmS"}x8O��V�!$Q�µ=آ,!�1y� `���U#��YH|��{�:f�O�y4U�e>KK#����(��ߠcu\���b
-|�񻝟���X��e�����pLc�X���|˒i$����ɶ�T0�W�l
-@��Qx��{�5�E|�j\Aޮ w<�~���f
-l�|��+�,_��55�6��?f���i�ϣ����,�M.��L8�� ��F4F
-�F1����"�zC���@�,�,��*B$�.Á�����Fw�u
-.�ƪۃN�[yK
-.	�Ȏ��d$!�M>Hـ��N���ew�x����{�� =���u��qݾ[�J�f&�Y�%���btlV�;����K��"�7`}>�F$�:�dӇ�v��&
-?f��^A�Ϳ,�Kن���;ӻf�2:��
-K��9Q����)���\3�1�Z5/��*f	�e�Z��&�B��v�`�7��|�Uc��-�x�o��qX�ٖ��慠=n�K�Ğb���/
-YY�@��:�-͇r7��oAǱ��ɲ���F�7L�Eů�	�GL��|- A�؉�^J�
-�s��X���V���2kL�>�'���Q"���t�4m.�$l"nvQw,]H�E����b@��W9T���[e>���I�W���O�;��
-C5�'�D�N	�*���w類=p��\
-VF�������>
-��}����\>�])�g6�,��U2%���`
-a;�~� ���YE�����ψ��A��u�B�O"v�\̂�UO�k��E�1�d�&ZDߑ�L���3TJ5��D�PW>9v��v�9�p���	\9��=�7��j�_��N.����j�s������G	3��ʏ�L4*-i-�g�Q)3cY�K�)To�W�TBUdBp�ذ~�I2�&F	��P�֞mFP��(��ZbC��mmlYj�R�/~CdG��J�|J�i�Pe|Ϫ��#��	����PC��ʥ�2��⩗��)�En+2��ü�����ǂ�L�3F�S}>�z�2�#x���8���;RVS=T��
-����_sr�MD� ������6fI���[ڗ�e�i��*�
-��úL
-Y�<���Gɟ֐ZtT�'dX�%C^�k�(�V��@��v��	ZEIDŁU����$e�٠���D{8Uv�ʔ��Њ���N�1y���C�
-��^���]	��9t�eu2�eU�O6���Jx���pO�
-�D�Ds˖
-��3=}�q��x^>�H��C$�AE��ꟍQ�H/��^(�,-�%�c�'����"��bx���Fa��
-�
-:%|�����v���)F�;��erj[VFZM)����6�[Ut۹v�aO�h *�$T�&8��7�̊u�����s�RΩ�����vme�����;�����Q�:�T�E�*�fA��%DK���mȺ�e�Ǫ�[^��B|�9!ۮ��e� �C��$m�[ٗ%d�w�Q��C�X���$aJ��3�>$�$���p#a��9"���%d�c�Vh���E0����8�J=����?�l�F[+�s�g��ӏ���|}�Dz!U���Q~�XI?�+��f�E��=z���r���H5TO@��.��Xe~�l��TT�m�JmñL�""]�e�r����3JjH%QA�u|Γ�ѿe�w�\���sR�SWQ��k�6�w�a�%�o���
-l�g�4F+v56z��X�]�ǗC}�n�)d�C����AwP�=W\V�q���-����`{��`����s��O�������y;��K/m9���lC�*ew2Q
-2	�jw`�Z�S��Qsc=K(K���������f�c��\��\��`|��r�mQ!������X_}e;��_�<��Iu�љ.$�-� oo�۰XV]�؆�B�p��*�ܾ
-</�������8�Q�!���x�D������#�-Oк��O{k��;��1�<�U��*��C�/��\<�L�O�f�
-���_PK   ��]�r�7   5      META-INF/links.xml�����Q(K-*��ϳU2�3PRH�K�O��K�U
-
-qӵPR���������K�Wз� PK   ��]�^)q1  �     META-INF/container.xml���R� ��}
-�{��Q�ڛgzr< lFX m��%i'�Ug�	��~>f������CN�rN	�tJc����cqG�j9k��$4B8k�8FN��̉�#Ca!�$�����&6��)��1̞�.�ٳ^��%׿������Z���I��D6l���S�IJֽ1���tH�B� �J$J,(-���S��R���jWlP��X)U("��ꂇS��w���F[�Bсn������qy�ՠv=_��� 
-�XMY���Tx���VR�4��>�nR�= ��鹺��[���C����?��%�Mu4ߦ����}PK   ��]+�w�.  g     content/data/data1.dat�]�o\G?�|9"�"�*A�k����N�4%{���U��]7K��fw'Q�,T�x�[ՖJH�<!*ѿ�P��C@U����9�wf��������Fjאַw�ܙ�5�9s�f3q���A(o|�����s=A�$�5�
-�%.�i��ٿ�>}�=�;1c��v~|.A	GWy�NB.����6[��t�8�/X{?��^�<B�Gz���k2r��^K侮Th�� �||�ٷ��֛R�t��N�@#����EU*R�V���2��ε���%.q�K\����%.q�K\����%.q�K\��/v�����%���_�>�ѹ�����|y�ŗwo�:|�j�ET�:U�D�'�A\�l��mք-�B9֊m�˔�	�6��̪�3���k�^s�'=7y�Xp,S�+m��񐟯q��6������*�m�:ߕ��,ڤv���U���g���6�������b����-2� ��
-�)�o���.���B���?�CZI�Y�%i���%���c��رk5�gE߸���y~������� ��{��1WuC��2�O�t�
-�BK�l��m�
-ѥQ���� .@eZ�^En=ϐ�t3
-�EhS���g�}A����]�7>�D.s}��J4X.�(ʠ�̗��]��-H&��0u�cX���LeTd]�!������P0�BҢ�s�]��G��2��a�9n)R�����D;~�9)��vG��U1GeƜ�����Ԗўa�rg����2�|[A�<���wfn1�O��x���൫�g�����M��֡)�;���z���4�����i��s�4���n��U_��w>P�ePhu��M��6i�܂�&�^�Oɱ�$xJ��J􈿋��⹲<�ꯪ�]u�K�WQ[wqy����X��z���'z?�c��=�?��7�c�"�)�է�XJXu�&J+0�l���I�ϊ�=�U!/�hM֋T1X8�K��V�۶ث��ؤ�u�z۫����6nYYTC��j]�C{`�Sc�EgM��:�f����¢�^���+�M�d��޶��0�X��Hd\�u�=:Ǒ��|�`��2�/6�������ёXh��*]�~�<b����Fv�U&��"��´��q������d�eu��pO�5ۦ�\a�
-�Ӳѝk�^��q7��}Q����J��n÷;�^A�;������H�};rn�4[Y0�q���L�PH^k	��.�E�S���{�R��r3�."�.B�ː���mHG��"fR׺Ex�h�ق��0Wڂ�ͽ)���5�b���<�6�ل>-"�3���������������o��R!a�f���20h�F��C�JM��fX�-��M峟��������b�)�a	+�e@��ߎ� � #+&�v�t-�y��&B��Ԉ�kA��S�8��bs�%���UR�foRq�X�PpZe�,}v-�Fn6(s�U��q�����A���P�;�L����
-C,x�!�{Y)���;����W�������_�zS�?hG.�_���Xx�=�|4ˠ��(ܝBM�k���t��5D�O}�����ӌ����ܸCr�i���5����s쇝e�+�1��w�CK�T1Rt�GOX^����~V�����c0���L
-k��]3$�]�.?�mf�;��)�F��]�u������y�4�X��sX��<��x6��������9���	�U	Fvuy̺�ށ�7�hf=��~���~)�T�X�'!��I�L��$���QX�Y�� �����8�n�"����p�W��5��*��B�),�+��Uˤ�^*$�E�.Ajw"Z��lK�����5_tV�A+Y4�\�gO�:�'K�q݉�"�*��;��h�=|%"�x��(V�;��i����Ә�;��Q8�=�嶕�h���
-��a�]��ݳ^7�g��*��x��딬S89�uNZ�q�j׫v��g�4y�jx�;oQa6ӗhP_�9����8���1Ŀv͌"}}[Cf4k</E������}4�M�x	{�"��[R
-k,i�+O4�?�ꉟdY�Ԙ��}�*��/���~ozFt��J�hZiA�=gI6dM�-�ǉ��5G���]3��R��n�鹍�J���&���}�����w9�<jm�3\ӽ�s�^��=Ir�f�$��>��ڳ�ʴͳ�f��ĵ+��*v\ve\Ź�}ؙ@Z��O�2����S�L�k[�hD(с�od>��s�[N�Gj_{���Q���+I�&/"-y���L���|���J�є��R	|��*�e3^gKz�ڹ�������C���p4F����ԯw����g�XǽH����}��m���7Z�θ?��5Kh��s��5�I�4-��w �V��5�f�7,�y�M}CK3�EC���$����ٷ���;����c
-�=c�?�쐞�6�P�y�j���m�#��I���mr��NS�N���_�gA�}G���Ou�8�w	�V�y$����Bs(L��SM��}�m�gi�b��k��mR"�F�����"��:y���:c���:G��]������*�2���c[�m1��/�-�x��r�f�;�Eх$��U��҈�-��{���8�}������X��M���>�{��fH~��p?��9�ss����(���5nF���6��GQtz:-C��r:6t�P��ᾁS"Y�-�J��K/R^m��D�"r�NwHQ�%A�Z9
-�I�%��^��9U��θ9�e(���Et�+�2gR�����כ�'��_o>��G�����������_�~n@��g�g���\ ��������A��u��|
-����@���3R�~�)g�E@�����]�<���ݬ�Ͻ�li�L�"LȔ#���m��-ј�LI	�T�+LyK4����S�K6�����Oަ�}���@�m��gS	r��X:a�	M!�v�&<8-��=���u�HO���f�9��s
-���c��{(��?g��
-�=����m����sI�}�iz�[G��O;�z�|����^��[�z>�����u��}�l����d�S�m���N���:�6��������So,������_f4��y��=ldsԌ���Fc�3c����c��P���PK-     ��]"���-   -    $               mimetype
-         �;�p9��;�p9��;�p9�PK-    ��].��  !   $           S   font/fontTable.dat
-         B#�p9�B#�p9�B#�p9�PK-    ��]e�
-M/     $           �  content/data/masterPage.dat
-         �d�p9��d�p9��d�p9�PK-    ��]<��*  _u   $           �  content/data/page1.dat
-         �t�p9��t�p9��t�p9�PK-    ��]D@ZUhg  �E  $           U  embed/embedding0
-         ���p9����p9����p9�PK-    ��]�,;�   "    $           �v  content/dataFileList.dat
-         ��p9���p9���p9�PK-    ��]T���I  �   $           =w  content/root.dat
-         ��p9���p9���p9�PK-     ��]�(��*  �*   $           �z  previews/thumbnail.png
-         �t�p9��t�p9��t�p9�PK-     ��]��lx  x   $           ��  previews/page1.png
-         ���p9����p9����p9�PK-    ��]4�6~�   �   $           \�  color/color.xml
-         ��p9���p9���p9�PK-    ��]R�.
-  H  / $           W�  color/profiles/rgb/srgb color space profile.icm
-         �
-�p9��
-�p9��
-�p9�PK-    ��]*�?:=  �   $           ��  META-INF/textinfo.xml
-         |�p9�|�p9�|�p9�PK-    ��]�\�x)  �   $           2�  color/docPalette.xml
-         ��p9���p9���p9�PK-    ��]���!  �k   $           ��  styles/document.cdss
-         ���p9����p9����p9�PK-    ��]%�e��  $   $           ��  META-INF/metadata.xml
-         �	�p9��	�p9��	�p9�PK-    ��]�r�7   5    $           ��  META-INF/links.xml
-         RH�p9�RH�p9�RH�p9�PK-    ��]�^)q1  �   $           7�  META-INF/container.xml
-         �h�p9��h�p9��h�p9�PK-    ��]+�w�.  g   $           ��  content/data/data1.dat
-         ���p9����p9����p9�PK      =  ��    ```
-
-### `referenceScripts\editbillmodal\EditBillModal.preview.tsx`
-
-```typescript
-/**
- * EditBillModal.preview.tsx
- * ------------------------------------------------------------------
- * A throwaway preview harness for <EditBillModal />.
- *
- * Unlike a pure-UI component, EditBillModal fetches its own data
- * (api.getReceipt / api.getProperties / api.getBillingMonths /
- * api.getTenant) as soon as it's given a billNo + tenantId, and it
- * needs a real landlordUuid from AuthContext to do it. So this
- * harness does NOT mock those out — it runs inside your real app,
- * against a real bill, so you can see the actual data in the layout
- * (long property names/addresses, long tenant names, etc.) rather
- * than guessing with fake values.
- *
- * HOW TO USE
- * 1. Drop this file anywhere in your app, e.g. src/pages/_preview/EditBillModalPreview.tsx
- * 2. Temporarily mount it, e.g. add a throwaway route:
- *      { path: '/_preview/edit-bill', element: <EditBillModalPreview /> }
- *    then visit /_preview/edit-bill and enter a real Bill No + Tenant ID
- *    from your dev database (e.g. from the Bills modal you already
- *    previewed, or straight from your DB/admin panel).
- * 3. For the best overlap stress-test, pick a tenant/property combo
- *    with the longest name + address you have — that's the case the
- *    header and the Property/Tenant grid need to survive.
- * 4. Delete this file (and the throwaway route) once you're done.
- *
- * WHAT TO LOOK FOR
- * - The dialog title ("Edit Receipt #...") should truncate rather
- *   than running under the close (X) button for a long bill number.
- * - The Property select value and the disabled Tenant input should
- *   each stay inside their own column and ellipsize instead of
- *   overlapping each other or spilling out of the grid, even with a
- *   long property name + address.
- */
-import { useState } from 'react';
-import EditBillModal from './EditBillModal'; // adjust path to match where you saved the fixed file
-
-export default function EditBillModalPreview() {
-    const [billNo, setBillNo] = useState('');
-    const [tenantId, setTenantId] = useState('');
-    const [openBillNo, setOpenBillNo] = useState<string | null>(null);
-    const [openTenantId, setOpenTenantId] = useState<number | null>(null);
-
-    return (
-        <div className="p-6 space-y-3 max-w-sm">
-            <div className="space-y-1">
-                <label className="text-sm font-medium">Bill No</label>
-                <input
-                    className="w-full border rounded-md px-2 py-1.5 text-sm"
-                    value={billNo}
-                    onChange={(e) => setBillNo(e.target.value)}
-                    placeholder="e.g. B-2026-08"
-                />
-            </div>
-            <div className="space-y-1">
-                <label className="text-sm font-medium">Tenant ID</label>
-                <input
-                    className="w-full border rounded-md px-2 py-1.5 text-sm"
-                    value={tenantId}
-                    onChange={(e) => setTenantId(e.target.value)}
-                    placeholder="e.g. 12345"
-                />
-            </div>
-            <button
-                type="button"
-                className="rounded-md border px-3 py-1.5 text-sm"
-                onClick={() => {
-                    setOpenBillNo(billNo || null);
-                    setOpenTenantId(tenantId ? Number(tenantId) : null);
-                }}
-            >
-                Open Edit Bill Modal (preview)
-            </button>
-
-            <EditBillModal
-                billNo={openBillNo}
-                tenantId={openTenantId}
-                onClose={() => setOpenBillNo(null)}
-                onSaved={() => setOpenBillNo(null)}
-            />
-        </div>
-    );
-}
-```
-
-### `referenceScripts\editbillmodal\EditBillModal.tsx`
-
-```typescript
-import { useState, useEffect, useMemo } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { api } from '@/services/api';
-import type { Receipt, Property } from '@/types';
-import { useToast } from '@/hooks/useToast';
-import { useAuth } from '@/contexts/AuthContext';
-import { BrandWave } from '@shared/loading/BrandWave';
-import { FileText, AlertCircle, Zap, Building2, User } from 'lucide-react';
-
-interface EditBillModalProps {
-  billNo: string | null;
-  tenantId: number | null;
-  onClose: () => void;
-  onSaved: () => void;
-}
-
-export default function EditBillModal({ billNo, tenantId, onClose, onSaved }: EditBillModalProps) {
-  const [receipt, setReceipt] = useState<Receipt | null>(null);
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [months, setMonths] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // Editable billing values (snapshot-driven, defaulting to the receipt's
-  // stored snapshot so legacy receipts pre-date personal rate fields).
-  const [propertyId, setPropertyId] = useState<string>('');
-  const [rent, setRent] = useState(0);
-  const [water, setWater] = useState(0);
-  const [tankWater, setTankWater] = useState(0);
-  const [maintenance, setMaintenance] = useState(0);
-  const [maintenanceDesc, setMaintenanceDesc] = useState('');
-  const [currentReading, setCurrentReading] = useState(0);
-  const [elecRate, setElecRate] = useState(0);
-  const [addPersons, setAddPersons] = useState(0);
-  const [addPersonRate, setAddPersonRate] = useState(0);
-
-  const toast = useToast();
-  const { landlordUuid } = useAuth();
-
-  useEffect(() => {
-    if (billNo && tenantId && landlordUuid) {
-      setLoading(true);
-      Promise.all([
-        api.getReceipt(landlordUuid, tenantId, billNo),
-        api.getProperties(landlordUuid).catch(() => []),
-        api.getBillingMonths(landlordUuid),
-        api.getTenant(landlordUuid, tenantId).catch(() => null),
-      ])
-        .then(([r, props, m, tenant]) => {
-          setReceipt(r);
-          setProperties(props);
-          setMonths(m.months);
-          // Editable snapshot values come from the receipt record.
-          setRent(r.Rent ?? 0);
-          setWater(r.Water ?? 0);
-          setTankWater(r.tankWater ?? 0);
-          setMaintenance(r.MaintenanceCharge ?? 0);
-          setMaintenanceDesc(r.MaintenanceDesc ?? '');
-          setCurrentReading(r.Current ?? 0);
-          setElecRate(r.Rate ?? 0);
-          setAddPersons(r.Additional_Persons ?? 0);
-          setAddPersonRate(r.additionalPersonRate ?? 0);
-          // Property defaults to the receipt snapshot, else the tenant's
-          // current property. Editing Property only affects this bill.
-          const initialProp =
-            r.propertyId != null
-              ? String(r.propertyId)
-              : tenant && tenant.propertyId != null
-                ? String(tenant.propertyId)
-                : '';
-          setPropertyId(initialProp);
-        })
-        .catch(() => toast.error('Failed to load bill data'))
-        .finally(() => setLoading(false));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [billNo, tenantId, landlordUuid]);
-
-  const prevReading = receipt?.Previous ?? 0;
-  const consumed = currentReading - prevReading;
-  const electricity = consumed > 0 ? consumed * elecRate : 0;
-  const additional = addPersons * addPersonRate;
-  const currentTotal = rent + water + tankWater + maintenance + additional + electricity;
-  const grandTotal = currentTotal + (receipt?.previousArrears ?? 0);
-
-  const meterError =
-    consumed < 0
-      ? `Current Reading (${currentReading}) cannot be smaller than Previous Reading (${prevReading}).`
-      : '';
-
-  const breakdown = useMemo(
-    () => [
-      ['Rent', rent],
-      ['Water', water],
-      ['Tank Water', tankWater],
-      ['Maintenance', maintenance],
-      ['Additional', additional],
-      ['Electricity', electricity],
-    ],
-    [rent, water, tankWater, maintenance, additional, electricity]
-  );
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!receipt) return;
-    if (consumed < 0) {
-      toast.error(meterError || 'Current reading cannot be less than previous reading');
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await api.updateBill(landlordUuid!, receipt.TenantId, receipt.Bill, {
-        tenant: receipt.Tenant,
-        month: receipt.Month,
-        current_reading: currentReading,
-        additional_persons: addPersons,
-        tankWater: tankWater,
-        MaintenanceCharge: maintenance,
-        MaintenanceDesc: maintenanceDesc,
-        previousArrears: receipt.previousArrears || 0,
-        amountReceived: receipt.amountReceived ?? null,
-        paymentStatus: receipt.paymentStatus || 'PENDING',
-        rent: rent,
-        water: water,
-        electricityRate: elecRate,
-        additionalPersonRate: addPersonRate,
-        property_id: propertyId ? Number(propertyId) : null,
-      });
-      toast.success('Receipt updated successfully');
-      onSaved();
-      onClose();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to update receipt';
-      toast.error(message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={!!billNo} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="pr-8">
-          <DialogTitle className="flex items-center gap-2 min-w-0">
-            <FileText className="h-5 w-5 text-primary shrink-0" />
-            <span className="truncate">Edit Receipt</span>
-            {receipt && (
-              <span className="shrink-0 text-sm font-normal text-muted-foreground">
-                #{receipt.Bill}
-              </span>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-
-        {loading ? (
-          <div className="py-8 text-center text-muted-foreground">
-            <BrandWave stacked label="Loading bill…" />
-          </div>
-        ) : receipt ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Property + Tenant */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2 min-w-0">
-                <Label className="flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  Property
-                </Label>
-                <Select value={propertyId} onValueChange={setPropertyId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Property..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {properties.map((p) => (
-                      <SelectItem key={p.id} value={String(p.id)}>
-                        <span className="truncate">
-                          {p.property_name}
-                          {p.address ? ` — ${p.address}` : ''}
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Editable per-bill only; does not change the tenant’s property.
-                </p>
-              </div>
-              <div className="space-y-2 min-w-0">
-                <Label className="flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  Tenant
-                </Label>
-                <Input
-                  value={receipt.Tenant || ''}
-                  disabled
-                  className="bg-muted truncate"
-                  title={receipt.Tenant || ''}
-                />
-              </div>
-            </div>
-
-            {/* Billing Month */}
-            <div className="space-y-2">
-              <Label>Billing Month</Label>
-              <Select
-                value={receipt.Month}
-                onValueChange={(v) => setReceipt({ ...receipt, Month: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {months.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <Separator />
-
-            {/* Fixed Charges */}
-            <div>
-              <h5 className="font-semibold text-muted-foreground mb-3 text-sm uppercase tracking-wider">
-                Fixed Charges
-              </h5>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-2">
-                  <Label>Monthly Rent (₹)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={rent === 0 ? '' : rent}
-                    onChange={(e) => setRent(parseFloat(e.target.value) || 0)}
-                    className="border-primary"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Water Charge (₹)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={water === 0 ? '' : water}
-                    onChange={(e) => setWater(parseFloat(e.target.value) || 0)}
-                    className="border-primary"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tank Water Charge (₹)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={tankWater === 0 ? '' : tankWater}
-                    onChange={(e) => setTankWater(parseFloat(e.target.value) || 0)}
-                    className="border-primary"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Maintenance */}
-            <div>
-              <h5 className="font-semibold text-muted-foreground mb-3 text-sm uppercase tracking-wider">
-                Maintenance &amp; Other Charges
-              </h5>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-2">
-                  <Label>Amount (₹)</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={maintenance === 0 ? '' : maintenance}
-                    onChange={(e) => setMaintenance(parseFloat(e.target.value) || 0)}
-                    className="border-primary"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Description (Optional)</Label>
-                  <Input
-                    value={maintenanceDesc}
-                    onChange={(e) => setMaintenanceDesc(e.target.value)}
-                    placeholder="e.g. Building Maintenance"
-                    disabled={maintenance <= 0}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Electricity */}
-            <div>
-              <h5 className="font-semibold text-muted-foreground mb-3 text-sm uppercase tracking-wider">
-                Electricity
-              </h5>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-2">
-                  <Label>Previous Reading</Label>
-                  <Input type="number" value={prevReading || ''} disabled className="bg-muted" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-primary">Current Reading</Label>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    value={currentReading === 0 ? '' : currentReading}
-                    onChange={(e) => setCurrentReading(parseFloat(e.target.value) || 0)}
-                    className="border-primary"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Electricity Rate (₹)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={elecRate === 0 ? '' : elecRate}
-                    onChange={(e) => setElecRate(parseFloat(e.target.value) || 0)}
-                    className="border-primary"
-                  />
-                </div>
-              </div>
-              <div className="mt-2 inline-flex items-center gap-2 px-3 py-1.5 rounded bg-primary/10 text-primary text-sm">
-                <Zap className="h-4 w-4" />
-                <span>
-                  Consumed Units: <strong className="text-lg ml-1">{consumed.toFixed(1)}</strong>
-                </span>
-              </div>
-              {meterError && (
-                <div className="mt-2 p-2 rounded bg-red-50 text-red-600 text-sm flex items-center gap-2 dark:bg-red-900/20">
-                  <AlertCircle className="h-4 w-4" /> {meterError}
-                </div>
-              )}
-            </div>
-
-            {/* Occupancy */}
-            <div>
-              <h5 className="font-semibold text-muted-foreground mb-3 text-sm uppercase tracking-wider">
-                Occupancy
-              </h5>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label className="text-primary">Additional Persons</Label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={addPersons === 0 ? '' : addPersons}
-                    onChange={(e) => setAddPersons(parseInt(e.target.value) || 0)}
-                    className="border-primary"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Rate per person (₹)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={addPersonRate === 0 ? '' : addPersonRate}
-                    onChange={(e) => setAddPersonRate(parseFloat(e.target.value) || 0)}
-                    className="border-primary"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Previous Arrears (read-only) */}
-            <div className="space-y-2">
-              <Label>Previous Arrears (₹)</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={receipt.previousArrears || 0}
-                disabled
-                className="bg-muted"
-              />
-              <p className="text-xs text-muted-foreground">
-                Auto-computed from unpaid balances; changes to payments cascade automatically.
-              </p>
-            </div>
-
-            {/* Live Breakdown */}
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-xl p-5 shadow-lg">
-              <h6 className="text-xs uppercase font-semibold text-white/70 tracking-wider mb-3">
-                Live Breakdown
-              </h6>
-              <div className="space-y-1.5 text-sm">
-                {breakdown.map(([label, val]) => (
-                  <div key={label} className="flex justify-between">
-                    <span className="text-white/70">{label}:</span>
-                    <span className="font-semibold">₹{(val as number).toFixed(2)}</span>
-                  </div>
-                ))}
-              </div>
-              <Separator className="my-3 bg-white/30" />
-              <div className="flex justify-between text-sm">
-                <span className="text-white/70">Current Bill Total:</span>
-                <span className="font-semibold">
-                  ₹{currentTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-yellow-200">Previous Arrears:</span>
-                <span className="font-semibold">
-                  ₹{(receipt.previousArrears ?? 0).toLocaleString('en-IN', {
-                    minimumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
-              <Separator className="my-3 bg-white/30" />
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-bold">GRAND TOTAL</span>
-                <span className="text-2xl font-bold">
-                  ₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={saving}>
-                {saving ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </DialogContent>
-    </Dialog>
-  );
-}
-```
 
 ### `refresh-mcp-token.ps1`
 
@@ -118729,7 +114463,7 @@ if __name__ == "__main__":
     main()
 ```
 
-### `scripts\generate_brand_assets.py`
+### `scripts/generate_brand_assets.py`
 
 ```python
 #!/usr/bin/env python3
@@ -118823,284 +114557,7 @@ def main() -> int:
 if __name__ == "__main__":
     raise SystemExit(main())```
 
-### `scripts\legacy\outline_brand_svg.py`
-
-```python
-#!/usr/bin/env python3
-"""Outline CorelDRAW brand SVGs (icon.svg, logo.svg) which reference embedded SVG
-fonts ("Nevan RUS") into font-independent SVGs by converting each letter to a
-<path>, replicating original text positions and advances.
-
-Google Chrome / Edge dropped support for SVG path fonts, so the originals render
-as tofu in every modern browser. This regenerates canonical brand assets into:
-
-    frontend/shared/brand/assets/logo.svg     — wordmark (PROP + AURA)
-    frontend/shared/brand/assets/icon.svg     — ringed P/A monogram (mark, 1566.89x1566.89, transparent)
-    frontend/shared/brand/assets/favicon.svg  — monogram on white (favicon)
-
-It also prints the inner lockup XML (rings + letters) that the QR service pastes
-into ``PROPAURA_MARK_PATHS``.
-
-Stdlib only. Re-runnable: python scripts/outline_brand_svg.py
-"""
-
-from __future__ import annotations
-
-import math
-import re
-import xml.etree.ElementTree as ET
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parent.parent
-ASSETS_DIR = ROOT / "frontend" / "shared" / "brand" / "assets"
-BRAND_DIR = ROOT / "frontend" / "shared" / "brand"
-
-SRC_ICON = ROOT / "icon.svg"
-SRC_LOGO = ROOT / "logo.svg"
-
-NAVY = "#151B54"
-ORANGE = "#E5611B"
-
-# ---------------------------------------------------------------------------
-# helpers
-# ---------------------------------------------------------------------------
-
-
-def local(tag: str) -> str:
-    return tag.split("}")[-1]
-
-
-def parse_css_classes(css: str) -> dict[str, dict[str, str]]:
-    """Parse `.cls {prop:value;...}` blocks into a {classname: rules} map."""
-    out: dict[str, dict[str, str]] = {}
-    for block in re.finditer(r"\.([\w-]+)\s*\{([^}]*)\}", css):
-        name, body = block.group(1), block.group(2)
-        rules: dict[str, str] = {}
-        for prop in body.split(";"):
-            if ":" not in prop:
-                continue
-            k, _, v = prop.strip().partition(":")
-            rules[k.strip()] = v.strip()
-        out[name] = rules
-    return out
-
-
-def class_rules(elem: ET.Element, css_map: dict[str, dict[str, str]]) -> dict[str, str]:
-    merged: dict[str, str] = {}
-    for cls in (elem.get("class") or "").split():
-        merged.update(css_map.get(cls, {}))
-    return merged
-
-
-def find_fonts(root: ET.Element) -> tuple[dict[str, str], float]:
-    """Return {unicode_char: glyph_d} and default horiz advance."""
-    fonts = [e for e in root.iter() if local(e.tag) == "font"]
-    glyphs: dict[str, str] = {}
-    default_adv = 751.0
-    for font in fonts:
-        default_adv = float(font.get("horiz-adv-x") or default_adv)
-        for g in font.iter():
-            if local(g.tag) != "glyph":
-                continue
-            uni = g.get("unicode")
-            d = g.get("d")
-            if uni and d:
-                glyphs[uni] = d
-    return glyphs, default_adv
-
-
-class Letter:
-    __slots__ = ("char", "transform", "d", "fill")
-
-    def __init__(self, char: str, transform: str, d: str, fill: str) -> None:
-        self.char = char
-        self.transform = transform
-        self.d = d
-        self.fill = fill
-
-
-def extract_letters(
-    root: ET.Element,
-    css_map: dict[str, dict[str, str]],
-    glyphs: dict[str, str],
-    default_adv: float,
-) -> list[Letter]:
-    letters: list[Letter] = []
-    for text in root.iter():
-        if local(text.tag) != "text":
-            continue
-        rules = class_rules(text, css_map)
-        fill = rules.get("fill", NAVY) if not rules.get("fill", "").startswith("none") else NAVY
-        size = float((rules.get("font-size") or "1000px").removesuffix("px"))
-        scale = size / 1000.0
-        start_x = float(text.get("x") or 0.0)
-        baseline_y = float(text.get("y") or 0.0)
-        content = "".join(text.itertext())
-        advances: list[float] = []
-        for ch in content:
-            adv = default_adv
-            for font in root.iter():
-                if local(font.tag) != "font":
-                    continue
-                for g in font.iter():
-                    if local(g.tag) != "glyph" or g.get("unicode") != ch:
-                        continue
-                    adv = float(g.get("horiz-adv-x") or adv)
-                    break
-                else:
-                    continue
-                break
-            advances.append(adv)
-        offset = 0.0
-        for ch, adv in zip(content, advances):
-            if ch not in glyphs:
-                offset += adv
-                continue
-            transform = f"translate({start_x + offset:g} {baseline_y:g}) scale({scale:g} -{scale:g})"
-            letters.append(Letter(ch, transform, glyphs[ch], fill))
-            offset += adv
-    return letters
-
-
-def make_elem(tag: str, attrib: dict[str, str], children: list[ET.Element] = None) -> ET.Element:
-    el = ET.Element(tag, attrib)
-    for c in children or []:
-        el.append(c)
-    return el
-
-
-def svg_tree(viewbox: str, children: list[ET.Element], width=None, height=None) -> ET.Element:
-    attrib = {
-        "xmlns": "http://www.w3.org/2000/svg",
-        "viewBox": viewbox,
-    }
-    if width is not None:
-        attrib.setdefault("width", width)
-        attrib.setdefault("height", height)
-    return make_elem("svg", attrib, children)
-
-
-def pretty(path: Path, root: ET.Element) -> None:
-    ET.indent(root, space="  ")
-    ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-    BRAND_DIR.mkdir(parents=True, exist_ok=True)
-    path.write_text(ET.tostring(root, encoding="unicode"), encoding="utf-8")
-
-
-# ---------------------------------------------------------------------------
-# ICON — ringed P/A monogram
-# ---------------------------------------------------------------------------
-
-MARK_W = 1566.89
-MARK_H = 1566.89
-
-
-def build_icon() -> tuple[ET.Element, list[Letter], ET.Element]:
-    """Flatten the fill-based root icon.svg: solid rings (fil0/fil1) +
-    letter outlines (fil2/fil3), no stroke, no translation.
-    """
-    tree = ET.parse(SRC_ICON)
-    root = tree.getroot()
-    css_map = parse_css_classes("".join(s.text or "" for s in root.iter() if local(s.tag) == "style"))
-    glyphs, default_adv = find_fonts(root)
-
-    ring_class_to_fill = {
-        "fil0": ORANGE,  # left ring
-        "fil1": NAVY,    # right ring
-    }
-    rings: list[ET.Element] = []
-    for path in root.iter():
-        if local(path.tag) != "path":
-            continue
-        cls = next((c for c in (path.get("class") or "").split() if c in ring_class_to_fill), None)
-        if cls is None:
-            continue
-        rings.append(make_elem("path", {"d": path.get("d", ""), "fill": ring_class_to_fill[cls]}))
-
-    letters = extract_letters(root, css_map, glyphs, default_adv)
-
-    base_group = make_elem(
-        "g",
-        {},
-        rings
-        + [
-            make_elem(
-                "g",
-                {"transform": l.transform},
-                [make_elem("path", {"d": l.d, "fill": l.fill})],
-            )
-            for l in letters
-        ],
-    )
-    icon_svg = svg_tree(f"0 0 {MARK_W:g} {MARK_H:g}", [base_group])
-    return icon_svg, letters, base_group
-
-
-# ---------------------------------------------------------------------------
-# LOGO — wordmark
-# ---------------------------------------------------------------------------
-
-
-def build_logo() -> tuple[ET.Element, list[Letter]]:
-    tree = ET.parse(SRC_LOGO)
-    root = tree.getroot()
-    css_map = parse_css_classes("".join(s.text or "" for s in root.iter() if local(s.tag) == "style"))
-    glyphs, default_adv = find_fonts(root)
-    letters = extract_letters(root, css_map, glyphs, default_adv)
-    children = [
-        make_elem("g", {"transform": l.transform}, [make_elem("path", {"d": l.d, "fill": l.fill})])
-        for l in letters
-    ]
-    logo_svg = svg_tree("0 0 21650.53 5094.95", children)
-    return logo_svg, letters
-
-
-# ---------------------------------------------------------------------------
-# favicon — monogram on white
-# ---------------------------------------------------------------------------
-
-
-def build_favicon(icon_inner: ET.Element) -> ET.Element:
-    white = make_elem("rect", {"x": "0", "y": "0", "width": f"{MARK_W:g}", "height": f"{MARK_W:g}", "fill": "#ffffff"})
-    centered = make_elem(
-        "g",
-        {"transform": f"translate(0 {(MARK_W - MARK_H) / 2:g})"},
-        [icon_inner],
-    )
-    return svg_tree(
-        f"0 0 {MARK_W:g} {MARK_W:g}",
-        [white, centered],
-        width=f"{MARK_W:g}",
-        height=f"{MARK_W:g}",
-    )
-
-
-# ---------------------------------------------------------------------------
-# main
-# ---------------------------------------------------------------------------
-
-def main() -> None:
-    icon_svg, _, base_group = build_icon()
-    logo_svg, _ = build_logo()
-    favicon_svg = build_favicon(base_group)
-
-    pretty(ASSETS_DIR / "icon.svg", icon_svg)
-    pretty(ASSETS_DIR / "logo.svg", logo_svg)
-    pretty(ASSETS_DIR / "fevicon.svg", favicon_svg)
-
-    qr_xml = "\n".join(ET.tostring(c, encoding="unicode") for c in base_group)
-    print("Generated assets:")
-    for p in (ASSETS_DIR / "icon.svg", ASSETS_DIR / "logo.svg", ASSETS_DIR / "fevicon.svg"):
-        print(f"  {p.relative_to(ROOT)}  ({p.stat().st_size} bytes)")
-    print()
-    print("QR MARK_PATHS (indent 6sp, paste into qr_service.py PROPAURA_MARK_PATHS):")
-    print(qr_xml)
-
-
-if __name__ == "__main__":
-    main()```
-
-### `scripts\sync_brand_assets.py`
+### `scripts/sync_brand_assets.py`
 
 ```python
 #!/usr/bin/env python3
@@ -119338,9 +114795,3 @@ name = "rent"
 compatibility_date = "2026-07-29"
 pages_build_output_dir = "frontend/build-output"
 ```
-
----
-
-## Skipped
-
-- propaura.md (4577 KB, skipped)
