@@ -108,6 +108,11 @@ def _init_snapshots_table():
                 purged_at TEXT
             )
         """)
+        try:
+            conn.execute("ALTER TABLE tenant_recovery_snapshots ADD COLUMN IF NOT EXISTS landlord_id INTEGER")
+            conn.commit()
+        except Exception:
+            pass
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_tenant_recovery_expiry
                 ON tenant_recovery_snapshots(expires_at, status)
@@ -116,11 +121,6 @@ def _init_snapshots_table():
             CREATE INDEX IF NOT EXISTS idx_tenant_recovery_landlord
                 ON tenant_recovery_snapshots(landlord_id, status)
         """)
-        try:
-            conn.execute("ALTER TABLE tenant_recovery_snapshots ADD COLUMN IF NOT EXISTS landlord_id INTEGER")
-            conn.commit()
-        except Exception:
-            pass
 
 
 # ── Snapshot creation ─────────────────────────────────────────────────────────
