@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
 
 def _discover() -> list:
     mods = []
-    for m in pkgutil.iter_modules(__path__):
+    for m in pkgutil.iter_modules(importlib.import_module(MIGRATIONS_PKG).__path__):
         if m.name == "__init__" or m.name.startswith("_"):
             continue
         try:
