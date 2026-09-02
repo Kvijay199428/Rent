@@ -30,6 +30,20 @@ DEFAULT_DB = "rent"
 DEFAULT_USER = "rent"
 
 
+def _kv(value: str) -> str:
+    """Escape a value for a libpq keyword/value conninfo string.
+
+    Libpq keyword/value DSNs (``host=... port=... password=...``) are parsed
+    literally: values are NOT percent-decoded the way a URI-form DSN is. So we
+    must not ``urllib.parse.quote`` values here -- percent-encoding a password
+    that contains a reserved char such as ``@`` would corrupt it into e.g.
+    ``%40``, breaking SCRAM auth. Only whitespace, single-quote and backslash
+    are special in keyword/value form, so we single-quote and escape those.
+    """
+    escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+    return f"'{escaped}'"
+
+
 def build_dsn() -> str:
     """Build a libpq connection string from environment variables."""
     host = os.environ.get("RENT_PGHOST", DEFAULT_HOST)
@@ -37,10 +51,9 @@ def build_dsn() -> str:
     dbname = os.environ.get("RENT_PGDATABASE", DEFAULT_DB)
     user = os.environ.get("RENT_PGUSER", DEFAULT_USER)
     password = os.environ.get("RENT_PGPASSWORD", "")
-    import urllib.parse
     return (
         f"host={host} port={port} dbname={dbname} "
-        f"user={urllib.parse.quote(user)} password={urllib.parse.quote(password)}"
+        f"user={_kv(user)} password={_kv(password)}"
     )
 
 

@@ -496,6 +496,23 @@ def sync_env_files():
             print(f"  Synced env: .env/{src_name} -> {dst_name}")
 
 
+def _is_excluded_rel(path, base_dir, exclude):
+    """True if a path (relative to base_dir) should be excluded from the zip.
+
+    Excludes a directory when *any* of its segments is in the exclude set, but
+    never the docker/storage build context: that `storage` segment is a
+    legitimate image build context, not the top-level storage/ data tree.
+    """
+    rel = os.path.relpath(path, base_dir).replace("\\", "/")
+    if rel == ".":
+        return False
+    segs = rel.split("/")
+    for i, seg in enumerate(segs):
+        if seg in exclude and not (i > 0 and segs[i - 1] == "docker" and seg == "storage"):
+            return True
+    return False
+
+
 def create_zip():
     sync_env_files()
     if os.path.exists(ZIP_FILE):
@@ -528,10 +545,11 @@ def create_zip():
                     write_file(zipf, root_abs, arc_root)
                     continue
                 for root, dirs, files in os.walk(root_abs):
-                    dirs[:] = [d for d in dirs if d not in exclude]
-                    rel_parts = os.path.relpath(root, LOCAL_DIR).replace("\\", "/").split("/")
-                    if any(part in exclude for part in rel_parts):
+                    if _is_excluded_rel(root, LOCAL_DIR, exclude):
+                        dirs[:] = []
                         continue
+                    dirs[:] = [d for d in dirs
+                               if not _is_excluded_rel(os.path.join(root, d), LOCAL_DIR, exclude)]
                     for file in files:
                         local_path = os.path.join(root, file)
                         arcname = os.path.relpath(local_path, LOCAL_DIR)
