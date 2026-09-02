@@ -38,9 +38,8 @@ def _discover() -> list:
     for m in pkgutil.iter_modules(importlib.import_module(MIGRATIONS_PKG).__path__):
         if m.name == "__init__" or m.name.startswith("_"):
             continue
-        try:
-            seq = int(m.name.split("_", 1)[0])
-        except ValueError:
+        seq = m.name.split("_", 1)[0]
+        if not seq.isdigit():
             continue
         mods.append((seq, m.name))
     mods.sort()
@@ -95,37 +94,39 @@ def _revert_one(name):
     print(f"[migrate] reverted {name}")
 
 
-def up(target=None):
+def up(target=None, close=True):
     init_pool()
     try:
         applied = _applied_versions()
         for seq, name in _discover():
             if str(seq) in applied:
                 continue
-            if target and seq > int(target):
+            if target and int(seq) > int(target):
                 break
             _apply_one(name)
             applied.add(str(seq))
         print("[migrate] up to date")
     finally:
-        close_pool()
+        if close:
+            close_pool()
 
 
-def down(target=None):
+def down(target=None, close=True):
     init_pool()
     try:
         applied = _applied_versions()
         for seq, name in reversed(_discover()):
             if str(seq) not in applied:
                 continue
-            if target and seq <= int(target):
+            if target and int(seq) <= int(target):
                 continue
             _revert_one(name)
     finally:
-        close_pool()
+        if close:
+            close_pool()
 
 
-def status():
+def status(close=True):
     init_pool()
     try:
         applied = _applied_versions()
@@ -134,7 +135,8 @@ def status():
             state = "applied" if str(seq) in applied else "pending"
             print(f"{seq:<6} {name:<40} {state}")
     finally:
-        close_pool()
+        if close:
+            close_pool()
 
 
 if __name__ == "__main__":

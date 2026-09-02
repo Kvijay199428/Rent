@@ -19,9 +19,11 @@ def init_db():
     """Initialize the database schema (PostgreSQL migrations).
 
     Idempotent: only pending migrations are applied. Opens the pool first.
+    Passes ``close=False`` so the CLI's pool teardown is skipped: the app keeps
+    the shared pool open for its entire lifetime.
     """
     init_pool()
-    migrator.up()
+    migrator.up(close=False)
 
 
 def migrate(target=None):
