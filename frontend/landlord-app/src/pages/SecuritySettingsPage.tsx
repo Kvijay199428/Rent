@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { apiGet, apiPost } from '@/hooks/useApi';
 import { ROUTES } from '@/lib/routes';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,20 @@ import {
 } from 'lucide-react';
 import { BrandWave } from '@shared/loading/BrandWave';
 import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
+
+interface PasswordRule {
+  label: string;
+  test: (pw: string) => boolean;
+}
+
+const PASSWORD_RULES: PasswordRule[] = [
+  { label: 'At least 8 characters', test: (pw) => pw.length >= 8 },
+  { label: 'Contains an uppercase letter', test: (pw) => /[A-Z]/.test(pw) },
+  { label: 'Contains a lowercase letter', test: (pw) => /[a-z]/.test(pw) },
+  { label: 'Contains a digit', test: (pw) => /\d/.test(pw) },
+  { label: 'Contains a special character (!@#$%^&*_...)', test: (pw) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(pw) },
+  { label: 'No spaces', test: (pw) => !/\s/.test(pw) },
+];
 
 interface TOTPData {
   secret: string;
@@ -50,6 +64,14 @@ export default function SecuritySettingsPage() {
   const [pwSuccess, setPwSuccess] = useState('');
   const [totpModalData, setTotpModalData] = useState<any>(null);
   const [showTotpModal, setShowTotpModal] = useState(false);
+
+  const ruleResults = useMemo(
+    () => PASSWORD_RULES.map((r) => ({ ...r, pass: r.test(pwForm.newPassword) })),
+    [pwForm.newPassword],
+  );
+  const allRulesPass = ruleResults.every((r) => r.pass);
+  const passwordsMatch = pwForm.newPassword.length > 0 && pwForm.confirmPassword.length > 0 && pwForm.newPassword === pwForm.confirmPassword;
+  const canPwSubmit = allRulesPass && passwordsMatch && pwForm.currentPassword.length > 0;
 
   useEffect(() => {
     if (landlordUuid && totpEnabled) {
@@ -118,8 +140,8 @@ export default function SecuritySettingsPage() {
       setPwError('New passwords do not match.');
       return;
     }
-    if (pwForm.newPassword.length < 6) {
-      setPwError('Password must be at least 6 characters.');
+    if (pwForm.newPassword.length < 8) {
+      setPwError('Password must be at least 8 characters.');
       return;
     }
     if (pwForm.currentPassword === pwForm.newPassword) {
@@ -350,11 +372,11 @@ export default function SecuritySettingsPage() {
                     <Input
                       id="sec-newPassword"
                       type={showPwNew ? 'text' : 'password'}
-                      placeholder="Enter new password (min 6 characters)"
+                      placeholder="Enter new password (min 8 characters)"
                       value={pwForm.newPassword}
                       onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })}
                       required
-                      minLength={6}
+                      minLength={8}
                     />
                     <button
                       type="button"
@@ -364,20 +386,50 @@ export default function SecuritySettingsPage() {
                       {showPwNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {pwForm.newPassword.length > 0 && (
+                    <ul className="space-y-0.5 mt-1">
+                      {ruleResults.map((r) => (
+                        <li key={r.label} className="flex items-center gap-1.5 text-xs">
+                          {r.pass ? (
+                            <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                          ) : (
+                            <span className="h-3 w-3 rounded-full border border-muted-foreground/30 shrink-0" />
+                          )}
+                          <span className={r.pass ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+                            {r.label}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sec-confirmPassword">Confirm New Password</Label>
-                  <Input
-                    id="sec-confirmPassword"
-                    type="password"
-                    placeholder="Confirm new password"
-                    value={pwForm.confirmPassword}
-                    onChange={(e) => setPwForm({ ...pwForm, confirmPassword: e.target.value })}
-                    required
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="sec-confirmPassword"
+                      type="password"
+                      placeholder="Confirm new password"
+                      value={pwForm.confirmPassword}
+                      onChange={(e) => setPwForm({ ...pwForm, confirmPassword: e.target.value })}
+                      required
+                      minLength={8}
+                    />
+                    {pwForm.confirmPassword.length > 0 && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {passwordsMatch ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <span className="h-4 w-4 rounded-full border-2 border-red-400 block" />
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {pwForm.confirmPassword.length > 0 && !passwordsMatch && (
+                    <p className="text-xs text-red-500">Passwords do not match.</p>
+                  )}
                 </div>
-                <Button type="submit" className="w-full" disabled={pwLoading}>
+                <Button type="submit" className="w-full" disabled={pwLoading || !canPwSubmit}>
                   {pwLoading ? 'Updating...' : 'Update Password'}
                 </Button>
               </form>

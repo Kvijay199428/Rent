@@ -13,6 +13,7 @@ from app.api.sync import router as sync_api_router
 from app.api.sync_ws import router as sync_ws_router
 from app.api.public import router as public_api_router
 from app.api.health import router as health_api_router
+from app.api.location import router as location_api_router
 from app.api.dashboard import router as dashboard_api_router
 from app.api.landlord_setup import router as landlord_setup_router
 from app.routers.auth import router as auth_api_router
@@ -54,6 +55,7 @@ PUBLIC_API_ROUTERS = [
     health_api_router,
     auth_api_router,
     tenant_pdf_api_router,
+    location_api_router,
 ]
 
 ADMIN_AUTH_ROUTERS = [

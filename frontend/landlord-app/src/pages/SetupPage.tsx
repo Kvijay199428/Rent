@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,17 +14,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
 import PhoneInputField from "@shared/phone/PhoneInput";
 import { Logo } from "@shared/brand/Logo";
+import AddressFields from "@shared/address/AddressFields";
+import type { StructuredAddress } from "@shared/address/address";
+import { EMPTY_ADDRESS } from "@shared/address/address";
+import { serializeAddress } from "@shared/address/formatAddress";
+import { detectCountry } from "@shared/address/countryDetection";
 
 interface PropertyRow {
   property_name: string;
-  address: string;
+  address: StructuredAddress;
 }
 
 interface LandlordProfile {
   name: string;
   phone: string;
   email: string;
-  address: string;
+  address: StructuredAddress;
   signature_image: string;
   bank_account_name: string;
   bank_account_number: string;
@@ -50,7 +55,7 @@ export default function SetupPage() {
     name: "",
     phone: "",
     email: "",
-    address: "",
+    address: { ...EMPTY_ADDRESS },
     signature_image: "",
     bank_account_name: "",
     bank_account_number: "",
@@ -60,12 +65,23 @@ export default function SetupPage() {
     mask_bank_account: false,
   });
   const [properties, setProperties] = useState<PropertyRow[]>([
-    { property_name: "Property 1", address: "" },
+    { property_name: "Property 1", address: { ...EMPTY_ADDRESS } },
   ]);
+  const [country, setCountry] = useState("");
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
   const [signaturePreview, setSignaturePreview] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    detectCountry().then((c) => {
+      if (active) setCountry(c);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const destinations = useMemo(() => {
     const uuid = landlordUuid || "";
@@ -90,14 +106,14 @@ export default function SetupPage() {
   const addProperty = () => {
     setProperties((prev) => {
       const nextName = `Property ${prev.length + 1}`;
-      return [...prev, { property_name: nextName, address: "" }];
+      return [...prev, { property_name: nextName, address: { ...EMPTY_ADDRESS } }];
     });
   };
 
   const removeProperty = (index: number) => {
     setProperties((prev) => {
       const next = prev.filter((_, i) => i !== index);
-      return next.length ? next : [{ property_name: "Property 1", address: "" }];
+      return next.length ? next : [{ property_name: "Property 1", address: { ...EMPTY_ADDRESS } }];
     });
   };
 
@@ -139,7 +155,7 @@ export default function SetupPage() {
     const validProps = properties
       .map((p) => ({
         property_name: p.property_name.trim() || defaultName(0),
-        address: p.address.trim(),
+        address: serializeAddress(p.address),
       }))
       .filter((p) => p.property_name);
 
@@ -156,7 +172,7 @@ export default function SetupPage() {
         signaturePath = await api.uploadSignature(landlordUuid, signatureFile);
       }
       await api.completeSetup({
-        landlord: { ...profile, signature_image: signaturePath },
+        landlord: { ...profile, address: serializeAddress(profile.address), signature_image: signaturePath },
         properties: validProps,
       });
       setSetupState(true, false);
@@ -273,13 +289,16 @@ export default function SetupPage() {
                       />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="setup-address">Address</Label>
-                      <Input
-                        id="setup-address"
+                      <Label>Address</Label>
+                      <AddressFields
                         value={profile.address}
-                        onChange={(e) => setProfile({ ...profile, address: e.target.value })}
-                        placeholder="This address prints on your rent receipts"
+                        onChange={(address) => setProfile({ ...profile, address })}
+                        country={country}
+                        idPrefix="setup-address"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        This address prints on your rent receipts
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -322,25 +341,23 @@ export default function SetupPage() {
                             </Button>
                           )}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label htmlFor={`prop-name-${index}`} className="text-xs">Property name</Label>
-                            <Input
-                              id={`prop-name-${index}`}
-                              value={p.property_name}
-                              onChange={(e) => updateProperty(index, { property_name: e.target.value })}
-                              placeholder={defaultName(index)}
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor={`prop-address-${index}`} className="text-xs">Address</Label>
-                            <Input
-                              id={`prop-address-${index}`}
-                              value={p.address}
-                              onChange={(e) => updateProperty(index, { address: e.target.value })}
-                              placeholder="Property address (optional)"
-                            />
-                          </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`prop-name-${index}`} className="text-xs">Property name</Label>
+                          <Input
+                            id={`prop-name-${index}`}
+                            value={p.property_name}
+                            onChange={(e) => updateProperty(index, { property_name: e.target.value })}
+                            placeholder={defaultName(index)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Address</Label>
+                          <AddressFields
+                            value={p.address}
+                            onChange={(address) => updateProperty(index, { address })}
+                            country={country}
+                            idPrefix={`prop-address-${index}`}
+                          />
                         </div>
                       </div>
                     ))}

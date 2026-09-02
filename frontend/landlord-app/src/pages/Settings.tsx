@@ -7,6 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import AddressFields from '@shared/address/AddressFields';
+import type { StructuredAddress } from '@shared/address/address';
+import { parseLegacyAddress, serializeAddress } from '@shared/address/formatAddress';
+import { detectCountry } from '@shared/address/countryDetection';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/services/api';
 import { ROUTES } from '@/lib/routes';
@@ -61,8 +65,27 @@ export default function Settings() {
   const [qrLoading, setQrLoading] = useState(false);
   const [props, setProps] = useState<Property[]>([]);
   const [propsSaving, setPropsSaving] = useState(false);
+  const [propsAddr, setPropsAddr] = useState<Record<string, StructuredAddress>>({});
   const toast = useToast();
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const [landlordAddr, setLandlordAddr] = useState<StructuredAddress>({});
+  const [country, setCountry] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    detectCountry().then((c) => {
+      if (active) setCountry(c);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (config) {
+      setLandlordAddr(parseLegacyAddress(config.landlord?.address || ''));
+    }
+  }, [config]);
 
   const loadConfig = async () => {
     try {
@@ -79,7 +102,13 @@ export default function Settings() {
   const loadProperties = async () => {
     if (!landlordUuid) return;
     try {
-      setProps(await api.getProperties(landlordUuid));
+      const list = await api.getProperties(landlordUuid);
+      setProps(list);
+      const addrMap: Record<string, StructuredAddress> = {};
+      list.forEach((p) => {
+        if (p.id != null) addrMap[String(p.id)] = parseLegacyAddress(p.address || '');
+      });
+      setPropsAddr(addrMap);
     } catch {
       setProps([]);
     }
@@ -92,12 +121,22 @@ export default function Settings() {
     }
   }, [landlordUuid]);
 
+  const newPropKeyRef = useRef(0);
+
   const handlePropsAdd = () => {
-    setProps([...props, { property_name: '', address: '' } as Property]);
+    const tempId = --newPropKeyRef.current;
+    const row = { id: tempId, property_name: '', address: '' } as Property;
+    setProps([...props, row]);
+    setPropsAddr((m) => ({ ...m, [String(tempId)]: {} }));
   };
 
   const handlePropsChange = (row: Property, patch: Partial<Property>) => {
     setProps(props.map((x) => (x === row ? { ...x, ...patch } : x)));
+  };
+
+  const handlePropsAddrChange = (row: Property, addr: StructuredAddress) => {
+    const key = row.id != null ? String(row.id) : String(newPropKeyRef.current);
+    setPropsAddr((m) => ({ ...m, [key]: addr }));
   };
 
   const handlePropsSave = async () => {
@@ -106,15 +145,17 @@ export default function Settings() {
     try {
       for (const p of props) {
         if (!p.property_name.trim()) continue;
-        if (p.id) {
+        const key = p.id != null ? String(p.id) : '0';
+        const serialized = serializeAddress(propsAddr[key] || {});
+        if (p.id && p.id > 0) {
           await api.updateProperty(landlordUuid, p.id, {
             property_name: p.property_name,
-            address: p.address ?? '',
+            address: serialized,
           });
         } else {
           await api.createProperty(landlordUuid, {
             property_name: p.property_name,
-            address: p.address ?? '',
+            address: serialized,
           });
         }
       }
@@ -554,7 +595,15 @@ export default function Settings() {
 
               <div className="space-y-2">
                 <Label>Property Address</Label>
-                <Textarea value={config.landlord.address} onChange={(e) => updateLandlord('address', e.target.value)} rows={3} />
+                <AddressFields
+                  value={landlordAddr}
+                  onChange={(addr) => {
+                    setLandlordAddr(addr);
+                    updateLandlord('address', serializeAddress(addr));
+                  }}
+                  country={country}
+                  idPrefix="settings-landlord-address"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -780,36 +829,42 @@ export default function Settings() {
                   No properties yet. Add your first property below.
                 </p>
               )}
-              {props.map((p, idx) => (
-                <div key={p.id ?? `new-${idx}`} className="flex flex-col sm:flex-row gap-3 items-end rounded-md border p-3">
-                  <div className="flex-1 space-y-1.5">
-                    <Label className="text-xs">Property name</Label>
-                    <Input
-                      value={p.property_name}
-                      onChange={(e) => handlePropsChange(p, { property_name: e.target.value })}
-                      placeholder="e.g. Lakshmi Nivas"
-                    />
+              {props.map((p, idx) => {
+                const addrKey = p.id != null ? String(p.id) : String(newPropKeyRef.current);
+                return (
+                  <div key={p.id ?? `new-${idx}`} className="rounded-md border p-3 space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Property name</Label>
+                      <Input
+                        value={p.property_name}
+                        onChange={(e) => handlePropsChange(p, { property_name: e.target.value })}
+                        placeholder="e.g. Lakshmi Nivas"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Address</Label>
+                      <AddressFields
+                        value={propsAddr[addrKey] || {}}
+                        onChange={(addr) => handlePropsAddrChange(p, addr)}
+                        country={country}
+                        idPrefix={`settings-prop-address-${idx}`}
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePropsDelete(p)}
+                        disabled={propsSaving}
+                        aria-label="Delete property"
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex-[2] space-y-1.5">
-                    <Label className="text-xs">Address</Label>
-                    <Input
-                      value={p.address ?? ''}
-                      onChange={(e) => handlePropsChange(p, { address: e.target.value })}
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handlePropsDelete(p)}
-                    disabled={propsSaving}
-                    aria-label="Delete property"
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
               <div className="flex flex-wrap gap-3">
                 <Button variant="outline" size="sm" onClick={handlePropsAdd}>
                   <Plus className="h-4 w-4 mr-1" /> Add Property

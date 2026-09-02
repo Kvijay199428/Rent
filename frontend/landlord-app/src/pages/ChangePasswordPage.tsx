@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -11,11 +11,25 @@ import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
 import { ROUTES } from '@/lib/routes';
 import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
+interface PasswordRule {
+  label: string;
+  test: (pw: string) => boolean;
+}
+
+const PASSWORD_RULES: PasswordRule[] = [
+  { label: 'At least 8 characters', test: (pw) => pw.length >= 8 },
+  { label: 'Contains an uppercase letter', test: (pw) => /[A-Z]/.test(pw) },
+  { label: 'Contains a lowercase letter', test: (pw) => /[a-z]/.test(pw) },
+  { label: 'Contains a digit', test: (pw) => /\d/.test(pw) },
+  { label: 'Contains a special character (!@#$%^&*_...)', test: (pw) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(pw) },
+  { label: 'No spaces', test: (pw) => !/\s/.test(pw) },
+];
+
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isGoogleSignup = searchParams.get('from') === 'google';
-  const { changePassword, landlordUuid, hasTotp } = useAuth();
+  const { changePassword, landlordUuid, hasTotp, username } = useAuth();
   const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -25,6 +39,14 @@ export default function ChangePasswordPage() {
   const [countdown, setCountdown] = useState(5);
   const [totpData, setTotpData] = useState<any>(null);
   const [showTotpModal, setShowTotpModal] = useState(false);
+
+  const ruleResults = useMemo(
+    () => PASSWORD_RULES.map((r) => ({ ...r, pass: r.test(form.newPassword) })),
+    [form.newPassword],
+  );
+  const allRulesPass = ruleResults.every((r) => r.pass);
+  const passwordsMatch = form.newPassword.length > 0 && form.confirmPassword.length > 0 && form.newPassword === form.confirmPassword;
+  const canSubmit = allRulesPass && passwordsMatch && (!isGoogleSignup ? form.currentPassword.length > 0 : true);
 
   useEffect(() => {
     if (!success || !isGoogleSignup) return;
@@ -41,12 +63,8 @@ export default function ChangePasswordPage() {
     setError('');
     setSuccess('');
 
-    if (form.newPassword !== form.confirmPassword) {
-      setError('New passwords do not match.');
-      return;
-    }
-    if (form.newPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (!canSubmit) {
+      setError('Please meet all password requirements.');
       return;
     }
     if (!isGoogleSignup && form.currentPassword === form.newPassword) {
@@ -118,6 +136,11 @@ export default function ChangePasswordPage() {
           <CardTitle className="text-2xl text-center">
             {isGoogleSignup ? 'Set Your Password' : 'Change Your Password'}
           </CardTitle>
+          {username && (
+            <p className="text-center text-sm font-medium text-muted-foreground">
+              {username}
+            </p>
+          )}
           <CardDescription className="text-center">
             {isGoogleSignup
               ? 'Your account was created with Google. Set a password to finish creating your account.'
@@ -182,11 +205,11 @@ export default function ChangePasswordPage() {
                   <Input
                     id="newPassword"
                     type={showNew ? 'text' : 'password'}
-                    placeholder="Enter new password (min 6 characters)"
+                    placeholder="Enter new password (min 8 characters)"
                     value={form.newPassword}
                     onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
                     required
-                    minLength={6}
+                    minLength={8}
                     autoFocus={isGoogleSignup}
                   />
                   <button
@@ -197,22 +220,52 @@ export default function ChangePasswordPage() {
                     {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {form.newPassword.length > 0 && (
+                  <ul className="space-y-0.5 mt-1">
+                    {ruleResults.map((r) => (
+                      <li key={r.label} className="flex items-center gap-1.5 text-xs">
+                        {r.pass ? (
+                          <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                        ) : (
+                          <span className="h-3 w-3 rounded-full border border-muted-foreground/30 shrink-0" />
+                        )}
+                        <span className={r.pass ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+                          {r.label}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={form.confirmPassword}
-                  onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                  required
-                  minLength={6}
-                />
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={form.confirmPassword}
+                    onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                    required
+                    minLength={8}
+                  />
+                  {form.confirmPassword.length > 0 && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {passwordsMatch ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <span className="h-4 w-4 rounded-full border-2 border-red-400 block" />
+                      )}
+                    </span>
+                  )}
+                </div>
+                {form.confirmPassword.length > 0 && !passwordsMatch && (
+                  <p className="text-xs text-red-500">Passwords do not match.</p>
+                )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading || !!success}>
+              <Button type="submit" className="w-full" disabled={loading || !!success || !canSubmit}>
                 {isGoogleSignup ? 'Set Password' : 'Update Password'}
               </Button>
             </form>
