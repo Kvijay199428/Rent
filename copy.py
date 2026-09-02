@@ -35,6 +35,7 @@ EXCLUDE_FILES = [
     "*.tsbuildinfo",
     ".gitkeep",
     "rent.md",
+    "propaura.md",
     "update.zip",
 ]
 
@@ -56,10 +57,12 @@ IGNORE_DIRS = {
     ".rent_test_assets", ".sample", "venv", ".venv",
     ".opencode", ".gstack",
     ".restore_backup_*",".env",
+    # Not used in the runtime project / dead artifacts:
+    ".agents", "audit", "docs", "legacy", "referenceScripts", "branding",
 }
 BINARY_EXT = {".png", ".jpg", ".jpeg", ".gif", ".ico", ".zip", ".xlsx",
               ".xls", ".db", ".pyc", ".pyd", ".so", ".woff", ".woff2",
-              ".ttf", ".eot", ".mp3", ".mp4", ".pdf", ".exe"}
+              ".ttf", ".eot", ".mp3", ".mp4", ".pdf", ".exe", ".cdr"}
 
 LANG_MAP = {
     ".py": "python",
@@ -158,7 +161,8 @@ def main():
         size_kb = size / 1024
         print(f"  [{i:3d}/{len(files)}]  {rel:70s}  {size_kb:>7.1f} KB")
         lang = guess_lang(rel)
-        sections.append(f"### `{rel}`\n\n```{lang}\n{content}```")
+        rel_posix = rel.replace(os.sep, "/")
+        sections.append(f"### `{rel_posix}`\n\n```{lang}\n{content}```")
         size_total += size
 
     print()
