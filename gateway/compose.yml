@@ -1,23 +1,8 @@
+# Legacy standalone gateway edge is retired — see compose.dev.yml (dev) and
+# compose.prod.yml (release) at the repo root. This file now only runs the
+# cloudflared tunnel (ingress set by CLOUDFLARE_TUNNEL_TOKEN; Cloudflare state
+# itself is untouched — only the local ingress target differs per stack).
 services:
-  gateway:
-    image: nginx:1.27-alpine
-    container_name: propaura_legacy_gateway
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./html:/usr/share/nginx/html:ro
-    networks:
-      - propaura_net
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: propaura_cloudflared
@@ -29,7 +14,3 @@ services:
       - run
       - --token
       - ${CLOUDFLARE_TUNNEL_TOKEN}
-
-networks:
-  propaura_net:
-    external: true

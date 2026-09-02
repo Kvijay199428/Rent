@@ -14,6 +14,11 @@ except ImportError:
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOCAL_DIR = BASE_DIR
+DEPLOY_DIR = os.path.join(BASE_DIR, "deploy")
+if DEPLOY_DIR not in sys.path:
+    sys.path.insert(0, DEPLOY_DIR)
+
+import ports as deploy_ports  # noqa: E402  (single source of truth for canonical ports)
 ZIP_FILE = os.path.join(BASE_DIR, "update.zip")
 REMOTE_ZIP = "/home/vega/update.zip"
 REMOTE_DIR_DEV = "/home/vega/propaura-dev"
@@ -94,8 +99,8 @@ parser = argparse.ArgumentParser(
            "  --all         ship the entire repo (default)\n"
            "  --frontend    ship only frontend/\n"
            "  --backend     ship only backend/\n"
-           "  --storage     ship storage/ incl. SQLite DBs (overwrites server data)\n"
-           "  --database    ship database schema code + rent.db\n"
+"  --storage     ship storage/ data (keys, backups; overwrites server data)\n"
+            "  --database    ship database schema + migrations (backend/app/app/db)\n"
            "  e.g. python deploy.py --dev --sshPublic --backend   # only backend fixes\n"
            "\n"
            "Exit codes: 1 build/zip, 2 connectivity, 3 auth, 4 upload,\n"
@@ -118,8 +123,8 @@ scope_group = parser.add_mutually_exclusive_group()
 scope_group.add_argument("--all", action="store_true", help="Ship the entire repo (default).")
 scope_group.add_argument("--frontend", action="store_true", help="Ship only frontend/ (and root infra files).")
 scope_group.add_argument("--backend", action="store_true", help="Ship only backend/ (and root infra files).")
-scope_group.add_argument("--storage", action="store_true", help="Ship storage/ including SQLite DBs — overwrites server data with local data.")
-scope_group.add_argument("--database", action="store_true", help="Ship database schema code (backend/app/app/database, core/db.py) + rent.db.")
+scope_group.add_argument("--storage", action="store_true", help="Ship storage/ data (keys, backups) — overwrites server data with local data. PostgreSQL data lives in named volumes and is NOT shipped.")
+scope_group.add_argument("--database", action="store_true", help="Ship database schema + migrations (backend/app/app/db, database/, core/db.py).")
 
 parser.add_argument("--clean", action="store_true", help="Full rebuild: remove containers, images, volumes, and rebuild from scratch. NOT supported with --prod/--release or scoped flags (implies --all).")
 parser.add_argument("--no-build", action="store_true", help="Skip frontend npm builds (useful for backend-only changes).")
@@ -135,7 +140,7 @@ github_mode = args.main or args.release
 REMOTE_DIR = REMOTE_DIR_PROD if env == ENV_PROD else REMOTE_DIR_DEV
 
 if env == ENV_PROD and args.clean:
-    parser.error("--clean is not supported for --prod/--release: it would delete the server repo and wipe storage/release (SQLite). Use the rollback path in deploy/deploy-release.sh instead.")
+    parser.error("--clean is not supported for --prod/--release: it would delete the server repo and wipe storage/release and the pgdata_prod PostgreSQL volume. Use the rollback path in deploy/deploy-release.sh instead.")
 
 # Scope: which components are shipped. Default --all.
 SCOPES = ("all", "frontend", "backend", "storage", "database")
@@ -156,6 +161,7 @@ SCOPE_PATHS = {
     "backend": ["backend"],
     "storage": ["storage"],
     "database": [
+        "backend/app/app/db",
         "backend/app/app/database",
         "backend/app/app/core/db.py",
     ],
@@ -370,6 +376,16 @@ def _load_barsep_env(path):
             key, _, value = line.partition("=")
             data[key.strip()] = value.strip().strip('"').strip("'")
     return data
+
+
+def write_ports_env():
+    """Regenerate deploy/ports.env from deploy/ports.py (canonical port
+    registry) so bash scripts (deploy-release.sh, self-pull.sh) and the
+    compose env files always agree with the single source of truth."""
+    path = os.path.join(DEPLOY_DIR, "ports.env")
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(deploy_ports.ports_env_lines())
+    print(f"  Regenerated {path} from deploy/ports.py")
 
 
 def provision_frontend_env(env_source):
@@ -722,6 +738,8 @@ def main():
     print(f" SCOPE: {scope.upper()}")
     print(f" BUILD: {'skip' if not build_enabled else 'yes'}")
     print("=" * 50)
+
+    write_ports_env()
 
     if args.self_test:
         run_self_test()

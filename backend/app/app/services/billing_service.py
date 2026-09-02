@@ -14,7 +14,7 @@ from app.core.paths import DB_DIR, BACKUPS_DIR as BACKUP_DIR, RECEIPTS_DIR
 
 def get_bill_details(tenantId, billNo):
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s", (tenantId, billNo)).fetchone()
     if row:
         return _row_to_dict(row)
     return None
@@ -94,14 +94,14 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
     if landlord_id is not None and not get_tenant(tenantId, landlord_id):
         raise ValueError("Tenant not found")
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s", (tenantId, billNo)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
 
         # Normalize the chain first so validation and the PAID default use the
         # authoritative running balance entering this bill.
         recompute_tenant_arrear_chain(conn, tenantId)
-        row = conn.execute("SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        row = conn.execute("SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s", (tenantId, billNo)).fetchone()
 
         currentTotal = float(row["total"])
         previousArrears = float(row["previousarrears"])
@@ -140,8 +140,8 @@ def update_paymentStatus(tenantId, billNo, requestedStatus, amountReceived=None,
         
         conn.execute("""
             UPDATE receipts 
-            SET paymentstatus = ?, amountreceived = ?
-            WHERE tenantId = ? AND billNo = ?
+            SET paymentstatus = %s, amountreceived = %s
+            WHERE tenantId = %s AND billNo = %s
         """, (finalStatus, amountReceived, tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
@@ -263,7 +263,7 @@ def get_tenant_balance(tenant_id: int) -> float:
     with get_conn() as conn:
         row = conn.execute(
             "SELECT COALESCE(SUM(COALESCE(total,0)),0) - COALESCE(SUM(COALESCE(amountreceived,0)),0) AS balance "
-            "FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+            "FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
             (tenant_id,),
         ).fetchone()
     return round(float(row["balance"] or 0), 2)
@@ -285,7 +285,7 @@ def recompute_tenant_arrear_chain(conn, tenant_id: int) -> list:
     from app.services.landlord_config_service import get_effective_landlord_config
 
     rows = conn.execute(
-        "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+        "SELECT id AS rowid, * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
         (tenant_id,),
     ).fetchall()
 
@@ -303,7 +303,7 @@ def recompute_tenant_arrear_chain(conn, tenant_id: int) -> list:
         actual_prev = round(float(r["previousarrears"] or 0), 2)
         if abs(expected_prev - actual_prev) > 0.001:
             conn.execute(
-                "UPDATE receipts SET previousarrears = ? WHERE billNo = ? AND tenantId = ?",
+                "UPDATE receipts SET previousarrears = %s WHERE billNo = %s AND tenantId = %s",
                 (expected_prev, r["billNo"], tenant_id),
             )
             changed.append(r["billNo"])
@@ -313,7 +313,7 @@ def recompute_tenant_arrear_chain(conn, tenant_id: int) -> list:
         try:
             conf = get_effective_landlord_config(landlord_id) if landlord_id else {}
             fresh = conn.execute(
-                "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+                "SELECT id AS rowid, * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
                 (tenant_id,),
             ).fetchall()
             fresh_by_no = {r["billNo"]: r for r in fresh}
@@ -352,11 +352,11 @@ def get_all_receipts(include_archived_tenants: bool = False, landlord_id=None):
     clauses = []
     params: list = []
     if landlord_id is not None:
-        clauses.append("landlord_id = ?")
+        clauses.append("landlord_id = %s")
         params.append(landlord_id)
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with get_conn() as conn:
-        rows = conn.execute(f"SELECT * FROM receipts{where} ORDER BY rowid DESC", tuple(params)).fetchall()
+        rows = conn.execute(f"SELECT * FROM receipts{where} ORDER BY id DESC", tuple(params)).fetchall()
     
     receipts = [_row_to_dict(r) for r in rows]
     
@@ -381,10 +381,10 @@ def get_receipts_for_tenant(tenant_id: int, include_archived: bool = False, land
 def get_receipt(tenantId, billNo, landlord_id=None):
     from app.core.db import get_conn
     with get_conn() as conn:
-        query = "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?"
+        query = "SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s"
         params: list = [tenantId, billNo]
         if landlord_id is not None:
-            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)"
+            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = %s)"
             params.append(landlord_id)
         row = conn.execute(query, tuple(params)).fetchone()
     if row:
@@ -414,7 +414,7 @@ def _get_bill_predecessor(conn, tenant_id: int, target_bill_no: str):
     falls back to tenant.previousMeter.
     """
     rows = conn.execute(
-        "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+        "SELECT id AS rowid, * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
         (tenant_id,),
     ).fetchall()
     target_seq = _bill_sequence(target_bill_no)
@@ -429,10 +429,10 @@ def _get_bill_predecessor(conn, tenant_id: int, target_bill_no: str):
 
 def get_latest_receipt(tenantId: int, exclude_BillNo: str = None):
     with get_conn() as conn:
-        query = "SELECT * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'"
+        query = "SELECT * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'"
         params = [tenantId]
         if exclude_BillNo:
-            query += " AND billNo != ?"
+            query += " AND billNo != %s"
             params.append(exclude_BillNo)
         rows = conn.execute(query, tuple(params)).fetchall()
     # Order by bill sequence (T{n}-{seq}) so chain resolution and create-bill
@@ -472,7 +472,7 @@ def _rebuild_meter_chain(conn, tenant_id: int, starting_bill_no: str,
     from app.services.landlord_config_service import get_effective_landlord_config
 
     rows = conn.execute(
-        "SELECT rowid, * FROM receipts WHERE tenantId = ? AND status != 'ARCHIVED'",
+        "SELECT id AS rowid, * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
         (tenant_id,),
     ).fetchall()
     if not rows:
@@ -511,8 +511,8 @@ def _rebuild_meter_chain(conn, tenant_id: int, starting_bill_no: str,
         )
         if changed_fields:
             conn.execute(
-                "UPDATE receipts SET previous = ?, units = ?, electricity = ?, total = ? "
-                "WHERE billNo = ? AND tenantId = ?",
+                "UPDATE receipts SET previous = %s, units = %s, electricity = %s, total = %s "
+                "WHERE billNo = %s AND tenantId = %s",
                 (new_prev, units, electricity, total, r["billNo"], tenant_id),
             )
             changed.append(r["billNo"])
@@ -523,13 +523,13 @@ def _rebuild_meter_chain(conn, tenant_id: int, starting_bill_no: str,
             _lid = landlord_id
             if _lid is None:
                 _lrow = conn.execute(
-                    "SELECT landlord_id FROM tenants WHERE id = ?", (tenant_id,)
+                    "SELECT landlord_id FROM tenants WHERE id = %s", (tenant_id,)
                 ).fetchone()
                 _lid = _lrow["landlord_id"] if _lrow else None
             conf = get_effective_landlord_config(_lid) if _lid else {}
             for bill_no in changed:
                 fresh = conn.execute(
-                    "SELECT rowid, * FROM receipts WHERE billNo = ? AND tenantId = ?",
+                    "SELECT id AS rowid, * FROM receipts WHERE billNo = %s AND tenantId = %s",
                     (bill_no, tenant_id),
                 ).fetchone()
                 if fresh is None:
@@ -605,12 +605,12 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
     # Count existing receipts for THIS specific tenant
     with get_conn() as conn:
         tenant_receipt_count = conn.execute(
-            "SELECT COUNT(*) FROM receipts WHERE tenantId = ?", 
+            "SELECT COUNT(*) FROM receipts WHERE tenantId = %s", 
             (tenant.id,)
         ).fetchone()[0]
         # Resolve the tenant's landlord so the receipt stays visible to them
         _lrow = conn.execute(
-            "SELECT landlord_id FROM tenants WHERE id = ?", (tenant.id,)
+            "SELECT landlord_id FROM tenants WHERE id = %s", (tenant.id,)
         ).fetchone()
         tenant_landlord_id = _lrow["landlord_id"] if _lrow else None
     
@@ -688,7 +688,7 @@ def create_bill(tenantId, month, current_reading, additional_persons, tankWater,
                 archiveddate, archivedby, deleteddate, additionalpersons,
                 additionalpersonrate, receiptversion, generatedby, paymentstatus,
                 maintenancecharge, maintenancedesc, previousarrears, amountreceived, landlord_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             billNo, current_date, month, tenant.id, tenantName, prev, current_reading,
             charges["units"], tenant.rent, charges["additional"], tenant.water, tankWater,
@@ -722,10 +722,10 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     from app.core.paths import RECEIPTS_DIR
     
     with get_conn() as conn:
-        query = "SELECT * FROM receipts WHERE tenantId = ? AND billNo = ?"
+        query = "SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s"
         params: list = [tenantId, billNo]
         if landlord_id is not None:
-            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)"
+            query += " AND tenantId IN (SELECT id FROM tenants WHERE landlord_id = %s)"
             params.append(landlord_id)
         row = conn.execute(query, tuple(params)).fetchone()
         if not row:
@@ -777,7 +777,7 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     with get_conn() as conn:
         recompute_tenant_arrear_chain(conn, tenantId)
         _row = conn.execute(
-            "SELECT previousarrears FROM receipts WHERE tenantId = ? AND billNo = ?",
+            "SELECT previousarrears FROM receipts WHERE tenantId = %s AND billNo = %s",
             (tenantId, billNo),
         ).fetchone()
     previousArrears = float(_row["previousarrears"] or 0) if _row else 0.0
@@ -855,13 +855,13 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
     with get_conn() as conn:
         conn.execute("""
             UPDATE receipts SET
-                month = ?, tenantId = ?, tenant = ?, previous = ?, current = ?, units = ?, rent = ?,
-                additional = ?, water = ?, tankWater = ?, electricity = ?, total = ?,
-                pdf = ?, tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?,
-                additionalpersons = ?, additionalpersonrate = ?, paymentstatus = ?,
-                maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?,
-                property_id = ?
-            WHERE billNo = ?
+                month = %s, tenantId = %s, tenant = %s, previous = %s, current = %s, units = %s, rent = %s,
+                additional = %s, water = %s, tankWater = %s, electricity = %s, total = %s,
+                pdf = %s, tenantphone = %s, tenantcompany = %s, tenantaddress = %s, rate = %s,
+                additionalpersons = %s, additionalpersonrate = %s, paymentstatus = %s,
+                maintenancecharge = %s, maintenancedesc = %s, previousarrears = %s, amountreceived = %s,
+                property_id = %s
+            WHERE billNo = %s
         """, (
             month, tenant.id, tenantName, prev, current_reading, charges["units"], rent,
             charges["additional"], water, tankWater, charges["electricity"], charges["total"],
@@ -876,7 +876,7 @@ def update_bill(tenantId, billNo, month, current_reading, additional_persons, ta
         # receipt snapshots (those keep the per-bill values written above) and
         # does NOT touch tenants.property_id.
         conn.execute(
-            "UPDATE tenants SET rent = ?, water = ?, electricityrate = ?, additionalpersoncharge = ? WHERE id = ?",
+            "UPDATE tenants SET rent = %s, water = %s, electricityrate = %s, additionalpersoncharge = %s WHERE id = %s",
             (rent, water, electricity_rate, additional_person_rate, tenantId),
         )
         # If the edited bill's current reading changed, every downstream bill
@@ -906,15 +906,15 @@ def archive_bill(tenantId, billNo, landlord_id=None):
         raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT status FROM receipts WHERE tenantId = ? AND billNo = ?",
+            "SELECT status FROM receipts WHERE tenantId = %s AND billNo = %s",
             (tenantId, billNo),
         ).fetchone()
         if not row:
             raise ValueError("Bill not found for this tenant.")
 
         conn.execute("""
-            UPDATE receipts SET status = 'ARCHIVED', archiveddate = ?, archivedby = 'Admin'
-            WHERE tenantId = ? AND billNo = ? AND status != 'ARCHIVED'
+            UPDATE receipts SET status = 'ARCHIVED', archiveddate = %s, archivedby = 'Admin'
+            WHERE tenantId = %s AND billNo = %s AND status != 'ARCHIVED'
         """, (datetime.now().strftime("%Y-%m-%d"), tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
@@ -927,7 +927,7 @@ def restore_bill(tenantId, billNo, landlord_id=None):
         raise ValueError("Tenant not found")
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT status, tenantId FROM receipts WHERE tenantId = ? AND billNo = ?",
+            "SELECT status, tenantId FROM receipts WHERE tenantId = %s AND billNo = %s",
             (tenantId, billNo),
         ).fetchone()
         if not row:
@@ -935,7 +935,7 @@ def restore_bill(tenantId, billNo, landlord_id=None):
 
         conn.execute("""
             UPDATE receipts SET status = 'ACTIVE', archiveddate = '', archivedby = ''
-            WHERE tenantId = ? AND billNo = ? AND status != 'ACTIVE'
+            WHERE tenantId = %s AND billNo = %s AND status != 'ACTIVE'
         """, (tenantId, billNo))
         recompute_tenant_arrear_chain(conn, tenantId)
         conn.commit()
@@ -947,7 +947,7 @@ def delete_bill(tenantId, billNo, landlord_id=None):
     if landlord_id is not None and not get_tenant(tenantId, landlord_id):
         raise ValueError("Tenant not found")
     with get_conn() as conn:
-        row = conn.execute("SELECT status, tenantId FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo)).fetchone()
+        row = conn.execute("SELECT status, tenantId FROM receipts WHERE tenantId = %s AND billNo = %s", (tenantId, billNo)).fetchone()
         if not row:
             raise ValueError("Receipt not found")
 
@@ -960,7 +960,7 @@ def delete_bill(tenantId, billNo, landlord_id=None):
         if not (is_archived or is_tenant_archived):
             raise ValueError("Only archived receipts can be permanently deleted.")
 
-        conn.execute("DELETE FROM receipts WHERE tenantId = ? AND billNo = ?", (tenantId, billNo))
+        conn.execute("DELETE FROM receipts WHERE tenantId = %s AND billNo = %s", (tenantId, billNo))
         conn.commit()
 
 
@@ -1224,18 +1224,18 @@ def save_all_receipts(receipts_list):
 
             tenantName = r.get("Tenant", "")  # display snapshot only
 
-            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ?", (billNo,)).fetchone()
+            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = %s", (billNo,)).fetchone()
 
             if exists:
                 conn.execute("""
                     UPDATE receipts SET
-                        date = ?, month = ?, tenantId = ?, tenant = ?, previous = ?, current = ?, units = ?, rent = ?,
-                        additional = ?, water = ?, tankWater = ?, electricity = ?, total = ?, pdf = ?,
-                        tenantphone = ?, tenantcompany = ?, tenantaddress = ?, rate = ?, status = ?,
-                        archiveddate = ?, archivedby = ?, deleteddate = ?, additionalpersons = ?,
-                        additionalpersonrate = ?, receiptversion = ?, generatedby = ?, paymentstatus = ?,
-                        maintenancecharge = ?, maintenancedesc = ?, previousarrears = ?, amountreceived = ?
-                    WHERE billNo = ?
+                        date = %s, month = %s, tenantId = %s, tenant = %s, previous = %s, current = %s, units = %s, rent = %s,
+                        additional = %s, water = %s, tankWater = %s, electricity = %s, total = %s, pdf = %s,
+                        tenantphone = %s, tenantcompany = %s, tenantaddress = %s, rate = %s, status = %s,
+                        archiveddate = %s, archivedby = %s, deleteddate = %s, additionalpersons = %s,
+                        additionalpersonrate = %s, receiptversion = %s, generatedby = %s, paymentstatus = %s,
+                        maintenancecharge = %s, maintenancedesc = %s, previousarrears = %s, amountreceived = %s
+                    WHERE billNo = %s
                 """, (
                     r.get("Date", ""), r.get("Month", ""), tenantId, tenantName, r.get("Previous", 0), r.get("Current", 0),
                     r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("tankWater", 0),
@@ -1255,7 +1255,7 @@ def save_all_receipts(receipts_list):
                         archiveddate, archivedby, deleteddate, additionalpersons,
                         additionalpersonrate, receiptversion, generatedby, paymentstatus,
                         maintenancecharge, maintenancedesc, previousarrears, amountreceived
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     billNo, r.get("Date", ""), r.get("Month", ""), tenantId, tenantName, r.get("Previous", 0), r.get("Current", 0),
                     r.get("Units", 0), r.get("Rent", 0), r.get("Additional", 0), r.get("Water", 0), r.get("tankWater", 0),

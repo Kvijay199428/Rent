@@ -21,7 +21,7 @@ def create_tenant_session(tenantId: int, request, remember_me: bool):
         conn.execute("""
             INSERT INTO tenant_sessions
             (session_id, tenantId, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (session_id, tenantId, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
         conn.commit()
         
@@ -29,17 +29,17 @@ def create_tenant_session(tenantId: int, request, remember_me: bool):
 
 def get_tenant_session_db(session_id: str):
     with get_conn() as conn:
-        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = ? AND status = 'Active'", (session_id,)).fetchone()
+        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = %s AND status = 'Active'", (session_id,)).fetchone()
 
 def revoke_tenant_session_db(session_id: str):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE session_id = ?", (now, session_id))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = %s WHERE session_id = %s", (now, session_id))
         conn.commit()
 
 def revoke_all_tenant_sessions(tenantId: int):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = ? WHERE tenantId = ?", (now, tenantId))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = %s WHERE tenantId = %s", (now, tenantId))
         conn.commit()
 

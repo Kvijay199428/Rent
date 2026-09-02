@@ -1,8 +1,15 @@
 # Development stack — isolated from production.
-#   propaura_backend_dev   API on container port 28001 (hot reload), tunneled by ngrok
-#   propaura_frontend_dev  Vite dev server for tenant-app, container port 28002 (host 28003)
-#   propaura_ngrok_dev     tunnels to propaura_backend_dev:28001, dashboard on host 28004 (profile: ngrok)
-#   propaura_nginx_gateway_dev  dev edge nginx, container port 28003 (host 28080)
+#   propaura_frontend_dev       Vite dev server for tenant-app, port 28001 (host published)
+#   propaura_backend_dev        API on container port 28002 (hot reload), host published
+#   propaura_storage_dev        shared storage tree, port 28003 (expose only)
+#   propaura_database_dev       PostgreSQL, port 28004 (expose only; runs on -p 28004)
+#   propaura_nginx_gateway_dev  dev edge nginx, port 28005 (host published, ngrok target)
+#   propaura_ngrok_dev          tunnels to propaura_nginx_gateway_dev:28005,
+#                               dashboard on host 28006 (profile: ngrok)
+#
+# Canonical ports are the single source of truth in deploy/ports.py
+# (regenerated into deploy/ports.env by deploy.py). Host published ports use the
+# same values by default here; override via the *_DEV_PORT vars from the env file.
 #
 # Usage:
 #   docker compose --env-file .env.development -f compose.dev.yml up -d
@@ -14,11 +21,33 @@
 # you run the dev stack somewhere without a host ngrok.
 #
 # Separate network (dev-net) and separate storage (./storage/dev) so dev
-# changes can never touch release traffic.
+# changes can never touch release traffic. PostgreSQL and storage are
+# expose-only: reachable only from inside the compose network.
 
 name: propaura-dev
 
 services:
+  frontend_dev:
+    image: node:22-alpine
+    container_name: propaura_frontend_dev
+    restart: unless-stopped
+    # Mount the whole frontend/ tree so tenant-app's `@shared` alias
+    # (../shared) resolves inside the container, mirroring local dev layout.
+    working_dir: /app/tenant-app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 28001"
+    environment:
+      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
+      - VITE_APP_BASE_PATH=${VITE_APP_BASE_PATH}
+      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
+    ports:
+      - "${FRONTEND_DEV_PORT:-28001}:28001"
+    volumes:
+      - ./frontend:/app
+    networks:
+      - dev-net
+    depends_on:
+      - backend_dev
+
   backend_dev:
     build:
       context: ./backend
@@ -26,16 +55,23 @@ services:
     container_name: propaura_backend_dev
     restart: unless-stopped
     ports:
-      - "${BACKEND_DEV_PORT:-28001}:28001"
+      - "${BACKEND_DEV_PORT:-28002}:28002"
     env_file:
       - .env.development
+    environment:
+      # PostgreSQL access — connection.py falls back to these defaults, but the
+      # password always comes from .env.development (RENT_PGPASSWORD / POSTGRES_PASSWORD).
+      RENT_PGHOST: ${RENT_PGHOST:-propaura_database_dev}
+      RENT_PGPORT: ${RENT_PGPORT:-28004}
+      RENT_PGDATABASE: ${RENT_PGDATABASE:-rent}
+      RENT_PGUSER: ${RENT_PGUSER:-rent}
     command:
       - uvicorn
       - app.main:app
       - --host
       - 0.0.0.0
       - --port
-      - "28001"
+      - "28002"
       - --reload
       - --proxy-headers
       - --forwarded-allow-ips
@@ -48,33 +84,50 @@ services:
       - ./frontend:/code/frontend
     networks:
       - dev-net
+    depends_on:
+      database_dev:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28001/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28002/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
 
-  frontend_dev:
-    image: node:22-alpine
-    container_name: propaura_frontend_dev
+  storage_dev:
+    build:
+      context: ./docker/storage
+    image: propaura-storage
+    container_name: propaura_storage_dev
     restart: unless-stopped
-    # Mount the whole frontend/ tree so tenant-app's `@shared` alias
-    # (../shared) resolves inside the container, mirroring local dev layout.
-    working_dir: /app/tenant-app
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 28002"
-    environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
-      - VITE_APP_BASE_PATH=${VITE_APP_BASE_PATH}
-      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
-    ports:
-      - "${FRONTEND_DEV_PORT:-28003}:28002"
+    expose:
+      - "28003"
     volumes:
-      - ./frontend:/app
+      - ./storage/dev:/data
     networks:
       - dev-net
-    depends_on:
-      - backend_dev
+
+  database_dev:
+    image: postgres:16-alpine
+    container_name: propaura_database_dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rent}
+      POSTGRES_USER: ${POSTGRES_USER:-rent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.development}
+    command: ["postgres", "-p", "28004"]
+    expose:
+      - "28004"
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    networks:
+      - dev-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 28004 -U $$POSTGRES_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   nginx_gateway_dev:
     image: nginx:alpine
@@ -83,7 +136,7 @@ services:
     depends_on:
       - backend_dev
     ports:
-      - "127.0.0.1:28080:28003"
+      - "${NGINX_DEV_PORT:-28005}:28005"
     volumes:
       - ./nginx/dev-gateway.conf:/etc/nginx/nginx.conf:ro
     networks:
@@ -99,13 +152,16 @@ services:
       - ngrok
     environment:
       - NGROK_AUTHTOKEN=${NGROK_AUTH_TOKEN}
-    command: http propaura_backend_dev:28001
+    command: http propaura_nginx_gateway_dev:28005
     ports:
-      - "${NGROK_DASHBOARD_PORT:-28004}:4040"
+      - "${NGROK_DASHBOARD_PORT:-28006}:4040"
     networks:
       - dev-net
     depends_on:
       - backend_dev
+
+volumes:
+  pgdata_dev:
 
 networks:
   dev-net:

@@ -322,8 +322,9 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     now_iso = datetime.utcnow().isoformat()
     with _get_conn() as vault_conn:
         vault_conn.execute(
-            """INSERT OR REPLACE INTO landlord_password_admin_store
-               (landlord_id, encrypted_password, updated_at) VALUES (?, ?, ?)""",
+            """INSERT INTO landlord_password_admin_store
+               (landlord_id, encrypted_password, updated_at) VALUES (%s, %s, %s)
+               ON CONFLICT (landlord_id) DO UPDATE SET encrypted_password = excluded.encrypted_password, updated_at = excluded.updated_at""",
             (landlord["id"], encrypted_pw, now_iso),
         )
         vault_conn.commit()
@@ -496,7 +497,7 @@ async def landlord_login(
         now = datetime.utcnow().isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = ?",
+                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = %s",
                 (landlord["id"],),
             )
             conn.commit()
@@ -632,7 +633,7 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "privacy_consented, privacy_version, "
             "terms_consented, terms_version, "
             "setup_completed, setup_skipped "
-            "FROM landlord_accounts WHERE id = ?",
+            "FROM landlord_accounts WHERE id = %s",
             (principal.landlord_id,),
         ).fetchone()
 
@@ -724,7 +725,7 @@ async def landlord_login_with_totp(
         now = datetime.utcnow().isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = ?",
+                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = %s",
                 (landlord["id"],),
             )
             conn.commit()
@@ -823,7 +824,7 @@ async def landlord_change_password(
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, landlord_uuid, username, password_hash, requires_password_change FROM landlord_accounts WHERE id = ?",
+            "SELECT id, landlord_uuid, username, password_hash, requires_password_change FROM landlord_accounts WHERE id = %s",
             (landlord_id,),
         ).fetchone()
         if not landlord:
@@ -846,22 +847,23 @@ async def landlord_change_password(
     with get_conn() as conn:
         conn.execute(
             """UPDATE landlord_accounts
-               SET password_hash = ?,
+               SET password_hash = %s,
                    requires_password_change = 0,
                    temp_password_created_at = NULL,
                    temp_password_consumed = 0,
-                   updated_at = ?
-               WHERE id = ?""",
+                   updated_at = %s
+               WHERE id = %s""",
             (new_hash, now, landlord_id),
         )
         conn.execute(
-            """INSERT OR REPLACE INTO landlord_password_admin_store
-               (landlord_id, encrypted_password, updated_at) VALUES (?, ?, ?)""",
+            """INSERT INTO landlord_password_admin_store
+               (landlord_id, encrypted_password, updated_at) VALUES (%s, %s, %s)
+               ON CONFLICT (landlord_id) DO UPDATE SET encrypted_password = excluded.encrypted_password, updated_at = excluded.updated_at""",
             (landlord_id, encrypted_pw, now),
         )
         # Check if landlord has TOTP configured
         row = conn.execute(
-            "SELECT totp_secret FROM landlord_accounts WHERE id = ?",
+            "SELECT totp_secret FROM landlord_accounts WHERE id = %s",
             (landlord_id,),
         ).fetchone()
         conn.commit()
@@ -984,7 +986,7 @@ async def landlord_totp_enable(
 
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET totp_enabled = 1, updated_at = ? WHERE id = ?",
+            "UPDATE landlord_accounts SET totp_enabled = 1, updated_at = %s WHERE id = %s",
             (now, landlord["id"]),
         )
         conn.commit()
@@ -1034,7 +1036,7 @@ async def landlord_totp_disable(
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET totp_enabled = 0, updated_at = ? WHERE id = ?",
+            "UPDATE landlord_accounts SET totp_enabled = 0, updated_at = %s WHERE id = %s",
             (now, landlord["id"]),
         )
         conn.commit()
@@ -1091,7 +1093,7 @@ async def landlord_audit_logs(
                 ll.created_at
             FROM landlord_audit_logs ll
             LEFT JOIN landlord_accounts la ON ll.landlord_id = la.id
-            WHERE ll.landlord_id = ?
+            WHERE ll.landlord_id = %s
 
             UNION ALL
 
@@ -1108,30 +1110,30 @@ async def landlord_audit_logs(
                 tl.created_at
             FROM tenant_audit_logs tl
             LEFT JOIN tenants t ON tl.tenantId = t.id
-            WHERE tl.tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)
+            WHERE tl.tenantId IN (SELECT id FROM tenants WHERE landlord_id = %s)
         ) unified
         WHERE 1=1
     """
     params: list = [landlord_id, landlord_id]
 
     if action_type:
-        query += " AND action LIKE ?"
+        query += " AND action LIKE %s"
         params.append(f"%{action_type}%")
     if search:
-        query += " AND (action LIKE ? OR ip_address LIKE ? OR actor_name LIKE ?)"
+        query += " AND (action LIKE %s OR ip_address LIKE %s OR actor_name LIKE %s)"
         params.extend([f"%{search}%"] * 3)
     if date_from:
-        query += " AND created_at >= ?"
+        query += " AND created_at >= %s"
         params.append(date_from)
     if date_to:
-        query += " AND created_at <= ?"
+        query += " AND created_at <= %s"
         params.append(date_to + "T23:59:59")
 
     count_query = "SELECT COUNT(*) FROM (" + query + ")"
     with get_conn() as conn:
         total = conn.execute(count_query, tuple(params)).fetchone()[0]
 
-    query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -1170,10 +1172,10 @@ async def landlord_audit_action_types(
     landlord_id = principal.id
     query = """
         SELECT DISTINCT action FROM (
-            SELECT action FROM landlord_audit_logs WHERE landlord_id = ?
+            SELECT action FROM landlord_audit_logs WHERE landlord_id = %s
             UNION ALL
             SELECT action FROM tenant_audit_logs
-            WHERE tenantId IN (SELECT id FROM tenants WHERE landlord_id = ?)
+            WHERE tenantId IN (SELECT id FROM tenants WHERE landlord_id = %s)
         ) ORDER BY action
     """
     with get_conn() as conn:

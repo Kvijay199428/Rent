@@ -50,7 +50,7 @@ def validate_landlordUuid(value: str) -> None:
 
     from app.core.db import get_conn
     with get_conn() as conn:
-        row = conn.execute("SELECT id FROM landlords WHERE landlordUuid = ? AND active = 1", (value,)).fetchone()
+        row = conn.execute("SELECT id FROM landlords WHERE landlordUuid = %s AND active = 1", (value,)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Landlord not found or inactive")
 

@@ -14,28 +14,28 @@ def create_session_db(session_id, tenantId, refresh_hash, device, ip, expires_at
         conn.execute("""
             INSERT INTO tenant_sessions 
             (session_id, tenantId, refresh_token_hash, device_name, ip_address, created_at, last_activity, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (session_id, tenantId, refresh_hash, device, ip, now, now, expires_at))
         conn.commit()
 
 def get_session_db(session_id):
     with get_conn() as conn:
-        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = ? AND status = 'Active'", (session_id,)).fetchone()
+        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = %s AND status = 'Active'", (session_id,)).fetchone()
 
 def revoke_session_db(session_id):
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE session_id = ?", (session_id,))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE session_id = %s", (session_id,))
         conn.commit()
 
 def revoke_all_tenant_sessions(tenantId):
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE tenantId = ?", (tenantId,))
+        conn.execute("UPDATE tenant_sessions SET status = 'Revoked' WHERE tenantId = %s", (tenantId,))
         conn.commit()
 
 def log_audit(tenantId: int, action: str, ip: str, meta_json: str | None = None):
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO tenant_audit_logs (tenantId, action, ip_address, created_at, meta_json) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO tenant_audit_logs (tenantId, action, ip_address, created_at, meta_json) VALUES (%s, %s, %s, %s, %s)",
             (tenantId, action, ip, datetime.utcnow().isoformat(), meta_json)
         )
         conn.commit()
@@ -46,14 +46,14 @@ def create_admin_session_db(session_id, admin_id, refresh_hash, device, ip, expi
         conn.execute("""
             INSERT INTO admin_sessions
             (session_id, admin_id, refresh_token_hash, device_name, ip_address, created_at, last_activity, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (session_id, admin_id, refresh_hash, device, ip, now, now, expires_at))
         conn.commit()
 
 def get_admin_session_db(session_id):
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM admin_sessions WHERE session_id = ? AND status = 'Active'",
+            "SELECT * FROM admin_sessions WHERE session_id = %s AND status = 'Active'",
             (session_id,)
         ).fetchone()
 
@@ -61,13 +61,13 @@ def get_admin_session_db(session_id):
 def get_admin_by_username(username: str):
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM admins WHERE username = ?", (username,)
+            "SELECT * FROM admins WHERE username = %s", (username,)
         ).fetchone()
 
 def get_admin_by_id(admin_id: int):
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM admins WHERE id = ?", (admin_id,)
+            "SELECT * FROM admins WHERE id = %s", (admin_id,)
         ).fetchone()
 
 def admin_exists() -> bool:
@@ -82,13 +82,14 @@ def create_admin(username: str, password_hash: str, email: str = None) -> dict:
     now = datetime.utcnow().isoformat()
     
     with get_conn() as conn:
-        cursor = conn.execute(
+        row = conn.execute(
             """INSERT INTO admins (username, password_hash, totp_secret, email, created_at, updated_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+               VALUES (%s, %s, %s, %s, %s, %s)
+               RETURNING id""",
             (username, password_hash, totp_secret, email, now, now)
-        )
+        ).fetchone()
         conn.commit()
-        admin_id = cursor.lastrowid
+        admin_id = row["id"]
         
     return {
         "id": admin_id,
@@ -103,7 +104,7 @@ def update_admin_password(admin_id: int, new_password_hash: str):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE admins SET password_hash = ?, updated_at = ? WHERE id = ?",
+            "UPDATE admins SET password_hash = %s, updated_at = %s WHERE id = %s",
             (new_password_hash, now, admin_id)
         )
         conn.commit()
@@ -137,7 +138,7 @@ def regenerate_totp_secret(admin_id: int) -> str:
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE admins SET totp_secret = ?, updated_at = ? WHERE id = ?",
+            "UPDATE admins SET totp_secret = %s, updated_at = %s WHERE id = %s",
             (new_secret, now, admin_id)
         )
         conn.commit()

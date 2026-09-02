@@ -191,7 +191,7 @@ async def get_current_landlord_api_strict(request: Request) -> AuthPrincipal:
     from app.core.db import get_conn as _get_conn
     with _get_conn() as conn:
         row = conn.execute(
-            "SELECT requires_password_change FROM landlord_accounts WHERE id = ?",
+            "SELECT requires_password_change FROM landlord_accounts WHERE id = %s",
             (principal.landlord_id,),
         ).fetchone()
 

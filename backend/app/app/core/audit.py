@@ -41,7 +41,7 @@ def create_platform_admin_audit_log(
                 """
                 INSERT INTO platform_admin_audit_logs
                     (admin_id, action, target_type, target_id, ip_address, meta_json, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     admin_id,
@@ -86,7 +86,7 @@ def cleanup_old_audit_logs(days: int) -> int:
         try:
             with get_conn() as conn:
                 result = conn.execute(
-                    f"DELETE FROM {table} WHERE created_at < ?", (cutoff,)
+                    f"DELETE FROM {table} WHERE created_at < %s", (cutoff,)
                 )
                 removed += result.rowcount or 0
                 conn.commit()

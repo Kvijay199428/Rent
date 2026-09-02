@@ -848,11 +848,11 @@ async def import_execute_data(
             conn.execute("BEGIN")
             
             # Create import job record
-            job_cur = conn.execute(
-                "INSERT INTO import_jobs (created_at, created_by, filename, status, preview_json, resolution_json, result_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            job_row = conn.execute(
+                "INSERT INTO import_jobs (created_at, created_by, filename, status, preview_json, resolution_json, result_json) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
                 (datetime.datetime.utcnow().isoformat(), admin_username, ", ".join(parsed_files_data.keys()), "IN_PROGRESS", "{}", "{}", "{}")
-            )
-            job_id = job_cur.lastrowid
+            ).fetchone()
+            job_id = job_row["id"]
             affected_tenant_ids = set()
             
             for filename, parsed_data in parsed_files_data.items():
@@ -866,7 +866,7 @@ async def import_execute_data(
                     
                     if action == "SKIP":
                         conn.execute(
-                            "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, result) VALUES (?, ?, ?, ?, ?, ?)",
+                            "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, result) VALUES (%s, %s, %s, %s, %s, %s)",
                             (job_id, target_key, t_id, t_data["profile"].get("tenantName", ""), action, "SKIPPED")
                         )
                         continue
@@ -897,7 +897,7 @@ async def import_execute_data(
                                 id, name, company, phone, email, address, roomnumber, occupation, notes, status,
                                 rent, water, electricityrate, previousmeter, additionalpersoncharge, securitydeposit,
                                 defaulttankWatercharge, meterid, viewToken, tenantpin, failed_attempts, landlord_id
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ''', (
                             tenantId, t_name, p.get("Company", ""), p.get("Phone", ""), p.get("Email", ""),
                             p.get("Address", ""), p.get("Room", ""), "", "", normalize_tenant_status(status_overrides.get(target_key), p.get("Status", "Active")),
@@ -913,12 +913,12 @@ async def import_execute_data(
                         tenantId = existing_t.id
                         conn.execute('''
                             UPDATE tenants SET
-                                company=COALESCE(?, company), phone=COALESCE(?, phone), email=COALESCE(?, email),
-                                address=COALESCE(?, address), roomnumber=COALESCE(?, roomnumber), meterid=COALESCE(?, meterid),
-                                rent=COALESCE(?, rent), water=COALESCE(?, water), electricityrate=COALESCE(?, electricityrate),
-                                additionalpersoncharge=COALESCE(?, additionalpersoncharge), defaulttankWatercharge=COALESCE(?, defaulttankWatercharge),
-                                status=COALESCE(?, status)
-                            WHERE id=?
+                                company=COALESCE(%s, company), phone=COALESCE(%s, phone), email=COALESCE(%s, email),
+                                address=COALESCE(%s, address), roomnumber=COALESCE(%s, roomnumber), meterid=COALESCE(%s, meterid),
+                                rent=COALESCE(%s, rent), water=COALESCE(%s, water), electricityrate=COALESCE(%s, electricityrate),
+                                additionalpersoncharge=COALESCE(%s, additionalpersoncharge), defaulttankWatercharge=COALESCE(%s, defaulttankWatercharge),
+                                status=COALESCE(%s, status)
+                            WHERE id=%s
                         ''', (
                             p.get("Company"), p.get("Phone"), p.get("Email"), p.get("Address"), p.get("Room"), p.get("meterId"),
                             float(p.get("Rent", 0) or 0) if p.get("Rent") else None,
@@ -940,7 +940,7 @@ async def import_execute_data(
                     # Resolve the tenant's landlord so imported receipts carry it.
                     # CREATE_NEW tenants have no landlord yet (admin assigns later).
                     _lrow = conn.execute(
-                        "SELECT landlord_id FROM tenants WHERE id = ?", (tenantId,)
+                        "SELECT landlord_id FROM tenants WHERE id = %s", (tenantId,)
                     ).fetchone()
                     tenant_landlord_id = _lrow["landlord_id"] if _lrow else None
 
@@ -972,19 +972,19 @@ async def import_execute_data(
                                 hashed_pin = hash_pin(plain_pin)
                                 encrypted_pin = encrypt_admin_view_pin(plain_pin)
                                 
-                                conn.execute("UPDATE tenants SET tenantpin = ? WHERE id = ?", (hashed_pin, tenantId))
+                                conn.execute("UPDATE tenants SET tenantpin = %s WHERE id = %s", (hashed_pin, tenantId))
                                 now_iso = datetime.datetime.utcnow().isoformat()
-                                conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)", (tenantId, hashed_pin, now_iso))
-                                conn.execute("INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)", (tenantId, encrypted_pin, now_iso))
+                                conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (%s, %s, %s)", (tenantId, hashed_pin, now_iso))
+                                conn.execute("INSERT INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (%s, %s, %s) ON CONFLICT (tenantId) DO UPDATE SET encrypted_pin = excluded.encrypted_pin, updated_at = excluded.updated_at", (tenantId, encrypted_pin, now_iso))
                                 if not is_new:
-                                    conn.execute("DELETE FROM tenant_sessions WHERE tenantId = ?", (tenantId,))
+                                    conn.execute("DELETE FROM tenant_sessions WHERE tenantId = %s", (tenantId,))
                             except HTTPException:
                                 pass # Invalid pin format
                                 
                     # ── RECEIPTS ──
                     rec_strategy = receipt_strategies.get(target_key, "MERGE_RECEIPTS_ONLY")
                     if rec_strategy == "REPLACE_RECEIPTS":
-                        conn.execute("DELETE FROM receipts WHERE tenantId = ?", (tenantId,))
+                        conn.execute("DELETE FROM receipts WHERE tenantId = %s", (tenantId,))
                         
                     if rec_strategy in ("MERGE_RECEIPTS_ONLY", "REPLACE_RECEIPTS"):
                         for r in t_data.get("receipts", []):
@@ -1000,17 +1000,17 @@ async def import_execute_data(
                             r_date = _parse_excel_date(r.get("Date", ""))
                             r_month = _parse_month_date(r.get("Month", ""))
                             
-                            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = ? AND tenantId = ?", (billNo, tenantId)).fetchone()
+                            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = %s AND tenantId = %s", (billNo, tenantId)).fetchone()
                             
                             if exists:
                                 if rec_strategy == "MERGE_RECEIPTS_ONLY":
                                     conn.execute("""
                                         UPDATE receipts SET
-                                            date=?, month=?, tenantId=?, tenant=?, previous=?, current=?, units=?, rent=?,
-                                            additional=?, water=?, tankWater=?, electricity=?, total=?, pdf=?,
-                                            rate=?, status=?, additionalpersonrate=?,
-                                            paymentstatus=?, maintenancecharge=?, maintenancedesc=?, previousarrears=?, amountreceived=?
-                                        WHERE billNo=? AND tenantId=?
+                                            date=%s, month=%s, tenantId=%s, tenant=%s, previous=%s, current=%s, units=%s, rent=%s,
+                                            additional=%s, water=%s, tankWater=%s, electricity=%s, total=%s, pdf=%s,
+                                            rate=%s, status=%s, additionalpersonrate=%s,
+                                            paymentstatus=%s, maintenancecharge=%s, maintenancedesc=%s, previousarrears=%s, amountreceived=%s
+                                        WHERE billNo=%s AND tenantId=%s
                                     """, (
                                         r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
                                         float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
@@ -1029,7 +1029,7 @@ async def import_execute_data(
                                         tenantphone, tenantcompany, tenantaddress, rate, status,
                                         additionalpersons, additionalpersonrate, receiptversion, generatedby, paymentstatus,
                                         maintenancecharge, maintenancedesc, previousarrears, amountreceived, landlord_id
-                                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                 """, (
                                     billNo, r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
                                     float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
@@ -1044,7 +1044,7 @@ async def import_execute_data(
                     affected_tenant_ids.add(tenantId)
 
                     conn.execute(
-                        "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, existing_tenant_id, result) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                        "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, existing_tenant_id, result) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                         (job_id, target_key, t_id, t_name, action, existing_t.id if existing_t else None, "SUCCESS")
                     )
                     
@@ -1056,7 +1056,7 @@ async def import_execute_data(
                     })
 
             # Mark job complete
-            conn.execute("UPDATE import_jobs SET status = ?, result_json = ? WHERE id = ?", ("COMPLETED", json.dumps({"tenants": len(imported_tenants), "receipts": imported_receipts}), job_id))
+            conn.execute("UPDATE import_jobs SET status = %s, result_json = %s WHERE id = %s", ("COMPLETED", json.dumps({"tenants": len(imported_tenants), "receipts": imported_receipts}), job_id))
 
             # Imported previousArrears may diverge from the running-balance
             # model — normalize every affected tenant's chain before commit.

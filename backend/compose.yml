@@ -1,11 +1,14 @@
+# Standalone backend manifest for manual dev runs. The canonical dev topology
+# lives in compose.dev.yml at the repo root (backend_dev = propaura_backend_dev,
+# container port 28002, database propaura_database_dev:28004).
 services:
-  legacy-backend:
+  backend:
     build:
       context: .
-    container_name: propaura_legacy_backend
+    container_name: propaura_backend_dev
     restart: unless-stopped
     expose:
-      - "28001"
+      - "28002"
     env_file:
       - .env
     volumes:
@@ -13,7 +16,7 @@ services:
     networks:
       - propaura-network
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28001/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28002/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -26,11 +29,6 @@ services:
         reservations:
           cpus: '0.5'
           memory: 128M
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 5
-        window: 120s
 
 networks:
   propaura-network:

@@ -1,15 +1,24 @@
 # Production (release) stack — single active backend slot.
-#   propaura_backend_prod        API, container port 28005 (exposed internally)
-#   propaura_frontend_prod       static SPA build, host 28004 -> container 28006
+#   propaura_backend_prod        API, container port 28011 (exposed internally)
+#   propaura_storage_prod        shared storage tree, port 28012 (expose only)
+#   propaura_database_prod       PostgreSQL, port 28013 (expose only; -p 28013),
+#                                data in named volume pgdata_prod
 #   propaura_nginx_gateway_prod  edge: api.vijaykrsha.online / app.vijaykrsha.online,
-#                                host 28005 -> container 28007
+#                                host 28014 -> container 28014, serves the SPA
+#                                directly from ./frontend/build-output
+#
+# No separate frontend container: the edge nginx serves the static build
+# (frontend/build-output) itself, mirroring the frontend_release.conf logic.
+# rent.vijaykrsha.online is served by Cloudflare Pages (unchanged).
 #
 # Usage:
 #   docker compose --env-file .env.release -f compose.prod.yml up -d
 #   ./deploy/deploy-release.sh          (deploy/restart the backend slot)
 #
-# A single backend container runs at a time, sharing ./storage/release (SQLite).
-# The edge nginx proxies to it via gateway/nginx/upstream/active.conf.
+# A single backend container runs at a time, sharing ./storage/release for
+# keys/uploads/backups. Application data lives in PostgreSQL (pgdata_prod);
+# SQLite is retired. The edge nginx proxies API to it via
+# gateway/nginx/upstream/active.conf.
 #
 # Requires external network: docker network create propaura-network
 
@@ -23,16 +32,23 @@ services:
     container_name: propaura_backend_prod
     restart: unless-stopped
     expose:
-      - "28005"
+      - "28011"
     env_file:
       - .env.release
+    environment:
+      # PostgreSQL access — connection.py falls back to these defaults, but the
+      # password always comes from .env.release (RENT_PGPASSWORD / POSTGRES_PASSWORD).
+      RENT_PGHOST: ${RENT_PGHOST:-propaura_database_prod}
+      RENT_PGPORT: ${RENT_PGPORT:-28013}
+      RENT_PGDATABASE: ${RENT_PGDATABASE:-rent}
+      RENT_PGUSER: ${RENT_PGUSER:-rent}
     command:
       - uvicorn
       - app.main:app
       - --host
       - 0.0.0.0
       - --port
-      - "28005"
+      - "28011"
       - --proxy-headers
       - --forwarded-allow-ips
       - "*"
@@ -40,8 +56,11 @@ services:
       - ./storage/release:/code/storage
     networks:
       - propaura-network
+    depends_on:
+      database_prod:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28005/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28011/health', timeout=5)"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -55,35 +74,58 @@ services:
           cpus: '0.5'
           memory: 128M
 
-  frontend_prod:
-    image: nginx:1.27-alpine
-    container_name: propaura_frontend_prod
+  storage_prod:
+    build:
+      context: ./docker/storage
+    image: propaura-storage
+    container_name: propaura_storage_prod
     restart: unless-stopped
-    ports:
-      - "${FRONTEND_RELEASE_PORT:-28004}:28006"
+    expose:
+      - "28012"
     volumes:
-      - ./gateway/nginx/frontend_release.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./frontend/build-output:/usr/share/nginx/html:ro
+      - ./storage/release:/data
     networks:
       - propaura-network
-    depends_on:
-      - backend_prod
+
+  database_prod:
+    image: postgres:16-alpine
+    container_name: propaura_database_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rent}
+      POSTGRES_USER: ${POSTGRES_USER:-rent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.release}
+    command: ["postgres", "-p", "28013"]
+    expose:
+      - "28013"
+    volumes:
+      - pgdata_prod:/var/lib/postgresql/data
+    networks:
+      - propaura-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 28013 -U $$POSTGRES_USER"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   nginx_gateway_prod:
     image: nginx:1.27-alpine
     container_name: propaura_nginx_gateway_prod
     restart: unless-stopped
     ports:
-      - "28005:28007"
+      - "${NGINX_RELEASE_PORT:-28014}:28014"
     volumes:
       - ./gateway/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./gateway/nginx/conf.d:/etc/nginx/conf.d:ro
       - ./gateway/nginx/routes:/etc/nginx/routes:ro
       - ./gateway/nginx/upstream:/etc/nginx/upstream:ro
+      - ./frontend/build-output:/usr/share/nginx/html:ro
     networks:
       - propaura-network
+    depends_on:
+      - backend_prod
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:28007/health"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:28014/health"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -92,3 +134,7 @@ services:
 networks:
   propaura-network:
     external: true
+
+volumes:
+  pgdata_prod:
+    name: pgdata_prod

@@ -5,28 +5,39 @@ Two fully isolated environments. `release` is production; `main` is development.
 ```
 RELEASE (production, api.vijaykrsha.online)        DEVELOPMENT (ngrok)
 ──────────────────────────────────────────        ─────────────────────────
-cloudflared / DNS  →  propaura_nginx_gateway_prod  ngrok tunnel  →  propaura_backend_dev (28001)
-                      (host 28005 → cont 28007)                    │
-                         │                                         │
-                      storage/release/rent.db                  storage/dev/rent.db
-                         │
-   propaura_backend_prod (28005) ──── propaura_frontend_prod (host 28004 → cont 28006)
-      rent.vijaykrsha.online         (Cloudflare Pages, release build)
+cloudflared / DNS  →  propaura_nginx_gateway_prod  ngrok tunnel  →  propaura_nginx_gateway_dev (28005)
+                      (host 28014 → cont 28014)                           │
+                          │                                                ├─ API → propaura_backend_dev (28002)
+                          ├─ /health, /api, /ws → propaura_backend_prod    └─ tenant pages → propaura_frontend_dev
+                          │  (cont 28011, expose only)                        (Vite, host 28001)
+                          └─ /rent/* SPA from frontend/build-output
+                             (no frontend container)
+   data: PostgreSQL pgdata_prod (28013) │ storage/release (28012)          data: pgdata_dev (28004) │ storage/dev (28003)
 ```
 
-A single release backend container runs at a time (SQLite is shared via
-`storage/release`), so there is never a second writer on the database. The edge
-nginx points at it via `gateway/nginx/upstream/active.conf`. A deploy rebuilds
-and force-recreates that one container (brief restart), then reloads the edge.
+A single release backend container runs at a time; application data lives in
+PostgreSQL (`pgdata_prod` named volume) plus the shared `storage/release` tree
+for keys/uploads/backups — SQLite is retired. The edge nginx points at the
+backend via `gateway/nginx/upstream/active.conf` and serves the SPA directly
+from `frontend/build-output`. A deploy rebuilds and force-recreates that one
+backend container (brief restart), then reloads the edge.
+
+Canonical ports are single-sourced in `deploy/ports.py` and regenerated into
+`deploy/ports.env` by `deploy.py` — never hand-edit either file's values.
 
 ## Ports
 
-| Service         | Dev  | Release |
-|-----------------|------|---------|
-| Backend         | 28001 → 28001 (ngrok) | 28005 → 28005 (single slot) |
-| Frontend        | 28003 → 28002 (Vite) | 28004 → 28006 (static SPA container) |
-| Edge            | 28080 → 28003 (dev nginx) | 28005 → 28007 (nginx_gateway) |
-| ngrok dashboard | 28004 → 4040 | — |
+| Service    | Dev                     | Release                    |
+|------------|-------------------------|----------------------------|
+| Frontend   | 28001 → 28001 (Vite)    | — (SPA served by the edge) |
+| Backend    | 28002 → 28002 (exposed) | 28011 → 28011 (expose only)|
+| Storage    | 28003 → 28003 (expose)  | 28012 → 28012 (expose only)|
+| Database   | 28004 → 28004 (expose)  | 28013 → 28013 (expose only)|
+| Edge       | 28005 → 28005 (dev nginx) | 28014 → 28014 (nginx_gateway) |
+| ngrok dash | 28006 → 4040 (profile)  | —                          |
+
+PostgreSQL and storage are expose-only (never published to the host); only the
+edge (and Vite/backend in dev) get host-published ports.
 
 ## Required Docker network
 
@@ -34,9 +45,9 @@ and force-recreates that one container (brief restart), then reloads the edge.
 docker network create propaura-network
 ```
 
-`compose.prod.yml` joins this network so the edge nginx can resolve the backend
-by container name. If you keep the legacy `gateway/compose.yml` edge, it must
-also be connected: `docker network connect propaura-network propaura_legacy_gateway`.
+`compose.prod.yml` joins this external network so the edge nginx can resolve
+the backend by container name. `compose.dev.yml` uses a private bridge
+(`dev-net`) and needs no external network.
 
 ## Env files (both gitignored — never commit)
 
@@ -47,10 +58,10 @@ cp .env.development.example .env.development
 
 - `.env.release` — `APP_ENV=release`, `SERVE_FRONTEND=false`, `ENABLE_SWAGGER=false`,
   separate secrets, `CORS_ALLOW_ORIGINS=https://rent.vijaykrsha.online,...`,
-  DB in `storage/release/rent.db`.
+  `RENT_PG*`/`POSTGRES_*` for PostgreSQL (`propaura_database_prod`).
 - `.env.development` — `APP_ENV=development`, `SERVE_FRONTEND=true`,
-  `ENABLE_SWAGGER=true`, separate secrets, DB in `storage/dev/rent.db`, plus the
-  ngrok auth token and `NGROK_API_BASE_URL`.
+  `ENABLE_SWAGGER=true`, separate secrets, same `RENT_PG*`/`POSTGRES_*` against
+  `propaura_database_dev`, plus the ngrok auth token and `NGROK_API_BASE_URL`.
 
 **Never** share JWT/pin-vault secrets between the two files. Generate unique ones:
 
@@ -58,6 +69,9 @@ cp .env.development.example .env.development
 openssl rand -hex 32        # JWT secrets
 openssl rand -base64 32     # tenantPin_VAULT_KEY
 ```
+
+`POSTGRES_PASSWORD` / `RENT_PGPASSWORD` must be set in each file (compose fails
+fast if `POSTGRES_PASSWORD` is missing) and should differ between environments.
 
 ## Google OAuth parity (audit)
 
@@ -124,6 +138,9 @@ Existing flags still work: `--local`, `--sshLocal`, `--sshPublic`, `--clean`
 machine instead. For manual push deploys, `DEPLOY_PASSWORD` (server password,
 default `1010`) overrides the embedded password.
 
+Deploy writes `deploy/ports.env` from `deploy/ports.py` before provisioning the
+frontend env so every `*_DEV_PORT` / `*_RELEASE_PORT` stays in sync.
+
 ### Scoped deploys — ship only what was fixed
 
 Add a scope flag to limit the upload (and the dev compose step) to the
@@ -134,8 +151,8 @@ components you actually changed. Default is `--all` (the whole repo).
 | `--all`     | entire repo (default) | `build` + `up -d` all services |
 | `--frontend`| `frontend/` + root infra | `build`/`up` `propaura_frontend_dev` |
 | `--backend` | `backend/` + root infra | `build`/`up` `propaura_backend_dev` |
-| `--storage` | `storage/` incl. SQLite DBs + config + backups | `restart propaura_backend_dev` (reloads config) |
-| `--database`| `backend/app/app/database/`, `core/db.py`, `rent.db` + root infra | `build`/`up` `propaura_backend_dev` (runs `init_db`) |
+| `--storage` | `storage/` incl. config + backups (dev) | `restart propaura_backend_dev` (reloads config) |
+| `--database`| `backend/app/app/database/`, `core/db.py` + root infra | `build`/`up` `propaura_backend_dev` (runs `init_db`) |
 
 - Scoped zips **always** also carry the small root infra set
   (`compose.dev.yml`, `compose.prod.yml`, `.env*`, `nginx/`, `gateway/`,
@@ -145,14 +162,14 @@ components you actually changed. Default is `--all` (the whole repo).
 - `--clean` **requires `--all`**: it wipes the server repo and re-extracts the
   package, so combining it with a scope is rejected by the parser.
 - `--storage` and `--database` **overwrite server data with your local files**
-  (SQLite DBs, config). Only use them when you intentionally want to ship those.
+  (config, dev backups). Only use them when you intentionally want to ship those.
 
 ```bash
 python3 deploy.py --dev --sshPublic --clean             # full clean dev deploy
 python3 deploy.py --dev --sshPublic --backend           # only backend/ fixes
 python3 deploy.py --dev --sshPublic --frontend          # only frontend/ fixes
-python3 deploy.py --dev --sshPublic --storage           # storage incl. DBs
-python3 deploy.py --dev --sshPublic --database          # schema code + rent.db
+python3 deploy.py --dev --sshPublic --storage           # storage incl. dev data
+python3 deploy.py --dev --sshPublic --database          # schema code (+ init_db)
 python3 deploy.py --dev --sshPublic --clean --backend   # ERROR (clean implies --all)
 ```
 
@@ -168,17 +185,20 @@ python3 deploy.py --prod --sshPublic
 
 Uploads the repo (no npm builds — Vite runs live), then on the server:
 `docker compose --env-file .env.development -f compose.dev.yml build && up -d`.
-Backend on port 28001 (hot reload), tenant-app Vite on host 28003 (container 28002).
+Backend on container port 28002 (hot reload, host-published), tenant-app Vite on
+host 28001, edge dev nginx on host 28005.
 
 The dev ngrok tunnel on the server is the **systemd-hosted** agent
 (`ngrok.service`, `/home/vega/.config/ngrok/ngrok.yml`) — it owns the account's
-reserved URL and is repointed to `http://localhost:28001`. The docker `ngrok`
-service is behind the `ngrok` compose profile (avoids a port/URL clash):
+reserved URL and is repointed to `http://localhost:28005` (the dev edge nginx,
+not the backend directly — the edge splits API vs tenant/Vite traffic). The
+docker `ngrok` service is behind the `ngrok` compose profile (avoids a
+port/URL clash):
 
 ```bash
 # only where no host ngrok exists (e.g. a laptop):
 docker compose --env-file .env.development -f compose.dev.yml --profile ngrok up -d
-# dashboard: http://localhost:28004
+# dashboard: http://localhost:28006
 ```
 
 Copy the tunnel URL into `NGROK_API_BASE_URL` and `VITE_API_BASE_URL` in
@@ -186,10 +206,11 @@ Copy the tunnel URL into `NGROK_API_BASE_URL` and `VITE_API_BASE_URL` in
 
 ### What `--prod` runs
 
-Uploads the repo (building the 4 frontend apps unless `--no-build`), then on the
-server runs `./deploy/deploy-release.sh`: builds the backend image, force-recreates
-`propaura_backend_prod`, waits for `/health`, reloads the edge nginx, and
-smoke-tests. Requires `.env.release` on the server (shipped inside the upload).
+Uploads the repo (building the frontend to `frontend/build-output` unless
+`--no-build`), then on the server runs `./deploy/deploy-release.sh`: builds the
+backend image, force-recreates `propaura_backend_prod`, waits for `/health`,
+reloads the edge nginx, and smoke-tests. Requires `.env.release` on the server
+(shipped inside the upload).
 
 ```bash
 # First deploy
@@ -198,11 +219,13 @@ python3 deploy.py --prod --sshPublic
 ```
 
 The script:
-1. Builds `propaura_backend_prod`.
+1. Builds `propaura_backend_prod` (image `propaura-backend-release`).
 2. Starts/force-recreates the backend container.
 3. Waits for `/health` (30 × 3s) inside the container.
-4. Brings up `propaura_frontend_prod` + `propaura_nginx_gateway_prod` if needed.
-5. Reloads the edge nginx and smoke-tests `/health` through the edge.
+4. Brings up `propaura_nginx_gateway_prod` if needed (SPA is served by the edge
+   from `frontend/build-output` — there is no frontend container).
+5. Reloads the edge nginx and smoke-tests `/health` through the edge
+   (`127.0.0.1:28014`).
 
 ### Rollback
 
@@ -263,9 +286,9 @@ systemctl enable --now rent-deploy-dev.timer rent-deploy-release.timer
 
 Release deploys are gated: `deploy/self-pull.sh release` exits without deploying
 until `/home/vega/rent-secrets/RELEASE_READY` exists. Create it only after the
-cloudflared tunnel ingress has been switched from the legacy `propaura_legacy_gateway`
-(port 80) to `propaura_nginx_gateway_prod` (host 28005) — the first deploy retires
-the legacy edge.
+cloudflared tunnel ingress has been switched from the legacy
+`propaura_legacy_gateway` (port 80) to `propaura_nginx_gateway_prod`
+(host 28014).
 
 ### First-time migration (one-time manual sequence)
 
@@ -273,19 +296,22 @@ The scripted initial deploy (`deploy-release.sh`) starts the backend before
 `propaura_nginx_gateway_prod` is up, so the first migration is done by hand on the
 release clone (`/home/vega/rent-app-release`):
 
-1. Seed data into `storage/release/` (copy the legacy `rent.db` + `uploads/`,
-   `receipts/`, `config/` from the old backend's storage), and set
-   `tenantPin_VAULT_KEY` in `.env.release` to the legacy value so the migrated
-   DB can be decrypted.
+1. Data seed:
+   - PostgreSQL: restore the migrated dump into `pgdata_prod` (verify the
+     replica's PG major version matches postgres:16-alpine first), or let
+     `database_prod` start empty and run the app's `init_db`/backfill.
+   - Storage: copy `config/`, keys, `tenantPin_VAULT_KEY` (legacy value, so
+     migrated data decrypts) and any uploads into `storage/release/`.
 2. Build and start the stack, edge LAST, then flip the tunnel:
    ```
    docker compose --env-file .env.release -f compose.prod.yml build propaura_backend_prod
+   docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps propaura_database_prod
    docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps propaura_backend_prod   # wait for /health
-   docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps propaura_nginx_gateway_prod propaura_frontend_prod
-   curl -f http://127.0.0.1:28005/health
+   docker compose --env-file .env.release -f compose.prod.yml up -d --no-deps propaura_nginx_gateway_prod
+   curl -f http://127.0.0.1:28014/health
    ```
 3. Cloudflare dashboard: point the tunnel's `api.vijaykrsha.online` public
-   hostname at `http://localhost:28005`.
+   hostname at `http://localhost:28014`.
 4. Verify `https://api.vijaykrsha.online/health` returns the backend JSON
    health, then retire the legacy edge:
    ```
@@ -319,19 +345,20 @@ server-side via self-pull. The server only needs `docker` (with compose v2),
 ### Cloudflare Pages: set production branch to `release`
 
 In the Cloudflare dashboard (Workers & Pages → your `rent` project → Settings →
-Builds & deployments), set **Production branch = `release`**. The `deploy-cloudflare-pages.yml`
-workflow deploys with `--branch=release`.
+Builds & deployments), set **Production branch = `release`**. The
+`deploy-cloudflare-pages.yml` workflow deploys with `--branch=release`.
 
-## API-only release backend
+## API + static-SPA release backend
 
 The release backend sets `SERVE_FRONTEND=false`:
 
-- Landing page, tenant/landlord SPA routers and the 4 frontend static mounts are
+- Landing page, tenant/landlord SPA routers and the frontend static mounts are
   **not registered** (`backend/app/app/core/router_registry.py`,
   `backend/app/app/core/startup.py`).
 - Swagger/docs are disabled (`ENABLE_SWAGGER=false`).
 - CORS is read from `CORS_ALLOW_ORIGINS`.
 
-All page serving is moved to `propaura_frontend_prod` (host 28004) and Cloudflare
-Pages. The edge nginx routes `/rent/*` and tenant deep links to the frontend;
+All page serving is done by the edge nginx from `frontend/build-output`
+(no separate frontend container; `rent.vijaykrsha.online` remains Cloudflare
+Pages). The edge routes `/rent/*` and tenant deep links to the static SPA;
 everything else (API, `/static/uploads`, WebSockets) goes to the backend slot.

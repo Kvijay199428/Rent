@@ -14,7 +14,7 @@ def load_tenants(include_archived: bool = False, landlord_id: Optional[int] = No
     if not include_archived:
         clauses.append("status != 'Archived'")
     if landlord_id is not None:
-        clauses.append("landlord_id = ?")
+        clauses.append("landlord_id = %s")
         params.append(landlord_id)
     where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
     with get_conn() as conn:
@@ -55,10 +55,10 @@ def get_tenant(tenantId: int, landlord_id: Optional[int] = None) -> Optional[Ten
     """Get a single tenant by ID. Optionally scoped to a landlord. Returns None if not found."""
     if tenantId is None:
         return None
-    clauses = ["id = ?"]
+    clauses = ["id = %s"]
     params: list = [tenantId]
     if landlord_id is not None:
-        clauses.append("landlord_id = ?")
+        clauses.append("landlord_id = %s")
         params.append(landlord_id)
     with get_conn() as conn:
         row = conn.execute(
@@ -98,7 +98,7 @@ def tenant_belongs_to_landlord(tenantId: int, landlord_id: Optional[int]) -> boo
         return False
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT 1 FROM tenants WHERE id = ? AND landlord_id = ?",
+            "SELECT 1 FROM tenants WHERE id = %s AND landlord_id = %s",
             (tenantId, landlord_id),
         ).fetchone()
     return row is not None
@@ -108,7 +108,7 @@ def get_tenant_by_name(name: str) -> Optional[Tenant]:
     if not name:
         return None
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM tenants WHERE name COLLATE NOCASE = ?", (name,)).fetchone()
+        row = conn.execute("SELECT * FROM tenants WHERE LOWER(name) = LOWER(%s)", (name,)).fetchone()
     if not row:
         return None
     return Tenant(
@@ -157,22 +157,38 @@ def add_tenant(t: Tenant):
         qr_key = uuid.uuid4().hex
     
     with get_conn() as conn:
-        conn.execute('''
-            INSERT INTO tenants (
-                id, name, company, phone, email, address, roomnumber, occupation,
-                notes, status, rent, water, electricityrate, previousmeter,
-                additionalpersoncharge, securitydeposit, defaulttankWatercharge,
-                meterid, viewToken, tenantpin, landlord_id, qr_key, property_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (
-            t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
-            t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
-            t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
-            t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id,
-            qr_key, t.propertyId
-        ))
         if t.id is None:
-            t.id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            row = conn.execute('''
+                INSERT INTO tenants (
+                    name, company, phone, email, address, roomnumber, occupation,
+                    notes, status, rent, water, electricityrate, previousmeter,
+                    additionalpersoncharge, securitydeposit, defaulttankWatercharge,
+                    meterid, viewToken, tenantpin, landlord_id, qr_key, property_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            ''', (
+                t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
+                t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
+                t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
+                t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id,
+                qr_key, t.propertyId
+            )).fetchone()
+            t.id = row["id"]
+        else:
+            conn.execute('''
+                INSERT INTO tenants (
+                    id, name, company, phone, email, address, roomnumber, occupation,
+                    notes, status, rent, water, electricityrate, previousmeter,
+                    additionalpersoncharge, securitydeposit, defaulttankWatercharge,
+                    meterid, viewToken, tenantpin, landlord_id, qr_key, property_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (
+                t.id, t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
+                t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
+                t.previousMeter, t.additionalPersonCharge, t.securityDeposit,
+                t.defaulttankWaterCharge, t.meterId, viewToken, tenantpin, t.landlord_id,
+                qr_key, t.propertyId
+            ))
         conn.commit()
     return t.id
 
@@ -185,7 +201,7 @@ def update_tenant(t: Tenant):
     with get_conn() as conn:
         # Detect status change and record timestamp
         if t.id is not None:
-            existing = conn.execute("SELECT status, qr_key FROM tenants WHERE id = ?", (t.id,)).fetchone()
+            existing = conn.execute("SELECT status, qr_key FROM tenants WHERE id = %s", (t.id,)).fetchone()
             if existing and (existing["status"] or "").strip().lower() != (t.status or "").strip().lower():
                 t.statusChangedAt = datetime.utcnow().isoformat()
             # Preserve the existing qr_key when the model doesn't carry one
@@ -194,11 +210,11 @@ def update_tenant(t: Tenant):
 
         conn.execute('''
             UPDATE tenants SET
-                name=?, company=?, phone=?, email=?, address=?, roomnumber=?, occupation=?,
-                notes=?, status=?, rent=?, water=?, electricityrate=?, previousmeter=?,
-                additionalpersoncharge=?, securitydeposit=?, defaulttankWatercharge=?,
-                meterid=?, viewToken=?, tenantpin=?, qr_key=?, status_changed_at=?, property_id=?
-            WHERE id=?
+                name=%s, company=%s, phone=%s, email=%s, address=%s, roomnumber=%s, occupation=%s,
+                notes=%s, status=%s, rent=%s, water=%s, electricityrate=%s, previousmeter=%s,
+                additionalpersoncharge=%s, securitydeposit=%s, defaulttankWatercharge=%s,
+                meterid=%s, viewToken=%s, tenantpin=%s, qr_key=%s, status_changed_at=%s, property_id=%s
+            WHERE id=%s
         ''', (
             t.name, t.company, t.phone, t.email, t.address, t.roomNumber,
             t.occupation, t.notes, t.status, t.rent, t.water, t.electricityRate,
@@ -212,11 +228,11 @@ def update_tenant(t: Tenant):
         conn.execute(
             """
             UPDATE receipts
-            SET tenant = ?,
-                tenantphone = ?,
-                tenantcompany = ?,
-                tenantaddress = ?
-            WHERE tenantId = ?
+            SET tenant = %s,
+                tenantphone = %s,
+                tenantcompany = %s,
+                tenantaddress = %s
+            WHERE tenantId = %s
             """,
             (
                 t.name,
@@ -297,7 +313,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
 
     with get_conn() as conn:
         tenant_row = conn.execute(
-            "SELECT * FROM tenants WHERE id = ?",
+            "SELECT * FROM tenants WHERE id = %s",
             (tenantId,)
         ).fetchone()
 
@@ -308,9 +324,9 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
             raise ValueError("Tenant not found.")
 
         if action in {"hard", "delete"}:
-            conn.execute("DELETE FROM occupants WHERE tenantId = ?", (tenantId,))
-            conn.execute("DELETE FROM receipts WHERE tenantId = ?", (tenantId,))
-            conn.execute("DELETE FROM tenants WHERE id = ?", (tenantId,))
+            conn.execute("DELETE FROM occupants WHERE tenantId = %s", (tenantId,))
+            conn.execute("DELETE FROM receipts WHERE tenantId = %s", (tenantId,))
+            conn.execute("DELETE FROM tenants WHERE id = %s", (tenantId,))
             conn.commit()
             return {"tenantId": tenantId, "deleted": True, "archived": False, "restored": False}
 
@@ -319,7 +335,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
             now_iso = datetime.utcnow().isoformat()
 
             conn.execute(
-                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                "UPDATE tenants SET status = %s, status_changed_at = %s WHERE id = %s",
                 ("Archived", now_iso, tenantId),
             )
             receipt_result = conn.execute(
@@ -327,20 +343,20 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
                 UPDATE receipts
                    SET status = 'ARCHIVED',
                        archiveddate = CASE
-                           WHEN archiveddate IS NULL OR archiveddate = '' THEN ?
+                           WHEN archiveddate IS NULL OR archiveddate = '' THEN %s
                            ELSE archiveddate
                        END
-                 WHERE tenantId = ?
+                 WHERE tenantId = %s
                 """,
                 (archived_at, tenantId),
             )
             conn.commit()
 
             tenant_after = conn.execute(
-                "SELECT * FROM tenants WHERE id = ?", (tenantId,)
+                "SELECT * FROM tenants WHERE id = %s", (tenantId,)
             ).fetchone()
             receipt_rows = conn.execute(
-                "SELECT * FROM receipts WHERE tenantId = ? ORDER BY date DESC, billNo DESC",
+                "SELECT * FROM receipts WHERE tenantId = %s ORDER BY date DESC, billNo DESC",
                 (tenantId,),
             ).fetchall()
 
@@ -356,7 +372,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
         if action == "restore":
             now_iso = datetime.utcnow().isoformat()
             updated_tenant = conn.execute(
-                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                "UPDATE tenants SET status = %s, status_changed_at = %s WHERE id = %s",
                 ("Active", now_iso, tenantId),
             )
             if updated_tenant.rowcount == 0:
@@ -368,7 +384,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
                    SET status = 'ACTIVE',
                        archiveddate = '',
                        archivedby = ''
-                 WHERE tenantId = ?
+                 WHERE tenantId = %s
                    AND UPPER(COALESCE(status, '')) = 'ARCHIVED'
                 """,
                 (tenantId,),
@@ -376,10 +392,10 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
             conn.commit()
 
             tenant_after = conn.execute(
-                "SELECT * FROM tenants WHERE id = ?", (tenantId,)
+                "SELECT * FROM tenants WHERE id = %s", (tenantId,)
             ).fetchone()
             receipt_rows = conn.execute(
-                "SELECT * FROM receipts WHERE tenantId = ? ORDER BY date DESC, billNo DESC",
+                "SELECT * FROM receipts WHERE tenantId = %s ORDER BY date DESC, billNo DESC",
                 (tenantId,),
             ).fetchall()
 
@@ -395,7 +411,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
         if action == "inactive":
             now_iso = datetime.utcnow().isoformat()
             conn.execute(
-                "UPDATE tenants SET status = ?, status_changed_at = ? WHERE id = ?",
+                "UPDATE tenants SET status = %s, status_changed_at = %s WHERE id = %s",
                 ("Inactive", now_iso, tenantId)
             )
             conn.commit()
@@ -405,7 +421,7 @@ def delete_tenant(tenantId: int, action: str = "archive", landlord_id: Optional[
 
 def get_occupants(tenantId: int) -> List[dict]:
     with get_conn() as conn:
-        rows = conn.execute("SELECT * FROM occupants WHERE tenantId = ?", (tenantId,)).fetchall()
+        rows = conn.execute("SELECT * FROM occupants WHERE tenantId = %s", (tenantId,)).fetchall()
 
     result = []
     for r in rows:
@@ -430,11 +446,11 @@ def save_occupant(tenantId: int, occ_data: dict):
         cursor = conn.cursor()
         cursor.execute('''
             UPDATE occupants SET
-                name = ?, mobile = ?, address = ?, residentSince = ?,
-                status = ?, aadhaar_front = ?, aadhaar_back = ?,
-                aadhaar_combined = ?, emp_front = ?, emp_back = ?,
-                uploaddate = ?, uploadmonth = ?
-            WHERE occupantUuid = ?
+                name = %s, mobile = %s, address = %s, residentSince = %s,
+                status = %s, aadhaar_front = %s, aadhaar_back = %s,
+                aadhaar_combined = %s, emp_front = %s, emp_back = %s,
+                uploaddate = %s, uploadmonth = %s
+            WHERE occupantUuid = %s
         ''', (
             occ_data.get("name", ""),
             occ_data.get("mobile", ""),
@@ -457,7 +473,7 @@ def save_occupant(tenantId: int, occ_data: dict):
                     tenantId, occupantUuid, name, mobile, address, residentSince,
                     status, aadhaar_front, aadhaar_back, aadhaar_combined,
                     emp_front, emp_back, uploaddate, uploadmonth
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', (
                 tenantId, uuid_val,
                 occ_data.get("name", ""), occ_data.get("mobile", ""),
@@ -472,11 +488,11 @@ def save_occupant(tenantId: int, occ_data: dict):
 
 def update_occupant_status(occupantUuid: str, status: str):
     with get_conn() as conn:
-        conn.execute("UPDATE occupants SET status = ? WHERE occupantUuid = ?", (status, occupantUuid))
+        conn.execute("UPDATE occupants SET status = %s WHERE occupantUuid = %s", (status, occupantUuid))
         conn.commit()
 
 def delete_occupant(occupantUuid: str):
     with get_conn() as conn:
-        conn.execute("DELETE FROM occupants WHERE occupantUuid = ?", (occupantUuid,))
+        conn.execute("DELETE FROM occupants WHERE occupantUuid = %s", (occupantUuid,))
         conn.commit()
 

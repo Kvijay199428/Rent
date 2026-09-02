@@ -61,7 +61,7 @@ async def send_whatsapp_single(landlordUuid: str, request: Request, tenantId: in
         from app.core.db import get_conn
         with get_conn() as conn:
             row = conn.execute(
-                "SELECT encrypted_pin FROM tenantPin_admin_store WHERE tenantId = ?",
+                "SELECT encrypted_pin FROM tenantPin_admin_store WHERE tenantId = %s",
                 (tenant.id,)
             ).fetchone()
         if row:

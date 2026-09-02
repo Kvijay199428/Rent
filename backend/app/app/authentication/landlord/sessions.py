@@ -35,7 +35,7 @@ def create_landlord_session(landlord_id: int, request, remember_me: bool):
                 session_id, landlord_id, refresh_token_hash,
                 device_name, browser, os, ip_address,
                 created_at, last_activity, expires_at, remember_me
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 session_id, landlord_id, refresh_hash,
@@ -52,7 +52,7 @@ def get_landlord_session_db(session_id: str):
     """Return the active landlord session row, or None if not found / revoked."""
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM landlord_sessions WHERE session_id = ? AND status = 'Active'",
+            "SELECT * FROM landlord_sessions WHERE session_id = %s AND status = 'Active'",
             (session_id,),
         ).fetchone()
 
@@ -62,7 +62,7 @@ def revoke_landlord_session_db(session_id: str) -> None:
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_sessions SET status = 'Revoked', revoked_at = ? WHERE session_id = ?",
+            "UPDATE landlord_sessions SET status = 'Revoked', revoked_at = %s WHERE session_id = %s",
             (now, session_id),
         )
         conn.commit()
@@ -75,8 +75,8 @@ def revoke_all_landlord_sessions(landlord_id: int) -> None:
         conn.execute(
             """
             UPDATE landlord_sessions
-            SET status = 'Revoked', revoked_at = ?
-            WHERE landlord_id = ? AND status = 'Active'
+            SET status = 'Revoked', revoked_at = %s
+            WHERE landlord_id = %s AND status = 'Active'
             """,
             (now, landlord_id),
         )

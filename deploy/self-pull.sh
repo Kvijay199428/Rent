@@ -31,9 +31,9 @@ RELEASE_READY_FILE="${RELEASE_READY_FILE:-$SECRETS_DIR/RELEASE_READY}"
 
 log() { printf '\033[36m[self-pull]\033[0m %s\n' "$*"; }
 
-# Release deploys retire the legacy propaura_legacy_gateway/propaura_legacy_backend edge
-# on first run. Gate them behind a marker so that only happens once the operator has
-# switched the cloudflared tunnel ingress to propaura_nginx_gateway_prod (host 28005).
+# Release deploys are gated behind a marker so they only run once the operator
+# has switched the cloudflared tunnel ingress to propaura_nginx_gateway_prod
+# (host port 28014).
 if [ "$BRANCH" = "release" ] && [ ! -f "$RELEASE_READY_FILE" ]; then
   log "release deploy gated — create $RELEASE_READY_FILE to enable"
   exit 0

@@ -49,7 +49,7 @@ def get_admin_chat_id(admin_id: int) -> str | None:
     """Return the linked Telegram chat_id for an admin, or None."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT telegram_chat_id FROM admins WHERE id = ?", (admin_id,)
+            "SELECT telegram_chat_id FROM admins WHERE id = %s", (admin_id,)
         ).fetchone()
     if not row:
         return None
@@ -64,7 +64,7 @@ def set_admin_chat_id(admin_id: int, chat_id: str | None) -> None:
         value = str(chat_id).strip() or None
     with get_conn() as conn:
         conn.execute(
-            "UPDATE admins SET telegram_chat_id = ?, updated_at = ? WHERE id = ?",
+            "UPDATE admins SET telegram_chat_id = %s, updated_at = %s WHERE id = %s",
             (value, datetime.utcnow().isoformat(), admin_id),
         )
         conn.commit()
@@ -161,8 +161,8 @@ def store_otp(admin_id: int, otp: str) -> None:
         conn.execute(
             """
             DELETE FROM admin_login_otps
-            WHERE admin_id = ?
-              AND (used = 1 OR attempts >= ? OR expires_at < ?)
+            WHERE admin_id = %s
+              AND (used = 1 OR attempts >= %s OR expires_at < %s)
             """,
             (admin_id, OTP_MAX_ATTEMPTS, now.isoformat()),
         )
@@ -170,7 +170,7 @@ def store_otp(admin_id: int, otp: str) -> None:
         pending = conn.execute(
             """
             SELECT id FROM admin_login_otps
-            WHERE admin_id = ? AND used = 0 AND expires_at >= ?
+            WHERE admin_id = %s AND used = 0 AND expires_at >= %s
             ORDER BY created_at DESC
             """,
             (admin_id, now.isoformat()),
@@ -178,7 +178,7 @@ def store_otp(admin_id: int, otp: str) -> None:
         overflow = len(pending) - (OTP_MAX_PENDING_PER_ADMIN - 1)
         if overflow > 0:
             drop_ids = [row["id"] for row in pending[overflow:]]
-            placeholders = ",".join("?" * len(drop_ids))
+            placeholders = ",".join("%s" * len(drop_ids))
             conn.execute(
                 f"DELETE FROM admin_login_otps WHERE id IN ({placeholders})",
                 drop_ids,
@@ -188,7 +188,7 @@ def store_otp(admin_id: int, otp: str) -> None:
             """
             INSERT INTO admin_login_otps
                 (admin_id, otp_hash, expires_at, attempts, used, created_at)
-            VALUES (?, ?, ?, 0, 0, ?)
+            VALUES (%s, %s, %s, 0, 0, %s)
             """,
             (
                 admin_id,
@@ -209,7 +209,7 @@ def delete_pending_otp(admin_id: int) -> None:
             DELETE FROM admin_login_otps
             WHERE id IN (
                 SELECT id FROM admin_login_otps
-                WHERE admin_id = ? AND used = 0 AND expires_at >= ?
+                WHERE admin_id = %s AND used = 0 AND expires_at >= %s
                 ORDER BY created_at DESC LIMIT 1
             )
             """,
@@ -225,7 +225,7 @@ def cooldown_remaining(admin_id: int) -> int:
         row = conn.execute(
             """
             SELECT created_at FROM admin_login_otps
-            WHERE admin_id = ? AND used = 0 AND expires_at >= ?
+            WHERE admin_id = %s AND used = 0 AND expires_at >= %s
             ORDER BY created_at DESC LIMIT 1
             """,
             (admin_id, now.isoformat()),
@@ -250,7 +250,7 @@ def verify_otp(admin_id: int, otp: str) -> bool:
         row = conn.execute(
             """
             SELECT id, otp_hash, attempts, expires_at FROM admin_login_otps
-            WHERE admin_id = ? AND used = 0
+            WHERE admin_id = %s AND used = 0
             ORDER BY created_at DESC LIMIT 1
             """,
             (admin_id,),
@@ -261,7 +261,7 @@ def verify_otp(admin_id: int, otp: str) -> bool:
         # Expired or exhausted codes are treated as invalid.
         if row["expires_at"] < now.isoformat() or row["attempts"] >= OTP_MAX_ATTEMPTS:
             conn.execute(
-                "DELETE FROM admin_login_otps WHERE id = ?", (row["id"],)
+                "DELETE FROM admin_login_otps WHERE id = %s", (row["id"],)
             )
             conn.commit()
             return False
@@ -269,17 +269,17 @@ def verify_otp(admin_id: int, otp: str) -> bool:
         if constant_time_eq(str(otp), "") or not verify_pin(str(otp), row["otp_hash"]):
             new_attempts = row["attempts"] + 1
             conn.execute(
-                "UPDATE admin_login_otps SET attempts = ? WHERE id = ?",
+                "UPDATE admin_login_otps SET attempts = %s WHERE id = %s",
                 (new_attempts, row["id"]),
             )
             if new_attempts >= OTP_MAX_ATTEMPTS:
-                conn.execute("DELETE FROM admin_login_otps WHERE id = ?", (row["id"],))
+                conn.execute("DELETE FROM admin_login_otps WHERE id = %s", (row["id"],))
             conn.commit()
             return False
 
         # Success: single-use invalidation.
         conn.execute(
-            "UPDATE admin_login_otps SET used = 1 WHERE id = ?", (row["id"],)
+            "UPDATE admin_login_otps SET used = 1 WHERE id = %s", (row["id"],)
         )
         conn.commit()
         return True

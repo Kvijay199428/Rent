@@ -55,7 +55,7 @@ def google_login(credential: str, remember_me: bool, request, response):
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT * FROM landlord_accounts WHERE google_sub = ?", (google_sub,)
+            "SELECT * FROM landlord_accounts WHERE google_sub = %s", (google_sub,)
         ).fetchone()
 
     created_new = False
@@ -65,7 +65,7 @@ def google_login(credential: str, remember_me: bool, request, response):
         if landlord:
             with get_conn() as conn:
                 conn.execute(
-                    "UPDATE landlord_accounts SET google_sub = ?, avatar_url = ?, updated_at = ? WHERE id = ?",
+                    "UPDATE landlord_accounts SET google_sub = %s, avatar_url = %s, updated_at = %s WHERE id = %s",
                     (google_sub, avatar_url, datetime.utcnow().isoformat(), landlord["id"]),
                 )
                 conn.commit()
@@ -91,9 +91,9 @@ def google_login(credential: str, remember_me: bool, request, response):
         with get_conn() as conn:
             conn.execute(
                 """UPDATE landlord_accounts
-                   SET google_sub = ?, auth_provider = 'google', avatar_url = ?,
-                       requires_password_change = 1, updated_at = ?
-                   WHERE id = ?""",
+                   SET google_sub = %s, auth_provider = 'google', avatar_url = %s,
+                       requires_password_change = 1, updated_at = %s
+                   WHERE id = %s""",
                 (google_sub, avatar_url, datetime.utcnow().isoformat(), landlord["id"]),
             )
             conn.commit()

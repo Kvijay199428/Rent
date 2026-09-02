@@ -3,8 +3,9 @@
 #
 # Strategy: the backend image is built, the existing propaura_backend_prod
 # container is force-recreated (brief restart), waited on via /health, then the
-# edge nginx is reloaded and smoke-tested. SQLite lives in ./storage/release and
-# is only ever written by this one container.
+# edge nginx is reloaded and smoke-tested. Data lives in PostgreSQL (pgdata_prod);
+# SQLite is retired. The edge nginx serves the SPA directly from
+# frontend/build-output (no separate frontend container).
 #
 # Usage:
 #   ./deploy/deploy-release.sh [--no-frontend] [--no-build]
@@ -20,13 +21,11 @@ ENV_FILE=".env.release"
 COMPOSE="compose.prod.yml"
 # Compose service names (used with `docker compose build/up`).
 BACKEND_SVC="backend_prod"
-FRONTEND_SVC="frontend_prod"
 EDGE_SVC="nginx_gateway_prod"
 # Container names (used with `docker exec/inspect`).
 BACKEND="propaura_backend_prod"
-FRONTEND="propaura_frontend_prod"
 EDGE_NGINX="propaura_nginx_gateway_prod"
-BACKEND_PORT=28005
+BACKEND_PORT=28011
 
 WITH_FRONTEND=1
 WITH_BUILD=1
@@ -60,23 +59,16 @@ wait_health() {
 }
 
 reload_edge() {
-  local reloaded=0
   if docker exec "$EDGE_NGINX" nginx -s reload >/dev/null 2>&1; then
     ok "reloaded edge nginx ($EDGE_NGINX)"
-    reloaded=1
-  fi
-  if docker exec propaura_legacy_gateway nginx -s reload >/dev/null 2>&1; then
-    ok "reloaded legacy edge nginx (propaura_legacy_gateway)"
-    reloaded=1
-  fi
-  if [ "$reloaded" -eq 0 ]; then
-    warn "no edge nginx container found to reload — is compose.prod.yml $EDGE_NGINX running?"
+  else
+    warn "edge nginx container not running — cannot nginx -s reload (is compose.prod.yml $EDGE_NGINX up?)"
   fi
 }
 
 smoke_test() {
-  if curl -fsS "http://127.0.0.1:28005/health" >/dev/null 2>&1; then
-    ok "edge smoke test passed (/health via 127.0.0.1:28005)"
+  if curl -fsS "http://127.0.0.1:28014/health" >/dev/null 2>&1; then
+    ok "edge smoke test passed (/health via 127.0.0.1:28014)"
     return 0
   fi
   if curl -fsS "https://api.vijaykrsha.online/health" >/dev/null 2>&1; then
@@ -90,8 +82,8 @@ smoke_test() {
 build_frontend() {
   if ! command -v node >/dev/null 2>&1; then
     warn "node not found on server — skipping frontend build"
-    warn "propaura_frontend_prod (host 28004) needs frontend/build-output; build it locally and scp it,"
-    warn "or install node on the server and rerun the deploy"
+    warn "$EDGE_NGINX serves frontend/build-output directly via its bind mount;"
+    warn "build it locally and scp it, or install node on the server and rerun the deploy"
     return 0
   fi
   log "building frontend (VITE_API_BASE_URL=$VITE_API_BASE_URL)"
@@ -126,7 +118,7 @@ main() {
   docker network create propaura-network 2>/dev/null || true
 
   if [ "$WITH_FRONTEND" -eq 1 ] && frontend_missing; then
-    warn "frontend/build-output missing — building (release frontend for host port 28004)"
+    warn "frontend/build-output missing — building (release build mounted into the gateway)"
     build_frontend
   fi
 
@@ -147,8 +139,8 @@ main() {
   fi
   wait_health "$BACKEND" "$BACKEND_PORT"
 
-  # ── Bring up the edge + frontend if they are not already running ────────
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps "$FRONTEND_SVC" "$EDGE_SVC"
+  # ── Bring up the edge if it is not already running ──────────────────────
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d --no-deps "$EDGE_SVC"
   sleep 3
   reload_edge
   smoke_test

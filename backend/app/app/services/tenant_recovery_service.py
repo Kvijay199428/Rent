@@ -138,7 +138,7 @@ def create_tenant_recovery_snapshot(tenant_id: int, admin_id: Optional[int] = No
     # ── Gather all data from DB ──────────────────────────────────────────────
     with get_conn() as conn:
         tenant_row = conn.execute(
-            "SELECT * FROM tenants WHERE id = ?", (tenant_id,)
+            "SELECT * FROM tenants WHERE id = %s", (tenant_id,)
         ).fetchone()
         if not tenant_row:
             raise ValueError(f"Tenant {tenant_id} not found in database.")
@@ -147,23 +147,23 @@ def create_tenant_recovery_snapshot(tenant_id: int, admin_id: Optional[int] = No
             landlord_id = tenant_row["landlord_id"] if tenant_row.keys() and "landlord_id" in tenant_row.keys() else None
 
         receipt_rows = conn.execute(
-            "SELECT * FROM receipts WHERE tenantId = ?", (tenant_id,)
+            "SELECT * FROM receipts WHERE tenantId = %s", (tenant_id,)
         ).fetchall()
 
         occupant_rows = conn.execute(
-            "SELECT * FROM occupants WHERE tenantId = ?", (tenant_id,)
+            "SELECT * FROM occupants WHERE tenantId = %s", (tenant_id,)
         ).fetchall()
 
         pin_history_rows = conn.execute(
-            "SELECT * FROM tenantPin_history WHERE tenantId = ?", (tenant_id,)
+            "SELECT * FROM tenantPin_history WHERE tenantId = %s", (tenant_id,)
         ).fetchall()
 
         pin_store_row = conn.execute(
-            "SELECT * FROM tenantPin_admin_store WHERE tenantId = ?", (tenant_id,)
+            "SELECT * FROM tenantPin_admin_store WHERE tenantId = %s", (tenant_id,)
         ).fetchone()
 
         audit_rows = conn.execute(
-            "SELECT * FROM tenant_audit_logs WHERE tenantId = ?", (tenant_id,)
+            "SELECT * FROM tenant_audit_logs WHERE tenantId = %s", (tenant_id,)
         ).fetchall()
 
     tenant_dict = dict(tenant_row)
@@ -261,7 +261,7 @@ def create_tenant_recovery_snapshot(tenant_id: int, admin_id: Optional[int] = No
                 INSERT INTO tenant_recovery_snapshots
                     (id, tenant_id, tenant_name, landlord_id, created_at, expires_at, deleted_by,
                      status, archive_path, sha256, metadata_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'AVAILABLE', ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'AVAILABLE', %s, %s, %s)
                 """,
                 (
                     snapshot_id,
@@ -326,23 +326,23 @@ def permanently_delete_tenant_data(tenant_id: int) -> dict:
         # Collect KYC filenames before deleting occupants
         occ_rows = conn.execute(
             "SELECT aadhaar_front, aadhaar_back, aadhaar_combined, emp_front, emp_back "
-            "FROM occupants WHERE tenantId = ?",
+            "FROM occupants WHERE tenantId = %s",
             (tenant_id,),
         ).fetchall()
 
         # Collect PDF filenames before deleting receipts
         pdf_rows = conn.execute(
-            "SELECT pdf FROM receipts WHERE tenantId = ?", (tenant_id,)
+            "SELECT pdf FROM receipts WHERE tenantId = %s", (tenant_id,)
         ).fetchall()
 
         # Delete all DB rows (FK cascades handle sessions/pin history/pin store/occupants)
-        conn.execute("DELETE FROM tenant_audit_logs WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM tenant_sessions WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM tenantPin_history WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM tenantPin_admin_store WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM occupants WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM receipts WHERE tenantId = ?", (tenant_id,))
-        conn.execute("DELETE FROM tenants WHERE id = ?", (tenant_id,))
+        conn.execute("DELETE FROM tenant_audit_logs WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM tenant_sessions WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM tenantPin_history WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM tenantPin_admin_store WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM occupants WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM receipts WHERE tenantId = %s", (tenant_id,))
+        conn.execute("DELETE FROM tenants WHERE id = %s", (tenant_id,))
         conn.commit()
 
     # Delete KYC files from disk
@@ -400,7 +400,7 @@ def get_tenant_recovery_snapshots(landlord_id: Optional[int] = None) -> list:
         """
         params: list = []
         if landlord_id is not None:
-            query += " WHERE landlord_id = ?"
+            query += " WHERE landlord_id = %s"
             params.append(landlord_id)
         query += " ORDER BY created_at DESC"
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -458,7 +458,7 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
 
     with get_conn() as conn:
         snap_row = conn.execute(
-            "SELECT * FROM tenant_recovery_snapshots WHERE id = ?", (snapshot_id,)
+            "SELECT * FROM tenant_recovery_snapshots WHERE id = %s", (snapshot_id,)
         ).fetchone()
 
     if not snap_row:
@@ -525,11 +525,11 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
         # 1. Check if original tenant ID already exists in live DB (within this landlord)
         if landlord_id is not None:
             existing_tenant = conn.execute(
-                "SELECT id, name, status FROM tenants WHERE id = ? AND landlord_id = ?", (orig_id, landlord_id)
+                "SELECT id, name, status FROM tenants WHERE id = %s AND landlord_id = %s", (orig_id, landlord_id)
             ).fetchone()
         else:
             existing_tenant = conn.execute(
-                "SELECT id, name, status FROM tenants WHERE id = ?", (orig_id,)
+                "SELECT id, name, status FROM tenants WHERE id = %s", (orig_id,)
             ).fetchone()
         if existing_tenant:
             conflicts["tenantId"] = orig_id
@@ -542,12 +542,12 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
         if room:
             if landlord_id is not None:
                 occupied = conn.execute(
-                    "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(?) AND landlord_id = ? AND status NOT IN ('Archived', 'Inactive')",
+                    "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(%s) AND landlord_id = %s AND status NOT IN ('Archived', 'Inactive')",
                     (room, landlord_id),
                 ).fetchone()
             else:
                 occupied = conn.execute(
-                    "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(?) AND status NOT IN ('Archived', 'Inactive')",
+                    "SELECT id, name FROM tenants WHERE LOWER(roomnumber) = LOWER(%s) AND status NOT IN ('Archived', 'Inactive')",
                     (room,),
                 ).fetchone()
             if occupied:
@@ -560,11 +560,11 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
         if phone:
             if landlord_id is not None:
                 phone_conflict = conn.execute(
-                    "SELECT id, name FROM tenants WHERE phone = ? AND id != ? AND landlord_id = ?", (phone, orig_id, landlord_id)
+                    "SELECT id, name FROM tenants WHERE phone = %s AND id != %s AND landlord_id = %s", (phone, orig_id, landlord_id)
                 ).fetchone()
             else:
                 phone_conflict = conn.execute(
-                    "SELECT id, name FROM tenants WHERE phone = ? AND id != ?", (phone, orig_id)
+                    "SELECT id, name FROM tenants WHERE phone = %s AND id != %s", (phone, orig_id)
                 ).fetchone()
             if phone_conflict:
                 conflicts["phone"] = phone
@@ -573,11 +573,11 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
         if email:
             if landlord_id is not None:
                 email_conflict = conn.execute(
-                    "SELECT id, name FROM tenants WHERE email = ? AND id != ? AND landlord_id = ?", (email, orig_id, landlord_id)
+                    "SELECT id, name FROM tenants WHERE email = %s AND id != %s AND landlord_id = %s", (email, orig_id, landlord_id)
                 ).fetchone()
             else:
                 email_conflict = conn.execute(
-                    "SELECT id, name FROM tenants WHERE email = ? AND id != ?", (email, orig_id)
+                    "SELECT id, name FROM tenants WHERE email = %s AND id != %s", (email, orig_id)
                 ).fetchone()
             if email_conflict:
                 conflicts["email"] = email
@@ -590,11 +590,11 @@ def get_snapshot_restore_preview(snapshot_id: str, landlord_id: Optional[int] = 
             if bill_no:
                 if landlord_id is not None:
                     exists = conn.execute(
-                        "SELECT 1 FROM receipts WHERE billNo = ? AND landlord_id = ?", (bill_no, landlord_id)
+                        "SELECT 1 FROM receipts WHERE billNo = %s AND landlord_id = %s", (bill_no, landlord_id)
                     ).fetchone()
                 else:
                     exists = conn.execute(
-                        "SELECT 1 FROM receipts WHERE billNo = ?", (bill_no,)
+                        "SELECT 1 FROM receipts WHERE billNo = %s", (bill_no,)
                     ).fetchone()
                 if exists:
                     bill_conflicts.append(bill_no)
@@ -653,7 +653,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
 
     with get_conn() as conn:
         snap_row = conn.execute(
-            "SELECT * FROM tenant_recovery_snapshots WHERE id = ?", (snapshot_id,)
+            "SELECT * FROM tenant_recovery_snapshots WHERE id = %s", (snapshot_id,)
         ).fetchone()
 
     if not snap_row:
@@ -706,11 +706,11 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
         # Check if original ID is free or if we need a new one
         if landlord_id is not None:
             id_taken = conn.execute(
-                "SELECT 1 FROM tenants WHERE id = ? AND landlord_id = ?", (orig_id, landlord_id)
+                "SELECT 1 FROM tenants WHERE id = %s AND landlord_id = %s", (orig_id, landlord_id)
             ).fetchone()
         else:
             id_taken = conn.execute(
-                "SELECT 1 FROM tenants WHERE id = ?", (orig_id,)
+                "SELECT 1 FROM tenants WHERE id = %s", (orig_id,)
             ).fetchone()
 
         if id_taken and not force_new_id:
@@ -744,7 +744,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
                 additionalpersoncharge, securitydeposit, defaulttankwatercharge,
                 meterid, viewToken, tenantpin, failed_attempts, locked_until, landlord_id,
                 qr_key
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 new_tenant_id,
@@ -783,11 +783,11 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
                 continue
             if restore_landlord_id is not None:
                 existing_bill = conn.execute(
-                    "SELECT 1 FROM receipts WHERE billNo = ? AND landlord_id = ?", (bill_no, restore_landlord_id)
+                    "SELECT 1 FROM receipts WHERE billNo = %s AND landlord_id = %s", (bill_no, restore_landlord_id)
                 ).fetchone()
             else:
                 existing_bill = conn.execute(
-                    "SELECT 1 FROM receipts WHERE billNo = ?", (bill_no,)
+                    "SELECT 1 FROM receipts WHERE billNo = %s", (bill_no,)
                 ).fetchone()
             if existing_bill:
                 skipped_receipts += 1
@@ -804,8 +804,8 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
                     paymentstatus, maintenancecharge, maintenancedesc,
                     previousarrears, amountreceived, landlord_id
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 )
                 """,
                 (
@@ -852,7 +852,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
             if not occ_uuid:
                 continue
             existing_occ = conn.execute(
-                "SELECT 1 FROM occupants WHERE occupantUuid = ?", (occ_uuid,)
+                "SELECT 1 FROM occupants WHERE occupantUuid = %s", (occ_uuid,)
             ).fetchone()
             if not existing_occ:
                 conn.execute(
@@ -861,7 +861,7 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
                         tenantId, occupantUuid, name, mobile, status,
                         aadhaar_front, aadhaar_back, aadhaar_combined,
                         emp_front, emp_back, uploaddate, uploadmonth
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         new_tenant_id,
@@ -883,18 +883,18 @@ def restore_tenant_from_snapshot(snapshot_id: str, force_new_id: bool = False, l
         if not force_new_id:
             for ph in pin_history:
                 conn.execute(
-                    "INSERT OR IGNORE INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (?, ?, ?)",
+                    "INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
                     (new_tenant_id, ph.get("pin_hash", ""), ph.get("changed_at", now_iso)),
                 )
             if pin_store:
                 conn.execute(
-                    "INSERT OR REPLACE INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (?, ?, ?)",
+                    "INSERT INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (%s, %s, %s) ON CONFLICT (tenantId) DO UPDATE SET encrypted_pin = excluded.encrypted_pin, updated_at = excluded.updated_at",
                     (new_tenant_id, pin_store.get("encrypted_pin", ""), pin_store.get("updated_at", now_iso)),
                 )
 
         # Mark snapshot as RESTORED
         conn.execute(
-            "UPDATE tenant_recovery_snapshots SET status = 'RESTORED', restored_at = ? WHERE id = ?",
+            "UPDATE tenant_recovery_snapshots SET status = 'RESTORED', restored_at = %s WHERE id = %s",
             (now_iso, snapshot_id),
         )
 
@@ -951,7 +951,7 @@ def purge_expired_tenant_recovery_snapshots() -> int:
         expired_rows = conn.execute(
             """
             SELECT id, archive_path FROM tenant_recovery_snapshots
-            WHERE status = 'AVAILABLE' AND expires_at <= ?
+            WHERE status = 'AVAILABLE' AND expires_at <= %s
             """,
             (now_iso,),
         ).fetchall()
@@ -971,7 +971,7 @@ def purge_expired_tenant_recovery_snapshots() -> int:
         # Mark as PURGED in DB
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenant_recovery_snapshots SET status = 'PURGED', purged_at = ? WHERE id = ?",
+                "UPDATE tenant_recovery_snapshots SET status = 'PURGED', purged_at = %s WHERE id = %s",
                 (now_iso, snap_id),
             )
             conn.commit()
