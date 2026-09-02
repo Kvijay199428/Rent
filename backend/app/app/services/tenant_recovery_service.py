@@ -82,9 +82,16 @@ def _hash_file(filepath: str) -> str:
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _init_snapshots_table():
-    """Ensure the tenant_recovery_snapshots table exists (idempotent)."""
+    """Ensure the tenant_recovery_snapshots table exists (idempotent).
+
+    The table is created by the versioned migration (001_initial); this remains
+    as a lightweight Postgres-idiomatic reconciler so the landlord_id column and
+    its index are present even if the table predates them. Uses one statement
+    per execute (psycopg connections do not support executescript / multi-
+    statement strings).
+    """
     with get_conn() as conn:
-        conn.executescript("""
+        conn.execute("""
             CREATE TABLE IF NOT EXISTS tenant_recovery_snapshots (
                 id TEXT PRIMARY KEY,
                 tenant_id INTEGER NOT NULL,
@@ -99,14 +106,18 @@ def _init_snapshots_table():
                 metadata_json TEXT NOT NULL,
                 restored_at TEXT,
                 purged_at TEXT
-            );
+            )
+        """)
+        conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_tenant_recovery_expiry
-                ON tenant_recovery_snapshots(expires_at, status);
+                ON tenant_recovery_snapshots(expires_at, status)
+        """)
+        conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_tenant_recovery_landlord
-                ON tenant_recovery_snapshots(landlord_id, status);
+                ON tenant_recovery_snapshots(landlord_id, status)
         """)
         try:
-            conn.execute("ALTER TABLE tenant_recovery_snapshots ADD COLUMN landlord_id INTEGER")
+            conn.execute("ALTER TABLE tenant_recovery_snapshots ADD COLUMN IF NOT EXISTS landlord_id INTEGER")
             conn.commit()
         except Exception:
             pass
