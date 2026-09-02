@@ -119,8 +119,8 @@ def up(conn):
             password_reset_requested_at TEXT,
             password_reset_required     INTEGER NOT NULL DEFAULT 0,
             last_password_change_at     TEXT,
-            landlord_id                 INTEGER REFERENCES landlord_accounts(id),
-            property_id                 INTEGER REFERENCES landlord_properties(id)
+            landlord_id                 INTEGER,
+            property_id                 INTEGER
         )
     """)
 
@@ -225,7 +225,7 @@ def up(conn):
             month                TEXT NOT NULL,
             tenantId             INTEGER,
             tenant               TEXT NOT NULL,
-            property_id          INTEGER REFERENCES landlord_properties(id),
+            property_id          INTEGER,
             previous             DOUBLE PRECISION NOT NULL DEFAULT 0,
             current              DOUBLE PRECISION NOT NULL DEFAULT 0,
             units                DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -253,7 +253,7 @@ def up(conn):
             maintenancedesc      TEXT,
             previousarrears      DOUBLE PRECISION NOT NULL DEFAULT 0,
             amountreceived       DOUBLE PRECISION NOT NULL DEFAULT 0,
-            landlord_id          INTEGER REFERENCES landlord_accounts(id),
+            landlord_id          INTEGER,
             settled_by_bill_no   TEXT,
             settlement_type      TEXT NOT NULL DEFAULT 'NONE',
             settled_at           TEXT,
@@ -321,7 +321,7 @@ def up(conn):
             emp_back       TEXT,
             uploaddate     TEXT,
             uploadmonth    TEXT,
-            landlord_id    INTEGER REFERENCES landlord_accounts(id),
+            landlord_id    INTEGER,
             FOREIGN KEY (tenantId) REFERENCES tenants(id) ON DELETE CASCADE
         )
     """)
@@ -588,7 +588,22 @@ def up(conn):
     cur.execute("CREATE INDEX IF NOT EXISTS idx_receipts_landlord_id ON receipts(landlord_id)")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_occupants_landlord_id ON occupants(landlord_id)")
 
-    # ---- 31. INITIAL METADATA -------------------------------------------------------------
+    # ---- 31. DEFERRED FOREIGN KEYS ----------------------------------------------
+    # landlord_accounts / landlord_properties are created later in this file, so
+    # the references from tenants/receipts/occupants are added now that they exist
+    # (PostgreSQL requires a referenced table to exist at FK-creation time).
+    cur.execute("ALTER TABLE tenants ADD CONSTRAINT fk_tenants_landlord "
+                "FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id)")
+    cur.execute("ALTER TABLE tenants ADD CONSTRAINT fk_tenants_property "
+                "FOREIGN KEY (property_id) REFERENCES landlord_properties(id)")
+    cur.execute("ALTER TABLE receipts ADD CONSTRAINT fk_receipts_property "
+                "FOREIGN KEY (property_id) REFERENCES landlord_properties(id)")
+    cur.execute("ALTER TABLE receipts ADD CONSTRAINT fk_receipts_landlord "
+                "FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id)")
+    cur.execute("ALTER TABLE occupants ADD CONSTRAINT fk_occupants_landlord "
+                "FOREIGN KEY (landlord_id) REFERENCES landlord_accounts(id)")
+
+    # ---- 32. INITIAL METADATA -------------------------------------------------------------
     cur.execute(
         "INSERT INTO app_metadata (key, value) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
         ("tenant_schema_version", "3"),
