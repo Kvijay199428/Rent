@@ -65,7 +65,7 @@ done
 for app in $APPS; do
   echo ""
   echo "=== $app ==="
-  (cd "$app" && npm ci && npm run build)
+  (cd "$app" && npm install && npm run build)
 done
 
 echo ""
