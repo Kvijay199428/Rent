@@ -390,28 +390,31 @@ def write_ports_env():
 
 def provision_frontend_env(env_source):
     """Write the canonical frontend/.env used by the vite builds (all apps read
-    it via `envDir: '../'`). Only VITE_GOOGLE_CLIENT_ID and VITE_APP_BASE_PATH
-    are drawn from the .env/ source of truth. VITE_API_BASE_URL is forced EMPTY
-    so the frontend calls same-origin (/rent/...) and the nginx/backend proxy
-    routes it — this is the working behavior for both dev and prod."""
+    it via `envDir: '../'`). VITE_GOOGLE_CLIENT_ID, VITE_APP_BASE_PATH and
+    VITE_API_BASE_URL are drawn from the .env/ source of truth. For release this
+    carries the public API origin (https://api.vijaykrsha.online) so the Pages
+    bundle calls the backend instead of same-origin (which would 405 on Pages);
+    for a dev-style source it stays empty for same-origin /rent/ proxying."""
     env_file = os.path.join(LOCAL_DIR, "frontend", ".env")
     client_id = ""
     app_base = "/rent"
+    api_base = ""
     if os.path.isfile(env_source):
         env_map = _load_barsep_env(env_source)
         client_id = env_map.get("VITE_GOOGLE_CLIENT_ID", "")
         app_base = env_map.get("VITE_APP_BASE_PATH", "/rent")
+        api_base = env_map.get("VITE_API_BASE_URL", "").strip()
     if not client_id:
         print(f"  WARNING: VITE_GOOGLE_CLIENT_ID not found in {env_source} — Google login will break")
     lines = [
         "VITE_APP_BASE_PATH=" + app_base,
-        "VITE_API_BASE_URL=",
+        "VITE_API_BASE_URL=" + api_base,
         "VITE_GOOGLE_CLIENT_ID=" + client_id,
         "",
     ]
     with open(env_file, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
-    print(f"  Provisioned frontend/.env (Google client id set: {bool(client_id)})")
+    print(f"  Provisioned frontend/.env (Google client id set: {bool(client_id)}, API base: '{api_base or '(same-origin)'}')")
 
 
 def build_frontends():

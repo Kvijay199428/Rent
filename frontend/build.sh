@@ -7,10 +7,33 @@ echo "=== Building Rent Frontend Apps ==="
 load_env() {
   local f="$1"
   [ -f "$f" ] || return 1
-  set -a
-  . "$f"
-  set +a
-  echo "=== Loaded $f (VITE_* build vars) ==="
+  # Export only NON-EMPTY VITE_* values from the env file into the shell.
+  # Empty values are deliberately skipped: Vite's env loading assigns process.env
+  # the HIGHEST priority (a present-but-empty VITE_API_BASE_URL in process.env
+  # would blank the production origin that's set in the committed .env.production).
+  # Dev same-origin stays correct because Vite reads .env/.env.development itself.
+  # We also never overwrite a var already set to a non-empty value (CI wins).
+  local line key val current
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%%#*}"                       # strip inline comments
+    line="${line%"${line##*[![:space:]]}"}"  # trim trailing whitespace
+    [ -n "$line" ] || continue
+    key="${line%%=*}"
+    key="${key//[^A-Za-z0-9_]/}"
+    case "$key" in
+      VITE_*)
+        val="${line#*=}"
+        val="${val%\"}"; val="${val#\"}"
+        [ -n "$val" ] || continue            # skip empty values (see above)
+        # eval (not ${!key}) so this works on minimal bash (w64devkit) too.
+        current=""; eval "current=\"\${$key:-}\""
+        if [ -z "$current" ]; then           # only set if not already non-empty
+          export "$key=$val"
+        fi
+        ;;
+    esac
+  done < "$f"
+  echo "=== Loaded $f (non-empty VITE_* build vars, incoming env preserved) ==="
   return 0
 }
 

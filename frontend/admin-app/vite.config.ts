@@ -4,6 +4,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   base: "/rent/admin/",
+  envDir: "../",
   plugins: [react()],
   resolve: {
     alias: {

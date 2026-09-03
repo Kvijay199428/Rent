@@ -16,6 +16,12 @@ __pycache__/
 backend/.env
 frontend/.env
 gateway/.env
+# Frontend env-mode files that back the vite builds (envDir: '../') are tracked
+# deliberately to make production builds deterministic (no empty API base -> no
+# same-origin 405 on Cloudflare Pages). Root .env.release/.env.development (which
+# contain secrets) remain ignored above; only the frontend mode files are un-ignored.
+!frontend/.env.production
+!frontend/.env.development
 *.pem
 *.key
 

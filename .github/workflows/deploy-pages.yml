@@ -36,8 +36,6 @@ jobs:
             frontend/tenant-app/package-lock.json
 
       - name: Install & Build All Apps
-        env:
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
         run: |
           cd frontend
           bash build.sh

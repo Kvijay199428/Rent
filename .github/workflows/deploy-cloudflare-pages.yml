@@ -32,9 +32,6 @@ jobs:
             frontend/tenant-app/package-lock.json
 
       - name: Build Frontend Apps
-        env:
-          VITE_API_BASE_URL: https://api.vijaykrsha.online
-          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
         run: |
           cd frontend
           bash build.sh
