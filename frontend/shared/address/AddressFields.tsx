@@ -1,7 +1,92 @@
+import { useState } from 'react';
 import { StructuredAddress, EMPTY_ADDRESS } from './address';
+import { COUNTRY_OPTIONS, getCountryName } from './countries';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import getCountryFlag from 'country-flag-icons/unicode';
+import { ChevronDown, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+interface CountrySelectProps {
+  value: string;
+  onSelect: (code: string) => void;
+  idPrefix: string;
+}
+
+function CountrySelect({ value, onSelect, idPrefix }: CountrySelectProps) {
+  const [open, setOpen] = useState(false);
+  const name = getCountryName(value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          variant="outline"
+          id={`${idPrefix}-country`}
+          className="w-full justify-between font-normal text-foreground"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            {value ? (
+              <span className="text-base leading-none shrink-0">
+                {getCountryFlag(value)}
+              </span>
+            ) : (
+              <Globe className="size-4 shrink-0 text-muted-foreground" />
+            )}
+            <span className="truncate">{name || 'Select country…'}</span>
+          </span>
+          <ChevronDown className="size-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={2} className="w-[320px] p-0">
+        <Command>
+          <CommandInput placeholder="Search country…" />
+          <CommandList>
+            <CommandEmpty>No country found.</CommandEmpty>
+            <CommandGroup>
+              {COUNTRY_OPTIONS.map((option) => (
+                <CommandItem
+                  key={option.code}
+                  value={`${option.name} ${option.code}`}
+                  onSelect={() => {
+                    onSelect(option.code);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="text-base leading-none">
+                    {getCountryFlag(option.code)}
+                  </span>
+                  <span className="flex-1 truncate">{option.name}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {option.code}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 interface AddressFieldsProps {
   value?: StructuredAddress;
@@ -107,13 +192,11 @@ export default function AddressFields({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor={`${idPrefix}-country`}>Country</Label>
-        <Input
-          id={`${idPrefix}-country`}
+        <Label>Country</Label>
+        <CountrySelect
           value={country ?? value.country ?? ''}
-          readOnly
-          disabled
-          placeholder="Detecting…"
+          onSelect={(code) => set('country', code)}
+          idPrefix={idPrefix}
         />
       </div>
     </div>
