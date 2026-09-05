@@ -18,7 +18,7 @@ class Paths:
     PUBLIC = "/t"
 
 class Routes:
-    BASEPATH = "/rent"
+    BASEPATH = "/"
     HEALTHCHECK = "/health"
     PUBLICLANDING = "/"
 

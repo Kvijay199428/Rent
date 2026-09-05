@@ -17,10 +17,10 @@ export default function Footer() {
     {
       heading: "Logins",
       links: [
-        { label: "Landlord Login", href: "/rent/landlord/login" },
-        { label: "Create Landlord Account", href: "/rent/landlord/signup" },
-        { label: "Tenant Login", href: "/rent/tenant/login" },
-        { label: "Admin Login", href: "/rent/admin/login" },
+        { label: "Landlord Login", href: "/landlord/login" },
+        { label: "Create Landlord Account", href: "/landlord/signup" },
+        { label: "Tenant Login", href: "/tenant/login" },
+        { label: "Admin Login", href: "/admin/login" },
       ],
     },
     {
@@ -35,8 +35,8 @@ export default function Footer() {
     {
       heading: "Legal",
       links: [
-        { label: "Privacy Policy", href: "/rent/landlord/privacy-policy" },
-        { label: "Terms of Service", href: "/rent/landlord/terms" },
+        { label: "Privacy Policy", href: "/landlord/privacy-policy" },
+        { label: "Terms of Service", href: "/landlord/terms" },
       ],
     },
   ];
@@ -71,8 +71,8 @@ export default function Footer() {
       <div className="footer-bottom">
         <p>&copy; {year} <Logo variant="light" height={12} /> by Vijay Kumar Sharma. All rights reserved.</p>
         <div className="footer-bottom-links">
-          <a href="/rent/landlord/privacy-policy">Privacy Policy</a>
-          <a href="/rent/landlord/terms">Terms of Service</a>
+          <a href="/landlord/privacy-policy">Privacy Policy</a>
+          <a href="/landlord/terms">Terms of Service</a>
         </div>
       </div>
     </footer>

@@ -1,6 +1,6 @@
 ---
 name: testing-audit-debugging-protocol
-description: Professional-grade testing, audit and debugging protocol and full testing-audit ORCHESTRATOR. Use when the user asks you to test, audit, QA, debug, verify, validate, or profile an application before deployment; run existing tests; establish a testing baseline; investigate a bug; discover available skills/tools; or produce audit documentation (test-audit-task.md, audit-plan.md, audit-log.md, bucket-list.md, skill-usage-log.md, skill-mapping.md) plus machine-readable audit memory (.audit/memory/). Enforces a strict approval-gated workflow — DISCOVER → TEST → REPRODUCE → DOCUMENT → AUDIT → SELECT SKILLS/TOOLS → PROPOSE FIX → ANALYSIS APPROVAL → CODE MODIFICATION APPROVAL → EDIT → RE-TEST → REGRESSION → VERIFICATION → DEPLOY GATE — where testing and investigation never silently become code modification. As an orchestrator it discovers global and project-local skills and project tools, registers them in a capability registry, selects the right instrument with an explainable reason (WHY THIS SKILL? / WHY NOT X?), operates in read-only audit mode by default, records every selection and invocation as an execution record, correlates findings into evidence-backed clusters with an evidence graph, maintains project-side audit memory (.audit/memory/), applies confidence thresholds and reputation scores, supports audit replay, and gates all changes behind dual approval gates (Analysis Approval, then Code Modification Approval). Read-only investigative use of skills/tools is allowed and logged; no implementation change occurs without explicit user approval.
+description: Professional-grade testing, audit and debugging protocol and full testing-audit ORCHESTRATOR. Use when the user asks you to test, audit, QA, debug, verify, validate, or profile an application before deployment; run existing tests; establish a testing baseline; investigate a bug; discover available skills/tools; or produce audit documentation (test-audit-task.md, audit-plan.md, audit-log.md, bucket-list.md, skill-usage-log.md, skill-mapping.md) plus machine-readable audit memory (.audit/memory/). Enforces a strict approval-gated workflow — DISCOVER → TEST → REPRODUCE → DOCUMENT → AUDIT → SELECT SKILLS/TOOLS → NESTED SKILL PLAN APPROVAL → PROPOSE FIX → ANALYSIS APPROVAL → CODE MODIFICATION APPROVAL → EDIT → RE-TEST → REGRESSION → VERIFICATION → DEPLOY GATE — where testing and investigation never silently become code modification. As an orchestrator it discovers global and project-local skills, project tools, AND a self-contained library of nested specialist skills (auto-discovered from ./nested-skills, config-driven via nested-skills.config.json — never hard-coded here), registers them in a capability registry, selects the right instrument with an explainable reason (WHY THIS SKILL? / WHY NOT X?), operates in read-only audit mode by default, presents a Nested Skill Execution Plan (which nested skill, for what purpose, what scripts it may create and why) for approval before any nested skill is invoked, records every selection and invocation as an execution record, correlates findings into evidence-backed clusters with an evidence graph, maintains project-side audit memory (.audit/memory/), applies confidence thresholds and reputation scores, supports audit replay, and gates all changes behind dual approval gates (Analysis Approval, then Code Modification Approval). Read-only investigative use of skills/tools is allowed and logged; no implementation change occurs without explicit user approval; nested skills follow the user's declared mapping/instructions when one exists instead of re-asking each time.
 license: Apache-2.0
 metadata:
   author: Vijay Kumar Sharma
@@ -41,6 +41,10 @@ The workflow must always follow:
                 ┌──────────────────────┐
                 │ SELECT SKILLS/TOOLS  │  WHY THIS SKILL? + WHY NOT X?
                 └───────┬──────────────┘
+                        ↓
+                ┌───────────────────────────┐
+                │ NESTED SKILL PLAN APPROVAL│  only if a nested skill was selected —
+                └───────┬───────────────────┘  see §4a; skip straight down otherwise
                         ↓
                 ┌──────────────────┐
                 │   PROPOSE FIX    │  root cause + confidence + change budget
@@ -188,14 +192,15 @@ The full protocol is organized into the master file, reference documents, schema
 * `deployment-gate.md` — final gate, honest documentation, final report
 
 ### references/ (orchestrator — read in phase order 1→8)
-* `skill-discovery.md` (1) — enumerate global + project skills and project tools
+* `skill-discovery.md` (1) — enumerate global + project skills, project tools, AND nested skills
+* `nested-skill-orchestration.md` (1b) — the authoritative spec for the nested-skill layer: discovery, manifest, planning, approval, delegation limits
 * `skill-selection.md` (2) — selection engine, modes, `WHY THIS SKILL?` / `WHY NOT X?`
-* `capability-registry.md` (2) — the registered inventory of skills/tools
-* `tool-orchestration.md` (3) — read-only vs change-making tools, child-skill read-only enforcement
+* `capability-registry.md` (2) — the registered inventory of skills/tools/nested skills
+* `tool-orchestration.md` (3) — read-only vs change-making tools, child-skill read-only enforcement, script creation as a mutation
 * `audit-memory.md` (4) — `.audit/memory/` JSON/JSONL stores
 * `evidence-and-traceability.md` (5) — evidence graph, findings→evidence→execution→files
 * `finding-correlation.md` (6) — clusters and `X-not-Y` relationships
-* `approval-gates.md` (7) — the dual gates (Analysis + Code Modification)
+* `approval-gates.md` (7) — the dual gates (Analysis + Code Modification) plus the Nested Skill Plan approval that precedes them
 * `audit-replay.md` (8) — replaying an audit from its records
 
 ### schemas/ — JSON schemas for machine-readable records
@@ -208,17 +213,51 @@ The full protocol is organized into the master file, reference documents, schema
 
 ## 4. Orchestration (summary)
 
-This skill is not limited to its own instructions. When useful, it may consult **other available skills** (global skills, project-local skills) and **any available tools** (execution, search, connectors, document/spreadsheet/PDF skills, etc.) to do a better audit or a better fix.
+This skill primarily operates through its own registered **nested specialist skills** — a self-contained library auto-discovered from `./nested-skills/` (see `nested-skills.config.json`, `references/nested-skill-orchestration.md`). External/global and project-local skills, and generic tools, remain available as **fallback capabilities** for when no suitable nested skill exists, or when the user explicitly directs their use. Every delegated capability — nested, external, or generic — is subject to the same discovery, registration, selection, evidence, approval, scope, and execution-record requirements described in this section.
 
-The lifecycle is: **DISCOVER → REGISTER → SELECT → INVOKE → RECORD**.
+The lifecycle is: **DISCOVER → REGISTER → SELECT → (NESTED SKILL PLAN + APPROVAL) → INVOKE → RECORD**.
 
-1. **DISCOVER** what is available (global skills, project-local skills, project tools) and build the capability shortlist. Read-only, no approval. See `references/skill-discovery.md`.
-2. **REGISTER** the shortlist in the capability registry with domain, source, read-only safety, reputation. See `references/capability-registry.md`.
-3. **SELECT** the right instrument using the selection engine (modes: Automatic / User Directed / User Approved) and express it as **`WHY THIS SKILL?`** plus **`WHY NOT X?`** for rejected alternatives. See `references/skill-selection.md`.
-4. **INVOKE** it — read-only by default, or change-making only after Gate 2 approval.
-5. **RECORD** an execution record in audit memory (`.audit/memory/skill-usage.jsonl`) and `skill-usage-log.md`.
+1. **DISCOVER** what is available — nested skills first (from `./nested-skills/`), then global skills, project-local skills, and project tools — and build the capability shortlist. Read-only, no approval. See `references/skill-discovery.md` and `references/nested-skill-orchestration.md` §1.
+2. **REGISTER** the shortlist in the capability registry with domain, source (now including `nested skill`), read-only safety, reputation. See `references/capability-registry.md`.
+3. **SELECT** the right instrument using the selection engine (modes: Automatic / User Directed / User Approved) and express it as **`WHY THIS SKILL?`** plus **`WHY NOT X?`** for rejected alternatives. See `references/skill-selection.md`. Resolution order: user-directed nested skill → matching nested skill → project-local capability → external/global skill → generic tool. If no nested skill covers a needed capability, say so explicitly as a **capability gap** rather than silently falling back — see `references/nested-skill-orchestration.md` §5.
+4. **PLAN & APPROVE (nested skills only)** — before invoking *any* nested skill, present the **Nested Skill Execution Plan** (§4a below) and get it approved, even for read-only investigation. This is in addition to, not a replacement for, Gate 1/Gate 2 for actual modifications. External/global skills and project tools keep following the existing read-only-logged / change-making-gated rule without this extra step.
+5. **INVOKE** it — read-only by default, or change-making only after Gate 2 approval. A nested skill never decides on its own to modify the project or to call another nested skill (see delegation limits, `references/nested-skill-orchestration.md` §4).
+6. **RECORD** an execution record in audit memory (`.audit/memory/skill-usage.jsonl`) and `skill-usage-log.md`, extended with the parent/child fields in `references/nested-skill-orchestration.md` §6.
 
 Full detail, schemas, and examples are in the orchestrator `references/`.
+
+---
+
+## 4a. Nested Skill Execution Plan (new gate, precedes Gate 1/Gate 2)
+
+Applies only when Step 3 selected a **nested skill** (a skill living under `./nested-skills/`). Present this before invoking it, whether the invocation is read-only or change-making:
+
+```text
+NESTED SKILL EXECUTION PLAN
+
+Audit/Issue ID:
+Objective:
+
+NESTED SKILL:
+  Skill:              <nested skill id>
+  Capability:         <declared capability being used, from its manifest.json>
+  Purpose:            <what it will concretely do>
+  Why necessary:      <specific evidence gap this fills — not "might help">
+  Expected output:    <evidence/findings it should produce>
+  Scripts proposed:   <script id, path, purpose, why necessary — or "none">
+  Files potentially touched: <list, or "none">
+  Mutation status:    READ-ONLY | CHANGE-MAKING (change-making still needs Gate 2 later)
+
+APPROVAL STATUS: waiting for user approval — nothing invoked yet.
+```
+
+* If more than one nested skill is being proposed together, list each as its own block under the same plan so the user sees the whole shape of the investigation at once.
+* A proposed script is itself a project mutation (creating a new file) — per `references/tool-orchestration.md` §1.2 this is **change-making**, so it needs Gate 2 in addition to appearing justified here. List it anyway, so the user isn't surprised later when Gate 2 comes up.
+* If the user has a standing instruction or a declared mapping (`skill-mapping.md`) covering this kind of finding, follow it instead of re-presenting the plan from scratch — reference the existing mapping and proceed per its scope limits.
+* If the user rejects or redirects the plan, follow their instruction exactly rather than substituting your own judgment, and don't re-propose the rejected item later in the same audit without new evidence that changes the justification.
+* This step does not replace Gate 1 (analysis approval) or Gate 2 (modification approval) — it only covers "may I run this specialist and why." A nested skill's actual proposed *fix* still goes through Gate 1 then Gate 2 like any other change.
+
+See `references/nested-skill-orchestration.md` §3 and `templates/nested-skill-plan.md` for the full spec and fill-in template.
 
 ---
 
@@ -336,11 +375,12 @@ When testing is complete, do **NOT** immediately edit discovered issues. Give a 
 10. Affected files
 11. Proposed fixes
 12. Files that would be modified (change budget)
-13. Skills/tools used during investigation, and skills/tools proposed for fixes (with `WHY THIS SKILL?` reasons)
+13. Skills/tools used during investigation, and skills/tools proposed for fixes (with `WHY THIS SKILL?` reasons) — including which were **nested skills**, with their Nested Skill Plan approval status and versions
 14. Correlation / evidence-graph summary (clusters, `X-not-Y` conflicts)
-15. Regression tests required
+15. Regression tests required, including re-verification by the same nested skill(s) that found/fixed the issue
 16. Deployment readiness
-17. Explicit approval requests (Gate 1 analysis approvals and Gate 2 code-modification approvals)
+17. Explicit approval requests (Nested Skill Plan approvals, Gate 1 analysis approvals, and Gate 2 code-modification approvals)
+18. Summary counts: nested skills considered/invoked/skipped, scripts proposed/created/retained
 
 For every issue requiring implementation changes, or requiring a change-making skill/tool, stop and ask for approval.
 

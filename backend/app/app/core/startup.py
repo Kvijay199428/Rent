@@ -4,7 +4,6 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config_service import ConfigService
 from app.core.paths import UPLOADS_DIR, STATIC_DIR, ensure_storage_dirs
 from app.core.db import init_db
-from app.core.api_guard import APIGuardedStaticFiles
 from app.core.runtime import serve_frontend
 
 
@@ -75,14 +74,9 @@ class StartupManager:
         if not serve_frontend():
             return
 
-        for path, rel in [
-            ("/admin/assets", "frontend/admin-app/dist/assets"),
-            ("/landlord/assets", "frontend/landlord-app/dist/assets"),
-            ("/t/assets", "frontend/tenant-app/dist/assets"),
-            ("/assets", "frontend/landing-app/dist/assets"),
-        ]:
-            if os.path.isdir(rel):
-                app.mount(path, APIGuardedStaticFiles(directory=rel), name=path.strip("/").replace("/", "_"))
+        # Per-app asset routes are served by frontend.py _app_prefix()
+        # (which prefers dist-dev over dist). Mounting StaticFiles here
+        # shadows those routes because Mounts match by prefix first.
 
     @staticmethod
     def register_middlewares(app: FastAPI):

@@ -37,10 +37,10 @@ export function useHealthStream(enabled = true) {
 
       if (apiBase) {
         const wsBase = apiBase.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
-        wsUrl = `${wsBase}/rent/ws/health`;
+        wsUrl = `${wsBase}/ws/health`;
       } else {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        wsUrl = `${protocol}//${window.location.host}/rent/ws/health`;
+        wsUrl = `${protocol}//${window.location.host}/ws/health`;
       }
 
       try {

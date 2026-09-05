@@ -10,9 +10,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, Shield, AlertTriangle, ArrowLeft, KeyRound } from 'lucide-react';
 import AuthLayout from '@/components/layout/AuthLayout';
 import LoadingOverlay from '@shared/loading/LoadingOverlay';
+import useCapsLock from '@shared/capslock/useCapsLock';
+import CapsLockWarning from '@shared/capslock/CapsLockWarning';
 
 export default function LandlordLoginPage() {
   const navigate = useNavigate();
+  const capsLockOn = useCapsLock();
   const { login, verifyTotp, isAuthenticated, isLoading, landlordUuid, googleLogin } = useAuth();
   const [loginData, setLoginData] = useState({ username: '', password: '', totpToken: '', rememberMe: false });
   const [showPassword, setShowPassword] = useState(false);
@@ -126,6 +129,8 @@ export default function LandlordLoginPage() {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
+          <CapsLockWarning isCapsLockOn={capsLockOn} />
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">

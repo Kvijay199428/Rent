@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Nested Skills Config",
+  "type": "object",
+  "required": ["nestedSkills"],
+  "properties": {
+    "nestedSkills": {
+      "type": "object",
+      "required": ["enabled", "root"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "root": { "type": "string" },
+        "autoDiscover": { "type": "boolean" },
+        "recursive": { "type": "boolean" },
+        "requiredManifest": { "type": "boolean" },
+        "requiredSkillFile": { "type": "boolean" },
+        "allowedSkillFiles": { "type": "array", "items": { "type": "string" } },
+        "allowedManifestFiles": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "discovery": {
+      "type": "object",
+      "properties": {
+        "ignore": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "resolution": {
+      "type": "object",
+      "properties": {
+        "priority": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["user-directed", "nested-specialist", "project-local", "external-global", "generic-tool"]
+          }
+        },
+        "requireExplicitReason": { "type": "boolean" },
+        "allowFallbackToExternal": { "type": "boolean" },
+        "allowFallbackToGenericTool": { "type": "boolean" }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "defaultMode": { "type": "string", "enum": ["read-only", "change-making"] },
+        "requireNestedSkillPlanApproval": { "type": "boolean" },
+        "requireApprovalBeforeMutation": { "type": "boolean" },
+        "maxDelegationDepth": { "type": "integer", "minimum": 0 },
+        "allowChildToChildDelegation": { "type": "boolean" },
+        "allowDynamicSkillLoading": { "type": "boolean" },
+        "allowRuntimeSkillUpdates": { "type": "boolean" }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "recordSourcePath": { "type": "boolean" },
+        "recordDiscoveryTime": { "type": "boolean" },
+        "recordVersion": { "type": "boolean" },
+        "recordManifestVersion": { "type": "boolean" },
+        "recordSourceHash": { "type": "boolean" }
+      }
+    }
+  }
+}

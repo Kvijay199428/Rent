@@ -37,12 +37,12 @@ export function useSync(channel: string, onEvent: EventHandler, enabled = true) 
       if (apiBase) {
         // Production: API on different origin (e.g. https://api.vijaykrsha.online/rent)
         const wsBase = apiBase.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
-        wsUrl = `${wsBase}/rent/ws/sync?channel=${encodeURIComponent(channel)}`;
+        wsUrl = `${wsBase}/ws/sync?channel=${encodeURIComponent(channel)}`;
       } else {
         // Docker testing: same origin
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const host = window.location.host;
-        wsUrl = `${protocol}//${host}/rent/ws/sync?channel=${encodeURIComponent(channel)}`;
+        wsUrl = `${protocol}//${host}/ws/sync?channel=${encodeURIComponent(channel)}`;
       }
 
       try {

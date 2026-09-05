@@ -1,5 +1,5 @@
 // frontend/tenant-app/src/lib/tenant-runtime.ts
-const APP_BASE = (import.meta.env.VITE_APP_BASE_PATH || "/rent").replace(/\/+$/, "");
+const APP_BASE = (import.meta.env.VITE_APP_BASE_PATH || "").replace(/\/+$/, "");
 
 export type TenantRuntime = {
   appBase: string;

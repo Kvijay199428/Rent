@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import AuthLayout from "@/components/AuthLayout";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
+import useCapsLock from "@shared/capslock/useCapsLock";
+import CapsLockWarning from "@shared/capslock/CapsLockWarning";
 import {
   portalLogin,
   forgotTenantPassword,
@@ -35,6 +37,7 @@ function validatePassword(v: string): string | null {
 
 export default function PortalLoginPage() {
   const [view, setView] = useState<View>("login");
+  const capsLockOn = useCapsLock();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -160,6 +163,8 @@ export default function PortalLoginPage() {
                 </Alert>
               )}
 
+              <CapsLockWarning isCapsLockOn={capsLockOn} />
+
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <label className="text-sm font-semibold block mb-2">
@@ -257,6 +262,8 @@ export default function PortalLoginPage() {
                 </Alert>
               )}
 
+              <CapsLockWarning isCapsLockOn={capsLockOn} />
+
               <form onSubmit={handleForgot} className="space-y-4">
                 <div>
                   <label className="text-sm font-semibold block mb-2">
@@ -317,6 +324,8 @@ export default function PortalLoginPage() {
                   <AlertDescription>{error}</AlertDescription>
                 </Alert>
               )}
+
+              <CapsLockWarning isCapsLockOn={capsLockOn} />
 
               <form onSubmit={handleForcedChange} className="space-y-4">
                 <div>

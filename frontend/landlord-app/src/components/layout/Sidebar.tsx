@@ -106,15 +106,15 @@ export default function Sidebar() {
             Quick Access
           </p>
           <div className="flex flex-col gap-1 mb-3 px-1">
-            <a href="/rent/" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/50 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline">
+            <a href="/" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/50 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline">
               <span className="text-base">🌍</span>
               Home
             </a>
-            <a href="/rent/admin/login" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/50 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline">
+            <a href="/admin/login" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/50 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline">
               <span className="text-base">⚙️</span>
               Platform Admin
             </a>
-            <a href="/rent/tenant" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/50 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline">
+            <a href="/tenant" className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/50 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline">
               <span className="text-base">👤</span>
               Tenant Portal
             </a>

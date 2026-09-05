@@ -10,7 +10,7 @@ cloudflared / DNS  →  propaura_nginx_gateway_prod  ngrok tunnel  →  propaura
                           │                                                ├─ API → propaura_backend_dev (28002)
                           ├─ /health, /api, /ws → propaura_backend_prod    └─ tenant pages → propaura_frontend_dev
                           │  (cont 28011, expose only)                        (Vite, host 28001)
-                          └─ /rent/* SPA from frontend/build-output
+                          └─ /* SPA from frontend/build-output
                              (no frontend container)
    data: PostgreSQL pgdata_prod (28013) │ storage/release (28012)          data: pgdata_dev (28004) │ storage/dev (28003)
 ```
@@ -360,5 +360,5 @@ The release backend sets `SERVE_FRONTEND=false`:
 
 All page serving is done by the edge nginx from `frontend/build-output`
 (no separate frontend container; `rent.vijaykrsha.online` remains Cloudflare
-Pages). The edge routes `/rent/*` and tenant deep links to the static SPA;
+Pages). The edge routes `/*` and tenant deep links to the static SPA;
 everything else (API, `/static/uploads`, WebSockets) goes to the backend slot.

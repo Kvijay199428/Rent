@@ -75,7 +75,11 @@ function resolvePath(template: string, params?: Record<string, string | number>)
 }
 
 function fullPath(template: string, params?: Record<string, string | number>): string {
-    return `${manifest.basePath || ""}${resolvePath(template, params)}`;
+    const base =
+        manifest.basePath && manifest.basePath !== "/"
+            ? manifest.basePath.replace(/\/+$/, "")
+            : "";
+    return `${base}${resolvePath(template, params)}`;
 }
 
 function clean(part: string): string {

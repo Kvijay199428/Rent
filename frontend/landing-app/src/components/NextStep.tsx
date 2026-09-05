@@ -12,8 +12,8 @@ const portals: {
     description:
       "Manage your properties, tenants, and rental receipts. New here? Create a free landlord account.",
     buttons: [
-      { label: "Landlord Login", href: "/rent/landlord/login", variant: "primary" },
-      { label: "Create Account", href: "/rent/landlord/signup", variant: "outline" },
+      { label: "Landlord Login", href: "/landlord/login", variant: "primary" },
+      { label: "Create Account", href: "/landlord/signup", variant: "outline" },
     ],
   },
   {
@@ -22,7 +22,7 @@ const portals: {
     description:
       "Access your receipts, payment status, upload KYC documents, and manage your profile — all from a secure, encrypted portal.",
     buttons: [
-      { label: "Tenant Login", href: "/rent/tenant/login", variant: "primary" },
+      { label: "Tenant Login", href: "/tenant/login", variant: "primary" },
     ],
   },
   {
@@ -31,7 +31,7 @@ const portals: {
     description:
       "System administration, global settings, and platform-wide oversight. Restricted access only.",
     buttons: [
-      { label: "Admin Login", href: "/rent/admin/login", variant: "green" },
+      { label: "Admin Login", href: "/admin/login", variant: "green" },
     ],
   },
 ];

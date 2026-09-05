@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import { Logo } from "@shared/brand/Logo";
 
 const NAV_LINKS = [
-  { label: "Home", href: "/rent/", icon: "🌍" },
-  // { label: "Platform Admin", href: "/rent/admin/login", icon: "⚙️" },
-  // { label: "Landlord Portal", href: "/rent/landlord/login", icon: "🏠" },
+  { label: "Home", href: "/", icon: "🌍" },
+  // { label: "Platform Admin", href: "/admin/login", icon: "⚙️" },
+  // { label: "Landlord Portal", href: "/landlord/login", icon: "🏠" },
 ];
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
@@ -12,7 +12,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen flex flex-col bg-muted/30">
       {/* Header */}
       <header className="flex items-center justify-between px-6 py-4 flex-wrap gap-3">
-        <a href="/rent/admin/login" className="flex items-center gap-2.5 no-underline">
+        <a href="/admin/login" className="flex items-center gap-2.5 no-underline">
           <Logo height={22} />
         </a>
         <nav className="flex gap-2.5">

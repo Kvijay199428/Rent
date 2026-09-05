@@ -70,8 +70,17 @@ router = APIRouter(prefix="/admin", tags=["Platform Admin"])
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
+def _resolve_admin_dist_dir() -> str:
+    """Prefer the dev admin build (dist-dev, points at the dev API) when present,
+    else fall back to the prod dist. Prod builds have no dist-dev, so prod is
+    unaffected."""
+    base = os.path.join("frontend", "admin-app")
+    dev = os.path.join(base, "dist-dev")
+    return dev if os.path.isdir(dev) else os.path.join(base, "dist")
+
+
 def _dist_index() -> str:
-    return os.path.join("frontend", "admin-app", "dist", "index.html")
+    return os.path.join(_resolve_admin_dist_dir(), "index.html")
 
 
 async def _serve_platform_admin_spa():
@@ -1974,7 +1983,7 @@ async def serve_platform_admin_app(request: Request, path: str = ""):
     check_api_host(request)
     if path.startswith("api"):
         raise HTTPException(status_code=404, detail="Platform admin API route not found")
-    dist_dir = os.path.join("frontend", "admin-app", "dist")
+    dist_dir = _resolve_admin_dist_dir()
     file_path = os.path.normpath(os.path.join(dist_dir, path))
     if not file_path.startswith(os.path.normpath(dist_dir)):
         raise HTTPException(status_code=404)

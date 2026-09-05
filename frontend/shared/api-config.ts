@@ -27,13 +27,14 @@ export function getPublicAppUrl(): string {
 /**
  * Prefix a relative API path with the configured API origin.
  *
- * In production:  getApiUrl("/rent/landlord/api/auth/login")
+ * In production:  getApiUrl("/landlord/api/auth/login")
  *               → "https://api.vijaykrsha.online/rent/landlord/api/auth/login"
  *
- * In Docker:     getApiUrl("/rent/landlord/api/auth/login")
- *               → "/rent/landlord/api/auth/login"
+ * In Docker:     getApiUrl("/landlord/api/auth/login")
+ *               → "/landlord/api/auth/login"
  */
 export function getApiUrl(path: string): string {
   const base = getApiBaseUrl();
-  return base ? base + path : path;
+  const url = base ? base + path : path;
+  return url.replace(/([^:])\/{2,}/g, "$1/");
 }

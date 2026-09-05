@@ -66,7 +66,7 @@ function buildTenantUrl(landlordUuid: string, tenant: Tenant): string {
   // so a direct "Public Profile" visit always targets the host the QR points at.
   if (tenant.portalUrl) return tenant.portalUrl;
   const propertyId = tenant.propertyId ?? 0;
-  const base = `${getPublicAppUrl()}/rent/${landlordUuid}/t/${propertyId}/${tenant.id}/${tenant.viewToken}`;
+  const base = `${getPublicAppUrl()}/${landlordUuid}/t/${propertyId}/${tenant.id}/${tenant.viewToken}`;
   return tenant.qr_key ? `${base}?qr_key=${encodeURIComponent(tenant.qr_key)}` : base;
 }
 

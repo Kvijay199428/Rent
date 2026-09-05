@@ -672,7 +672,7 @@ export default function Settings() {
               >
                 {(signatureFile || config.landlord.signature_image) ? (
                   <img
-                    src={signatureFile ? URL.createObjectURL(signatureFile) : `/rent/static/uploads/landlord_signature_flattened.png?t=${new Date().getTime()}`}
+                    src={signatureFile ? URL.createObjectURL(signatureFile) : `/static/uploads/landlord_signature_flattened.png?t=${new Date().getTime()}`}
                     alt="Signature Preview"
                     className="max-h-24 object-contain mb-2 border rounded p-1 bg-white"
                   />

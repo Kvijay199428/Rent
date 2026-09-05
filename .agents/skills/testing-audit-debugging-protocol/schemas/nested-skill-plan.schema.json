@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Nested Skill Plan Entry",
+  "type": "object",
+  "required": ["plan_entry_id", "finding_id", "skill_id", "purpose", "why_necessary", "expected_output", "mutation_status", "approval"],
+  "properties": {
+    "plan_entry_id": { "type": "string", "pattern": "^NS-\\d+$" },
+    "finding_id": { "type": "string", "pattern": "^F-\\d+$" },
+    "skill_id": { "type": "string" },
+    "capability": { "type": "string" },
+    "purpose": { "type": "string" },
+    "why_necessary": { "type": "string" },
+    "expected_output": { "type": "array", "items": { "type": "string" } },
+    "scripts_proposed": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^SC-\\d+$" }
+    },
+    "files_potentially_touched": { "type": "array", "items": { "type": "string" } },
+    "mutation_status": { "type": "string", "enum": ["READ-ONLY", "CHANGE-MAKING"] },
+    "approval": { "type": "string", "enum": ["pending", "approved", "rejected", "redirected", "covered-by-mapping"] },
+    "execution_record_id": { "type": "string", "pattern": "^SU-\\d+$" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

@@ -6,21 +6,21 @@ const roles = [
     eyebrow: "Property Owner",
     title: "Landlord",
     desc: "Manage tenants, billing & receipts",
-    href: "/rent/landlord/login",
+    href: "/landlord/login",
   },
   {
     icon: UserIcon,
     eyebrow: "Self Service",
     title: "Tenant",
     desc: "View receipts, pay status & KYC",
-    href: "/rent/tenant/login",
+    href: "/tenant/login",
   },
   {
     icon: ShieldIcon,
     eyebrow: "Restricted",
     title: "Admin",
     desc: "Platform oversight & settings",
-    href: "/rent/admin/login",
+    href: "/admin/login",
   },
 ];
 

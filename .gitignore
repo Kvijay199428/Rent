@@ -28,6 +28,7 @@ gateway/.env
 # Node
 node_modules/
 dist/
+dist-dev/
 dist-ssr/
 
 # Build artifacts

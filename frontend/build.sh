@@ -71,39 +71,71 @@ done
 echo ""
 echo "=== Assembling output ==="
 rm -rf build-output
-mkdir -p build-output/rent
+mkdir -p build-output
 
-cp -r landing-app/dist/* build-output/rent/
-mkdir -p build-output/rent/admin
-cp -r admin-app/dist/* build-output/rent/admin/
-mkdir -p build-output/rent/landlord
-cp -r landlord-app/dist/* build-output/rent/landlord/
-mkdir -p build-output/rent/t
-cp -r tenant-app/dist/* build-output/rent/t/
+# Landing app -> root
+cp -r landing-app/dist/* build-output/
+# Admin app -> /admin
+mkdir -p build-output/admin
+cp -r admin-app/dist/* build-output/admin/
+# Landlord app -> /landlord
+mkdir -p build-output/landlord
+cp -r landlord-app/dist/* build-output/landlord/
+# Tenant app trailing base -> /t (assets); deep links served by _middleware
+mkdir -p build-output/t
+cp -r tenant-app/dist/* build-output/t/
 
 mkdir -p build-output/functions
 cp -r functions/* build-output/functions/
 
 cat > build-output/_redirects << 'EOF'
-# Root redirect: bare domain -> landing app
-/ /rent/ 301
+# Complete drop: landing app is served at / directly. No root redirect.
 EOF
 
 cat > build-output/_headers << 'EOF'
-/rent/assets/*
+/assets/*
   Cache-Control: public, max-age=31536000, immutable
-/rent/*.js
+/*.js
   Cache-Control: public, max-age=31536000, immutable
-/rent/*.css
+/*.css
   Cache-Control: public, max-age=31536000, immutable
-/rent/*.html
+/*.html
   Cache-Control: public, max-age=0, must-revalidate
 EOF
 
+
+cat > build-output/_routes.json << 'EOF'
+{
+  "version": 1,
+  "include": [
+    "/*"
+  ],
+  "exclude": [
+    "/assets/*",
+    "/admin/assets/*",
+    "/landlord/assets/*",
+    "/t/assets/*",
+    "/*.js",
+    "/*.css",
+    "/*.png",
+    "/*.jpg",
+    "/*.jpeg",
+    "/*.gif",
+    "/*.svg",
+    "/*.ico",
+    "/*.woff2",
+    "/*.woff",
+    "/*.eot",
+    "/*.ttf",
+    "/favicon.ico"
+  ]
+}
+EOF
+
 echo ""
-echo "=== Build complete ==="
+echo "=== Build complete ==="/
 echo "Output: build-output/"
-ls -la build-output/rent/
+ls -la build-output/
 echo ""
 echo "--- _redirects ---"
 cat build-output/_redirects

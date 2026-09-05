@@ -522,7 +522,7 @@ export default function BillsModal({
 //         }
 //     }, [selectedBill?.Bill, open, refreshKey]);
 
-//     const basePath = window.location.pathname.startsWith('/rent') ? '/rent' : '';
+//     const basePath = window.location.pathname.startsWith('') ? '' : '';
 //     const previewUrl = selectedBill
 //         ? `${basePath}/admin/api/pdf/receipt/${selectedBill.Bill}/view?ts=${refreshKey}`
 //         : '';

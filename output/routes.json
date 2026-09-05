@@ -1,5 +1,5 @@
 {
-  "basePath": "/rent",
+  "basePath": "/",
   "health": {
     "check": "/health"
   },
@@ -76,14 +76,17 @@
         "delete": "/admin/api/tenants/{tenantId}",
         "changePin": "/admin/api/tenants/{tenantId}/change-pin",
         "revealPin": "/admin/api/tenants/{tenantId}/reveal-pin",
-        "receipts": "/admin/api/tenants/{tenantId}/receipts"
+        "receipts": "/admin/api/tenants/{tenantId}/receipts",
+        "recoverySnapshots": "/admin/api/tenant-recovery-snapshots",
+        "recoverySnapshotPreview": "/admin/api/tenant-recovery-snapshots/{snapshotId}/preview",
+        "recoverySnapshotRestore": "/admin/api/tenant-recovery-snapshots/{snapshotId}/restore"
       },
       "occupants": {
-        "list": "/admin/api/occupants",
-        "create": "/admin/api/occupants",
+        "list": "/admin/api/occupants/{tenantId}",
+        "create": "/admin/api/occupants/{tenantId}",
         "markInactive": "/admin/api/occupants/{tenantId}/{occupantUuid}/inactive",
         "delete": "/admin/api/occupants/{tenantId}/{occupantUuid}",
-        "getFile": "/admin/api/occupants/file/{filename}"
+        "getFile": "/admin/api/occupants/{tenantId}/file/{filename}"
       },
       "pdf": {
         "download": "/admin/api/tenants/{tenantId}/receipts/{billNo}/pdf/download",
@@ -116,30 +119,163 @@
     }
   },
   "tenant": {
+ "pages": {
+  "root": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}",
+  "catchAll": "/*"
+ },
+ "api": {
+  "auth": {
+   "publicKey": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/public-key",
+   "login": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/login",
+   "refresh": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/refresh",
+   "logout": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout",
+   "logoutAll": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/logout-all"
+  },
+  "profile": {
+   "get": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/profile"
+  },
+  "kyc": {
+   "upload": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc",
+   "markInactive": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}/inactive",
+   "delete": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/{occupantUuid}",
+   "getFile": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/kyc/file/{filename}"
+  },
+  "audit": {
+   "logs": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/audit-logs"
+  },
+  "pdf": {
+   "view": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/view",
+   "download": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/pdf/{billNo}/download"
+  }
+ }
+  },
+  "landlord": {
     "pages": {
-      "root": "/t/{tenantId}/{viewToken}",
-      "catchAll": "/*"
+      "root": "/landlord",
+      "login": "/landlord/login",
+      "signup": "/landlord/signup",
+      "dashboard": "/landlord/dashboard",
+      "logout": "/landlord/logout",
+      "privacyPolicy": "/landlord/privacy-policy",
+      "terms": "/landlord/terms",
+      "catchAll": "/landlord/*",
+      "setup": "/landlord/setup"
     },
     "api": {
       "auth": {
-        "publicKey": "/t/api/auth/public-key",
-        "login": "/t/api/{tenantId}/{viewToken}/auth/login",
-        "refresh": "/t/api/{tenantId}/{viewToken}/auth/refresh",
-        "logout": "/t/api/{tenantId}/{viewToken}/auth/logout",
-        "logoutAll": "/t/api/{tenantId}/{viewToken}/auth/logout-all"
+        "publicKey": "/landlord/api/auth/public-key",
+        "google": "/landlord/api/auth/google",
+        "checkUsername": "/landlord/api/auth/check-username",
+        "checkEmail": "/landlord/api/auth/check-email",
+        "signup": "/landlord/api/auth/signup",
+        "login": "/landlord/api/auth/login",
+        "loginTotp": "/landlord/api/login/totp",
+        "refresh": "/landlord/api/auth/refresh",
+        "logout": "/landlord/api/auth/logout",
+        "me": "/landlord/api/auth/me",
+        "changePassword": "/landlord/api/auth/change-password",
+        "privacyPolicy": "/landlord/api/privacy-policy",
+        "privacyConsent": "/landlord/api/auth/privacy-consent",
+        "terms": "/landlord/api/terms",
+        "termsConsent": "/landlord/api/auth/terms-consent"
       },
-      "profile": {
-        "get": "/t/api/{tenantId}/{viewToken}/profile"
+      "dashboard": {
+        "stats": "/landlord/{landlordUuid}/api/dashboard"
       },
-      "kyc": {
-        "upload": "/t/api/{tenantId}/{viewToken}/kyc",
-        "markInactive": "/t/api/{tenantId}/{viewToken}/kyc/{occupantUuid}/inactive",
-        "delete": "/t/api/{tenantId}/{viewToken}/kyc/{occupantUuid}",
-        "getFile": "/t/api/{tenantId}/{viewToken}/kyc/file/{filename}"
+      "config": {
+        "get": "/landlord/{landlordUuid}/api/config",
+        "update": "/landlord/{landlordUuid}/api/config/update",
+        "themeGet": "/landlord/{landlordUuid}/api/ui/theme",
+        "theme": "/landlord/{landlordUuid}/api/ui/theme"
+      },
+      "billing": {
+        "filter": "/landlord/{landlordUuid}/api/receipts/filter",
+        "months": "/landlord/{landlordUuid}/api/receipts/months",
+        "preview": "/landlord/{landlordUuid}/api/receipts/preview",
+        "create": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
+        "get": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
+        "update": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
+        "updatePayment": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/payment-status",
+        "payments": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/payments",
+        "payment": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/payments/{paymentId}",
+        "archive": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/archive",
+        "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/restore",
+        "delete": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}",
+        "archiveData": "/landlord/{landlordUuid}/api/archive-data"
+      },
+      "tenants": {
+        "list": "/landlord/{landlordUuid}/api/tenants",
+        "create": "/landlord/{landlordUuid}/api/tenants",
+        "get": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
+        "update": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
+        "delete": "/landlord/{landlordUuid}/api/tenants/{tenantId}",
+        "restore": "/landlord/{landlordUuid}/api/tenants/{tenantId}/restore",
+        "changePin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/change-pin",
+        "revealPin": "/landlord/{landlordUuid}/api/tenants/{tenantId}/reveal-pin",
+        "portalAuth": "/landlord/{landlordUuid}/api/tenants/{tenantId}/portal-auth",
+        "qrKey": "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr-key",
+        "receipts": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts",
+        "recoverySnapshots": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots",
+        "recoverySnapshotPreview": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/preview",
+        "recoverySnapshotRestore": "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/restore"
+      },
+      "occupants": {
+        "list": "/landlord/{landlordUuid}/api/occupants/{tenantId}",
+        "create": "/landlord/{landlordUuid}/api/occupants/{tenantId}",
+        "markInactive": "/landlord/{landlordUuid}/api/occupants/{tenantId}/{occupantUuid}/inactive",
+        "delete": "/landlord/{landlordUuid}/api/occupants/{tenantId}/{occupantUuid}",
+        "getFile": "/landlord/{landlordUuid}/api/occupants/{tenantId}/file/{filename}"
       },
       "pdf": {
-        "view": "/t/api/{tenantId}/{viewToken}/pdf/{billNo}/view",
-        "download": "/t/api/{tenantId}/{viewToken}/pdf/{billNo}/download"
+        "download": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/pdf/download",
+        "view": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/pdf/view"
+      },
+      "whatsapp": {
+        "sendSingle": "/landlord/{landlordUuid}/api/tenants/{tenantId}/receipts/{billNo}/whatsapp"
+      },
+      "sync": {
+        "exportCsv": "/landlord/{landlordUuid}/api/export-csv",
+        "exportZip": "/landlord/{landlordUuid}/api/export-zip",
+        "template": "/landlord/{landlordUuid}/api/import-template",
+        "exportExcel": "/landlord/{landlordUuid}/api/export-excel",
+        "importPreview": "/landlord/{landlordUuid}/api/import-preview",
+        "importExecute": "/landlord/{landlordUuid}/api/import-execute"
+      },
+      "backups": {
+        "list": "/landlord/{landlordUuid}/api/backups",
+        "createManual": "/landlord/{landlordUuid}/api/backups/manual",
+        "delete": "/landlord/{landlordUuid}/api/backups/{backupId}",
+        "verify": "/landlord/{landlordUuid}/api/backups/{backupId}/verify",
+        "restore": "/landlord/{landlordUuid}/api/backups/{backupId}/restore",
+        "download": "/landlord/{landlordUuid}/api/backups/{backupId}/download",
+        "metadata": "/landlord/{landlordUuid}/api/backups/{backupId}/metadata"
+      },
+      "settings": {
+        "uploadSignature": "/landlord/{landlordUuid}/api/settings/upload-signature",
+        "deleteSignature": "/landlord/{landlordUuid}/api/settings/delete-signature"
+      },
+      "totp": {
+        "qr": "/landlord/{landlordUuid}/api/totp/qr",
+        "regenerate": "/landlord/{landlordUuid}/api/totp/regenerate",
+        "enable": "/landlord/{landlordUuid}/api/totp/enable",
+        "disable": "/landlord/{landlordUuid}/api/totp/disable"
+      },
+      "audit": {
+        "logs": "/landlord/{landlordUuid}/api/audit-logs",
+        "actions": "/landlord/{landlordUuid}/api/audit-logs/actions"
+      },
+      "setup": {
+        "required": "/landlord/api/setup/required",
+        "create": "/landlord/api/setup/create",
+        "skip": "/landlord/api/setup/skip"
+      },
+      "properties": {
+        "list": "/landlord/{landlordUuid}/api/properties",
+        "create": "/landlord/{landlordUuid}/api/properties",
+        "get": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "update": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "delete": "/landlord/{landlordUuid}/api/properties/{propertyId}",
+        "tenants": "/landlord/{landlordUuid}/api/properties/{propertyId}/tenants"
       }
     }
   }

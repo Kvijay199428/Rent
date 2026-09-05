@@ -1,0 +1,40 @@
+{
+  "id": "_template-skill",
+  "name": "Template Skill",
+  "version": "0.1.0",
+  "type": "nested-skill",
+  "parent": "testing-audit-debugging-protocol",
+  "domain": "replace-with-domain-e.g.-security | performance | ui | database",
+  "entrypoint": "SKILL.md",
+  "description": "One line — mirror the SKILL.md frontmatter description.",
+
+  "capabilities": [
+    "replace-with-capability-1",
+    "replace-with-capability-2"
+  ],
+
+  "mutation": {
+    "readOnly": true,
+    "changeCapable": false,
+    "requiresGate2": false
+  },
+
+  "scripts": {
+    "mayCreate": false,
+    "requiresScriptPlan": true
+  },
+
+  "delegation": {
+    "mayInvokeNestedSkills": false,
+    "allowedChildren": []
+  },
+
+  "dependencies": [],
+
+  "tools": {
+    "required": [],
+    "optional": []
+  },
+
+  "outputs": ["evidence", "findings", "recommendations"]
+}

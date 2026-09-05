@@ -28,7 +28,7 @@ from app.pages.errors import register_exception_handlers
 # Public landing page at /
 from app.pages.landing import router as landing_router
 
-# Dev-only canonical /rent/ page structure (registered when serve_frontend())
+# Dev-only canonical / page structure (registered when serve_frontend())
 from app.pages.frontend import router as frontend_pages_router
 
 from app.authentication.landlord.middleware import get_current_landlord_api_strict

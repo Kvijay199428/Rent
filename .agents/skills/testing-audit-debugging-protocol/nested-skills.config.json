@@ -1,0 +1,44 @@
+{
+  "$schema": "./schemas/nested-skills-config.schema.json",
+  "nestedSkills": {
+    "enabled": true,
+    "root": "./nested-skills",
+    "autoDiscover": true,
+    "recursive": true,
+    "requiredManifest": false,
+    "requiredSkillFile": true,
+    "allowedSkillFiles": ["SKILL.md"],
+    "allowedManifestFiles": ["manifest.json"]
+  },
+  "discovery": {
+    "ignore": [".git", ".audit", "node_modules", "__pycache__", "*.tmp", "*.bak", "_template-skill"]
+  },
+  "resolution": {
+    "priority": [
+      "user-directed",
+      "nested-specialist",
+      "project-local",
+      "external-global",
+      "generic-tool"
+    ],
+    "requireExplicitReason": true,
+    "allowFallbackToExternal": true,
+    "allowFallbackToGenericTool": true
+  },
+  "execution": {
+    "defaultMode": "read-only",
+    "requireNestedSkillPlanApproval": true,
+    "requireApprovalBeforeMutation": true,
+    "maxDelegationDepth": 2,
+    "allowChildToChildDelegation": false,
+    "allowDynamicSkillLoading": true,
+    "allowRuntimeSkillUpdates": false
+  },
+  "provenance": {
+    "recordSourcePath": true,
+    "recordDiscoveryTime": true,
+    "recordVersion": true,
+    "recordManifestVersion": true,
+    "recordSourceHash": true
+  }
+}

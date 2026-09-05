@@ -1,9 +1,9 @@
 const SPA_INDEXES = [
-  { prefix: "/rent/admin/", index: "/rent/admin/index.html" },
-  { prefix: "/rent/landlord/", index: "/rent/landlord/index.html" },
-  { prefix: "/rent/tenant/", index: "/rent/t/index.html" },
-  { prefix: "/rent/t/", index: "/rent/t/index.html" },
-  { prefix: "/rent/", index: "/rent/index.html" },
+  { prefix: "/admin/", index: "/admin/index.html" },
+  { prefix: "/landlord/", index: "/landlord/index.html" },
+  { prefix: "/t/", index: "/t/index.html" },
+  { prefix: "/t/", index: "/t/index.html" },
+  { prefix: "/", index: "/index.html" },
 ];
 
 export async function onRequest(context) {
@@ -11,20 +11,20 @@ export async function onRequest(context) {
   const path = url.pathname;
 
   if (path === "/" || path === "") {
-    const target = new URL("/rent/", url);
+    const target = new URL("/", url);
     return new Response(null, {
       status: 301,
       headers: { Location: target.toString() },
     });
   }
 
-  // Tenant portal deep links (/rent/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}) —
-  // serve the tenant SPA from Pages. Its router (basename /rent) renders the
+  // Tenant portal deep links (/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}) —
+  // serve the tenant SPA from Pages. Its router (basename ) renders the
   // portal from the URL params, so deep links work without touching the API host.
   const tenantLinkRe =
     /^\/rent\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/t\/[0-9]+\/[0-9]+\/[0-9a-zA-Z-]+(?:\/.*)?$/;
   if (tenantLinkRe.test(path)) {
-    const indexUrl = new URL("/rent/t/index.html", url);
+    const indexUrl = new URL("/t/index.html", url);
     const indexResponse = await context.env.ASSETS.fetch(indexUrl);
     if (indexResponse.ok) {
       return new Response(indexResponse.body, {

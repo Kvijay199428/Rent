@@ -7,9 +7,9 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const logins = [
-    { label: "Landlord", href: "/rent/landlord/login", icon: HomeIcon },
-    { label: "Tenant", href: "/rent/tenant/login", icon: UserIcon },
-    { label: "Admin", href: "/rent/admin/login", icon: ShieldIcon },
+    { label: "Landlord", href: "/landlord/login", icon: HomeIcon },
+    { label: "Tenant", href: "/tenant/login", icon: UserIcon },
+    { label: "Admin", href: "/admin/login", icon: ShieldIcon },
   ];
 
   return (
@@ -48,13 +48,13 @@ export default function Navbar() {
         </ul>
 
         <div className="navbar-logins">
-          <a href="/rent/landlord/login" className="btn btn-ghost btn-sm">
+          <a href="/landlord/login" className="btn btn-ghost btn-sm">
             <HomeIcon size={14} /> Landlord
           </a>
-          <a href="/rent/tenant/login" className="btn btn-ghost btn-sm">
+          <a href="/tenant/login" className="btn btn-ghost btn-sm">
             <UserIcon size={14} /> Tenant
           </a>
-          <a href="/rent/admin/login" className="btn btn-primary btn-sm">
+          <a href="/admin/login" className="btn btn-primary btn-sm">
             Admin <ArrowUpRightIcon size={14} />
           </a>
         </div>

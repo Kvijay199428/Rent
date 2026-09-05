@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Script Plan Entry",
+  "type": "object",
+  "required": ["script_id", "path", "purpose", "reason", "created_by", "approval", "lifecycle"],
+  "properties": {
+    "script_id": { "type": "string", "pattern": "^SC-\\d+$" },
+    "path": { "type": "string" },
+    "purpose": { "type": "string" },
+    "reason": { "type": "string" },
+    "input": { "type": "string" },
+    "expected_output": { "type": "string" },
+    "created_by": { "type": "string", "description": "nested skill id" },
+    "mutation": { "type": "string", "default": "creates a new diagnostic script" },
+    "approval": { "type": "string", "enum": ["Gate 2 required", "not required"] },
+    "lifecycle": {
+      "type": "string",
+      "enum": ["PROPOSED", "JUSTIFIED", "APPROVED", "CREATED", "EXECUTED", "EVIDENCE_CAPTURED", "RETAINED", "REMOVED"]
+    },
+    "removal_reason": { "type": "string" },
+    "replacement": { "type": "string" }
+  }
+}

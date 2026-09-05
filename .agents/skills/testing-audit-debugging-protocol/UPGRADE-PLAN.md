@@ -386,3 +386,46 @@ Note: the four protocol references (`audit-documents.md`, `testing-strategies.md
 2. Skim the eight `references/` files in phase order (1→8).
 3. Try it on a real audit: run DISCOVERY, then AUDIT (read-only), then observe the `WHY THIS SKILL?` reasons, execution records, findings with confidence, correlation, and the two gates.
 4. The two most important things to iterate on with real findings: (a) the **dual gate** UX — does Analysis Approval vs Code Modification Approval read clearly? — and (b) the **`WHY THIS SKILL?` / `WHY NOT X?`** reasons — are they enough to let a user approve or redirect confidently?
+
+
+---
+
+## 18. Status Update — Nested Skill Layer (implemented)
+
+The orchestrator has been extended with a self-contained, config-driven **nested skill**
+layer, per the design captured in `references/nested-skill-orchestration.md`. Summary of what
+changed and what didn't:
+
+**Unchanged:** the full DISCOVER → TEST → REPRODUCE → DOCUMENT → AUDIT → SELECT SKILLS/TOOLS →
+PROPOSE FIX → ANALYSIS APPROVAL → CODE MODIFICATION APPROVAL → EDIT → RE-TEST → REGRESSION →
+VERIFICATION → DEPLOY GATE lifecycle, both approval gates, the capability registry, reputation
+scoring, evidence graph, finding correlation, and audit memory all work exactly as before.
+
+**Added:**
+- `nested-skills.config.json` — drives auto-discovery of `./nested-skills/`. `SKILL.md` has
+  zero hard-coded knowledge of which nested skills exist; adding/removing one is a filesystem
+  change, not a parent-skill edit.
+- `nested-skills/` — one folder per specialist (`SKILL.md` + optional `manifest.json`). See
+  `nested-skills/README.md` and `_template-skill/` for the shape to copy.
+- A new **Nested Skill Execution Plan** step (`SKILL.md` §4a), inserted into the workflow
+  between SELECT SKILLS/TOOLS and PROPOSE FIX: before any nested skill is invoked — read-only
+  or change-making — the orchestrator names it, states why it's necessary, lists any scripts
+  it may create and why, and lists files it may touch, then waits for approval (or follows an
+  existing declared mapping/standing instruction).
+- `references/nested-skill-orchestration.md` — the authoritative spec: discovery, manifest
+  format, planning, delegation limits (leaf specialists by default, `maxDelegationDepth`),
+  resolution priority (user-directed → nested → project-local → external → generic), execution
+  records, and the rule that a script proposal is always change-making (Gate 2).
+- New schemas: `nested-skills-config.schema.json`, `nested-skill-manifest.schema.json`,
+  `nested-skill-plan.schema.json`, `script-plan.schema.json`.
+- New templates: `nested-skill-plan.md`, `script-plan.md`.
+- `capability-registry.schema.json` and `skill-execution.schema.json` gained a `"nested
+  skill"` source value plus nested-skill-specific fields (capabilities, requires_gate_2,
+  parent/child selection ids, etc.) — additive, nothing existing was removed.
+- New audit-memory logs: `.audit/memory/nested-skill-registry.json` (generated, never
+  hand-edited), `nested-skill-selection.jsonl`, `nested-skill-usage.jsonl`,
+  `nested-skill-updates.jsonl`, `script-plans.jsonl`.
+
+**Next step:** populate `./nested-skills/` with actual specialists (copy `_template-skill/`
+per skill). Until at least one is added, the orchestrator behaves exactly as it did before this
+update — the nested-skill layer is inert with an empty directory.

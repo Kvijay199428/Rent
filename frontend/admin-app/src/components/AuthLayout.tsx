@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import { Logo } from "@shared/brand/Logo";
 
 const NAV_LINKS = [
-  { label: "Home", href: "/rent/", icon: "🌍" },
-  // { label: "Landlord Portal", href: "/rent/landlord/login", icon: "🏠" },
-  // { label: "Tenant Portal", href: "/rent/tenant", icon: "👤" },
+  { label: "Home", href: "/", icon: "🌍" },
+  // { label: "Landlord Portal", href: "/landlord/login", icon: "🏠" },
+  // { label: "Tenant Portal", href: "/tenant", icon: "👤" },
 ];
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
@@ -19,7 +19,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "16px 32px", flexWrap: "wrap", gap: 12,
       }}>
-        <a href="/rent/admin/login" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+        <a href="/admin/login" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
           <Logo variant="light" height={22} />
         </a>
         <nav style={{ display: "flex", gap: 10 }}>

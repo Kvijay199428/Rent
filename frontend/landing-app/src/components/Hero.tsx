@@ -32,7 +32,7 @@ export default function Hero() {
         </div>
 
         <div className="hero-actions">
-          <a href="/rent/landlord/login" className="btn btn-primary">
+          <a href="/landlord/login" className="btn btn-primary">
             Landlord Login
           </a>
           <a href="#features" className="btn btn-ghost">

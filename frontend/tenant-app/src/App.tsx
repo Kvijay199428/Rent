@@ -99,21 +99,21 @@ function TenantPortalInner() {
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             <a
-              href="/rent/"
+              href="/"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline"
             >
               <span>🌍</span>
               Home
             </a>
             <a
-              href="/rent/admin/login"
+              href="/admin/login"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline"
             >
               <span>⚙️</span>
               Platform Admin
             </a>
             <a
-              href="/rent/landlord/login"
+              href="/landlord/login"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline"
             >
               <span>🏠</span>

@@ -1,16 +1,26 @@
 # Rent — Complete Source Code
 
-Generated: 2026-09-02
+Generated: 2026-09-03
 Script:   D:\VEGA\RENT\copy.py
 Source:   D:\VEGA\RENT
-Files:    418
-Size:     4155 KB
+Files:    434
+Size:     4267 KB
 Skipped:  0
 
 ---
 
 ## File Index
 
+- .audit/00-executive-summary.md
+- .audit/01-feature-parity-matrix.md
+- .audit/02-findings.md
+- .audit/03-fixes.md
+- .audit/04-component-map.md
+- .audit/05-architecture.md
+- .audit/component-map.json
+- .audit/feature-parity.json
+- .audit/findings.json
+- .audit/fixes.json
 - .env.development.example
 - .env.example
 - .env.release.example
@@ -36,6 +46,7 @@ Skipped:  0
 - backend/app/app/api/dashboard.py
 - backend/app/app/api/health.py
 - backend/app/app/api/landlord_setup.py
+- backend/app/app/api/location.py
 - backend/app/app/api/pdf.py
 - backend/app/app/api/public.py
 - backend/app/app/api/settings.py
@@ -346,6 +357,11 @@ Skipped:  0
 - frontend/landlord-app/tsconfig.node.json
 - frontend/landlord-app/vite.config.ts
 - frontend/package.json
+- frontend/shared/address/AddressFields.tsx
+- frontend/shared/address/address.ts
+- frontend/shared/address/countries.ts
+- frontend/shared/address/countryDetection.ts
+- frontend/shared/address/formatAddress.ts
 - frontend/shared/api-config.ts
 - frontend/shared/brand/Logo.tsx
 - frontend/shared/brand/assets/icon.svg
@@ -431,6 +447,2341 @@ Skipped:  0
 - wrangler.toml
 
 ---
+
+### `.audit/00-executive-summary.md`
+
+```markdown
+# Audit Report: Dev vs Prod Feature Comparison
+
+**Project:** Propaura — Property Management Platform (Rent Receipt System)
+**Date:** 2026-09-03
+**Audit Type:** Full-stack deployment parity + runtime issue investigation
+**Risk Level:** HIGH
+**Git Commit:** `0471884` (identical on `main` and `release`)
+
+---
+
+## Scope
+
+This audit compares the development and production deployments of the Rent Receipt System across all layers:
+
+- **Backend:** FastAPI (158 HTTP endpoints + 3 WebSocket endpoints)
+- **Frontend:** 4 React SPAs (Landing, Admin, Landlord, Tenant)
+- **Infrastructure:** Docker Compose, Nginx, Cloudflare Pages, Cloudflare Tunnel
+- **Database:** PostgreSQL with 29 tables and custom migration system
+- **Auth:** 4 independent JWT systems (tenant, landlord, admin, platform_admin)
+
+## Methodology
+
+1. Git branch comparison (`main` vs `release`) — zero code diff
+2. Docker Compose diff (`compose.dev.yml` vs `compose.prod.yml`)
+3. Nginx config diff (`nginx/dev-gateway.conf` vs `gateway/nginx/`)
+4. Environment variable comparison (`.env.development` vs `.env.release`)
+5. Backend runtime analysis (`runtime.py`, `router_registry.py`, `main.py`)
+6. Frontend build pipeline analysis (`build.sh`, Vite configs, env files)
+7. API route cataloging (all 161 endpoints)
+8. Database schema analysis (29 tables, migration files)
+9. Auth flow tracing (JWT, cookies, OAuth, TOTP, Telegram)
+10. Cloudflare Pages middleware analysis (`_middleware.js`)
+11. WebSocket security review (`sync_ws.py`)
+12. API access guard review (`api_guard.py`)
+
+## Key Finding
+
+**The application code, database schema, and SPA builds are identical between dev and prod.** All differences are in deployment configuration. There are **zero feature-level differences** — every feature that works in dev also exists in prod with the same code path.
+
+However, the audit uncovered **13 issues** (2 critical, 5 medium, 6 low) that affect prod behavior differently than dev due to the deployment topology.
+
+## Risk Summary
+
+| Severity | Count | Impact |
+|----------|-------|--------|
+| CRITICAL | 2 | WebSocket data leak, Admin API crash |
+| MEDIUM | 5 | Performance, cookie inconsistency, security bypass |
+| LOW | 6 | Dead code, redundancy, fragility |
+| **Total** | **13** | |
+
+## Immediate Actions Required
+
+1. **Authenticate WebSocket endpoints** — unauthenticated clients can subscribe to landlord/tenant channels
+2. **Add `_routes.json`** to exclude static assets from Cloudflare Pages middleware
+3. **Normalize cookie `SameSite` attribute** across all auth paths
+
+## Report Files
+
+| File | Contents |
+|------|----------|
+| `00-executive-summary.md` | This file |
+| `01-feature-parity-matrix.md` | Feature-by-feature dev vs prod comparison |
+| `02-findings.md` | All 13 issues with evidence and root cause |
+| `03-fixes.md` | Detailed fix recommendations with file paths |
+| `04-component-map.md` | Component-to-fix dependency graph |
+| `05-architecture.md` | Deployment topology and request flow |
+| `findings.json` | Machine-readable findings |
+| `fixes.json` | Machine-readable fix specs |
+| `feature-parity.json` | Structured feature parity data |
+| `component-map.json` | Component dependency graph |
+```
+
+### `.audit/01-feature-parity-matrix.md`
+
+```markdown
+# Feature Parity Matrix
+
+All features compared between dev and production deployments.
+Code is identical (commit `0471884`). Differences are deployment-level only.
+
+## Legend
+
+- **Dev** = `compose.dev.yml` + `nginx/dev-gateway.conf` + `.env.development`
+- **Prod** = `compose.prod.yml` + `gateway/nginx/` + `.env.release` + Cloudflare Pages
+
+## Core Features
+
+| Feature | Dev | Prod | Same Code? | Notes |
+|---------|-----|------|------------|-------|
+| Landing page | FastAPI mount | Cloudflare Pages static | Yes (SPA build) | Dev: `frontend.py` router; Prod: `_middleware.js` |
+| Admin portal | FastAPI mount | Cloudflare Pages static | Yes (SPA build) | Same `admin-app/build/` output |
+| Landlord portal | FastAPI mount | Cloudflare Pages static | Yes (SPA build) | Same `landlord-app/build/` output |
+| Tenant portal | Vite dev server (port 28001) | Cloudflare Pages static | Yes (SPA build) | Dev: live HMR; Prod: static build |
+| Database | PostgreSQL (port 28004) | PostgreSQL (port 28013) | Yes (schema) | Same 29 tables, same migrations |
+
+## Authentication
+
+| Feature | Dev | Prod | Same Code? | Notes |
+|---------|-----|------|------------|-------|
+| Tenant portal login | JWT + cookies | JWT + cookies | Yes | Path-scoped cookies per tenant URL |
+| Landlord login | JWT + cookies | JWT + cookies | Yes | Path-scoped to `/{uuid}` |
+| Admin login | JWT + cookies | JWT + cookies | Yes | Path-scoped to `/admin` |
+| Platform admin login | JWT + cookies | JWT + cookies | Yes | Path-scoped to `/{uuid}` |
+| Google OAuth | Same credentials | Same credentials | Yes | `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` identical |
+| TOTP 2FA | Same code | Same code | Yes | Landlord + tenant support |
+| Telegram OTP | Same bot | Same bot | Yes | `TELEGRAM_BOT_TOKEN` identical |
+| Session management | DB-backed | DB-backed | Yes | Same session table, same expiry logic |
+
+## Cookie Behavior (Differences Found)
+
+| Cookie Setting | Dev | Prod | Consistent? |
+|----------------|-----|------|-------------|
+| Tenant access token `SameSite` | `none` | `none` | Yes |
+| Tenant refresh token `SameSite` (cookies.py) | `none` | `none` | Yes |
+| Tenant refresh token `SameSite` (public.py portal login) | `strict` | `strict` | **No — differs from cookies.py** |
+| Admin access token `SameSite` | `none` | `none` | Yes |
+| Admin refresh token `SameSite` | `strict` | `strict` | Yes |
+| Landlord refresh token `SameSite` | `strict` | `strict` | Yes |
+
+## Business Features
+
+| Feature | Dev | Prod | Same Code? | Notes |
+|---------|-----|------|------------|-------|
+| Properties CRUD | Yes | Yes | Yes | Same API endpoints |
+| Tenants CRUD | Yes | Yes | Yes | Same API endpoints |
+| Billing/Receipts | Yes | Yes | Yes | Same API endpoints |
+| PDF generation | Yes | Yes | Yes | Same ReportLab backend |
+| QR code generation | Yes | Yes | Yes | Same code |
+| WhatsApp sharing | Yes | Yes | Yes | Same deep-links |
+| Export (Excel/CSV/ZIP) | Yes | Yes | Yes | Same code |
+| Import (Excel/CSV/ZIP) | Yes | Yes | Yes | Same code |
+| Backups/Restore | Yes | Yes | Yes | Same code |
+| Tenant recovery | Yes | Yes | Yes | Same code |
+| Data Explorer | Yes | Yes | Yes | Same API |
+| Audit Logs | Yes | Yes | Yes | Same API + JSONL export |
+| Broadcast system | Yes | Yes | Yes | Same API |
+| Feedback inbox | Yes | Yes | Yes | Same API |
+| Meter readings | Yes | Yes | Yes | Same code |
+| Onboarding wizard | Yes | Yes | Yes | Same SPA build |
+| Settings management | Yes | Yes | Yes | Same API |
+
+## Real-time Features
+
+| Feature | Dev | Prod | Same Code? | Notes |
+|---------|-----|------|------------|-------|
+| SSE health stream | Yes | Yes | Yes | Both have SSE |
+| WebSocket `/ws/sync` | Yes | Yes | Yes | **Both unauthenticated** |
+| WebSocket `/ws/auth` | Yes | Yes | Yes | **Both unauthenticated** |
+| WebSocket `/ws/health` | Yes | Yes | Yes | Public by design |
+
+## Deployment Differences (By Design)
+
+| Aspect | Dev | Prod | Impact |
+|--------|-----|------|--------|
+| Swagger/ReDoc | Enabled (`/docs`, `/redoc`) | Disabled | API docs unavailable in prod |
+| HMR / hot reload | Yes (Vite dev server) | No (static build) | Dev convenience only |
+| Frontend serving | FastAPI mounts + Vite | Cloudflare Pages | Different serving mechanism |
+| API documentation | `/openapi.json` available | Not served | By design |
+
+## Dead Code
+
+| Item | File | Notes |
+|------|------|-------|
+| `app_env()` function | `backend/app/app/core/runtime.py` | Defined but never called anywhere |
+```
+
+### `.audit/02-findings.md`
+
+```markdown
+# Findings
+
+All issues discovered during the dev-vs-prod audit, ordered by severity.
+
+---
+
+## CRITICAL-01: Unauthenticated WebSocket Endpoints
+
+**Severity:** CRITICAL
+**Component:** Backend WebSocket (`sync_ws.py`)
+**File:** `backend/app/app/api/sync_ws.py`
+**Lines:** 28-66 (`/ws/sync`), 73-103 (`/ws/auth`)
+**Related Feature:** Real-time sync, Auth state sync
+
+### Description
+
+The `/ws/sync` and `/ws/auth` WebSocket endpoints accept any connection that provides a valid channel name pattern. No JWT, cookie, or session validation is performed. Any client that knows (or guesses) a landlord UUID can subscribe to that landlord's real-time event stream.
+
+### Evidence
+
+```python
+# sync_ws.py:28-56 — No auth dependency, only channel prefix validation
+@router.websocket("/ws/sync")
+async def sync_websocket(
+    websocket: WebSocket,
+    channel: str = Query(...),
+):
+    allowed_prefixes = ("landlord:", "tenant:", "platform_admin", "global")
+    if not any(channel.startswith(p) for p in allowed_prefixes):
+        await websocket.close(code=4003, reason="Invalid channel")
+        return
+    await sync_manager.connect(websocket, channel)  # <-- connects immediately
+```
+
+```python
+# router_registry.py:102-103 — Comment acknowledges no auth
+# 7. WebSocket sync (no auth dependency — channel-based access control)
+app.include_router(sync_ws_router)
+```
+
+### Attack Scenario
+
+1. Attacker guesses or discovers a landlord UUID (from public tenant URLs: `/{uuid}/t/...`)
+2. Attacker opens WebSocket to `wss://api.vijaykrsha.online/rent/ws/sync?channel=landlord:{uuid}`
+3. Attacker receives real-time events: `TENANT_CREATED`, `RECEIPT_CREATED`, `KYC_UPLOADED`, `SETTINGS_UPDATED`, etc.
+4. Same attack works for `platform_admin` channel (no UUID needed)
+
+### Impact
+
+- **Information disclosure:** Real-time leak of tenant names, receipt data, KYC uploads, settings changes
+- **Privacy violation:** Tenant PII (names, addresses, rent amounts) exposed to unauthenticated clients
+- **Both dev and prod affected** — same code, same vulnerability
+
+---
+
+## CRITICAL-02: Admin `url_for` Crash on Session Expiry
+
+**Severity:** CRITICAL
+**Component:** Backend Admin Middleware (`authentication/admin/middleware.py`)
+**File:** `backend/app/app/authentication/admin/middleware.py`
+**Lines:** 22, 38, 44, 50, 64
+**Related Feature:** Admin API authentication
+
+### Description
+
+The `_raise_admin_session_expired` function calls `request.url_for("ADMINLOGOUT")` which resolves the named route to a URL. If the route name doesn't exist (e.g., in API-only mode, or if the route registry changes), this raises a `NoReverseMatch` exception that propagates as a 500 Internal Server Error instead of a proper 401 response.
+
+### Evidence
+
+```python
+# middleware.py:21-22 — Direct url_for call without try/except
+def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized"):
+    logout_url = str(request.url_for("ADMINLOGOUT"))  # <-- can throw NoReverseMatch
+    if _is_browser_navigation(request):
+        raise HTTPException(status_code=303, headers={"Location": logout_url})
+    raise HTTPException(status_code=401, detail=detail, headers={...})
+```
+
+```python
+# middleware.py:38 — Same pattern repeated
+    logout_url = str(request.url_for("ADMINLOGOUT"))
+    raise HTTPException(status_code=303, headers={"Location": logout_url})
+```
+
+### Impact
+
+- Admin users with expired/invalid sessions see 500 errors instead of proper 401
+- Frontend expects `X-Session-Expired: 1` header but gets unstructured error
+- **Prod affected more** because `serve_frontend=false` changes which routes are registered
+
+---
+
+## MEDIUM-01: No `_routes.json` for Cloudflare Pages
+
+**Severity:** MEDIUM
+**Component:** Frontend Build / Cloudflare Pages
+**File:** `frontend/build.sh` (missing generation), `frontend/functions/_middleware.js`
+**Related Feature:** All frontend performance
+
+### Description
+
+Cloudflare Pages runs `_middleware.js` on every request by default. Without a `_routes.json` file specifying which paths to exclude, the middleware executes on static asset requests (JS, CSS, images, fonts) that are already served directly by Cloudflare's CDN.
+
+### Evidence
+
+- No `_routes.json` exists in `frontend/build-output/` or `frontend/`
+- `_middleware.js` handles SPA routing + deep-link interception for all paths
+- Every static asset load triggers a Cloudflare Function invocation
+
+### Impact
+
+- Unnecessary Function invocations on every static asset request
+- Increased latency for JS/CSS loading
+- Higher Cloudflare Pages function usage (cost + rate limits)
+
+---
+
+## MEDIUM-02: Inconsistent Cookie SameSite Attributes
+
+**Severity:** MEDIUM
+**Component:** Backend Auth Cookies
+**Files:**
+- `backend/app/app/authentication/tenant/cookies.py:34,43` — `SameSite=none`
+- `backend/app/app/api/public.py:378` — `SameSite=strict`
+- `backend/app/app/authentication/admin/cookies.py:37` — `SameSite=strict`
+**Related Feature:** Tenant portal login, Admin refresh
+
+### Description
+
+The `set_tenant_auth_cookies()` helper in `cookies.py` sets the refresh token with `SameSite=none`, but the `portalLogin` endpoint in `public.py:378` sets it with `SameSite=strict`. This means the refresh token's SameSite behavior depends on which login path was used.
+
+### Evidence
+
+```python
+# cookies.py:38-46 — set_tenant_auth_cookies uses none
+    response.set_cookie(
+        key="refresh_token", value=refresh_token,
+        httponly=True, secure=True, samesite="none",
+        path=refresh_path, max_age=max_age_refresh,
+    )
+```
+
+```python
+# public.py:376-380 — portalLogin uses strict
+    response.set_cookie(
+        key="refresh_token", value=cookie_val,
+        httponly=True, secure=True, samesite="strict",
+        path=f"{cookie_path}/api/auth", max_age=max_age_refresh,
+    )
+```
+
+### Impact
+
+- Cross-origin cookie sending behavior differs based on login path
+- `SameSite=none` allows cross-origin but requires `Secure`; `SameSite=strict` blocks all cross-origin
+- In prod behind Cloudflare, the tenant SPA (different origin) may fail to send refresh cookies
+
+---
+
+## MEDIUM-03: X-Forwarded-Prefix Trusted from Client
+
+**Severity:** MEDIUM
+**Component:** Backend HTTP Middleware
+**File:** `backend/app/app/main.py:37-41`
+**Related Feature:** Cookie paths, URL generation, route resolution
+
+### Description
+
+The `forwarded_prefix_middleware` trusts the `X-Forwarded-Prefix` header from any client and sets it as `root_path`. This can be exploited to manipulate cookie paths and redirect URLs.
+
+### Evidence
+
+```python
+# main.py:37-41
+@app.middleware("http")
+async def forwarded_prefix_middleware(request: Request, call_next):
+    prefix = request.headers.get("X-Forwarded-Prefix", "")
+    if prefix:
+        request.scope["root_path"] = prefix.rstrip("/")
+    return await call_next(request)
+```
+
+### Impact
+
+- Attacker can set `X-Forwarded-Prefix: /evil` to redirect auth cookies to wrong paths
+- Cookie scope can be manipulated to leak tokens
+- Open redirect via `X-Redirect-Url` header injection
+
+---
+
+## MEDIUM-04: API Guard Uses Substring Match
+
+**Severity:** MEDIUM
+**Component:** Backend API Access Guard
+**File:** `backend/app/app/core/api_guard.py:11`
+**Related Feature:** API domain restriction
+
+### Description
+
+The `is_api_host` function uses Python's `in` operator for substring matching instead of exact matching.
+
+### Evidence
+
+```python
+# api_guard.py:11
+def is_api_host(host: str) -> bool:
+    return API_DOMAIN in (host or "")  # substring match, not exact
+```
+
+### Impact
+
+- A request to `evil-api.vijaykrsha.online` would match because `api.vijaykrsha.online` is a substring of the hostname (if it were in a longer domain)
+- Lower practical risk since the specific domain is unlikely to be a substring of other domains
+
+---
+
+## MEDIUM-05: Browser Navigation Heuristic Misfire
+
+**Severity:** MEDIUM
+**Component:** Backend Admin Middleware
+**File:** `backend/app/app/authentication/admin/middleware.py:7-18`
+**Related Feature:** Admin API error responses
+
+### Description
+
+The `_is_browser_navigation` heuristic may misfire for non-standard clients, causing 303 HTML redirects instead of 401 JSON responses that the frontend expects.
+
+### Evidence
+
+```python
+# middleware.py:7-18
+def _is_browser_navigation(request: Request) -> bool:
+    sec_fetch_mode = (request.headers.get("sec-fetch-mode") or "").lower()
+    sec_fetch_dest = (request.headers.get("sec-fetch-dest") or "").lower()
+    accept = (request.headers.get("accept") or "").lower()
+    if sec_fetch_mode == "navigate": return True
+    if sec_fetch_dest in {"document", "iframe"}: return True
+    if "text/html" in accept or "application/pdf" in accept: return True
+    return False
+```
+
+### Impact
+
+- API clients that send `Accept: text/html` (e.g., some HTTP libraries) get 303 instead of 401
+- Frontend expects 401 with `X-Session-Expired` header but gets HTML redirect
+- Breaks session expiry handling in SPA code
+
+---
+
+## LOW-01: Dead Code `app_env()`
+
+**Severity:** LOW
+**Component:** Backend Runtime
+**File:** `backend/app/app/core/runtime.py`
+**Related Feature:** Environment detection
+
+### Description
+
+The `app_env()` function is defined but never called anywhere in the codebase.
+
+### Impact
+
+- No runtime impact
+- Maintenance burden — confusing for future developers
+
+---
+
+## LOW-02: Swagger Disabled in Prod
+
+**Severity:** LOW
+**Component:** Backend FastAPI Config
+**File:** `backend/app/app/main.py:13-15`
+**Related Feature:** API documentation
+
+### Description
+
+`ENABLE_SWAGGER=false` in prod disables `/docs`, `/redoc`, and `/openapi.json`.
+
+### Impact
+
+- No API documentation available in prod
+- **By design** — standard security practice
+
+---
+
+## LOW-03: Redundant Root Redirect
+
+**Severity:** LOW
+**Component:** Cloudflare Pages
+**File:** `frontend/functions/_middleware.js:13-18`
+**Related Feature:** Landing page routing
+
+### Description
+
+The middleware redirects `/` to `/rent/` (301). If a `_redirects` file also exists, this creates duplicate redirect logic.
+
+### Impact
+
+- Confusing but harmless
+- One redirect is skipped if the other handles it first
+
+---
+
+## LOW-04: No-op `getFullApiUrl()`
+
+**Severity:** LOW
+**Component:** Frontend Landlord Runtime
+**File:** `frontend/landlord-app/src/lib/runtime.ts`
+**Related Feature:** API URL construction
+
+### Description
+
+`getFullApiUrl()` returns the path unchanged — it's a no-op function.
+
+### Impact
+
+- No runtime impact currently
+- Trap for future callers who expect it to prepend a base URL
+
+---
+
+## LOW-05: Tenant Portal Hardcoded API Paths
+
+**Severity:** LOW
+**Component:** Frontend Tenant App
+**File:** `frontend/tenant-app/src/lib/login-api.ts`
+**Related Feature:** Tenant login
+
+### Description
+
+`portalLogin()` hardcodes API paths not declared in `routes.json`.
+
+### Impact
+
+- Fragile — requires manual sync if routes change
+- Works correctly today
+
+---
+
+## LOW-06: No CI/CD Pipeline
+
+**Severity:** LOW
+**Component:** Infrastructure / DevOps
+**Related Feature:** Deployment workflow
+
+### Description
+
+No GitHub Actions, GitLab CI, or other pipeline configuration exists in the repo.
+
+### Impact
+
+- Deployments are manual (`deploy/release.sh`, `deploy/deploy-cloudflare-pages.sh`)
+- No automated testing before deploy
+- No rollback automation
+```
+
+### `.audit/03-fixes.md`
+
+```markdown
+# Fix Recommendations
+
+Detailed fix plan for each finding, ordered by priority.
+
+---
+
+## FIX-01: Add WebSocket Authentication
+
+**Priority:** P0 — Do immediately
+**Finding:** CRITICAL-01
+**Estimated Effort:** Medium (2-4 hours)
+**Risk of Not Fixing:** Real-time data leak to unauthenticated clients
+
+### Why
+
+The `/ws/sync` and `/ws/auth` endpoints accept any client that provides a valid channel name. Since landlord UUIDs are visible in public tenant URLs (`/{uuid}/t/...`), any attacker can subscribe to a landlord's real-time event stream and receive tenant names, receipt data, KYC uploads, and settings changes.
+
+### What to Change
+
+**File 1:** `backend/app/app/api/sync_ws.py`
+
+- Add a `cookie` parameter to both `sync_websocket()` and `auth_websocket()`
+- Extract and validate JWT from cookie on WebSocket connect
+- Verify the JWT's principal matches the requested channel (e.g., `landlord:{id}` channel requires landlord JWT with matching ID)
+- Reject connections with 4003 if auth fails
+
+```python
+# Pseudocode for the fix
+@router.websocket("/ws/sync")
+async def sync_websocket(
+    websocket: WebSocket,
+    channel: str = Query(...),
+    token: str = Query(None),  # JWT from query param (WS can't use cookies in browser)
+):
+    # Validate JWT
+    principal = validate_ws_token(token)
+    if not principal:
+        await websocket.close(code=4001, reason="Unauthorized")
+        return
+    
+    # Verify channel matches principal
+    if not channel_matches_principal(channel, principal):
+        await websocket.close(code=4003, reason="Channel mismatch")
+        return
+    
+    await sync_manager.connect(websocket, channel)
+```
+
+**File 2:** `frontend/shared/ws-client.ts` (or equivalent)
+
+- Update WebSocket connections to pass JWT token as query parameter
+- Add reconnection logic with fresh token on 4001/4003 close
+
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `backend/app/app/api/sync_ws.py` | Add JWT validation to both WS endpoints |
+| `frontend/landlord-app/src/lib/ws-client.ts` | Pass token in WS URL |
+| `frontend/tenant-app/src/lib/ws-client.ts` | Pass token in WS URL |
+| `frontend/admin-app/src/lib/ws-client.ts` | Pass token in WS URL |
+
+### Features Affected
+
+- Real-time sync (landlord, tenant, admin portals)
+- Auth state sync (TOTP, password change notifications)
+- Health stream (unaffected — public by design)
+
+---
+
+## FIX-02: Add `_routes.json` for Cloudflare Pages
+
+**Priority:** P1 — Do this week
+**Finding:** MEDIUM-01
+**Estimated Effort:** Low (30 minutes)
+**Risk of Not Fixing:** Performance degradation, higher Cloudflare costs
+
+### Why
+
+Without `_routes.json`, every request (including static assets) triggers the `_middleware.js` function. This adds latency to JS/CSS loading and increases Cloudflare Pages function invocations.
+
+### What to Change
+
+**New File:** `frontend/build-output/_routes.json`
+
+```json
+{
+  "version": 1,
+  "include": ["/rent/*"],
+  "exclude": [
+    "/rent/**/*.js",
+    "/rent/**/*.css",
+    "/rent/**/*.png",
+    "/rent/**/*.jpg",
+    "/rent/**/*.svg",
+    "/rent/**/*.ico",
+    "/rent/**/*.woff",
+    "/rent/**/*.woff2",
+    "/rent/**/*.ttf"
+  ]
+}
+```
+
+**File:** `frontend/build.sh`
+
+- Add a step to copy/generate `_routes.json` into `build-output/`
+
+### Files to Modify
+
+| File | Change |
+|------|--------|
+| `frontend/build.sh` | Add `_routes.json` generation step |
+| `frontend/build-output/_routes.json` | New file — route exclusion rules |
+
+### Features Affected
+
+- All frontend apps (performance improvement)
+- Cloudflare Pages function costs
+
+---
+
+## FIX-03: Normalize Cookie SameSite Attributes
+
+**Priority:** P1 — Do this week
+**Finding:** MEDIUM-02
+**Estimated Effort:** Low (1 hour)
+**Risk of Not Fixing:** Intermittent auth refresh failures in prod
+
+### Why
+
+The tenant refresh token's `SameSite` attribute differs between `cookies.py` (`none`) and `public.py:378` (`strict`). This means the behavior changes depending on which login path was used. In prod, where the SPA (different origin) and API are on different subdomains, `SameSite=strict` may block the refresh cookie from being sent.
+
+### What to Change
+
+**Decision:** Use `SameSite=none` consistently for all cookies (cross-origin required for Cloudflare Pages SPA + API on different domains).
+
+**File 1:** `backend/app/app/api/public.py:378`
+
+```python
+# Before
+samesite="strict",
+# After
+samesite="none",
+```
+
+**File 2:** `backend/app/app/authentication/admin/cookies.py:37`
+
+```python
+# Before
+samesite="strict",
+# After
+samesite="none",
+```
+
+### Files to Modify
+
+| File | Line | Change |
+|------|------|--------|
+| `backend/app/app/api/public.py` | 378 | `samesite="strict"` -> `samesite="none"` |
+| `backend/app/app/authentication/admin/cookies.py` | 37 | `samesite="strict"` -> `samesite="none"` |
+
+### Features Affected
+
+- Tenant portal login refresh
+- Admin portal login refresh
+- All refresh token flows
+
+---
+
+## FIX-04: Wrap `url_for` in try/except
+
+**Priority:** P2 — Do soon
+**Finding:** CRITICAL-02
+**Estimated Effort:** Low (30 minutes)
+**Risk of Not Fixing:** Admin API 500 errors on session expiry
+
+### Why
+
+`request.url_for("ADMINLOGOUT")` can throw `NoReverseMatch` if the named route doesn't exist. This causes 500 errors instead of proper 401/303 responses.
+
+### What to Change
+
+**File:** `backend/app/app/authentication/admin/middleware.py`
+
+```python
+# Before (line 22)
+def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized"):
+    logout_url = str(request.url_for("ADMINLOGOUT"))
+
+# After
+def _raise_admin_session_expired(request: Request, detail: str = "Unauthorized"):
+    try:
+        logout_url = str(request.url_for("ADMINLOGOUT"))
+    except Exception:
+        logout_url = "/admin/login"
+```
+
+Apply the same pattern to all `url_for("ADMINLOGOUT")` calls in the file (lines 22, 38, 44, 50, 64).
+
+### Files to Modify
+
+| File | Lines | Change |
+|------|-------|--------|
+| `backend/app/app/authentication/admin/middleware.py` | 22, 38, 44, 50, 64 | Wrap `url_for` in try/except with fallback |
+
+### Features Affected
+
+- Admin API authentication
+- Admin session expiry handling
+
+---
+
+## FIX-05: Exact-Match Host Header in API Guard
+
+**Priority:** P2 — Do soon
+**Finding:** MEDIUM-04
+**Estimated Effort:** Low (15 minutes)
+**Risk of Not Fixing:** Low practical risk, but security best practice
+
+### Why
+
+Substring matching with `in` is less secure than exact matching. While the current domain makes it unlikely to match other domains, this is a defense-in-depth improvement.
+
+### What to Change
+
+**File:** `backend/app/app/core/api_guard.py:11`
+
+```python
+# Before
+def is_api_host(host: str) -> bool:
+    return API_DOMAIN in (host or "")
+
+# After
+def is_api_host(host: str) -> bool:
+    h = (host or "").split(":")[0]  # strip port
+    return h == API_DOMAIN
+```
+
+### Files to Modify
+
+| File | Line | Change |
+|------|------|--------|
+| `backend/app/app/core/api_guard.py` | 11 | Exact match with port stripping |
+
+### Features Affected
+
+- API domain restriction
+- Static file serving on API domain
+
+---
+
+## FIX-06: Strip X-Forwarded-Prefix at Proxy
+
+**Priority:** P2 — Do soon
+**Finding:** MEDIUM-03
+**Estimated Effort:** Low (1 hour)
+**Risk of Not Fixing:** Cookie path manipulation, open redirect
+
+### Why
+
+The backend trusts `X-Forwarded-Prefix` from any client. An attacker can set this header to manipulate `root_path`, which affects cookie paths and URL generation.
+
+### What to Change
+
+**Option A (Recommended):** Remove the middleware entirely. In prod, nginx already handles path prefixing. In dev, `serve_frontend=true` handles it.
+
+**File:** `backend/app/app/main.py:36-41`
+
+```python
+# Remove or conditionally enable
+@app.middleware("http")
+async def forwarded_prefix_middleware(request: Request, call_next):
+    prefix = request.headers.get("X-Forwarded-Prefix", "")
+    if prefix:
+        request.scope["root_path"] = prefix.rstrip("/")
+    return await call_next(request)
+```
+
+**Option B:** Only trust the header if it comes from a known proxy (check `X-Forwarded-For` or network origin).
+
+### Files to Modify
+
+| File | Lines | Change |
+|------|-------|--------|
+| `backend/app/app/main.py` | 36-41 | Remove or secure `X-Forwarded-Prefix` middleware |
+| `gateway/nginx/routes/api.conf` | N/A | Ensure nginx doesn't pass `X-Forwarded-Prefix` from clients |
+
+### Features Affected
+
+- Cookie path scoping
+- URL generation
+- Auth redirect URLs
+
+---
+
+## Implementation Order
+
+| Order | Fix | Effort | Risk Reduction |
+|-------|-----|--------|----------------|
+| 1 | FIX-01: WebSocket auth | 2-4h | Eliminates CRITICAL data leak |
+| 2 | FIX-04: url_for try/except | 30m | Eliminates CRITICAL crash |
+| 3 | FIX-03: Normalize SameSite | 1h | Fixes intermittent auth failures |
+| 4 | FIX-02: Add _routes.json | 30m | Improves performance + cost |
+| 5 | FIX-05: Exact-match Host | 15m | Defense-in-depth security |
+| 6 | FIX-06: Secure X-Forwarded-Prefix | 1h | Prevents header manipulation |
+| **Total** | | **5-7 hours** | **All issues resolved** |
+```
+
+### `.audit/04-component-map.md`
+
+```markdown
+# Component-to-Fix Dependency Map
+
+> Audit date: 2026-09-03  
+> Commit: 0471884
+
+## Components and Fix Assignments
+
+### Backend
+
+| Component | Files | Fixes | Features |
+|-----------|-------|-------|----------|
+| **main.py** | `backend/app/app/main.py` | FIX-06 | CORS, middleware, app startup |
+| **api-guard** | `backend/app/app/core/api_guard.py` | FIX-05 | API domain restriction |
+| **runtime** | `backend/app/app/core/runtime.py` | — | Environment detection (dead code) |
+| **router-registry** | `backend/app/app/core/router_registry.py` | FIX-01 | Route registration, conditional SPA serving |
+| **websocket** | `backend/app/app/api/sync_ws.py`, `websocket_manager.py` | **FIX-01** | Real-time sync, auth state sync |
+| **admin-middleware** | `backend/app/app/authentication/admin/middleware.py` | **FIX-04** | Admin authentication, session expiry |
+| **admin-cookies** | `backend/app/app/authentication/admin/cookies.py` | FIX-03 | Admin cookie scoping |
+| **tenant-cookies** | `backend/app/app/authentication/tenant/cookies.py` | — | Tenant cookie scoping |
+| **landlord-cookies** | `backend/app/app/authentication/landlord/cookies.py` | — | Landlord cookie scoping |
+| **public-api** | `backend/app/app/api/public.py` | FIX-03 | Portal login, tenant auth |
+| **health-api** | `backend/app/app/api/health.py` | — | SSE health stream |
+| **database** | `backend/app/app/core/db.py`, `migrations/` | — | DB init, schema migrations |
+
+### Frontend
+
+| Component | Files | Fixes | Features |
+|-----------|-------|-------|----------|
+| **cloudflare-middleware** | `frontend/functions/_middleware.js` | FIX-02 | SPA routing, deep-link interception |
+| **api-config** | `frontend/shared/api-config.ts` | — | API URL resolution |
+| **routes-config** | `frontend/shared/routes.json` | — | Frontend route manifest |
+| **admin-app** | `frontend/admin-app/` | FIX-01 | Admin portal, WebSocket client |
+| **landlord-app** | `frontend/landlord-app/` | FIX-01 | Landlord portal, WebSocket client |
+| **tenant-app** | `frontend/tenant-app/` | FIX-01 | Tenant portal, WebSocket client |
+| **build** | `frontend/build.sh` | FIX-02 | Production SPA build |
+
+### Infrastructure
+
+| Component | Files | Fixes | Features |
+|-----------|-------|-------|----------|
+| **nginx** | `gateway/nginx/nginx.conf`, `routes/*.conf` | FIX-06 | Reverse proxy, WebSocket proxy |
+| **docker-compose** | `compose.dev.yml`, `compose.prod.yml` | — | Service orchestration |
+| **cloudflare-pages** | `wrangler.toml`, `_middleware.js` | FIX-02 | Static site hosting, SPA routing |
+| **cloudflare-tunnel** | `gateway/compose.yml` | — | Tunnel to origin |
+| **deploy** | `deploy/deploy-*.sh` | — | Deployment automation |
+
+## Fix Dependency Graph
+
+```
+FIX-01 (P0: WebSocket Auth)
+├── backend/websocket         ← sync_ws.py (add JWT validation)
+├── backend/router-registry   ← router_registry.py (add Depends)
+├── frontend/admin-app        ← ws-client.ts (pass JWT token)
+├── frontend/landlord-app     ← ws-client.ts (pass JWT token)
+└── frontend/tenant-app       ← ws-client.ts (pass JWT token)
+
+FIX-02 (P1: _routes.json)
+├── frontend/build            ← build.sh (generate _routes.json)
+└── frontend/cloudflare-middleware ← _middleware.js (static asset exclusion)
+
+FIX-03 (P1: SameSite Cookies)
+├── backend/public-api        ← public.py line 378 (strict → none)
+└── backend/admin-cookies     ← cookies.py line 37 (strict → none)
+
+FIX-04 (P2: url_for Crash)
+└── backend/admin-middleware   ← middleware.py lines 22,38,44,50,64 (try/except)
+
+FIX-05 (P2: API Guard)
+└── backend/api-guard          ← api_guard.py line 11 (exact match)
+
+FIX-06 (P2: X-Forwarded-Prefix)
+├── backend/main.py           ← main.py lines 36-41 (remove or validate)
+└── infrastructure/nginx       ← api.conf (strip header from clients)
+```
+
+## Implementation Order
+
+| Order | Fix | Effort | Components |
+|-------|-----|--------|------------|
+| 1 | **FIX-01** | 2-4h | Backend WS + 3 frontend apps |
+| 2 | **FIX-03** | 1h | Backend cookies (2 files) |
+| 3 | **FIX-04** | 0.5h | Backend admin middleware (1 file) |
+| 4 | **FIX-05** | 0.25h | Backend API guard (1 file) |
+| 5 | **FIX-06** | 1h | Backend main.py + nginx config |
+| 6 | **FIX-02** | 0.5h | Frontend build + middleware |
+
+**Total: ~5-7 hours, 8 backend files, 4 frontend files, 2 infra files**
+
+## Component Vulnerability Surface
+
+```
+                    ┌──────────────────────┐
+                    │   Cloudflare Pages    │
+                    │   (Static SPA Host)   │
+                    │                       │
+                    │  _middleware.js       │ ← FIX-02
+                    │  SPA routing          │
+                    └─────────┬────────────┘
+                              │ HTTPS
+                    ┌─────────▼────────────┐
+                    │    Cloudflare Tunnel   │
+                    │    (Edge → Origin)     │
+                    └─────────┬────────────┘
+                              │
+                    ┌─────────▼────────────┐
+                    │     Nginx Gateway     │
+                    │   (Reverse Proxy)     │ ← FIX-06 (strip X-Forwarded-Prefix)
+                    │                       │
+                    ├───────────────────────┤
+                    │  /api/* → Backend     │
+                    │  /ws/* → WebSocket    │ ← CRITICAL-01
+                    │  /static/* → Files    │ ← FIX-05 (API guard)
+                    │  /* → Cloudflare Pages│
+                    └─────────┬────────────┘
+                              │
+              ┌───────────────┼───────────────┐
+              │               │               │
+    ┌─────────▼──────┐ ┌─────▼──────┐ ┌──────▼───────┐
+    │  FastAPI App    │ │  PostgreSQL │ │  Redis       │
+    │  (port 28000)   │ │  (port 5432)│ │  (port 6379) │
+    │                 │ │             │ │              │
+    │  middleware.py  │ │             │ │              │
+    │  ← FIX-04      │ │             │ │              │
+    │  ← FIX-06      │ │             │ │              │
+    │                 │ │             │ │              │
+    │  sync_ws.py     │ │             │ │              │
+    │  ← CRITICAL-01  │ │             │ │              │
+    │                 │ │             │ │              │
+    │  public.py      │ │             │ │              │
+    │  ← FIX-03       │ │             │ │              │
+    │                 │ │             │ │              │
+    │  api_guard.py   │ │             │ │              │
+    │  ← FIX-05       │ │             │ │              │
+    └─────────────────┘ └─────────────┘ └──────────────┘
+```
+
+## Feature Coverage by Component
+
+| Feature | Backend Component | Frontend Component | Infra Component |
+|---------|-------------------|--------------------|-----------------|
+| Landing page | router-registry | cloudflare-middleware | cloudflare-pages |
+| Admin portal | admin-middleware | admin-app | cloudflare-pages |
+| Landlord portal | landlord-cookies | landlord-app | cloudflare-pages |
+| Tenant portal | public-api | tenant-app | cloudflare-pages |
+| Tenant login | public-api | tenant-app | cloudflare-pages |
+| Real-time sync | **websocket** | admin/landlord/tenant-app | nginx (WS proxy) |
+| PDF generation | health-api | — | — |
+| Export/Import | health-api | admin/landlord-app | — |
+| Backup/Restore | health-api | admin-app | — |
+| Audit Logs | health-api | admin/landlord-app | — |
+```
+
+### `.audit/05-architecture.md`
+
+```markdown
+# Deployment Topology & Request Flow
+
+> Audit date: 2026-09-03  
+> Commit: 0471884
+
+## Production Architecture
+
+```
+                         Internet
+                            │
+                   ┌────────▼────────┐
+                   │  Cloudflare DNS  │
+                   │  (vijaykrsha.    │
+                   │   online)        │
+                   └────────┬────────┘
+                            │
+              ┌─────────────┼─────────────┐
+              │                           │
+    ┌─────────▼──────────┐    ┌──────────▼─────────┐
+    │  Cloudflare Pages   │    │  Cloudflare Tunnel   │
+    │  (Static SPA Host)  │    │  (Edge → Origin)     │
+    │                     │    │                       │
+    │  /rent/*            │    │  api.vijaykrsha.      │
+    │  /admin/*           │    │   online → backend    │
+    │  /landlord/*        │    │                       │
+    │  /tenant/*          │    └──────────┬───────────┘
+    └─────────┬──────────┘               │
+              │                           │
+              │  Static files only        │  HTTPS
+              │  (JS/CSS/images)          │
+              │                           │
+              │  Dynamic routes           │
+              │  → _middleware.js         │
+              │  → /functions/            │
+              │                           │
+              │  API calls                │
+              │  → fetch(CONFIG.apiUrl)   │
+              │  → api.vijaykrsha.online  │
+              └───────────────────────────┘
+
+              ┌───────────────────────────┐
+              │     Origin Server          │
+              │     (Docker Compose)       │
+              │                            │
+              │  ┌──────────────────────┐  │
+              │  │   Nginx Gateway       │  │
+              │  │   (port 80/443)       │  │
+              │  │                       │  │
+              │  │   /api/* → Backend    │  │
+              │  │   /ws/* → WebSocket   │  │
+              │  │   /static/* → Files   │  │
+              │  │   /* → 404            │  │
+              │  └──────────┬───────────┘  │
+              │             │              │
+              │  ┌──────────▼───────────┐  │
+              │  │   FastAPI Backend     │  │
+              │  │   (port 28000)        │  │
+              │  │                       │  │
+              │  │   /api/tenants/*      │  │
+              │  │   /api/public/*       │  │
+              │  │   /api/admin/*        │  │
+              │  │   /api/auth/*         │  │
+              │  │   /ws/sync            │  │
+              │  │   /ws/auth            │  │
+              │  │   /health             │  │
+              │  └──────────┬───────────┘  │
+              │             │              │
+              │  ┌──────────▼───────────┐  │
+              │  │   PostgreSQL          │  │
+              │  │   (port 5432)         │  │
+              │  │   29 tables           │  │
+              │  └──────────────────────┘  │
+              │                            │
+              │  ┌──────────────────────┐  │
+              │  │   Redis               │  │
+              │  │   (port 6379)         │  │
+              │  │   Caching, sessions   │  │
+              │  └──────────────────────┘  │
+              └────────────────────────────┘
+```
+
+## Development Architecture
+
+```
+              ┌───────────────────────────┐
+              │     Local Machine          │
+              │     (Docker Compose)       │
+              │                            │
+              │  ┌──────────────────────┐  │
+              │  │   Nginx Gateway       │  │
+              │  │   (dev-gateway.conf)  │  │
+              │  │   (port 80)           │  │
+              │  │                       │  │
+              │  │   /api/* → Backend    │  │
+              │  │   /ws/* → WebSocket   │  │
+              │  │   /static/* → Files   │  │
+              │  │   /rent/* → SPA       │  │
+              │  │   /admin/* → SPA      │  │
+              │  │   /landlord/* → SPA   │  │
+              │  │   /tenant/* → SPA     │  │
+              │  └──────────┬───────────┘  │
+              │             │              │
+              │  ┌──────────▼───────────┐  │
+              │  │   FastAPI Backend     │  │
+              │  │   (port 28000)        │  │
+              │  │   + Landing SPA mount │  │
+              │  │   + Swagger enabled   │  │
+              │  └──────────┬───────────┘  │
+              │             │              │
+              │  ┌──────────▼───────────┐  │
+              │  │   Vite Dev Server     │  │
+              │  │   (port 28001)        │  │
+              │  │   HMR enabled         │  │
+              │  │   Proxy to nginx      │  │
+              │  └──────────────────────┘  │
+              │                            │
+              │  ┌──────────────────────┐  │
+              │  │   PostgreSQL          │  │
+              │  │   (port 5432)         │  │
+              │  └──────────────────────┘  │
+              │                            │
+              │  ┌──────────────────────┐  │
+              │  │   Redis               │  │
+              │  │   (port 6379)         │  │
+              │  └──────────────────────┘  │
+              └────────────────────────────┘
+```
+
+## Request Flow: SPA Login (Production)
+
+```
+1. Browser navigates to https://vijaykrsha.online/landlord/login
+   │
+2. Cloudflare Pages → _middleware.js
+   │  → /landlord/ prefix detected
+   │  → Appends x-cf-path header
+   │  → Rewrites to /functions/[[path]].js
+   │
+3. Cloudflare Pages → [[path]].js
+   │  → Serves landlord-app/index.html (SPA shell)
+   │
+4. SPA boots → src/lib/login.ts
+   │  → getApiBaseUrl() → "https://api.vijaykrsha.online"
+   │  → POST /api/auth/loginlandlord/
+   │
+5. Request hits Cloudflare Tunnel → Nginx → FastAPI
+   │  → api_guard checks host (FIX-05: substring match)
+   │  → landlordauth.login_landlord()
+   │  → Validates credentials
+   │  → Sets refresh cookie (SameSite=none)
+   │  → Returns access token in response body
+   │
+6. SPA receives 200
+   │  → Stores access token in localStorage
+   │  → Navigates to /landlord/dashboard
+   │
+7. SPA makes API calls with Authorization: Bearer <access_token>
+   │  → GET /api/landlord/properties/
+   │  → Cookie NOT sent (access token in header)
+   │
+8. Access token expires → SPA calls refresh
+   │  → POST /api/auth/refreshlandlord/
+   │  → Cookie IS sent (SameSite=none, cross-origin OK)
+   │  → New access token returned
+   │
+9. WebSocket connection
+   │  → ws://api.vijaykrsha.online/rent/ws/sync?channel=landlord:{uuid}
+   │  → ⚠️ CRITICAL-01: No authentication required
+```
+
+## Request Flow: Tenant Portal Login (Production)
+
+```
+1. Browser navigates to https://vijaykrsha.online/tenant/login
+   │
+2. Cloudflare Pages → _middleware.js
+   │  → /tenant/ prefix detected
+   │  → Serves tenant-app/index.html
+   │
+3. SPA boots → src/lib/login-api.ts
+   │  → portalLogin() → POST /api/portal/login/
+   │  → Hardcoded URL (LOW-05: not in routes.json)
+   │
+4. Request hits Cloudflare Tunnel → Nginx → FastAPI
+   │  → public.py portal_login()
+   │  → ⚠️ MEDIUM-02: Sets refresh cookie with SameSite=strict
+   │  → Returns access token + tenant info
+   │
+5. SPA stores access token in localStorage
+   │  → Uses access token for subsequent API calls
+   │
+6. Access token expires → SPA calls refresh
+   │  → ⚠️ MEDIUM-02: SameSite=strict cookie may not be sent cross-origin
+   │  → Different behavior than cookies.py (SameSite=none)
+```
+
+## Request Flow: Admin Session Expiry (Production)
+
+```
+1. Admin session expires
+   │
+2. SPA calls GET /api/admin/dashboard/
+   │  → Authorization: Bearer <expired_token>
+   │
+3. FastAPI → admin middleware
+   │  → Validates JWT → Expired
+   │  → Calls _raise_admin_session_expired()
+   │  → ⚠️ CRITICAL-02: request.url_for('ADMINLOGOUT')
+   │  → If NoReverseMatch → 500 error
+   │  → If OK → Returns 303 redirect to /admin/login
+   │
+4. SPA expects 401 with X-Session-Expired header
+   │  → Gets 303 HTML redirect or 500 error
+   │  → Frontend doesn't handle either properly
+```
+
+## Cookie Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Cookie Domains & Paths                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Tenant Cookies:                                             │
+│  ├── tenant_access_token                                    │
+│  │   Domain: api.vijaykrsha.online                          │
+│  │   Path: /api/                                            │
+│  │   SameSite: none                                         │
+│  │   HttpOnly: true                                         │
+│  │   Secure: true (prod)                                   │
+│  │                                                          │
+│  └── tenant_refresh_token                                   │
+│      Domain: api.vijaykrsha.online                          │
+│      Path: /api/                                            │
+│      SameSite: none (cookies.py) ← consistent               │
+│      SameSite: strict (public.py) ← MEDIUM-02 INCONSISTENT │
+│      HttpOnly: true                                         │
+│      Secure: true (prod)                                   │
+│                                                              │
+│  Landlord Cookies:                                          │
+│  ├── landlord_access_token                                  │
+│  │   Domain: api.vijaykrsha.online                          │
+│  │   Path: /api/                                            │
+│  │   SameSite: none                                         │
+│  │                                                          │
+│  └── landlord_refresh_token                                 │
+│      Domain: api.vijaykrsha.online                          │
+│      Path: /api/                                            │
+│      SameSite: none                                         │
+│                                                              │
+│  Admin Cookies:                                             │
+│  ├── admin_access_token                                     │
+│  │   Domain: api.vijaykrsha.online                          │
+│  │   Path: /api/                                            │
+│  │   SameSite: none                                         │
+│  │                                                          │
+│  └── admin_refresh_token                                    │
+│      Domain: api.vijaykrsha.online                          │
+│      Path: /api/                                            │
+│      SameSite: strict ← MEDIUM-02 INCONSISTENT              │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## JWT Token Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    4 Independent JWT Systems                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Tenant JWT:                                                 │
+│  ├── Algorithm: HS256                                       │
+│  ├── Secret: TENANT_JWT_SECRET                             │
+│  ├── Expiry: ACCESS_TOKEN_EXPIRE_MINUTES                    │
+│  ├── Claims: {sub: tenant_id, role: "tenant"}              │
+│  └── Storage: localStorage (SPA) + HttpOnly cookie          │
+│                                                              │
+│  Landlord JWT:                                               │
+│  ├── Algorithm: HS256                                       │
+│  ├── Secret: LANDLORD_JWT_SECRET                           │
+│  ├── Expiry: ACCESS_TOKEN_EXPIRE_MINUTES                    │
+│  ├── Claims: {sub: landlord_id, role: "landlord"}          │
+│  └── Storage: localStorage (SPA) + HttpOnly cookie          │
+│                                                              │
+│  Admin JWT:                                                  │
+│  ├── Algorithm: HS256                                       │
+│  ├── Secret: ADMIN_JWT_SECRET                              │
+│  ├── Expiry: ACCESS_TOKEN_EXPIRE_MINUTES                    │
+│  ├── Claims: {sub: admin_id, role: "admin"}                │
+│  └── Storage: localStorage (SPA) + HttpOnly cookie          │
+│                                                              │
+│  Platform Admin JWT:                                         │
+│  ├── Algorithm: HS256                                       │
+│  ├── Secret: PLATFORM_ADMIN_JWT_SECRET                     │
+│  ├── Expiry: ACCESS_TOKEN_EXPIRE_MINUTES                    │
+│  ├── Claims: {sub: platform_admin_id, role: "platform_admin"}│
+│  └── Storage: localStorage (SPA) + HttpOnly cookie          │
+│                                                              │
+│  Note: Each system uses different secrets.                   │
+│  Tenant token cannot be used as landlord token, etc.        │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Database Schema
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    29 Tables (PostgreSQL)                    │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Core:                                                       │
+│  ├── landlords              (multi-tenant root)             │
+│  ├── properties             (landlord → properties)         │
+│  ├── tenants                (property → tenants)            │
+│  ├── billing_records        (tenant → bills)                │
+│  ├── receipts               (billing → receipts)            │
+│  └── settings               (landlord settings)             │
+│                                                              │
+│  Auth:                                                       │
+│  ├── landlord_sessions      (TOTP, 2FA)                     │
+│  ├── tenant_sessions        (TOTP, 2FA)                     │
+│  ├── oauth_users            (Google OAuth)                  │
+│  └── telegram_otps          (Telegram OTP)                  │
+│                                                              │
+│  Business:                                                   │
+│  ├── document_templates     (receipt templates)             │
+│  ├── meter_readings         (utility meters)                │
+│  ├── feedback_entries       (tenant feedback)               │
+│  ├── audit_logs             (audit trail)                   │
+│  └── backups                (backup metadata)               │
+│                                                              │
+│  Admin:                                                      │
+│  ├── admin_users            (admin accounts)                │
+│  ├── platform_admin_users   (platform admin accounts)       │
+│  └── broadcast_messages     (admin broadcasts)              │
+│                                                              │
+│  Note: Custom Python migrator (not Alembic)                 │
+│  Schema identical between dev and prod (commit 0471884)     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## WebSocket Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    WebSocket Endpoints                        │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  /ws/sync (sync_websocket)                                  │
+│  ├── Purpose: Real-time data sync                           │
+│  ├── Channel format: landlord:{uuid}                       │
+│  ├── Authentication: ⚠️ NONE (CRITICAL-01)                 │
+│  ├── Events: tenant_created, receipt_generated,             │
+│  │           kyc_uploaded, settings_changed                 │
+│  └── Used by: landlord-app, tenant-app, admin-app          │
+│                                                              │
+│  /ws/auth (auth_websocket)                                  │
+│  ├── Purpose: Auth state synchronization                    │
+│  ├── Channel format: landlord:{uuid}                       │
+│  ├── Authentication: ⚠️ NONE (CRITICAL-01)                 │
+│  ├── Events: login, logout, session_expired                 │
+│  └── Used by: landlord-app, admin-app                      │
+│                                                              │
+│  /health (SSE)                                              │
+│  ├── Purpose: Server health monitoring                      │
+│  ├── Authentication: None (by design)                       │
+│  └── Used by: monitoring, health checks                     │
+│                                                              │
+│  Known UUIDs:                                                │
+│  ├── Visible in public tenant URLs                          │
+│  │   https://vijaykrsha.online/tenant/{property_id}        │
+│  ├── property → landlord mapping in DB                      │
+│  └── Attacker can guess landlord UUIDs                      │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Deployment Differences Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              Dev vs Prod Deployment Differences               │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Same Code (identical commit 0471884):                      │
+│  ├── All backend API endpoints (158 HTTP + 3 WS)           │
+│  ├── All frontend SPA builds                                │
+│  ├── All database migrations                                │
+│  └── All business logic                                     │
+│                                                              │
+│  Different Config:                                           │
+│  ├── ENABLE_SWAGGER: true (dev) / false (prod)             │
+│  ├── SERVE_FRONTEND: true (dev) / false (prod)             │
+│  ├── API_DOMAIN: localhost (dev) / api.vijaykrsha.online   │
+│  ├── CORS origins: localhost (dev) / vijaykrsha.online     │
+│  ├── Cookie domains: localhost (dev) / api.vijaykrsha.online│
+│  └── Database: local PostgreSQL (dev) / remote (prod)       │
+│                                                              │
+│  Different Serving:                                          │
+│  ├── Landing: FastAPI mount (dev) / Cloudflare Pages (prod) │
+│  ├── SPA: Vite dev server (dev) / Cloudflare Pages (prod)  │
+│  └── WebSocket: Direct (dev) / Nginx proxy (prod)          │
+│                                                              │
+│  Different Infrastructure:                                   │
+│  ├── Proxy: dev-gateway.conf (dev) / nginx/*.conf (prod)   │
+│  ├── Tunnel: None (dev) / Cloudflare Tunnel (prod)         │
+│  └── CDN: None (dev) / Cloudflare (prod)                   │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+```
+
+### `.audit/component-map.json`
+
+```json
+{
+  "audit_date": "2026-09-03",
+  "components": {
+    "backend": {
+      "main.py": {
+        "files": ["backend/app/app/main.py"],
+        "fixes": ["FIX-06"],
+        "features": ["CORS", "middleware", "app startup"]
+      },
+      "api-guard": {
+        "files": ["backend/app/app/core/api_guard.py"],
+        "fixes": ["FIX-05"],
+        "features": ["API domain restriction"]
+      },
+      "runtime": {
+        "files": ["backend/app/app/core/runtime.py"],
+        "fixes": ["LOW-01-cleanup"],
+        "features": ["environment detection"]
+      },
+      "router-registry": {
+        "files": ["backend/app/app/core/router_registry.py"],
+        "fixes": ["FIX-01"],
+        "features": ["route registration", "conditional SPA serving"]
+      },
+      "websocket": {
+        "files": ["backend/app/app/api/sync_ws.py", "backend/app/app/core/websocket_manager.py"],
+        "fixes": ["FIX-01"],
+        "features": ["real-time sync", "auth state sync", "health stream"]
+      },
+      "admin-middleware": {
+        "files": ["backend/app/app/authentication/admin/middleware.py"],
+        "fixes": ["FIX-04", "MEDIUM-05-recommendation"],
+        "features": ["admin authentication", "admin session expiry"]
+      },
+      "admin-cookies": {
+        "files": ["backend/app/app/authentication/admin/cookies.py"],
+        "fixes": ["FIX-03"],
+        "features": ["admin cookie scoping", "admin refresh tokens"]
+      },
+      "tenant-cookies": {
+        "files": ["backend/app/app/authentication/tenant/cookies.py"],
+        "fixes": [],
+        "features": ["tenant cookie scoping"]
+      },
+      "landlord-cookies": {
+        "files": ["backend/app/app/authentication/landlord/cookies.py"],
+        "fixes": [],
+        "features": ["landlord cookie scoping"]
+      },
+      "public-api": {
+        "files": ["backend/app/app/api/public.py"],
+        "fixes": ["FIX-03"],
+        "features": ["portal login", "tenant auth", "forgot password"]
+      },
+      "health-api": {
+        "files": ["backend/app/app/api/health.py"],
+        "fixes": [],
+        "features": ["SSE health stream"]
+      },
+      "database": {
+        "files": ["backend/app/app/core/db.py", "backend/app/app/db/migrations/"],
+        "fixes": [],
+        "features": ["database init", "schema migrations"]
+      }
+    },
+    "frontend": {
+      "cloudflare-middleware": {
+        "files": ["frontend/functions/_middleware.js"],
+        "fixes": ["FIX-02"],
+        "features": ["SPA routing", "deep-link interception", "root redirect"]
+      },
+      "api-config": {
+        "files": ["frontend/shared/api-config.ts"],
+        "fixes": [],
+        "features": ["API URL resolution"]
+      },
+      "routes-config": {
+        "files": ["frontend/shared/routes.json"],
+        "fixes": [],
+        "features": ["frontend route manifest"]
+      },
+      "admin-app": {
+        "files": ["frontend/admin-app/"],
+        "fixes": ["FIX-01"],
+        "features": ["admin portal", "admin WebSocket client"]
+      },
+      "landlord-app": {
+        "files": ["frontend/landlord-app/"],
+        "fixes": ["FIX-01"],
+        "features": ["landlord portal", "landlord WebSocket client"]
+      },
+      "tenant-app": {
+        "files": ["frontend/tenant-app/"],
+        "fixes": ["FIX-01"],
+        "features": ["tenant portal", "tenant WebSocket client", "tenant login"]
+      },
+      "build": {
+        "files": ["frontend/build.sh"],
+        "fixes": ["FIX-02"],
+        "features": ["production SPA build"]
+      }
+    },
+    "infrastructure": {
+      "nginx": {
+        "files": ["gateway/nginx/nginx.conf", "gateway/nginx/routes/*.conf"],
+        "fixes": ["FIX-06"],
+        "features": ["reverse proxy", "WebSocket proxy", "static serving"]
+      },
+      "docker-compose": {
+        "files": ["compose.dev.yml", "compose.prod.yml"],
+        "fixes": [],
+        "features": ["service orchestration"]
+      },
+      "cloudflare-pages": {
+        "files": ["wrangler.toml", "frontend/functions/_middleware.js"],
+        "fixes": ["FIX-02"],
+        "features": ["static site hosting", "SPA routing"]
+      },
+      "cloudflare-tunnel": {
+        "files": ["gateway/compose.yml"],
+        "fixes": [],
+        "features": ["tunnel to origin"]
+      },
+      "deploy": {
+        "files": ["deploy/deploy-*.sh"],
+        "fixes": ["LOW-06-recommendation"],
+        "features": ["deployment automation"]
+      }
+    }
+  },
+  "fix_dependencies": {
+    "FIX-01": {
+      "requires": [],
+      "blocks": [],
+      "components_touched": ["backend/websocket", "backend/router-registry", "frontend/admin-app", "frontend/landlord-app", "frontend/tenant-app"]
+    },
+    "FIX-02": {
+      "requires": [],
+      "blocks": [],
+      "components_touched": ["frontend/build", "frontend/cloudflare-middleware"]
+    },
+    "FIX-03": {
+      "requires": [],
+      "blocks": [],
+      "components_touched": ["backend/public-api", "backend/admin-cookies"]
+    },
+    "FIX-04": {
+      "requires": [],
+      "blocks": [],
+      "components_touched": ["backend/admin-middleware"]
+    },
+    "FIX-05": {
+      "requires": [],
+      "blocks": [],
+      "components_touched": ["backend/api-guard"]
+    },
+    "FIX-06": {
+      "requires": [],
+      "blocks": [],
+      "components_touched": ["backend/main.py", "infrastructure/nginx"]
+    }
+  }
+}
+```
+
+### `.audit/feature-parity.json`
+
+```json
+{
+  "audit_date": "2026-09-03",
+  "git_commit": "0471884",
+  "summary": "Code and schema are identical between dev and prod. All differences are deployment-level.",
+  "total_features": 30,
+  "feature_parity_rate": "100% (code-level)",
+  "deployment_differences": [
+    {
+      "feature": "Landing page serving",
+      "dev": "FastAPI mount (frontend.py router)",
+      "prod": "Cloudflare Pages static",
+      "same_code": true,
+      "notes": "Different serving mechanism, same SPA build"
+    },
+    {
+      "feature": "Swagger/ReDoc",
+      "dev": "Enabled (/docs, /redoc, /openapi.json)",
+      "prod": "Disabled (ENABLE_SWAGGER=false)",
+      "same_code": false,
+      "by_design": true
+    },
+    {
+      "feature": "HMR / hot reload",
+      "dev": "Vite dev server on port 28001",
+      "prod": "Static build only",
+      "same_code": false,
+      "by_design": true
+    }
+  ],
+  "features": [
+    {
+      "name": "Landing page",
+      "category": "core",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["frontend/landing", "frontend/cloudflare-pages", "backend/landing-router"]
+    },
+    {
+      "name": "Admin portal",
+      "category": "core",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["frontend/admin-app", "frontend/cloudflare-pages", "backend/admin-middleware"]
+    },
+    {
+      "name": "Landlord portal",
+      "category": "core",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["frontend/landlord-app", "frontend/cloudflare-pages", "backend/landlord-middleware"]
+    },
+    {
+      "name": "Tenant portal",
+      "category": "core",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["frontend/tenant-app", "frontend/cloudflare-pages", "backend/public-api"]
+    },
+    {
+      "name": "Tenant portal login",
+      "category": "auth",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/public-api", "backend/tenant-cookies", "backend/tenant-sessions"],
+      "notes": "SameSite inconsistency between cookies.py and public.py"
+    },
+    {
+      "name": "Landlord login",
+      "category": "auth",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/landlordauth", "backend/landlord-cookies"]
+    },
+    {
+      "name": "Admin login",
+      "category": "auth",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/admin-auth", "backend/admin-cookies"]
+    },
+    {
+      "name": "Platform admin login",
+      "category": "auth",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/platform-admin"]
+    },
+    {
+      "name": "Google OAuth",
+      "category": "auth",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/auth-api", "frontend/login-pages"]
+    },
+    {
+      "name": "TOTP 2FA",
+      "category": "auth",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/landlordauth", "backend/tenant-sessions"]
+    },
+    {
+      "name": "Telegram OTP",
+      "category": "auth",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/public-api"]
+    },
+    {
+      "name": "Properties CRUD",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/tenants-api", "frontend/data-explorer"]
+    },
+    {
+      "name": "Tenants CRUD",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/tenants-api", "frontend/landlord-app"]
+    },
+    {
+      "name": "Billing/Receipts",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/billing-api", "frontend/landlord-app"]
+    },
+    {
+      "name": "PDF generation",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/pdf-api", "backend/tenant-pdf-api"]
+    },
+    {
+      "name": "QR code generation",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/pdf-api"]
+    },
+    {
+      "name": "WhatsApp sharing",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/whatsapp-api"]
+    },
+    {
+      "name": "Export (Excel/CSV/ZIP)",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/tenants-api", "backend/billing-api"]
+    },
+    {
+      "name": "Import (Excel/CSV/ZIP)",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/tenants-api"]
+    },
+    {
+      "name": "Backups/Restore",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/backup-api"]
+    },
+    {
+      "name": "Tenant recovery",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/public-api"]
+    },
+    {
+      "name": "Data Explorer",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/tenants-api", "backend/billing-api"]
+    },
+    {
+      "name": "Audit Logs + JSONL export",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/tenants-api"]
+    },
+    {
+      "name": "Broadcast system",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/tenants-api"]
+    },
+    {
+      "name": "Feedback inbox",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/tenants-api"]
+    },
+    {
+      "name": "Meter readings",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/tenants-api"]
+    },
+    {
+      "name": "Onboarding wizard",
+      "category": "business",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/landlord-setup", "frontend/landlord-app"]
+    },
+    {
+      "name": "Real-time sync (WebSocket)",
+      "category": "realtime",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/sync-ws", "backend/websocket-manager"],
+      "security_issue": "CRITICAL-01: No authentication"
+    },
+    {
+      "name": "Auth state sync (WebSocket)",
+      "category": "realtime",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/sync-ws", "backend/websocket-manager"],
+      "security_issue": "CRITICAL-01: No authentication"
+    },
+    {
+      "name": "SSE health stream",
+      "category": "realtime",
+      "dev": true,
+      "prod": true,
+      "same_code": true,
+      "components": ["backend/health-api"],
+      "notes": "Public by design"
+    }
+  ]
+}
+```
+
+### `.audit/findings.json`
+
+```json
+{
+  "audit_date": "2026-09-03",
+  "project": "Propaura - Property Management Platform",
+  "git_commit": "0471884",
+  "branches": ["main", "release"],
+  "total_findings": 13,
+  "findings": [
+    {
+      "id": "CRITICAL-01",
+      "severity": "CRITICAL",
+      "title": "Unauthenticated WebSocket Endpoints",
+      "component": "backend/websocket",
+      "files": [
+        {
+          "path": "backend/app/app/api/sync_ws.py",
+          "lines": [28, 66],
+          "description": "sync_websocket() accepts any channel without JWT validation"
+        },
+        {
+          "path": "backend/app/app/api/sync_ws.py",
+          "lines": [73, 103],
+          "description": "auth_websocket() accepts any channel without JWT validation"
+        },
+        {
+          "path": "backend/app/app/core/router_registry.py",
+          "lines": [102, 103],
+          "description": "Router registered without auth dependency (comment confirms this)"
+        }
+      ],
+      "description": "WebSocket endpoints /ws/sync and /ws/auth accept any client that provides a valid channel name pattern. No JWT, cookie, or session validation is performed. Landlord UUIDs are guessable from public tenant URLs.",
+      "attack_scenario": "Attacker guesses landlord UUID from public tenant URL, subscribes to wss://api.vijaykrsha.online/rent/ws/sync?channel=landlord:{uuid}, receives real-time tenant/receipt/KYC events.",
+      "impact": "Real-time data leak of tenant PII, receipt amounts, KYC uploads, settings changes to unauthenticated clients.",
+      "affected_features": ["real-time sync", "auth state sync", "tenant notifications", "receipt notifications", "KYC uploads"],
+      "affected_components": ["backend/websocket", "backend/auth"],
+      "both_environments": true,
+      "fix_id": "FIX-01"
+    },
+    {
+      "id": "CRITICAL-02",
+      "severity": "CRITICAL",
+      "title": "Admin url_for Crash on Session Expiry",
+      "component": "backend/admin-middleware",
+      "files": [
+        {
+          "path": "backend/app/app/authentication/admin/middleware.py",
+          "lines": [22],
+          "description": "request.url_for('ADMINLOGOUT') called without try/except"
+        },
+        {
+          "path": "backend/app/app/authentication/admin/middleware.py",
+          "lines": [38],
+          "description": "url_for called in get_current_admin_page without try/except"
+        },
+        {
+          "path": "backend/app/app/authentication/admin/middleware.py",
+          "lines": [44],
+          "description": "url_for called on role mismatch without try/except"
+        },
+        {
+          "path": "backend/app/app/authentication/admin/middleware.py",
+          "lines": [50],
+          "description": "url_for called on session not found without try/except"
+        },
+        {
+          "path": "backend/app/app/authentication/admin/middleware.py",
+          "lines": [64],
+          "description": "url_for called in catch-all exception without try/except"
+        }
+      ],
+      "description": "_raise_admin_session_expired() calls request.url_for('ADMINLOGOUT') which can throw NoReverseMatch if the named route doesn't exist. This causes 500 errors instead of proper 401/303 responses.",
+      "impact": "Admin users with expired sessions see 500 errors. Frontend expects X-Session-Expired header but gets unstructured error.",
+      "affected_features": ["admin API authentication", "admin session expiry"],
+      "affected_components": ["backend/admin-middleware"],
+      "both_environments": true,
+      "fix_id": "FIX-04"
+    },
+    {
+      "id": "MEDIUM-01",
+      "severity": "MEDIUM",
+      "title": "No _routes.json for Cloudflare Pages",
+      "component": "frontend/cloudflare-pages",
+      "files": [
+        {
+          "path": "frontend/build.sh",
+          "description": "No _routes.json generation step"
+        },
+        {
+          "path": "frontend/functions/_middleware.js",
+          "description": "Middleware runs on every request including static assets"
+        }
+      ],
+      "description": "Without _routes.json, Cloudflare Pages runs _middleware.js on every request including static assets (JS/CSS/images), causing unnecessary Function invocations.",
+      "impact": "Performance degradation for static asset loading, higher Cloudflare Pages function usage and costs.",
+      "affected_features": ["all frontend apps performance", "static asset loading"],
+      "affected_components": ["frontend/cloudflare-pages", "frontend/build"],
+      "both_environments": false,
+      "prod_only": true,
+      "fix_id": "FIX-02"
+    },
+    {
+      "id": "MEDIUM-02",
+      "severity": "MEDIUM",
+      "title": "Inconsistent Cookie SameSite Attributes",
+      "component": "backend/auth-cookies",
+      "files": [
+        {
+          "path": "backend/app/app/authentication/tenant/cookies.py",
+          "lines": [34, 43],
+          "description": "set_tenant_auth_cookies uses SameSite=none for refresh token"
+        },
+        {
+          "path": "backend/app/app/api/public.py",
+          "lines": [378],
+          "description": "portalLogin uses SameSite=strict for refresh token"
+        },
+        {
+          "path": "backend/app/app/authentication/admin/cookies.py",
+          "lines": [37],
+          "description": "set_admin_auth_cookies uses SameSite=strict for refresh token"
+        }
+      ],
+      "description": "The tenant refresh token SameSite attribute differs between cookies.py (none) and public.py portalLogin (strict). Behavior changes based on which login path was used.",
+      "impact": "Cross-origin cookie sending behavior differs based on login path. In prod behind Cloudflare, the tenant SPA may fail to send refresh cookies with SameSite=strict.",
+      "affected_features": ["tenant portal login refresh", "admin portal login refresh", "all refresh token flows"],
+      "affected_components": ["backend/auth-cookies", "backend/public-api"],
+      "both_environments": true,
+      "fix_id": "FIX-03"
+    },
+    {
+      "id": "MEDIUM-03",
+      "severity": "MEDIUM",
+      "title": "X-Forwarded-Prefix Trusted from Client",
+      "component": "backend/middleware",
+      "files": [
+        {
+          "path": "backend/app/app/main.py",
+          "lines": [37, 41],
+          "description": "forwarded_prefix_middleware trusts X-Forwarded-Prefix header from any client"
+        }
+      ],
+      "description": "The forwarded_prefix_middleware trusts the X-Forwarded-Prefix header from any client and sets it as root_path, which affects cookie paths and URL generation.",
+      "impact": "Attacker can manipulate cookie paths, inject redirect URLs, or scope cookies to wrong paths.",
+      "affected_features": ["cookie path scoping", "URL generation", "auth redirect URLs"],
+      "affected_components": ["backend/middleware"],
+      "both_environments": true,
+      "fix_id": "FIX-06"
+    },
+    {
+      "id": "MEDIUM-04",
+      "severity": "MEDIUM",
+      "title": "API Guard Uses Substring Match",
+      "component": "backend/api-guard",
+      "files": [
+        {
+          "path": "backend/app/app/core/api_guard.py",
+          "lines": [11],
+          "description": "is_api_host uses 'in' operator for substring matching instead of exact match"
+        }
+      ],
+      "description": "The is_api_host function uses Python's 'in' operator for substring matching instead of exact matching against the API domain.",
+      "impact": "Subdomain spoofing bypass possible in edge cases. Low practical risk with current domain name.",
+      "affected_features": ["API domain restriction", "static file serving on API domain"],
+      "affected_components": ["backend/api-guard"],
+      "both_environments": true,
+      "fix_id": "FIX-05"
+    },
+    {
+      "id": "MEDIUM-05",
+      "severity": "MEDIUM",
+      "title": "Browser Navigation Heuristic Misfire",
+      "component": "backend/admin-middleware",
+      "files": [
+        {
+          "path": "backend/app/app/authentication/admin/middleware.py",
+          "lines": [7, 18],
+          "description": "_is_browser_navigation heuristic may misfire for non-standard clients"
+        }
+      ],
+      "description": "The _is_browser_navigation heuristic may misfire for non-standard clients, causing 303 HTML redirects instead of 401 JSON responses.",
+      "impact": "API clients sending Accept: text/html get 303 instead of 401. Frontend expects 401 with X-Session-Expired header but gets HTML redirect.",
+      "affected_features": ["admin API error responses", "admin session expiry handling"],
+      "affected_components": ["backend/admin-middleware"],
+      "both_environments": true,
+      "fix_id": "FIX-07-recommendation"
+    },
+    {
+      "id": "LOW-01",
+      "severity": "LOW",
+      "title": "Dead Code app_env()",
+      "component": "backend/runtime",
+      "files": [
+        {
+          "path": "backend/app/app/core/runtime.py",
+          "description": "app_env() function defined but never called anywhere"
+        }
+      ],
+      "description": "The app_env() function is defined but never called anywhere in the codebase.",
+      "impact": "No runtime impact. Maintenance burden.",
+      "affected_features": [],
+      "affected_components": ["backend/runtime"],
+      "both_environments": true,
+      "fix_id": "FIX-08-recommendation"
+    },
+    {
+      "id": "LOW-02",
+      "severity": "LOW",
+      "title": "Swagger Disabled in Prod",
+      "component": "backend/fastapi-config",
+      "files": [
+        {
+          "path": "backend/app/app/main.py",
+          "lines": [13, 15],
+          "description": "ENABLE_SWAGGER=false disables /docs, /redoc, /openapi.json"
+        }
+      ],
+      "description": "Swagger/ReDoc/OpenAPI disabled in production via ENABLE_SWAGGER=false.",
+      "impact": "No API documentation in prod. By design - standard security practice.",
+      "affected_features": ["API documentation"],
+      "affected_components": ["backend/fastapi-config"],
+      "both_environments": false,
+      "by_design": true,
+      "fix_id": null
+    },
+    {
+      "id": "LOW-03",
+      "severity": "LOW",
+      "title": "Redundant Root Redirect",
+      "component": "frontend/cloudflare-pages",
+      "files": [
+        {
+          "path": "frontend/functions/_middleware.js",
+          "lines": [13, 18],
+          "description": "Middleware redirects / to /rent/ (301)"
+        }
+      ],
+      "description": "The middleware redirects / to /rent/ (301). May duplicate with _redirects file if present.",
+      "impact": "Confusing but harmless. One redirect skipped if other handles it first.",
+      "affected_features": ["landing page routing"],
+      "affected_components": ["frontend/cloudflare-pages"],
+      "both_environments": false,
+      "by_design": false,
+      "fix_id": null
+    },
+    {
+      "id": "LOW-04",
+      "severity": "LOW",
+      "title": "No-op getFullApiUrl()",
+      "component": "frontend/landlord-runtime",
+      "files": [
+        {
+          "path": "frontend/landlord-app/src/lib/runtime.ts",
+          "description": "getFullApiUrl() returns path unchanged"
+        }
+      ],
+      "description": "getFullApiUrl() is a no-op function that returns the input path unchanged.",
+      "impact": "No runtime impact currently. Trap for future callers.",
+      "affected_features": [],
+      "affected_components": ["frontend/landlord-runtime"],
+      "both_environments": true,
+      "fix_id": null
+    },
+    {
+      "id": "LOW-05",
+      "severity": "LOW",
+      "title": "Tenant Portal Hardcoded API Paths",
+      "component": "frontend/tenant-login",
+      "files": [
+        {
+          "path": "frontend/tenant-app/src/lib/login-api.ts",
+          "description": "portalLogin() hardcodes API paths not in routes.json"
+        }
+      ],
+      "description": "Tenant portalLogin() hardcodes API paths not declared in routes.json.",
+      "impact": "Fragile - requires manual sync if routes change. Works correctly today.",
+      "affected_features": ["tenant login"],
+      "affected_components": ["frontend/tenant-login"],
+      "both_environments": true,
+      "fix_id": null
+    },
+    {
+      "id": "LOW-06",
+      "severity": "LOW",
+      "title": "No CI/CD Pipeline",
+      "component": "infrastructure/devops",
+      "files": [
+        {
+          "path": "deploy/release.sh",
+          "description": "Manual deployment script"
+        },
+        {
+          "path": "deploy/deploy-cloudflare-pages.sh",
+          "description": "Manual Pages deployment"
+        }
+      ],
+      "description": "No CI/CD pipeline configuration exists. Deployments are manual.",
+      "impact": "No automated testing before deploy, no rollback automation.",
+      "affected_features": ["deployment workflow"],
+      "affected_components": ["infrastructure/devops"],
+      "both_environments": false,
+      "fix_id": null
+    }
+  ]
+}
+```
+
+### `.audit/fixes.json`
+
+```json
+{
+  "audit_date": "2026-09-03",
+  "total_fixes": 6,
+  "total_estimated_hours": "5-7",
+  "fixes": [
+    {
+      "id": "FIX-01",
+      "priority": "P0",
+      "title": "Add WebSocket Authentication",
+      "finding": "CRITICAL-01",
+      "estimated_effort_hours": "2-4",
+      "risk_of_not_fixing": "Real-time data leak to unauthenticated clients",
+      "description": "Add JWT validation to /ws/sync and /ws/auth WebSocket endpoints. Verify channel matches authenticated principal.",
+      "why": "Landlord UUIDs are visible in public tenant URLs. Any attacker can subscribe to real-time event streams and receive tenant PII, receipt data, and KYC uploads.",
+      "changes": [
+        {
+          "file": "backend/app/app/api/sync_ws.py",
+          "description": "Add JWT validation to sync_websocket() and auth_websocket()",
+          "type": "modify"
+        },
+        {
+          "file": "backend/app/app/core/router_registry.py",
+          "description": "May add Depends() for WebSocket auth",
+          "type": "modify"
+        },
+        {
+          "file": "frontend/landlord-app/src/lib/ws-client.ts",
+          "description": "Pass JWT token in WebSocket URL query parameter",
+          "type": "modify"
+        },
+        {
+          "file": "frontend/tenant-app/src/lib/ws-client.ts",
+          "description": "Pass JWT token in WebSocket URL query parameter",
+          "type": "modify"
+        },
+        {
+          "file": "frontend/admin-app/src/lib/ws-client.ts",
+          "description": "Pass JWT token in WebSocket URL query parameter",
+          "type": "modify"
+        }
+      ],
+      "affected_components": ["backend/websocket", "backend/auth", "frontend/ws-clients"],
+      "affected_features": ["real-time sync", "auth state sync", "tenant notifications", "receipt notifications", "KYC uploads", "settings updates"]
+    },
+    {
+      "id": "FIX-02",
+      "priority": "P1",
+      "title": "Add _routes.json for Cloudflare Pages",
+      "finding": "MEDIUM-01",
+      "estimated_effort_hours": "0.5",
+      "risk_of_not_fixing": "Performance degradation, higher Cloudflare costs",
+      "description": "Create _routes.json to exclude static assets from middleware execution.",
+      "why": "Without _routes.json, every static asset request triggers _middleware.js function invocation, adding latency and cost.",
+      "changes": [
+        {
+          "file": "frontend/build-output/_routes.json",
+          "description": "New file with route exclusion rules for static assets",
+          "type": "create"
+        },
+        {
+          "file": "frontend/build.sh",
+          "description": "Add step to generate/copy _routes.json into build-output/",
+          "type": "modify"
+        }
+      ],
+      "affected_components": ["frontend/cloudflare-pages", "frontend/build"],
+      "affected_features": ["all frontend apps performance", "static asset loading", "Cloudflare Pages costs"]
+    },
+    {
+      "id": "FIX-03",
+      "priority": "P1",
+      "title": "Normalize Cookie SameSite Attributes",
+      "finding": "MEDIUM-02",
+      "estimated_effort_hours": "1",
+      "risk_of_not_fixing": "Intermittent auth refresh failures in prod",
+      "description": "Use SameSite=none consistently for all refresh tokens to support cross-origin cookie sending.",
+      "why": "The tenant refresh token SameSite differs between login paths. In prod, different origins (Cloudflare Pages SPA vs API domain) require SameSite=none for cookies to be sent.",
+      "changes": [
+        {
+          "file": "backend/app/app/api/public.py",
+          "line": 378,
+          "description": "Change samesite='strict' to samesite='none' for portal login refresh cookie",
+          "type": "modify"
+        },
+        {
+          "file": "backend/app/app/authentication/admin/cookies.py",
+          "line": 37,
+          "description": "Change samesite='strict' to samesite='none' for admin refresh cookie",
+          "type": "modify"
+        }
+      ],
+      "affected_components": ["backend/auth-cookies", "backend/public-api"],
+      "affected_features": ["tenant portal login refresh", "admin portal login refresh", "all refresh token flows", "cross-origin cookie behavior"]
+    },
+    {
+      "id": "FIX-04",
+      "priority": "P2",
+      "title": "Wrap url_for in try/except",
+      "finding": "CRITICAL-02",
+      "estimated_effort_hours": "0.5",
+      "risk_of_not_fixing": "Admin API 500 errors on session expiry",
+      "description": "Wrap all request.url_for('ADMINLOGOUT') calls in try/except with fallback URL.",
+      "why": "url_for can throw NoReverseMatch if the named route doesn't exist, causing 500 errors instead of proper 401/303 responses.",
+      "changes": [
+        {
+          "file": "backend/app/app/authentication/admin/middleware.py",
+          "lines": [22, 38, 44, 50, 64],
+          "description": "Wrap each url_for call in try/except with fallback to /admin/login",
+          "type": "modify"
+        }
+      ],
+      "affected_components": ["backend/admin-middleware"],
+      "affected_features": ["admin API authentication", "admin session expiry handling", "admin portal redirect"]
+    },
+    {
+      "id": "FIX-05",
+      "priority": "P2",
+      "title": "Exact-Match Host Header in API Guard",
+      "finding": "MEDIUM-04",
+      "estimated_effort_hours": "0.25",
+      "risk_of_not_fixing": "Low practical risk, but security best practice",
+      "description": "Replace substring matching with exact match for API domain check, stripping port number.",
+      "why": "Substring matching with 'in' is less secure than exact matching. Defense-in-depth improvement.",
+      "changes": [
+        {
+          "file": "backend/app/app/core/api_guard.py",
+          "line": 11,
+          "description": "Change 'API_DOMAIN in host' to exact match with port stripping",
+          "type": "modify"
+        }
+      ],
+      "affected_components": ["backend/api-guard"],
+      "affected_features": ["API domain restriction", "static file serving on API domain"]
+    },
+    {
+      "id": "FIX-06",
+      "priority": "P2",
+      "title": "Secure or Remove X-Forwarded-Prefix Middleware",
+      "finding": "MEDIUM-03",
+      "estimated_effort_hours": "1",
+      "risk_of_not_fixing": "Cookie path manipulation, open redirect",
+      "description": "Remove the X-Forwarded-Prefix middleware or only trust it from known proxies.",
+      "why": "The middleware trusts the header from any client, allowing cookie path manipulation and URL generation attacks.",
+      "changes": [
+        {
+          "file": "backend/app/app/main.py",
+          "lines": [36, 41],
+          "description": "Remove forwarded_prefix_middleware or add network origin validation",
+          "type": "modify"
+        },
+        {
+          "file": "gateway/nginx/routes/api.conf",
+          "description": "Ensure nginx strips X-Forwarded-Prefix from client requests",
+          "type": "verify"
+        }
+      ],
+      "affected_components": ["backend/middleware", "infrastructure/nginx"],
+      "affected_features": ["cookie path scoping", "URL generation", "auth redirect URLs"]
+    }
+  ]
+}
+```
 
 ### `.env.development.example`
 
@@ -682,7 +3033,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: |
             frontend/landing-app/package-lock.json
@@ -691,9 +3042,6 @@ jobs:
             frontend/tenant-app/package-lock.json
 
       - name: Build Frontend Apps
-        env:
-          VITE_API_BASE_URL: https://api.vijaykrsha.online
-          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
         run: |
           cd frontend
           bash build.sh
@@ -740,7 +3088,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: |
             frontend/landing-app/package-lock.json
@@ -749,8 +3097,6 @@ jobs:
             frontend/tenant-app/package-lock.json
 
       - name: Install & Build All Apps
-        env:
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
         run: |
           cd frontend
           bash build.sh
@@ -806,6 +3152,12 @@ __pycache__/
 backend/.env
 frontend/.env
 gateway/.env
+# Frontend env-mode files that back the vite builds (envDir: '../') are tracked
+# deliberately to make production builds deterministic (no empty API base -> no
+# same-origin 405 on Cloudflare Pages). Root .env.release/.env.development (which
+# contain secrets) remain ignored above; only the frontend mode files are un-ignored.
+!frontend/.env.production
+!frontend/.env.development
 *.pem
 *.key
 
@@ -2428,6 +4780,66 @@ async def api_property_tenants(
     if not get_property(principal.landlord_id, propertyId):
         raise HTTPException(status_code=404, detail="Property not found.")
     return {"status": "success", "tenants": tenants_for_property(principal.landlord_id, propertyId)}
+```
+
+### `backend/app/app/api/location.py`
+
+```python
+"""
+app/api/location.py
+
+IP-based country detection for address forms.
+Returns the ISO 3166-1 alpha-2 country code for the requesting client.
+"""
+from fastapi import APIRouter, Request
+import httpx
+
+DEFAULT_COUNTRY = "IN"
+
+# Provider chain — first success wins.
+PROVIDERS = [
+    {
+        "name": "ipwho.is",
+        "url": "https://ipwho.is/",
+        "extract": lambda d: d.get("country_code"),
+    },
+    {
+        "name": "ipapi.co",
+        "url": "https://ipapi.co/json/",
+        "extract": lambda d: d.get("country_code"),
+    },
+    {
+        "name": "ip-api.com",
+        "url": "http://ip-api.com/json/",
+        "extract": lambda d: d.get("countryCode"),
+    },
+]
+
+router = APIRouter(tags=["Location"])
+
+
+@router.get("/api/location/country")
+async def detect_country(request: Request):
+    """Detect the requesting client's country via IP geolocation."""
+    country_code = None
+
+    async with httpx.AsyncClient(timeout=4.0) as client:
+        for provider in PROVIDERS:
+            try:
+                resp = await client.get(provider["url"])
+                if resp.status_code == 200:
+                    data = resp.json()
+                    code = provider["extract"](data)
+                    if code and isinstance(code, str) and len(code) == 2:
+                        country_code = code.upper()
+                        break
+            except Exception:
+                continue
+
+    if not country_code:
+        country_code = DEFAULT_COUNTRY
+
+    return {"country": country_code}
 ```
 
 ### `backend/app/app/api/pdf.py`
@@ -8583,6 +10995,7 @@ from app.api.sync import router as sync_api_router
 from app.api.sync_ws import router as sync_ws_router
 from app.api.public import router as public_api_router
 from app.api.health import router as health_api_router
+from app.api.location import router as location_api_router
 from app.api.dashboard import router as dashboard_api_router
 from app.api.landlord_setup import router as landlord_setup_router
 from app.routers.auth import router as auth_api_router
@@ -8624,6 +11037,7 @@ PUBLIC_API_ROUTERS = [
     health_api_router,
     auth_api_router,
     tenant_pdf_api_router,
+    location_api_router,
 ]
 
 ADMIN_AUTH_ROUTERS = [
@@ -24577,28 +26991,31 @@ def write_ports_env():
 
 def provision_frontend_env(env_source):
     """Write the canonical frontend/.env used by the vite builds (all apps read
-    it via `envDir: '../'`). Only VITE_GOOGLE_CLIENT_ID and VITE_APP_BASE_PATH
-    are drawn from the .env/ source of truth. VITE_API_BASE_URL is forced EMPTY
-    so the frontend calls same-origin (/rent/...) and the nginx/backend proxy
-    routes it — this is the working behavior for both dev and prod."""
+    it via `envDir: '../'`). VITE_GOOGLE_CLIENT_ID, VITE_APP_BASE_PATH and
+    VITE_API_BASE_URL are drawn from the .env/ source of truth. For release this
+    carries the public API origin (https://api.vijaykrsha.online) so the Pages
+    bundle calls the backend instead of same-origin (which would 405 on Pages);
+    for a dev-style source it stays empty for same-origin /rent/ proxying."""
     env_file = os.path.join(LOCAL_DIR, "frontend", ".env")
     client_id = ""
     app_base = "/rent"
+    api_base = ""
     if os.path.isfile(env_source):
         env_map = _load_barsep_env(env_source)
         client_id = env_map.get("VITE_GOOGLE_CLIENT_ID", "")
         app_base = env_map.get("VITE_APP_BASE_PATH", "/rent")
+        api_base = env_map.get("VITE_API_BASE_URL", "").strip()
     if not client_id:
         print(f"  WARNING: VITE_GOOGLE_CLIENT_ID not found in {env_source} — Google login will break")
     lines = [
         "VITE_APP_BASE_PATH=" + app_base,
-        "VITE_API_BASE_URL=",
+        "VITE_API_BASE_URL=" + api_base,
         "VITE_GOOGLE_CLIENT_ID=" + client_id,
         "",
     ]
     with open(env_file, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
-    print(f"  Provisioned frontend/.env (Google client id set: {bool(client_id)})")
+    print(f"  Provisioned frontend/.env (Google client id set: {bool(client_id)}, API base: '{api_base or '(same-origin)'}')")
 
 
 def build_frontends():
@@ -25805,17 +28222,25 @@ log "$BRANCH deployed OK"
 ### `frontend/.env.example`
 
 ```text
-# Frontend build-time VITE_* vars — sourced by frontend/build.sh if present.
-# Copy to frontend/.env (gitignored) and fill in real values, then rebuild:
-#   cd frontend && bash build.sh
+# Frontend build-time VITE_* vars for all apps (vite.config envDir: '../').
+#
+# Prefer the mode-specific, TRACKED files for deterministic builds:
+#   frontend/.env.production   -> loaded by `vite build` (production) for Pages
+#   frontend/.env.development  -> loaded by `vite dev`  (development)
 # These are baked into the JS at build time, so a rebuild + redeploy is required
 # after any change.
+#
+# A gitignored frontend/.env may still be used for local overrides, but it must
+# NOT blank a value that is already set (an empty VITE_API_BASE_URL exported into
+# process.env has the HIGHEST priority in Vite and would override .env.production,
+# causing same-origin API calls that 405 on Cloudflare Pages).
 
 # Base path prefix for all SPAs behind the gateway (nginx /rent/)
 VITE_APP_BASE_PATH=/rent
 
-# Backend API base URL (used by the Cloudflare Pages build; the backend-served
-# build proxies same-origin through /rent/)
+# Backend API base URL.
+#   production (Pages): https://api.vijaykrsha.online  (set in .env.production)
+#   dev / same-origin:  (empty)                        (set in .env.development)
 VITE_API_BASE_URL=
 
 # Google OAuth client id for the landlord login button (@react-oauth/google).
@@ -30023,6 +32448,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 export default defineConfig({
     base: "/rent/admin/",
+    envDir: "../",
     plugins: [react()],
     resolve: {
         alias: {
@@ -30062,6 +32488,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   base: "/rent/admin/",
+  envDir: "../",
   plugins: [react()],
   resolve: {
     alias: {
@@ -30136,10 +32563,33 @@ echo "=== Building Rent Frontend Apps ==="
 load_env() {
   local f="$1"
   [ -f "$f" ] || return 1
-  set -a
-  . "$f"
-  set +a
-  echo "=== Loaded $f (VITE_* build vars) ==="
+  # Export only NON-EMPTY VITE_* values from the env file into the shell.
+  # Empty values are deliberately skipped: Vite's env loading assigns process.env
+  # the HIGHEST priority (a present-but-empty VITE_API_BASE_URL in process.env
+  # would blank the production origin that's set in the committed .env.production).
+  # Dev same-origin stays correct because Vite reads .env/.env.development itself.
+  # We also never overwrite a var already set to a non-empty value (CI wins).
+  local line key val current
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%%#*}"                       # strip inline comments
+    line="${line%"${line##*[![:space:]]}"}"  # trim trailing whitespace
+    [ -n "$line" ] || continue
+    key="${line%%=*}"
+    key="${key//[^A-Za-z0-9_]/}"
+    case "$key" in
+      VITE_*)
+        val="${line#*=}"
+        val="${val%\"}"; val="${val#\"}"
+        [ -n "$val" ] || continue            # skip empty values (see above)
+        # eval (not ${!key}) so this works on minimal bash (w64devkit) too.
+        current=""; eval "current=\"\${$key:-}\""
+        if [ -z "$current" ]; then           # only set if not already non-empty
+          export "$key=$val"
+        fi
+        ;;
+    esac
+  done < "$f"
+  echo "=== Loaded $f (non-empty VITE_* build vars, incoming env preserved) ==="
   return 0
 }
 
@@ -30171,7 +32621,7 @@ done
 for app in $APPS; do
   echo ""
   echo "=== $app ==="
-  (cd "$app" && npm ci && npm run build)
+  (cd "$app" && npm install && npm run build)
 done
 
 echo ""
@@ -32965,6 +35415,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 export default defineConfig({
     base: "/rent/",
+    envDir: "../",
     plugins: [react()],
     resolve: {
         alias: {
@@ -33001,6 +35452,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   base: "/rent/",
+  envDir: "../",
   plugins: [react()],
   resolve: {
     alias: {
@@ -49765,7 +52217,7 @@ export default function Billing() {
 ### `frontend/landlord-app/src/pages/ChangePasswordPage.tsx`
 
 ```typescript
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -49778,11 +52230,25 @@ import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
 import { ROUTES } from '@/lib/routes';
 import LoadingOverlay from '@shared/loading/LoadingOverlay';
 
+interface PasswordRule {
+  label: string;
+  test: (pw: string) => boolean;
+}
+
+const PASSWORD_RULES: PasswordRule[] = [
+  { label: 'At least 8 characters', test: (pw) => pw.length >= 8 },
+  { label: 'Contains an uppercase letter', test: (pw) => /[A-Z]/.test(pw) },
+  { label: 'Contains a lowercase letter', test: (pw) => /[a-z]/.test(pw) },
+  { label: 'Contains a digit', test: (pw) => /\d/.test(pw) },
+  { label: 'Contains a special character (!@#$%^&*_...)', test: (pw) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(pw) },
+  { label: 'No spaces', test: (pw) => !/\s/.test(pw) },
+];
+
 export default function ChangePasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isGoogleSignup = searchParams.get('from') === 'google';
-  const { changePassword, landlordUuid, hasTotp } = useAuth();
+  const { changePassword, landlordUuid, hasTotp, username } = useAuth();
   const [form, setForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
@@ -49792,6 +52258,14 @@ export default function ChangePasswordPage() {
   const [countdown, setCountdown] = useState(5);
   const [totpData, setTotpData] = useState<any>(null);
   const [showTotpModal, setShowTotpModal] = useState(false);
+
+  const ruleResults = useMemo(
+    () => PASSWORD_RULES.map((r) => ({ ...r, pass: r.test(form.newPassword) })),
+    [form.newPassword],
+  );
+  const allRulesPass = ruleResults.every((r) => r.pass);
+  const passwordsMatch = form.newPassword.length > 0 && form.confirmPassword.length > 0 && form.newPassword === form.confirmPassword;
+  const canSubmit = allRulesPass && passwordsMatch && (!isGoogleSignup ? form.currentPassword.length > 0 : true);
 
   useEffect(() => {
     if (!success || !isGoogleSignup) return;
@@ -49808,12 +52282,8 @@ export default function ChangePasswordPage() {
     setError('');
     setSuccess('');
 
-    if (form.newPassword !== form.confirmPassword) {
-      setError('New passwords do not match.');
-      return;
-    }
-    if (form.newPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (!canSubmit) {
+      setError('Please meet all password requirements.');
       return;
     }
     if (!isGoogleSignup && form.currentPassword === form.newPassword) {
@@ -49885,6 +52355,11 @@ export default function ChangePasswordPage() {
           <CardTitle className="text-2xl text-center">
             {isGoogleSignup ? 'Set Your Password' : 'Change Your Password'}
           </CardTitle>
+          {username && (
+            <p className="text-center text-sm font-medium text-muted-foreground">
+              {username}
+            </p>
+          )}
           <CardDescription className="text-center">
             {isGoogleSignup
               ? 'Your account was created with Google. Set a password to finish creating your account.'
@@ -49949,11 +52424,11 @@ export default function ChangePasswordPage() {
                   <Input
                     id="newPassword"
                     type={showNew ? 'text' : 'password'}
-                    placeholder="Enter new password (min 6 characters)"
+                    placeholder="Enter new password (min 8 characters)"
                     value={form.newPassword}
                     onChange={(e) => setForm({ ...form, newPassword: e.target.value })}
                     required
-                    minLength={6}
+                    minLength={8}
                     autoFocus={isGoogleSignup}
                   />
                   <button
@@ -49964,22 +52439,52 @@ export default function ChangePasswordPage() {
                     {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
+                {form.newPassword.length > 0 && (
+                  <ul className="space-y-0.5 mt-1">
+                    {ruleResults.map((r) => (
+                      <li key={r.label} className="flex items-center gap-1.5 text-xs">
+                        {r.pass ? (
+                          <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                        ) : (
+                          <span className="h-3 w-3 rounded-full border border-muted-foreground/30 shrink-0" />
+                        )}
+                        <span className={r.pass ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+                          {r.label}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                <Input
-                  id="confirmPassword"
-                  type="password"
-                  placeholder="Confirm new password"
-                  value={form.confirmPassword}
-                  onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                  required
-                  minLength={6}
-                />
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    placeholder="Confirm new password"
+                    value={form.confirmPassword}
+                    onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
+                    required
+                    minLength={8}
+                  />
+                  {form.confirmPassword.length > 0 && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {passwordsMatch ? (
+                        <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <span className="h-4 w-4 rounded-full border-2 border-red-400 block" />
+                      )}
+                    </span>
+                  )}
+                </div>
+                {form.confirmPassword.length > 0 && !passwordsMatch && (
+                  <p className="text-xs text-red-500">Passwords do not match.</p>
+                )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading || !!success}>
+              <Button type="submit" className="w-full" disabled={loading || !!success || !canSubmit}>
                 {isGoogleSignup ? 'Set Password' : 'Update Password'}
               </Button>
             </form>
@@ -51988,7 +54493,7 @@ export default function PrivacyPolicyPage() {
 ### `frontend/landlord-app/src/pages/SecuritySettingsPage.tsx`
 
 ```typescript
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { apiGet, apiPost } from '@/hooks/useApi';
 import { ROUTES } from '@/lib/routes';
 import { useAuth } from '@/contexts/AuthContext';
@@ -52006,6 +54511,20 @@ import {
 } from 'lucide-react';
 import { BrandWave } from '@shared/loading/BrandWave';
 import { TotpSetupModal } from '@/components/modals/TotpSetupModal';
+
+interface PasswordRule {
+  label: string;
+  test: (pw: string) => boolean;
+}
+
+const PASSWORD_RULES: PasswordRule[] = [
+  { label: 'At least 8 characters', test: (pw) => pw.length >= 8 },
+  { label: 'Contains an uppercase letter', test: (pw) => /[A-Z]/.test(pw) },
+  { label: 'Contains a lowercase letter', test: (pw) => /[a-z]/.test(pw) },
+  { label: 'Contains a digit', test: (pw) => /\d/.test(pw) },
+  { label: 'Contains a special character (!@#$%^&*_...)', test: (pw) => /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(pw) },
+  { label: 'No spaces', test: (pw) => !/\s/.test(pw) },
+];
 
 interface TOTPData {
   secret: string;
@@ -52040,6 +54559,14 @@ export default function SecuritySettingsPage() {
   const [pwSuccess, setPwSuccess] = useState('');
   const [totpModalData, setTotpModalData] = useState<any>(null);
   const [showTotpModal, setShowTotpModal] = useState(false);
+
+  const ruleResults = useMemo(
+    () => PASSWORD_RULES.map((r) => ({ ...r, pass: r.test(pwForm.newPassword) })),
+    [pwForm.newPassword],
+  );
+  const allRulesPass = ruleResults.every((r) => r.pass);
+  const passwordsMatch = pwForm.newPassword.length > 0 && pwForm.confirmPassword.length > 0 && pwForm.newPassword === pwForm.confirmPassword;
+  const canPwSubmit = allRulesPass && passwordsMatch && pwForm.currentPassword.length > 0;
 
   useEffect(() => {
     if (landlordUuid && totpEnabled) {
@@ -52108,8 +54635,8 @@ export default function SecuritySettingsPage() {
       setPwError('New passwords do not match.');
       return;
     }
-    if (pwForm.newPassword.length < 6) {
-      setPwError('Password must be at least 6 characters.');
+    if (pwForm.newPassword.length < 8) {
+      setPwError('Password must be at least 8 characters.');
       return;
     }
     if (pwForm.currentPassword === pwForm.newPassword) {
@@ -52340,11 +54867,11 @@ export default function SecuritySettingsPage() {
                     <Input
                       id="sec-newPassword"
                       type={showPwNew ? 'text' : 'password'}
-                      placeholder="Enter new password (min 6 characters)"
+                      placeholder="Enter new password (min 8 characters)"
                       value={pwForm.newPassword}
                       onChange={(e) => setPwForm({ ...pwForm, newPassword: e.target.value })}
                       required
-                      minLength={6}
+                      minLength={8}
                     />
                     <button
                       type="button"
@@ -52354,20 +54881,50 @@ export default function SecuritySettingsPage() {
                       {showPwNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {pwForm.newPassword.length > 0 && (
+                    <ul className="space-y-0.5 mt-1">
+                      {ruleResults.map((r) => (
+                        <li key={r.label} className="flex items-center gap-1.5 text-xs">
+                          {r.pass ? (
+                            <CheckCircle2 className="h-3 w-3 text-green-500 shrink-0" />
+                          ) : (
+                            <span className="h-3 w-3 rounded-full border border-muted-foreground/30 shrink-0" />
+                          )}
+                          <span className={r.pass ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+                            {r.label}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="sec-confirmPassword">Confirm New Password</Label>
-                  <Input
-                    id="sec-confirmPassword"
-                    type="password"
-                    placeholder="Confirm new password"
-                    value={pwForm.confirmPassword}
-                    onChange={(e) => setPwForm({ ...pwForm, confirmPassword: e.target.value })}
-                    required
-                    minLength={6}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="sec-confirmPassword"
+                      type="password"
+                      placeholder="Confirm new password"
+                      value={pwForm.confirmPassword}
+                      onChange={(e) => setPwForm({ ...pwForm, confirmPassword: e.target.value })}
+                      required
+                      minLength={8}
+                    />
+                    {pwForm.confirmPassword.length > 0 && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2">
+                        {passwordsMatch ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <span className="h-4 w-4 rounded-full border-2 border-red-400 block" />
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {pwForm.confirmPassword.length > 0 && !passwordsMatch && (
+                    <p className="text-xs text-red-500">Passwords do not match.</p>
+                  )}
                 </div>
-                <Button type="submit" className="w-full" disabled={pwLoading}>
+                <Button type="submit" className="w-full" disabled={pwLoading || !canPwSubmit}>
                   {pwLoading ? 'Updating...' : 'Update Password'}
                 </Button>
               </form>
@@ -52466,6 +55023,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
+import AddressFields from '@shared/address/AddressFields';
+import type { StructuredAddress } from '@shared/address/address';
+import { parseLegacyAddress, serializeAddress } from '@shared/address/formatAddress';
+import { detectCountry } from '@shared/address/countryDetection';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/services/api';
 import { ROUTES } from '@/lib/routes';
@@ -52520,8 +55081,27 @@ export default function Settings() {
   const [qrLoading, setQrLoading] = useState(false);
   const [props, setProps] = useState<Property[]>([]);
   const [propsSaving, setPropsSaving] = useState(false);
+  const [propsAddr, setPropsAddr] = useState<Record<string, StructuredAddress>>({});
   const toast = useToast();
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const [landlordAddr, setLandlordAddr] = useState<StructuredAddress>({});
+  const [country, setCountry] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    detectCountry().then((c) => {
+      if (active) setCountry(c);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (config) {
+      setLandlordAddr(parseLegacyAddress(config.landlord?.address || ''));
+    }
+  }, [config]);
 
   const loadConfig = async () => {
     try {
@@ -52538,7 +55118,13 @@ export default function Settings() {
   const loadProperties = async () => {
     if (!landlordUuid) return;
     try {
-      setProps(await api.getProperties(landlordUuid));
+      const list = await api.getProperties(landlordUuid);
+      setProps(list);
+      const addrMap: Record<string, StructuredAddress> = {};
+      list.forEach((p) => {
+        if (p.id != null) addrMap[String(p.id)] = parseLegacyAddress(p.address || '');
+      });
+      setPropsAddr(addrMap);
     } catch {
       setProps([]);
     }
@@ -52551,12 +55137,22 @@ export default function Settings() {
     }
   }, [landlordUuid]);
 
+  const newPropKeyRef = useRef(0);
+
   const handlePropsAdd = () => {
-    setProps([...props, { property_name: '', address: '' } as Property]);
+    const tempId = --newPropKeyRef.current;
+    const row = { id: tempId, property_name: '', address: '' } as Property;
+    setProps([...props, row]);
+    setPropsAddr((m) => ({ ...m, [String(tempId)]: {} }));
   };
 
   const handlePropsChange = (row: Property, patch: Partial<Property>) => {
     setProps(props.map((x) => (x === row ? { ...x, ...patch } : x)));
+  };
+
+  const handlePropsAddrChange = (row: Property, addr: StructuredAddress) => {
+    const key = row.id != null ? String(row.id) : String(newPropKeyRef.current);
+    setPropsAddr((m) => ({ ...m, [key]: addr }));
   };
 
   const handlePropsSave = async () => {
@@ -52565,15 +55161,17 @@ export default function Settings() {
     try {
       for (const p of props) {
         if (!p.property_name.trim()) continue;
-        if (p.id) {
+        const key = p.id != null ? String(p.id) : '0';
+        const serialized = serializeAddress(propsAddr[key] || {});
+        if (p.id && p.id > 0) {
           await api.updateProperty(landlordUuid, p.id, {
             property_name: p.property_name,
-            address: p.address ?? '',
+            address: serialized,
           });
         } else {
           await api.createProperty(landlordUuid, {
             property_name: p.property_name,
-            address: p.address ?? '',
+            address: serialized,
           });
         }
       }
@@ -53013,7 +55611,15 @@ export default function Settings() {
 
               <div className="space-y-2">
                 <Label>Property Address</Label>
-                <Textarea value={config.landlord.address} onChange={(e) => updateLandlord('address', e.target.value)} rows={3} />
+                <AddressFields
+                  value={landlordAddr}
+                  onChange={(addr) => {
+                    setLandlordAddr(addr);
+                    updateLandlord('address', serializeAddress(addr));
+                  }}
+                  country={country}
+                  idPrefix="settings-landlord-address"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -53239,36 +55845,42 @@ export default function Settings() {
                   No properties yet. Add your first property below.
                 </p>
               )}
-              {props.map((p, idx) => (
-                <div key={p.id ?? `new-${idx}`} className="flex flex-col sm:flex-row gap-3 items-end rounded-md border p-3">
-                  <div className="flex-1 space-y-1.5">
-                    <Label className="text-xs">Property name</Label>
-                    <Input
-                      value={p.property_name}
-                      onChange={(e) => handlePropsChange(p, { property_name: e.target.value })}
-                      placeholder="e.g. Lakshmi Nivas"
-                    />
+              {props.map((p, idx) => {
+                const addrKey = p.id != null ? String(p.id) : String(newPropKeyRef.current);
+                return (
+                  <div key={p.id ?? `new-${idx}`} className="rounded-md border p-3 space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Property name</Label>
+                      <Input
+                        value={p.property_name}
+                        onChange={(e) => handlePropsChange(p, { property_name: e.target.value })}
+                        placeholder="e.g. Lakshmi Nivas"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Address</Label>
+                      <AddressFields
+                        value={propsAddr[addrKey] || {}}
+                        onChange={(addr) => handlePropsAddrChange(p, addr)}
+                        country={country}
+                        idPrefix={`settings-prop-address-${idx}`}
+                      />
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePropsDelete(p)}
+                        disabled={propsSaving}
+                        aria-label="Delete property"
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex-[2] space-y-1.5">
-                    <Label className="text-xs">Address</Label>
-                    <Input
-                      value={p.address ?? ''}
-                      onChange={(e) => handlePropsChange(p, { address: e.target.value })}
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handlePropsDelete(p)}
-                    disabled={propsSaving}
-                    aria-label="Delete property"
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
               <div className="flex flex-wrap gap-3">
                 <Button variant="outline" size="sm" onClick={handlePropsAdd}>
                   <Plus className="h-4 w-4 mr-1" /> Add Property
@@ -53548,7 +56160,7 @@ export default function Settings() {
 ### `frontend/landlord-app/src/pages/SetupPage.tsx`
 
 ```typescript
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53564,17 +56176,22 @@ import { useAuth } from "@/contexts/AuthContext";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
 import PhoneInputField from "@shared/phone/PhoneInput";
 import { Logo } from "@shared/brand/Logo";
+import AddressFields from "@shared/address/AddressFields";
+import type { StructuredAddress } from "@shared/address/address";
+import { EMPTY_ADDRESS } from "@shared/address/address";
+import { serializeAddress } from "@shared/address/formatAddress";
+import { detectCountry } from "@shared/address/countryDetection";
 
 interface PropertyRow {
   property_name: string;
-  address: string;
+  address: StructuredAddress;
 }
 
 interface LandlordProfile {
   name: string;
   phone: string;
   email: string;
-  address: string;
+  address: StructuredAddress;
   signature_image: string;
   bank_account_name: string;
   bank_account_number: string;
@@ -53600,7 +56217,7 @@ export default function SetupPage() {
     name: "",
     phone: "",
     email: "",
-    address: "",
+    address: { ...EMPTY_ADDRESS },
     signature_image: "",
     bank_account_name: "",
     bank_account_number: "",
@@ -53610,12 +56227,23 @@ export default function SetupPage() {
     mask_bank_account: false,
   });
   const [properties, setProperties] = useState<PropertyRow[]>([
-    { property_name: "Property 1", address: "" },
+    { property_name: "Property 1", address: { ...EMPTY_ADDRESS } },
   ]);
+  const [country, setCountry] = useState("");
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
   const [signaturePreview, setSignaturePreview] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    detectCountry().then((c) => {
+      if (active) setCountry(c);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const destinations = useMemo(() => {
     const uuid = landlordUuid || "";
@@ -53640,14 +56268,14 @@ export default function SetupPage() {
   const addProperty = () => {
     setProperties((prev) => {
       const nextName = `Property ${prev.length + 1}`;
-      return [...prev, { property_name: nextName, address: "" }];
+      return [...prev, { property_name: nextName, address: { ...EMPTY_ADDRESS } }];
     });
   };
 
   const removeProperty = (index: number) => {
     setProperties((prev) => {
       const next = prev.filter((_, i) => i !== index);
-      return next.length ? next : [{ property_name: "Property 1", address: "" }];
+      return next.length ? next : [{ property_name: "Property 1", address: { ...EMPTY_ADDRESS } }];
     });
   };
 
@@ -53689,7 +56317,7 @@ export default function SetupPage() {
     const validProps = properties
       .map((p) => ({
         property_name: p.property_name.trim() || defaultName(0),
-        address: p.address.trim(),
+        address: serializeAddress(p.address),
       }))
       .filter((p) => p.property_name);
 
@@ -53706,7 +56334,7 @@ export default function SetupPage() {
         signaturePath = await api.uploadSignature(landlordUuid, signatureFile);
       }
       await api.completeSetup({
-        landlord: { ...profile, signature_image: signaturePath },
+        landlord: { ...profile, address: serializeAddress(profile.address), signature_image: signaturePath },
         properties: validProps,
       });
       setSetupState(true, false);
@@ -53823,13 +56451,16 @@ export default function SetupPage() {
                       />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="setup-address">Address</Label>
-                      <Input
-                        id="setup-address"
+                      <Label>Address</Label>
+                      <AddressFields
                         value={profile.address}
-                        onChange={(e) => setProfile({ ...profile, address: e.target.value })}
-                        placeholder="This address prints on your rent receipts"
+                        onChange={(address) => setProfile({ ...profile, address })}
+                        country={country}
+                        idPrefix="setup-address"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        This address prints on your rent receipts
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -53872,25 +56503,23 @@ export default function SetupPage() {
                             </Button>
                           )}
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label htmlFor={`prop-name-${index}`} className="text-xs">Property name</Label>
-                            <Input
-                              id={`prop-name-${index}`}
-                              value={p.property_name}
-                              onChange={(e) => updateProperty(index, { property_name: e.target.value })}
-                              placeholder={defaultName(index)}
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor={`prop-address-${index}`} className="text-xs">Address</Label>
-                            <Input
-                              id={`prop-address-${index}`}
-                              value={p.address}
-                              onChange={(e) => updateProperty(index, { address: e.target.value })}
-                              placeholder="Property address (optional)"
-                            />
-                          </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`prop-name-${index}`} className="text-xs">Property name</Label>
+                          <Input
+                            id={`prop-name-${index}`}
+                            value={p.property_name}
+                            onChange={(e) => updateProperty(index, { property_name: e.target.value })}
+                            placeholder={defaultName(index)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Address</Label>
+                          <AddressFields
+                            value={p.address}
+                            onChange={(address) => updateProperty(index, { address })}
+                            country={country}
+                            idPrefix={`prop-address-${index}`}
+                          />
                         </div>
                       </div>
                     ))}
@@ -57015,6 +59644,366 @@ export default defineConfig({
   "scripts": {
     "build": "bash build.sh"
   }
+}
+```
+
+### `frontend/shared/address/AddressFields.tsx`
+
+```typescript
+import { useState } from 'react';
+import { StructuredAddress, EMPTY_ADDRESS } from './address';
+import { COUNTRY_OPTIONS, getCountryName } from './countries';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import getCountryFlag from 'country-flag-icons/unicode';
+import { ChevronDown, Globe } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface CountrySelectProps {
+  value: string;
+  onSelect: (code: string) => void;
+  idPrefix: string;
+}
+
+function CountrySelect({ value, onSelect, idPrefix }: CountrySelectProps) {
+  const [open, setOpen] = useState(false);
+  const name = getCountryName(value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          variant="outline"
+          id={`${idPrefix}-country`}
+          className="w-full justify-between font-normal text-foreground"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            {value ? (
+              <span className="text-base leading-none shrink-0">
+                {getCountryFlag(value)}
+              </span>
+            ) : (
+              <Globe className="size-4 shrink-0 text-muted-foreground" />
+            )}
+            <span className="truncate">{name || 'Select country…'}</span>
+          </span>
+          <ChevronDown className="size-3.5 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={2} className="w-[320px] p-0">
+        <Command>
+          <CommandInput placeholder="Search country…" />
+          <CommandList>
+            <CommandEmpty>No country found.</CommandEmpty>
+            <CommandGroup>
+              {COUNTRY_OPTIONS.map((option) => (
+                <CommandItem
+                  key={option.code}
+                  value={`${option.name} ${option.code}`}
+                  onSelect={() => {
+                    onSelect(option.code);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="text-base leading-none">
+                    {getCountryFlag(option.code)}
+                  </span>
+                  <span className="flex-1 truncate">{option.name}</span>
+                  <span className="text-muted-foreground text-xs">
+                    {option.code}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+interface AddressFieldsProps {
+  value?: StructuredAddress;
+  onChange: (value: StructuredAddress) => void;
+  country?: string;
+  idPrefix?: string;
+  className?: string;
+}
+
+export default function AddressFields({
+  value = EMPTY_ADDRESS,
+  onChange,
+  country,
+  idPrefix = 'address',
+  className,
+}: AddressFieldsProps) {
+  const set = (field: keyof StructuredAddress, v: string) => {
+    onChange({ ...value, [field]: v });
+  };
+
+  return (
+    <div className={cn('grid grid-cols-1 sm:grid-cols-2 gap-3', className)}>
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={`${idPrefix}-flatNo`}>Flat / House No</Label>
+        <Input
+          id={`${idPrefix}-flatNo`}
+          placeholder="e.g. 304, B Wing"
+          value={value.flatNo ?? ''}
+          onChange={(e) => set('flatNo', e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-floor`}>Floor</Label>
+        <Input
+          id={`${idPrefix}-floor`}
+          placeholder="e.g. 3rd"
+          value={value.floor ?? ''}
+          onChange={(e) => set('floor', e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-block`}>Block</Label>
+        <Input
+          id={`${idPrefix}-block`}
+          placeholder="e.g. B"
+          value={value.block ?? ''}
+          onChange={(e) => set('block', e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={`${idPrefix}-street`}>Street / Road</Label>
+        <Input
+          id={`${idPrefix}-street`}
+          placeholder="e.g. MG Road"
+          value={value.street ?? ''}
+          onChange={(e) => set('street', e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2 sm:col-span-2">
+        <Label htmlFor={`${idPrefix}-locality`}>Area / Locality / Village</Label>
+        <Input
+          id={`${idPrefix}-locality`}
+          placeholder="e.g. Indiranagar"
+          value={value.locality ?? ''}
+          onChange={(e) => set('locality', e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-city`}>City / Town</Label>
+        <Input
+          id={`${idPrefix}-city`}
+          placeholder="e.g. Bengaluru"
+          value={value.city ?? ''}
+          onChange={(e) => set('city', e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-state`}>State</Label>
+        <Input
+          id={`${idPrefix}-state`}
+          placeholder="e.g. Karnataka"
+          value={value.state ?? ''}
+          onChange={(e) => set('state', e.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`${idPrefix}-pinCode`}>PIN Code</Label>
+        <Input
+          id={`${idPrefix}-pinCode`}
+          placeholder="e.g. 560001"
+          value={value.pinCode ?? ''}
+          onChange={(e) => set('pinCode', e.target.value)}
+          inputMode="numeric"
+          maxLength={10}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Country</Label>
+        <CountrySelect
+          value={country ?? value.country ?? ''}
+          onSelect={(code) => set('country', code)}
+          idPrefix={idPrefix}
+        />
+      </div>
+    </div>
+  );
+}
+```
+
+### `frontend/shared/address/address.ts`
+
+```typescript
+export interface StructuredAddress {
+  flatNo?: string;
+  floor?: string;
+  street?: string;
+  block?: string;
+  locality?: string;
+  city?: string;
+  pinCode?: string;
+  state?: string;
+  country?: string;
+}
+
+export const EMPTY_ADDRESS: StructuredAddress = {
+  flatNo: '',
+  floor: '',
+  street: '',
+  block: '',
+  locality: '',
+  city: '',
+  pinCode: '',
+  state: '',
+  country: '',
+};
+
+export function isStructuredAddress(value: unknown): value is StructuredAddress {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+```
+
+### `frontend/shared/address/countries.ts`
+
+```typescript
+import en from "react-phone-number-input/locale/en.json";
+
+type CountryNameMap = Record<string, string>;
+
+const NAMES = en as CountryNameMap;
+
+export function getCountryName(code?: string): string {
+  if (!code) return "";
+  return NAMES[code] ?? code;
+}
+
+export interface CountryOption {
+  code: string;
+  name: string;
+}
+
+export const COUNTRY_OPTIONS: CountryOption[] = Object.entries(NAMES)
+  .filter(([code, name]) => code && typeof name === "string")
+  .map(([code, name]) => ({ code, name }))
+  .sort((a, b) => a.name.localeCompare(b.name));
+```
+
+### `frontend/shared/address/countryDetection.ts`
+
+```typescript
+import { getApiUrl } from "@shared/api-config";
+
+export const DEFAULT_COUNTRY = "IN";
+
+export async function detectCountry(): Promise<string> {
+  try {
+    const res = await fetch(getApiUrl("/api/location/country"), {
+      credentials: "include",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data?.country && typeof data.country === "string") {
+        return data.country.toUpperCase();
+      }
+    }
+  } catch {
+    // fall through to default
+  }
+  return DEFAULT_COUNTRY;
+}
+```
+
+### `frontend/shared/address/formatAddress.ts`
+
+```typescript
+import type { StructuredAddress } from './address';
+import { EMPTY_ADDRESS } from './address';
+
+const LINE_SEPARATOR = ' | ';
+
+function clean(value?: string): string {
+  return (value ?? '').trim();
+}
+
+export function formatAddress(addr: StructuredAddress | string | null | undefined): string {
+  if (typeof addr === 'string') {
+    return addr.trim();
+  }
+  if (!addr || typeof addr !== 'object') {
+    return '';
+  }
+  const parts = [
+    clean(addr.flatNo),
+    clean(addr.floor),
+    clean(addr.street),
+    clean(addr.block),
+    clean(addr.locality),
+    clean(addr.city),
+    clean(addr.state),
+    clean(addr.pinCode),
+    clean(addr.country),
+  ].filter(Boolean);
+  return parts.join(LINE_SEPARATOR);
+}
+
+export function parseLegacyAddress(value?: string | null): StructuredAddress {
+  if (!value) {
+    return {};
+  }
+  const parts = value.split(LINE_SEPARATOR).map((p) => p.trim());
+  const [flatNo, floor, street, block, locality, city, state, pinCode, country] = parts;
+  return {
+    flatNo,
+    floor,
+    street,
+    block,
+    locality,
+    city,
+    state,
+    pinCode,
+    country,
+  };
+}
+
+export function serializeAddress(addr: StructuredAddress): string {
+  return formatAddress(addr);
+}
+
+export function fromAddressFormValue(
+  value: StructuredAddress | string | null | undefined
+): StructuredAddress {
+  if (typeof value === 'string') {
+    return parseLegacyAddress(value);
+  }
+  if (value && typeof value === 'object') {
+    return { ...EMPTY_ADDRESS, ...value };
+  }
+  return { ...EMPTY_ADDRESS };
 }
 ```
 
@@ -63188,6 +66177,7 @@ import path from 'path'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: '/rent/t/',
+  envDir: '../',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

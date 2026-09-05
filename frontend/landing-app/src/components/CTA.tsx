@@ -12,9 +12,9 @@ export default function CTA() {
           The platform is live in early access. Choose your portal to get started.
         </p>
         <div className="cta-actions">
-          <a href="/rent/landlord/login" className="btn btn-primary">Landlord Login</a>
-          <a href="/rent/tenant/login" className="btn btn-outline">Tenant Login</a>
-          <a href="/rent/admin/login" className="btn btn-ghost">Admin Login <ArrowUpRightIcon size={14} /></a>
+          <a href="/landlord/login" className="btn btn-primary">Landlord Login</a>
+          <a href="/tenant/login" className="btn btn-outline">Tenant Login</a>
+          <a href="/admin/login" className="btn btn-ghost">Admin Login <ArrowUpRightIcon size={14} /></a>
         </div>
       </div>
     </section>

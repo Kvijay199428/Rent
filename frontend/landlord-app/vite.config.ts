@@ -4,11 +4,12 @@ import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "vite"
 
 export default defineConfig({
-  base: '/rent/landlord/',
+  base: '/landlord/',
   envDir: '../',
   plugins: [react(), tailwindcss()],
   server: {
     port: 3000,
+    allowedHosts: true,
   },
   resolve: {
     alias: {

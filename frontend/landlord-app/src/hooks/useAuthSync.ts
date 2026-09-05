@@ -37,10 +37,10 @@ export function useAuthSync(channel: string, onEvent: AuthEventHandler, enabled 
 
       if (apiBase) {
         const wsBase = apiBase.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
-        wsUrl = `${wsBase}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
+        wsUrl = `${wsBase}/ws/auth?channel=${encodeURIComponent(channel)}`;
       } else {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        wsUrl = `${protocol}//${window.location.host}/rent/ws/auth?channel=${encodeURIComponent(channel)}`;
+        wsUrl = `${protocol}//${window.location.host}/ws/auth?channel=${encodeURIComponent(channel)}`;
       }
 
       try {

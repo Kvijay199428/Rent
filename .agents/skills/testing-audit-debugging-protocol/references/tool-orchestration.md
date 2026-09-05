@@ -51,6 +51,10 @@ Every tool invocation produces an execution record (see `schemas/tool-execution.
 
 ---
 
+## 4a. Scripts Created by Nested Skills
+
+A nested skill proposing a diagnostic/throwaway script (e.g. `scripts/debug-auth.ps1`) is proposing a **change-making** action under §1.2 above — creating a file is a mutation — regardless of whether the script itself only reads data once run. It needs Gate 2 like any other file creation, and it must first appear, with its justification, in the Nested Skill Execution Plan (`references/nested-skill-orchestration.md` §3). Track its lifecycle (`PROPOSED → JUSTIFIED → APPROVED → CREATED → EXECUTED → EVIDENCE CAPTURED → RETAINED | REMOVED`) in `.audit/memory/script-plans.jsonl` so scripts don't accumulate unexplained across audits. If you find an unexplained leftover script from a prior audit, flag it as a finding in the current one rather than silently deleting or ignoring it.
+
 ## 5. Rules
 
 * Read-only use is **allowed and encouraged for gathering evidence** — but must be logged.

@@ -59,7 +59,7 @@ def _resolve_path(path_template: str, **kwargs) -> str:
     return result
 
 def get_base_path() -> str:
-    """Get the application base path (e.g., '/rent')."""
+    """Get the application base path (e.g., '/')."""
     return get_manifest().get("basePath", "")
 
 def get_full_path(path_template: str, **kwargs) -> str:
@@ -73,8 +73,8 @@ def get_route(*path_parts: str, **kwargs) -> str:
     Navigate the manifest tree by dot-notation keys.
     
     Examples:
-        get_route("admin", "api", "auth", "login")  -> "/rent/admin/api/login"
-        get_route("admin", "api", "billing", "get", billNo="REC-001")  -> "/rent/admin/api/bill/REC-001"
+        get_route("admin", "api", "auth", "login")  -> "/admin/api/login"
+        get_route("admin", "api", "billing", "get", billNo="REC-001")  -> "/admin/api/bill/REC-001"
     """
     node = get_manifest()
     for part in path_parts:
@@ -95,7 +95,7 @@ def get_route(*path_parts: str, **kwargs) -> str:
 class Routes:
     """
     Static access to every route in the application.
-    All paths include the basePath (e.g., '/rent').
+    All paths include the basePath (e.g., '/').
     
     Usage:
         from app.core.routes_manifest import Routes

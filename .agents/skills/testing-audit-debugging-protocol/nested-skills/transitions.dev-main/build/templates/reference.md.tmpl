@@ -1,0 +1,31 @@
+# {{name}}
+
+## When to use
+
+{{when}}
+
+## HTML usage
+
+```html
+{{usage}}
+```
+
+{{usageProse}}## Tunable variables
+
+{{varsTable}}
+
+The `:root` defaults below match the live tuning on [transitions.dev](https://transitions.dev). Drop them into your global stylesheet once — every transition in this skill reads from semantic names like these, so multiple transitions can share a single `:root` block.
+
+```css
+{{rootBlock}}
+```
+
+## CSS
+
+```css
+{{css}}
+```
+
+The `@media (prefers-reduced-motion: reduce)` guard at the bottom of the snippet is required — keep it. It zeroes the transition for users who have asked for less motion at the OS level.
+
+{{jsSection}}{{notesSection}}

@@ -3,6 +3,8 @@ import { useNavigate, Link } from "react-router";
 import { useAuth, OtpCooldownError } from "../contexts/AuthContext";
 import AuthLayout from "../components/AuthLayout";
 import LoadingOverlay from "@shared/loading/LoadingOverlay";
+import useCapsLock from "@shared/capslock/useCapsLock";
+import CapsLockWarning from "@shared/capslock/CapsLockWarning";
 import { API_BASE } from "../lib/runtime";
 
 type OtpMethod = "totp" | "telegram";
@@ -18,6 +20,7 @@ function formatCountdown(s: number) {
 export default function LoginPage() {
   const { login, loginTOTP, loginOtpSend, loginOtpVerify } = useAuth();
   const navigate = useNavigate();
+  const capsLockOn = useCapsLock();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
@@ -177,6 +180,8 @@ export default function LoginPage() {
             {otpMsg}
           </div>
         )}
+
+        <CapsLockWarning isCapsLockOn={capsLockOn} />
 
         {!totpRequired ? (
           <>

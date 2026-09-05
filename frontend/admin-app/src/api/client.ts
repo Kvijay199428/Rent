@@ -1,6 +1,6 @@
 import { getApiUrl } from "@shared/api-config";
 
-export const API_PREFIX = "/rent/admin/api";
+export const API_PREFIX = "/admin/api";
 
 // Single-flight silent refresh: the backend rotates the refresh cookie on each
 // successful refresh, so concurrent refreshes must share one request.

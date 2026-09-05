@@ -6,7 +6,7 @@ Cookie names and path are deliberately separate from admin and tenant cookies
 to prevent any cross-role contamination.
 
 Cookie names : access_token / refresh_token
-Cookie path  : {root_path}/landlord   (e.g. /rent/landlord)
+Cookie path  : {root_path}/landlord   (e.g. /landlord)
 """
 from fastapi import Request, Response
 

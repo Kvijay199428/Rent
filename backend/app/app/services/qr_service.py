@@ -239,7 +239,7 @@ def build_branded_qr_png(url: str, size: int = 200, internal: bool = False) -> b
 def tenant_qr_payload(landlord_uuid: str, property_id, tenant_id: int, view_token: str, qr_key: str) -> str:
     """Canonical tenant portal URL encoded in the QR."""
     base = (
-        f"{public_app_url()}/rent/{urllib.parse.quote(landlord_uuid)}"
+        f"{public_app_url()}/{urllib.parse.quote(landlord_uuid)}"
         f"/t/{int(property_id) if property_id else 0}/{tenant_id}/{urllib.parse.quote(view_token)}"
     )
     if qr_key:

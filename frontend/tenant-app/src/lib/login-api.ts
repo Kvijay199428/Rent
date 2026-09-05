@@ -80,13 +80,13 @@ export async function portalLogin(
   redirect_url: string | null;
   reset_required?: boolean;
 }> {
-  const pubKey = await getPublicKey(`${getApiBaseUrl()}/rent/tenant/api/auth/public-key`);
+  const pubKey = await getPublicKey(`${getApiBaseUrl()}/tenant/api/auth/public-key`);
   const encrypted = await encryptPayload(
     { username, password, rememberme: rememberMe },
     pubKey
   );
 
-  const res = await fetch(`${getApiBaseUrl()}/rent/tenant/api/auth/login`, {
+  const res = await fetch(`${getApiBaseUrl()}/tenant/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -108,10 +108,10 @@ export async function portalLogin(
 export async function forgotTenantPassword(
   username: string
 ): Promise<{ status: string; message: string }> {
-  const pubKey = await getPublicKey(`${getApiBaseUrl()}/rent/tenant/api/auth/public-key`);
+  const pubKey = await getPublicKey(`${getApiBaseUrl()}/tenant/api/auth/public-key`);
   const encrypted = await encryptPayload({ username }, pubKey);
 
-  const res = await fetch(`${getApiBaseUrl()}/rent/tenant/api/auth/forgot-password`, {
+  const res = await fetch(`${getApiBaseUrl()}/tenant/api/auth/forgot-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -135,13 +135,13 @@ export async function changeTenantPassword(
   currentPassword: string,
   newPassword: string
 ): Promise<{ status: string; message: string }> {
-  const pubKey = await getPublicKey(`${getApiBaseUrl()}/rent/tenant/api/auth/public-key`);
+  const pubKey = await getPublicKey(`${getApiBaseUrl()}/tenant/api/auth/public-key`);
   const encrypted = await encryptPayload(
     { username, current_password: currentPassword, new_password: newPassword },
     pubKey
   );
 
-  const res = await fetch(`${getApiBaseUrl()}/rent/tenant/api/auth/change-password`, {
+  const res = await fetch(`${getApiBaseUrl()}/tenant/api/auth/change-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",

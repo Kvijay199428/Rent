@@ -89,7 +89,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             Quick Access
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12, padding: "0 4px" }}>
-            <a href="/rent/" style={{
+            <a href="/" style={{
               display: "flex", alignItems: "center", gap: 8,
               padding: "8px 12px", borderRadius: 8,
               border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
@@ -98,7 +98,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <span style={{ fontSize: 14 }}>🌍</span>
               Home
             </a>
-            <a href="/rent/landlord/login" style={{
+            <a href="/landlord/login" style={{
               display: "flex", alignItems: "center", gap: 8,
               padding: "8px 12px", borderRadius: 8,
               border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",
@@ -107,7 +107,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <span style={{ fontSize: 14 }}>🏠</span>
               Landlord Portal
             </a>
-            <a href="/rent/tenant" style={{
+            <a href="/tenant" style={{
               display: "flex", alignItems: "center", gap: 8,
               padding: "8px 12px", borderRadius: 8,
               border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)",

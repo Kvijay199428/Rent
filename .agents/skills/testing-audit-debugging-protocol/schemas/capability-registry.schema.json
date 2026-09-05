@@ -5,7 +5,12 @@
   "required": ["name", "source", "domain", "good_for", "read_only_safe", "change_capable", "reputation"],
   "properties": {
     "name": { "type": "string" },
-    "source": { "type": "string", "enum": ["global skill", "project-local skill", "project tool", "built-in tool", "connector"] },
+    "source": { "type": "string", "enum": ["nested skill", "global skill", "project-local skill", "project tool", "built-in tool", "connector"] },
+    "capabilities": { "type": "array", "items": { "type": "string" }, "description": "Declared capabilities, from manifest.json — nested skills only" },
+    "requires_gate_2": { "type": "boolean", "description": "From manifest.json mutation.requiresGate2 — nested skills only" },
+    "may_create_scripts": { "type": "boolean", "description": "From manifest.json scripts.mayCreate — nested skills only" },
+    "may_delegate": { "type": "boolean", "description": "From manifest.json delegation.mayInvokeNestedSkills — nested skills only" },
+    "source_hash": { "type": "string", "description": "Nested skills only — provenance hash from discovery" },
     "domain": { "type": "string" },
     "good_for": { "type": "string" },
     "read_only_safe": { "type": "boolean" },

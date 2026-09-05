@@ -528,8 +528,8 @@ export default function SettingsPage() {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <tbody>
             {[
-              ["API Base", "/rent/admin/api"],
-              ["Frontend Base", "/rent/admin"],
+              ["API Base", "/admin/api"],
+              ["Frontend Base", "/admin"],
               ["Auth Scope", "Cookie: access_token"],
             ].map(([label, value]) => (
               <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
