@@ -98,27 +98,6 @@ function TenantPortalInner() {
             <p className="text-base text-muted-foreground flex items-center gap-1.5"><Logo height={20} /> — Tenant</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            <a
-              href="/"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline"
-            >
-              <span>🌍</span>
-              Home
-            </a>
-            <a
-              href="/admin/login"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline"
-            >
-              <span>⚙️</span>
-              Platform Admin
-            </a>
-            <a
-              href="/landlord/login"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-muted/50 text-xs font-semibold text-muted-foreground hover:bg-accent hover:text-foreground transition-colors no-underline"
-            >
-              <span>🏠</span>
-              Landlord Portal
-            </a>
             <ThemeToggle />
             <button
               onClick={logout}
