@@ -2,53 +2,54 @@ const SPA_INDEXES = [
   { prefix: "/admin/", index: "/admin/index.html" },
   { prefix: "/landlord/", index: "/landlord/index.html" },
   { prefix: "/t/", index: "/t/index.html" },
-  { prefix: "/t/", index: "/t/index.html" },
-  { prefix: "/", index: "/index.html" },
 ];
+
+// Synthesized SPA/redirect responses must never be cached at the CDN. Pages
+// Functions otherwise default to `Cache-Control: public, s-maxage=604800`,
+// which stale-caches deep links (e.g. /rent/) for a week across redeploys.
+const NO_CACHE = { "Cache-Control": "no-cache, must-revalidate" };
+
+function indexResponseWith(indexResponse) {
+  return new Response(indexResponse.body, {
+    status: 200,
+    headers: { ...indexResponse.headers, ...NO_CACHE },
+  });
+}
+
+async function serveIndex(context, url, indexPath) {
+  const indexUrl = new URL(indexPath, url);
+  const indexResponse = await context.env.ASSETS.fetch(indexUrl);
+  if (indexResponse.ok) {
+    return indexResponseWith(indexResponse);
+  }
+  return context.next();
+}
 
 export async function onRequest(context) {
   const url = new URL(context.request.url);
   const path = url.pathname;
 
-  if (path === "/" || path === "") {
-    const target = new URL("/", url);
-    return new Response(null, {
-      status: 301,
-      headers: { Location: target.toString() },
-    });
-  }
-
   // Tenant portal deep links (/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}) —
   // serve the tenant SPA from Pages. Its router (basename ) renders the
   // portal from the URL params, so deep links work without touching the API host.
   const tenantLinkRe =
-    /^\/rent\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/t\/[0-9]+\/[0-9]+\/[0-9a-zA-Z-]+(?:\/.*)?$/;
+    /^\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/t\/[0-9]+\/[0-9]+\/[0-9a-zA-Z-]+(?:\/.*)?$/;
   if (tenantLinkRe.test(path)) {
-    const indexUrl = new URL("/t/index.html", url);
-    const indexResponse = await context.env.ASSETS.fetch(indexUrl);
-    if (indexResponse.ok) {
-      return new Response(indexResponse.body, {
-        status: 200,
-        headers: indexResponse.headers,
-      });
-    }
+    return serveIndex(context, url, "/t/index.html");
   }
 
-  const response = await context.next();
-
-  if (response.status === 404) {
-    const match = SPA_INDEXES.find((app) => path.startsWith(app.prefix));
-    if (match) {
-      const indexUrl = new URL(match.index, url);
-      const indexResponse = await context.env.ASSETS.fetch(indexUrl);
-      if (indexResponse.ok) {
-        return new Response(indexResponse.body, {
-          status: 200,
-          headers: indexResponse.headers,
-        });
-      }
-    }
+  // /rent/* must keep its _redirects 308 (stale-cache canonicalization). Pages
+  // serves the root index.html for unmatched paths instead of 404ing, so the
+  // per-app fallbacks below are matched explicitly instead of on a 404 status.
+  if (path.startsWith("/rent/")) {
+    return context.next();
   }
 
-  return response;
+  const app = SPA_INDEXES.find((entry) => path.startsWith(entry.prefix));
+  if (app) {
+    return serveIndex(context, url, app.index);
+  }
+
+  // Root single-page app (landing) — final fallback for every other path.
+  return serveIndex(context, url, "/index.html");
 }

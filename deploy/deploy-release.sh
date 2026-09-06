@@ -91,7 +91,7 @@ build_frontend() {
 }
 
 frontend_missing() {
-  [ ! -f "frontend/build-output/rent/index.html" ]
+  [ ! -f "frontend/build-output/index.html" ]
 }
 
 main() {

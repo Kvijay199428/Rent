@@ -90,6 +90,8 @@ cp -r functions/* build-output/functions/
 
 cat > build-output/_redirects << 'EOF'
 # Complete drop: landing app is served at / directly. No root redirect.
+# Old /rent deep links canonicalize to / (also breaks stale cached /rent bodies).
+/rent/*  /  308
 EOF
 
 cat > build-output/_headers << 'EOF'
