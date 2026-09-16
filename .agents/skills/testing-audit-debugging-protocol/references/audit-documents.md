@@ -246,6 +246,8 @@ Example:
 
 - path/to/migration.sql
   Reason: Possible schema issue
+  Engine: <postgresql / mongodb / sqlite / cockroachdb / timeseries:influxdb / vector:qdrant / ...>
+  Naming/conflict check: see references/database-schema-standards.md — SR-### in schema-registry-checks.jsonl
   Candidate capability: <migration tool> — change-making proposed, needs approval
 
 ## Tests

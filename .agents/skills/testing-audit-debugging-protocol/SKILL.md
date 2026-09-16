@@ -1,6 +1,6 @@
 ---
 name: testing-audit-debugging-protocol
-description: Professional-grade testing, audit and debugging protocol and full testing-audit ORCHESTRATOR. Use when the user asks you to test, audit, QA, debug, verify, validate, or profile an application before deployment; run existing tests; establish a testing baseline; investigate a bug; discover available skills/tools; or produce audit documentation (test-audit-task.md, audit-plan.md, audit-log.md, bucket-list.md, skill-usage-log.md, skill-mapping.md) plus machine-readable audit memory (.audit/memory/). Enforces a strict approval-gated workflow — DISCOVER → TEST → REPRODUCE → DOCUMENT → AUDIT → SELECT SKILLS/TOOLS → NESTED SKILL PLAN APPROVAL → PROPOSE FIX → ANALYSIS APPROVAL → CODE MODIFICATION APPROVAL → EDIT → RE-TEST → REGRESSION → VERIFICATION → DEPLOY GATE — where testing and investigation never silently become code modification. As an orchestrator it discovers global and project-local skills, project tools, AND a self-contained library of nested specialist skills (auto-discovered from ./nested-skills, config-driven via nested-skills.config.json — never hard-coded here), registers them in a capability registry, selects the right instrument with an explainable reason (WHY THIS SKILL? / WHY NOT X?), operates in read-only audit mode by default, presents a Nested Skill Execution Plan (which nested skill, for what purpose, what scripts it may create and why) for approval before any nested skill is invoked, records every selection and invocation as an execution record, correlates findings into evidence-backed clusters with an evidence graph, maintains project-side audit memory (.audit/memory/), applies confidence thresholds and reputation scores, supports audit replay, and gates all changes behind dual approval gates (Analysis Approval, then Code Modification Approval). Read-only investigative use of skills/tools is allowed and logged; no implementation change occurs without explicit user approval; nested skills follow the user's declared mapping/instructions when one exists instead of re-asking each time.
+description: Professional-grade testing, audit and debugging protocol and full testing-audit ORCHESTRATOR. Use when the user asks you to test, audit, QA, debug, verify, validate, or profile an application before deployment; run existing tests; establish a testing baseline; investigate a bug; discover available skills/tools; or produce audit documentation (test-audit-task.md, audit-plan.md, audit-log.md, bucket-list.md, skill-usage-log.md, skill-mapping.md) plus machine-readable audit memory (.audit/memory/). Enforces a strict approval-gated workflow — DISCOVER → TEST → REPRODUCE → DOCUMENT → AUDIT → SELECT SKILLS/TOOLS → NESTED SKILL PLAN APPROVAL → PROPOSE FIX → ANALYSIS APPROVAL → CODE MODIFICATION APPROVAL → EDIT → RE-TEST → REGRESSION → VERIFICATION → DEPLOY GATE — where testing and investigation never silently become code modification. As an orchestrator it discovers global and project-local skills, project tools, AND a self-contained library of nested specialist skills (auto-discovered from ./nested-skills, config-driven via nested-skills.config.json — never hard-coded here), registers them in a capability registry, selects the right instrument with an explainable reason (WHY THIS SKILL? / WHY NOT X?), operates in read-only audit mode by default, presents a Nested Skill Execution Plan (which nested skill, for what purpose, what scripts it may create and why) for approval before any nested skill is invoked, records every selection and invocation as an execution record, correlates findings into evidence-backed clusters with an evidence graph, maintains project-side audit memory (.audit/memory/), applies confidence thresholds and reputation scores, supports audit replay, and gates all changes behind dual approval gates (Analysis Approval, then Code Modification Approval). Read-only investigative use of skills/tools is allowed and logged; no implementation change occurs without explicit user approval; nested skills follow the user's declared mapping/instructions when one exists instead of re-asking each time. Whenever any database is in scope (SQL, document, time-series, vector, or otherwise), enforces camelCase schema/table/index naming (engine caveats noted, never silently applied where an engine's own rules would break it), runs a three-layer schema/table/index uniqueness and conflict check every audit, and maintains a persistent schema/index audit record (`.audit/memory/schema-registry.json` + `schema-registry-checks.jsonl`) per `references/database-schema-standards.md`.
 license: Apache-2.0
 metadata:
   author: Vijay Kumar Sharma
@@ -92,6 +92,9 @@ During testing and auditing:
 * Do NOT modify source code on your own.
 * Do NOT modify configuration files on your own.
 * Do NOT modify database schemas on your own.
+* Naming/uniqueness verification of databases (any engine) is read-only and always allowed —
+  see `references/database-schema-standards.md` — but any fix for a violation it finds still
+  requires Gate 1 + Gate 2 like any other change.
 * Do NOT modify migrations on your own.
 * Do NOT modify API contracts on your own.
 * Do NOT modify dependencies on your own.
@@ -202,6 +205,7 @@ The full protocol is organized into the master file, reference documents, schema
 * `finding-correlation.md` (6) — clusters and `X-not-Y` relationships
 * `approval-gates.md` (7) — the dual gates (Analysis + Code Modification) plus the Nested Skill Plan approval that precedes them
 * `audit-replay.md` (8) — replaying an audit from its records
+* `verification-and-drift-detection.md` (9) — mandatory mechanical check of `.audit/memory/` before the deployment gate
 
 ### schemas/ — JSON schemas for machine-readable records
 `capability-registry`, `skill-selection`, `skill-execution`, `tool-execution`, `finding`, `evidence`, `evidence-graph`, `finding-correlation`, `approval`.
@@ -258,6 +262,46 @@ APPROVAL STATUS: waiting for user approval — nothing invoked yet.
 * This step does not replace Gate 1 (analysis approval) or Gate 2 (modification approval) — it only covers "may I run this specialist and why." A nested skill's actual proposed *fix* still goes through Gate 1 then Gate 2 like any other change.
 
 See `references/nested-skill-orchestration.md` §3 and `templates/nested-skill-plan.md` for the full spec and fill-in template.
+
+---
+
+## 4b. Minimal Ceremony Path (for genuinely trivial, low-risk changes)
+
+Full ceremony on a one-line typo fix is how protocols like this get quietly abandoned under
+time pressure. This path exists so that doesn't happen — it's a defined shortcut, not a silent
+one.
+
+**Eligible only if ALL of these hold:**
+* The change is confined to a single file.
+* It cannot alter program logic, control flow, business rules, security checks, data shape,
+  or public API/contract — e.g. a typo, a comment, a log message, whitespace/formatting, a
+  string literal with no logic dependent on its content.
+* No nested skill and no change-making tool/connector is needed — it's a direct edit only.
+* Nothing about it is contested, ambiguous, or something you're inferring rather than certain of.
+
+**If eligible**, collapse Gate 1 and Gate 2 into one combined block instead of two round-trips:
+
+```text
+MINIMAL CHANGE
+
+File:          <path>
+Change:        <one-line description, e.g. "fix typo: 'recieve' → 'receive' in error message">
+Why trivial:   <which eligibility condition applies>
+Diff preview:  <the exact before/after>
+
+APPROVAL REQUIRED — this still needs your go-ahead before I edit.
+```
+
+**This path never skips:**
+* Presenting the block above and waiting for approval — "minimal ceremony" means a smaller
+  block, not no approval.
+* Writing the execution record (`SU-###`) afterward — logging is never optional, regardless of
+  triviality.
+* Reverting to full Gate 1 / Gate 2 the moment any eligibility condition turns out not to hold
+  (e.g. the "typo" turns out to be a magic string something else depends on).
+
+If you're not certain a change qualifies, it doesn't — default to full ceremony rather than
+downgrading based on a guess.
 
 ---
 

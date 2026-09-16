@@ -100,6 +100,13 @@ Every proposed script is change-making (see `tool-orchestration.md` §1.2 — cr
 5. Generic tool
 ```
 
+**Overlap between two nested skills.** If more than one nested skill plausibly covers a
+finding, don't pick silently and don't re-ask every time it comes up. Ask the user once which
+one should own that domain, then **write the answer into `skill-mapping.md`** as a declared
+mapping (per `skill-selection.md` §5) so it's a `User Directed` selection from then on. An
+ambiguity resolved once and not persisted just resurfaces at the next similar finding —
+persisting it is what actually fixes the overlap.
+
 If step 4 or 5 is reached, this is a **capability gap** and must be surfaced, not used silently:
 
 ```

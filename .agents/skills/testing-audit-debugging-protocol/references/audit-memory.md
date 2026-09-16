@@ -18,7 +18,9 @@ Audit memory lives in **`.audit/`** inside the project being audited — **not**
 │   ├── tool-usage.jsonl              (append-only tool execution records)
 │   ├── findings.jsonl                (append-only findings with evidence + confidence)
 │   ├── correlation.json              (finding clusters / X-not-Y records)
-│   └── reputation.json               (derived reputation scores)
+│   ├── reputation.json               (derived reputation scores)
+│   ├── schema-registry.json          (current DB schemas/tables/indexes, any engine)
+│   └── schema-registry-checks.jsonl  (append-only naming/uniqueness check log)
 ├── evidence/                         (raw evidence blobs: logs, screenshots, captures)
 ```
 
@@ -59,6 +61,8 @@ Both are documentation / project memory — updating them never requires approva
 | findings.jsonl | JSONL | `finding.schema.json` + `evidence.schema.json` | one finding (with evidence refs) per line |
 | correlation.json | JSON | `finding-correlation.schema.json` | clusters + X-not-Y relations |
 | reputation.json | JSON | (derived) | per-capability reputation bands |
+| schema-registry.json | JSON | `schema-registry.schema.json` | current schemas/tables/indexes across all audited databases (any engine) |
+| schema-registry-checks.jsonl | JSONL | `schema-registry-check.schema.json` | one naming/uniqueness verification pass per line — see `references/database-schema-standards.md` |
 
 JSONL is append-only: never rewrite history, only append. This preserves a truthful chronological trail and makes replay correct.
 

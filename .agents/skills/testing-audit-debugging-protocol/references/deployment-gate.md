@@ -114,6 +114,7 @@ Before final deployment verify:
 * regression suite passes
 * known limitations documented
 * every change-making skill/tool use during the audit was approved before it ran, and is recorded in `skill-usage-log.md` with its outcome
+* `scripts/validate_audit_memory.py --project-root .` exits 0 against `.audit/memory/` — a non-zero exit is a blocking P1+ finding (see `references/verification-and-drift-detection.md`); do not report READY while it fails
 
 Clearly report:
 

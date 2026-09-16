@@ -227,6 +227,11 @@ Verify:
 * nullability
 * transaction behavior
 
+Before concluding data-integrity testing for any database-backed finding, run the naming and
+uniqueness/conflict checks in `references/database-schema-standards.md` against every database
+touched, for whichever engine(s) are in play (SQL, document, time-series, vector, or otherwise),
+and log the result per that file's §3.
+
 After an operation, verify the database rather than trusting only the UI.
 
 For example:

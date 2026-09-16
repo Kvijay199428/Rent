@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "table-design-proposal",
+  "description": "A proposed schema/table-or-collection/index design, prior to user approval and creation. Backs templates/schema-design-proposal.md.",
+  "type": "object",
+  "required": [
+    "proposalId",
+    "engineType",
+    "schemaName",
+    "objectName",
+    "objectKind",
+    "columns",
+    "indexes",
+    "namingCheck",
+    "conflictCheck",
+    "status"
+  ],
+  "properties": {
+    "proposalId": { "type": "string", "pattern": "^DP-[0-9]{3,}$" },
+    "engineType": { "type": "string" },
+    "schemaName": { "type": "string" },
+    "objectName": { "type": "string" },
+    "objectKind": {
+      "type": "string",
+      "enum": ["table", "collection", "measurement", "vector-index", "keyspace-table", "graph-node-label"]
+    },
+    "filePath": {
+      "type": "string",
+      "description": "Where this object's dedicated schema file will be/was written, e.g. database/sql/orderHistory.sql — per references/file-organization.md. Set once GENERATE has run."
+    },
+    "purpose": { "type": "string", "description": "One or two sentences on what this represents and why" },
+    "accessPatterns": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "The query/access patterns this design was built around"
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "type", "nullable"],
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "nullable": { "type": "boolean" },
+          "isPrimaryKey": { "type": "boolean" },
+          "references": {
+            "type": "string",
+            "description": "For a foreign key or document reference, the target schema.table/collection"
+          }
+        }
+      }
+    },
+    "indexes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["indexName", "columns", "unique"],
+        "properties": {
+          "indexName": { "type": "string" },
+          "columns": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "unique": { "type": "boolean" },
+          "type": { "type": "string" }
+        }
+      }
+    },
+    "namingCheck": {
+      "type": "object",
+      "required": ["result"],
+      "properties": {
+        "result": { "type": "string", "enum": ["clean", "violation-flagged", "documented-exception"] },
+        "notes": { "type": "string" }
+      }
+    },
+    "conflictCheck": {
+      "type": "object",
+      "required": ["result"],
+      "properties": {
+        "result": { "type": "string", "enum": ["clean", "conflict-flagged"] },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["objects", "layer"],
+            "properties": {
+              "objects": { "type": "array", "items": { "type": "string" }, "minItems": 2 },
+              "layer": { "type": "string", "enum": ["schema", "table", "index-name", "index-functional-duplicate"] }
+            }
+          }
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "presented", "approved", "approved-with-changes", "rejected", "created"]
+    },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

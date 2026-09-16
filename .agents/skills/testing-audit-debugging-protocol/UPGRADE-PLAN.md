@@ -429,3 +429,44 @@ scoring, evidence graph, finding correlation, and audit memory all work exactly 
 **Next step:** populate `./nested-skills/` with actual specialists (copy `_template-skill/`
 per skill). Until at least one is added, the orchestrator behaves exactly as it did before this
 update — the nested-skill layer is inert with an empty directory.
+
+
+---
+
+## 19. Status Update — Vulnerability Fixes (implemented)
+
+Following a scope/ability review, four concrete gaps were closed:
+
+1. **Honor-system enforcement → mechanical verification.** Added
+   `scripts/validate_audit_memory.py` (stdlib-only) and
+   `references/verification-and-drift-detection.md`. It checks `.audit/memory/` for id-pattern
+   validity, change-making executions missing Gate 2, nested-skill records missing parent/child
+   linkage, scripts that reached CREATED without Gate-2 approval, REMOVED scripts with no
+   reason, and plan/execution inconsistency. Wired into `deployment-gate.md` §4 as a mandatory,
+   blocking check — non-zero exit is a P1+ finding. Smoke-tested against both a deliberately
+   broken and a clean synthetic `.audit/memory/` — it catches what it claims to.
+
+2. **No trivial/low-risk fast path → Minimal Ceremony Path.** Added `SKILL.md` §4b: a narrowly
+   scoped exception (single file, no logic/security/contract change, no nested skill or
+   change-making tool needed) that collapses Gate 1 + Gate 2 into one combined approval block.
+   It never skips approval or the execution-record log — only the ceremony shrinks, not the
+   safety properties. Anything uncertain defaults back to full ceremony.
+
+3. **Nested-skill overlap resolved but not persisted → persisted mapping.**
+   `references/nested-skill-orchestration.md` §5 now requires writing a resolved overlap
+   into `skill-mapping.md` as a declared mapping, so the same ambiguity isn't re-asked on the
+   next similar finding.
+
+4. **"Never been tested" → `eval/` harness.** Added `eval/README.md` and five scenarios
+   (`eval/scenarios/01`–`05`) covering: a trivial change (tests the new fast path doesn't skip
+   approval/logging), an ambiguous root cause (tests honest confidence labeling), a nested
+   skill actually being planned/approved before invocation, two nested skills tying (tests the
+   persisted-mapping fix), and script creation going through the full lifecycle. Each has an
+   explicit checklist and fail conditions — run them against fresh sessions and track results
+   in the table in `eval/README.md`.
+
+**Known remaining limitation, stated plainly:** the validator checks that what got logged is
+internally consistent — it cannot detect an execution that was never logged at all, or a gate
+that was shown but not recorded. Real assurance against silent omission still depends on
+faithful instruction-following plus a human noticing an unexplained change. This update
+narrows that gap; it does not close it completely.

@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "schema-registry",
+  "description": "Generated store of every schema/table-or-collection/index observed across all databases touched during audits of this project. Never hand-edited — produced and updated by the testing-audit-debugging-protocol skill per references/database-schema-standards.md.",
+  "type": "object",
+  "required": ["generatedAt", "databases"],
+  "properties": {
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "databases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["engineType", "connectionRef", "schemas"],
+        "properties": {
+          "engineType": {
+            "type": "string",
+            "description": "Actual engine name, not just category, e.g. postgresql, mongodb, cockroachdb, sqlite, timeseries:influxdb, vector:qdrant"
+          },
+          "connectionRef": {
+            "type": "string",
+            "description": "Project-local identifier for this instance. Never a credential or full connection string."
+          },
+          "schemas": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["schemaName", "namingConvention", "tables"],
+              "properties": {
+                "schemaName": { "type": "string" },
+                "namingConvention": {
+                  "type": "string",
+                  "enum": ["camelCase", "existing-project-convention", "engine-restricted-exception", "violation"]
+                },
+                "tables": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["tableName", "namingConvention", "indexes"],
+                    "properties": {
+                      "tableName": { "type": "string" },
+                      "namingConvention": {
+                        "type": "string",
+                        "enum": ["camelCase", "existing-project-convention", "engine-restricted-exception", "violation"]
+                      },
+                      "indexes": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "required": ["indexName", "columns", "unique"],
+                          "properties": {
+                            "indexName": { "type": "string" },
+                            "columns": {
+                              "type": "array",
+                              "items": { "type": "string" },
+                              "minItems": 1
+                            },
+                            "unique": { "type": "boolean" },
+                            "type": {
+                              "type": "string",
+                              "description": "e.g. btree, hash, gin, geospatial, vector-hnsw, vector-ivfflat, text, ttl"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
