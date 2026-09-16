@@ -100,11 +100,31 @@ class PaymentStatusUpdate(BaseModel):
         return float(v)
 
 
+PAYMENT_METHODS = ("CASH", "UPI", "BANK_TRANSFER", "CHEQUE", "CARD", "ONLINE", "OTHER")
+
+
+def _normalize_payment_method(v):
+    m = str(v or "OTHER").strip().upper() or "OTHER"
+    if m not in PAYMENT_METHODS:
+        raise ValueError(f"Invalid payment method '{m}'. Valid: {sorted(PAYMENT_METHODS)}")
+    return m
+
+
+def _normalize_optional_str(v):
+    if v is None:
+        return None
+    s = str(v).strip()
+    return s or None
+
+
 class PaymentEntryCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     paymentDate: str = Field(..., alias="payment_date")
     amount: float = Field(..., gt=0)
+    paymentMethod: str = Field("OTHER", alias="paymentMethod")
+    reference: Optional[str] = Field(None, alias="reference")
+    notes: Optional[str] = Field(None, alias="notes")
 
     @field_validator("paymentDate", mode="before")
     @classmethod
@@ -117,6 +137,16 @@ class PaymentEntryCreate(BaseModel):
         if v in ("", None):
             return 0.0
         return float(v)
+
+    @field_validator("paymentMethod", mode="before")
+    @classmethod
+    def normalize_method(cls, v):
+        return _normalize_payment_method(v)
+
+    @field_validator("reference", "notes", mode="before")
+    @classmethod
+    def normalize_optional(cls, v):
+        return _normalize_optional_str(v)
 
 
 class PaymentEntryUpdate(BaseModel):
@@ -124,6 +154,9 @@ class PaymentEntryUpdate(BaseModel):
 
     paymentDate: str = Field(..., alias="payment_date")
     amount: float = Field(..., gt=0)
+    paymentMethod: str = Field("OTHER", alias="paymentMethod")
+    reference: Optional[str] = Field(None, alias="reference")
+    notes: Optional[str] = Field(None, alias="notes")
 
     @field_validator("paymentDate", mode="before")
     @classmethod
@@ -136,5 +169,15 @@ class PaymentEntryUpdate(BaseModel):
         if v in ("", None):
             return 0.0
         return float(v)
+
+    @field_validator("paymentMethod", mode="before")
+    @classmethod
+    def normalize_method(cls, v):
+        return _normalize_payment_method(v)
+
+    @field_validator("reference", "notes", mode="before")
+    @classmethod
+    def normalize_optional(cls, v):
+        return _normalize_optional_str(v)
 
 

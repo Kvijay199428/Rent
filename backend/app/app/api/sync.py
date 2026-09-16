@@ -30,6 +30,21 @@ from app.authentication.common.utils import validate_tenantPin, hash_pin
 from app.authentication.common.pin_vault import encrypt_admin_view_pin
 from app.authentication.tenant.sessions import revoke_all_tenant_sessions
 from app.core.db import get_conn
+from app.services.import_engine import (
+    parse_import_file,
+    merge_canonical,
+    detect_conflicts,
+    detect_encrypted_pins,
+    apply_import,
+    _upsert_payment,
+    ConflictResolutionError,
+)
+from app.services.payment_service import _recalculate_and_apply
+from app.services.export_engine import (
+    export_bytes,
+    template_csv_bytes,
+    template_workbook_bytes,
+)
 
 import openpyxl
 from openpyxl.styles import Font, PatternFill
@@ -61,10 +76,10 @@ def _build_excel_workbook(tenants_list, receipts_list):
     decrypted_pins = {}
     try:
         with get_conn() as conn:
-            rows = conn.execute("SELECT tenantId, encrypted_pin FROM tenantPin_admin_store").fetchall()
+            rows = conn.execute('SELECT "tenantId", "encryptedPin" FROM "tenantPinAdminStore"').fetchall()
             for row in rows:
                 try:
-                    decrypted_pins[row["tenantId"]] = decrypt_admin_view_pin(row["encrypted_pin"])
+                    decrypted_pins[row["tenantId"]] = decrypt_admin_view_pin(row["encryptedPin"])
                 except Exception:
                     decrypted_pins[row["tenantId"]] = ""
     except Exception:
@@ -186,35 +201,6 @@ async def export_full_zip(landlordUuid: str, tenants_list: str = "all", principa
 
     response = FileResponse(zip_path, media_type="application/zip", filename=zip_filename)
     response.headers["Content-Disposition"] = f'attachment; filename="{zip_filename}"'
-    return response
-
-@router.get(Routes.LANDLORDAPISYNCTEMPLATE, name=Names.DOWNLOADEXCELTEMPLATE)
-async def download_excel_template(landlordUuid: str):
-    wb = openpyxl.Workbook()
-    ws_profile = wb.active
-    ws_profile.title = "Tenant_Profile"
-    ws_profile.append(PROFILE_HEADERS)
-    ws_receipts = wb.create_sheet("Rent_Receipts")
-    ws_receipts.append(RECEIPT_HEADERS)
-
-    header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill("solid", fgColor="4F81BD")
-    for ws in [ws_profile, ws_receipts]:
-        for cell in ws[1]:
-            cell.font = header_font
-            cell.fill = header_fill
-
-    # Sample data rows
-    ws_profile.append(["T001", "John Doe", "9876543210", "john@gmail.com", "ABC Pvt Ltd", "Delhi", "A101", "MTR001", "", 15000, 500, 8.5, 1000, 300, "Active"])
-    ws_profile.append(["T002", "Alice Smith", "9988776655", "alice@gmail.com", "XYZ Ltd", "Noida", "B202", "MTR002", "", 18000, 600, 9.0, 1200, 400, "Active"])
-    ws_receipts.append(["T1-001", "T001", "January 2026", "01 Jan 2026", 120, 150, 30, 15000, 500, 255, 1000, 300, 0, 0, 17055, 17055, "PAID", "ACTIVE"])
-    ws_receipts.append(["T2-001", "T002", "January 2026", "01 Jan 2026", 80, 110, 30, 18000, 600, 270, 0, 400, 0, 0, 19270, 19270, "PAID", "ACTIVE"])
-
-    stream = io.BytesIO()
-    wb.save(stream)
-    stream.seek(0)
-    response = StreamingResponse(iter([stream.getvalue()]), media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    response.headers["Content-Disposition"] = 'attachment; filename="Rent_Data_Template.xlsx"'
     return response
 
 @router.get(Routes.LANDLORDAPISYNCEXPORTEXCEL, name=Names.EXPORTEXCELDATA)
@@ -834,6 +820,7 @@ async def import_execute_data(
 
     imported_tenants = []
     imported_receipts = 0
+    imported_payments = 0
     skipped_targets = set(selected_list)
     auto_assigned_pins = {}
     
@@ -849,7 +836,7 @@ async def import_execute_data(
             
             # Create import job record
             job_row = conn.execute(
-                "INSERT INTO import_jobs (created_at, created_by, filename, status, preview_json, resolution_json, result_json) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                'INSERT INTO "importJobs" ("createdAt", "createdBy", filename, status, "previewJson", "resolutionJson", "resultJson") VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id',
                 (datetime.datetime.utcnow().isoformat(), admin_username, ", ".join(parsed_files_data.keys()), "IN_PROGRESS", "{}", "{}", "{}")
             ).fetchone()
             job_id = job_row["id"]
@@ -866,7 +853,7 @@ async def import_execute_data(
                     
                     if action == "SKIP":
                         conn.execute(
-                            "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, result) VALUES (%s, %s, %s, %s, %s, %s)",
+                            'INSERT INTO "importJobItems" ("importJobId", "targetKey", "importTenantId", "importTenantName", action, result) VALUES (%s, %s, %s, %s, %s, %s)',
                             (job_id, target_key, t_id, t_data["profile"].get("tenantName", ""), action, "SKIPPED")
                         )
                         continue
@@ -894,9 +881,9 @@ async def import_execute_data(
                         viewToken = str(uuid.uuid4())
                         conn.execute('''
                             INSERT INTO tenants (
-                                id, name, company, phone, email, address, roomnumber, occupation, notes, status,
-                                rent, water, electricityrate, previousmeter, additionalpersoncharge, securitydeposit,
-                                defaulttankWatercharge, meterid, viewToken, tenantpin, failed_attempts, landlord_id
+                                id, name, company, phone, email, address, "roomNumber", occupation, notes, status,
+                                "rentAmount", "waterCharge", "electricityRate", "previousMeter", "additionalPersonCharge", "securityDeposit",
+                                "defaultTankWaterCharge", "meterId", "viewToken", "tenantPin", "failedAttempts", "landlordId"
                             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ''', (
                             tenantId, t_name, p.get("Company", ""), p.get("Phone", ""), p.get("Email", ""),
@@ -914,9 +901,9 @@ async def import_execute_data(
                         conn.execute('''
                             UPDATE tenants SET
                                 company=COALESCE(%s, company), phone=COALESCE(%s, phone), email=COALESCE(%s, email),
-                                address=COALESCE(%s, address), roomnumber=COALESCE(%s, roomnumber), meterid=COALESCE(%s, meterid),
-                                rent=COALESCE(%s, rent), water=COALESCE(%s, water), electricityrate=COALESCE(%s, electricityrate),
-                                additionalpersoncharge=COALESCE(%s, additionalpersoncharge), defaulttankWatercharge=COALESCE(%s, defaulttankWatercharge),
+                                address=COALESCE(%s, address), "roomNumber"=COALESCE(%s, "roomNumber"), "meterId"=COALESCE(%s, "meterId"),
+                                "rentAmount"=COALESCE(%s, "rentAmount"), "waterCharge"=COALESCE(%s, "waterCharge"), "electricityRate"=COALESCE(%s, "electricityRate"),
+                                "additionalPersonCharge"=COALESCE(%s, "additionalPersonCharge"), "defaultTankWaterCharge"=COALESCE(%s, "defaultTankWaterCharge"),
                                 status=COALESCE(%s, status)
                             WHERE id=%s
                         ''', (
@@ -940,9 +927,9 @@ async def import_execute_data(
                     # Resolve the tenant's landlord so imported receipts carry it.
                     # CREATE_NEW tenants have no landlord yet (admin assigns later).
                     _lrow = conn.execute(
-                        "SELECT landlord_id FROM tenants WHERE id = %s", (tenantId,)
+                        'SELECT "landlordId" FROM tenants WHERE id = %s', (tenantId,)
                     ).fetchone()
-                    tenant_landlord_id = _lrow["landlord_id"] if _lrow else None
+                    tenant_landlord_id = _lrow["landlordId"] if _lrow else None
 
                     # ── PIN HANDLING ──
                     if action in ("CREATE_NEW", "UPDATE_EXISTING"):
@@ -972,19 +959,19 @@ async def import_execute_data(
                                 hashed_pin = hash_pin(plain_pin)
                                 encrypted_pin = encrypt_admin_view_pin(plain_pin)
                                 
-                                conn.execute("UPDATE tenants SET tenantpin = %s WHERE id = %s", (hashed_pin, tenantId))
+                                conn.execute('UPDATE tenants SET "tenantPin" = %s WHERE id = %s', (hashed_pin, tenantId))
                                 now_iso = datetime.datetime.utcnow().isoformat()
-                                conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (%s, %s, %s)", (tenantId, hashed_pin, now_iso))
-                                conn.execute("INSERT INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (%s, %s, %s) ON CONFLICT (tenantId) DO UPDATE SET encrypted_pin = excluded.encrypted_pin, updated_at = excluded.updated_at", (tenantId, encrypted_pin, now_iso))
+                                conn.execute('INSERT INTO "tenantPinHistory" ("tenantId", "pinHash", "changedAt") VALUES (%s, %s, %s)', (tenantId, hashed_pin, now_iso))
+                                conn.execute('INSERT INTO "tenantPinAdminStore" ("tenantId", "encryptedPin", "updatedAt") VALUES (%s, %s, %s) ON CONFLICT ("tenantId") DO UPDATE SET "encryptedPin" = excluded."encryptedPin", "updatedAt" = excluded."updatedAt"', (tenantId, encrypted_pin, now_iso))
                                 if not is_new:
-                                    conn.execute("DELETE FROM tenant_sessions WHERE tenantId = %s", (tenantId,))
+                                    conn.execute('DELETE FROM "tenantSessions" WHERE "tenantId" = %s', (tenantId,))
                             except HTTPException:
                                 pass # Invalid pin format
                                 
                     # ── RECEIPTS ──
                     rec_strategy = receipt_strategies.get(target_key, "MERGE_RECEIPTS_ONLY")
                     if rec_strategy == "REPLACE_RECEIPTS":
-                        conn.execute("DELETE FROM receipts WHERE tenantId = %s", (tenantId,))
+                        conn.execute('DELETE FROM receipts WHERE "tenantId" = %s', (tenantId,))
                         
                     if rec_strategy in ("MERGE_RECEIPTS_ONLY", "REPLACE_RECEIPTS"):
                         for r in t_data.get("receipts", []):
@@ -1000,51 +987,81 @@ async def import_execute_data(
                             r_date = _parse_excel_date(r.get("Date", ""))
                             r_month = _parse_month_date(r.get("Month", ""))
                             
-                            exists = conn.execute("SELECT 1 FROM receipts WHERE billNo = %s AND tenantId = %s", (billNo, tenantId)).fetchone()
+                            exists = conn.execute('SELECT 1 FROM receipts WHERE "billNo" = %s AND "tenantId" = %s', (billNo, tenantId)).fetchone()
                             
                             if exists:
                                 if rec_strategy == "MERGE_RECEIPTS_ONLY":
-                                    conn.execute("""
+                                    conn.execute('''
                                         UPDATE receipts SET
-                                            date=%s, month=%s, tenantId=%s, tenant=%s, previous=%s, current=%s, units=%s, rent=%s,
-                                            additional=%s, water=%s, tankWater=%s, electricity=%s, total=%s, pdf=%s,
-                                            rate=%s, status=%s, additionalpersonrate=%s,
-                                            paymentstatus=%s, maintenancecharge=%s, maintenancedesc=%s, previousarrears=%s, amountreceived=%s
-                                        WHERE billNo=%s AND tenantId=%s
-                                    """, (
+                                            "billDate"=%s, "billMonth"=%s, "tenantId"=%s, "tenantName"=%s, "previousMeter"=%s, "currentMeter"=%s, units=%s, "rentAmount"=%s,
+                                            "additionalAmount"=%s, "waterAmount"=%s, "tankWaterAmount"=%s, "electricityAmount"=%s, "billTotal"=%s, pdf=%s,
+                                            "electricityRate"=%s, status=%s, "additionalPersonRate"=%s,
+                                            "paymentStatus"=%s, "maintenanceCharge"=%s, "maintenanceDesc"=%s, "previousArrears"=%s, "amountReceived"=%s
+                                        WHERE "billNo"=%s AND "tenantId"=%s
+                                    ''', (
                                         r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
                                         float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
                                         float(r.get("Water", 0) or 0), float(r.get("tankWater", 0) or 0), float(r.get("Electricity", 0) or 0), 
                                         float(r.get("Total", 0) or 0), "", float(r.get("Rate", 0) or 0), r.get("receiptStatus", "ACTIVE"), 
-                                        float(r.get("additionalPersonRate", 0) or 0), r.get("paymentStatus", "PENDING"), 
+                                        float(r.get("additionalPersonRate", 0) or 0), "PENDING", 
                                         float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), 
-                                        float(r.get("amountReceived", 0) or 0), billNo, tenantId
+                                        0.0, billNo, tenantId
                                     ))
                                     imported_receipts += 1
                             else:
-                                conn.execute("""
+                                conn.execute('''
                                     INSERT INTO receipts (
-                                        billNo, date, month, tenantId, tenant, previous, current, units, rent,
-                                        additional, water, tankWater, electricity, total, pdf,
-                                        tenantphone, tenantcompany, tenantaddress, rate, status,
-                                        additionalpersons, additionalpersonrate, receiptversion, generatedby, paymentstatus,
-                                        maintenancecharge, maintenancedesc, previousarrears, amountreceived, landlord_id
+                                        "billNo", "billDate", "billMonth", "tenantId", "tenantName", "previousMeter", "currentMeter", units, "rentAmount",
+                                        "additionalAmount", "waterAmount", "tankWaterAmount", "electricityAmount", "billTotal", pdf,
+                                        "tenantPhone", "tenantCompany", "tenantAddress", "electricityRate", status,
+                                        "additionalPersons", "additionalPersonRate", "receiptVersion", "generatedBy", "paymentStatus",
+                                        "maintenanceCharge", "maintenanceDesc", "previousArrears", "amountReceived", "landlordId"
                                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                """, (
+                                ''', (
                                     billNo, r_date, r_month, tenantId, t_name, float(r.get("Previous", 0) or 0), float(r.get("Current", 0) or 0),
                                     float(r.get("Units", 0) or 0), float(r.get("Rent", 0) or 0), float(r.get("Additional", 0) or 0), 
                                     float(r.get("Water", 0) or 0), float(r.get("tankWater", 0) or 0), float(r.get("Electricity", 0) or 0), 
                                     float(r.get("Total", 0) or 0), "", "", "", "", float(r.get("Rate", 0) or 0), r.get("receiptStatus", "ACTIVE"),
-                                    0, float(r.get("additionalPersonRate", 0) or 0), 8, "Import", r.get("paymentStatus", "PENDING"),
-                                    float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), float(r.get("amountReceived", 0) or 0),
+                                    0, float(r.get("additionalPersonRate", 0) or 0), 8, "Import", "PENDING",
+                                    float(r.get("Maintenance", 0) or 0), r.get("MaintenanceDesc", ""), float(r.get("Arrears", 0) or 0), 0.0,
                                     tenant_landlord_id
                                 ))
                                 imported_receipts += 1
 
+                        # ── DERIVED STATUS (v1 fallback) ──
+                        # Never trust file paymentStatus / amountReceived. Mirror the
+                        # canonicalizer's v1 LEGACY_IMPORT backfill so a 2-sheet file
+                        # yields the same statuses as the V2 path: one synthetic
+                        # payment entry per bill whose file amountReceived > 0, then
+                        # let the engine re-derive amountreceived / paymentstatus.
+                        for r in t_data.get("receipts", []):
+                            og_billNo = str(r.get("BillNo", "")).strip()
+                            if not og_billNo:
+                                continue
+                            if action == "CREATE_NEW":
+                                pay_bill_no = _remap_bill_no(og_billNo, t_id, tenantId)
+                            else:
+                                pay_bill_no = og_billNo
+                            file_recv = float(r.get("amountReceived", 0) or 0)
+                            if file_recv <= 0:
+                                continue
+                            _upsert_payment(conn, {
+                                "tenantId": tenantId,
+                                "billNo": pay_bill_no,
+                                "paymentDate": _parse_excel_date(r.get("Date", "")),
+                                "amount": file_recv,
+                                "paymentMethod": "OTHER",
+                                "reference": "",
+                                "notes": "Legacy v1 receipt amount",
+                                "externalId": f"LEGACY-{t_id}-{og_billNo}",
+                            }, tenant_landlord_id, datetime.datetime.utcnow().isoformat(), source="LEGACY_IMPORT")
+                            _recalculate_and_apply(conn, tenantId, pay_bill_no)
+                            imported_payments += 1
+
                     affected_tenant_ids.add(tenantId)
 
                     conn.execute(
-                        "INSERT INTO import_job_items (import_job_id, target_key, import_tenant_id, import_tenant_name, action, existing_tenant_id, result) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                        'INSERT INTO "importJobItems" ("importJobId", "targetKey", "importTenantId", "importTenantName", action, "existingTenantId", result) VALUES (%s, %s, %s, %s, %s, %s, %s)',
                         (job_id, target_key, t_id, t_name, action, existing_t.id if existing_t else None, "SUCCESS")
                     )
                     
@@ -1056,7 +1073,7 @@ async def import_execute_data(
                     })
 
             # Mark job complete
-            conn.execute("UPDATE import_jobs SET status = %s, result_json = %s WHERE id = %s", ("COMPLETED", json.dumps({"tenants": len(imported_tenants), "receipts": imported_receipts}), job_id))
+            conn.execute('UPDATE "importJobs" SET status = %s, "resultJson" = %s WHERE id = %s', ("COMPLETED", json.dumps({"tenants": len(imported_tenants), "receipts": imported_receipts}), job_id))
 
             # Imported previousArrears may diverge from the running-balance
             # model — normalize every affected tenant's chain before commit.
@@ -1101,6 +1118,199 @@ async def import_execute_data(
                 if isinstance(temp_path, str) and os.path.isfile(temp_path):
                     os.remove(temp_path)
             except: pass
+
+
+# ============================================================================
+# V2 IMPORT (CANONICAL MODEL) — PREVIEW + EXECUTE
+# ============================================================================
+
+
+@router.post(Routes.LANDLORDAPISYNCIMPORTPREVIEWV2, name=Names.IMPORTPREVIEWDATAV2)
+async def import_preview_data_v2(landlordUuid: str, files: List[UploadFile] = File(...), principal=Depends(get_current_landlord_api_strict)):
+    """
+    V2 preview: ingest any supported file (xlsx / csv / zip) into the canonical
+    model, then run conflict + encrypted-PIN detection per file so resolution
+    keys stay in the ``"{filename}::{t_id}"`` form the execute endpoint expects.
+    """
+    preview_data = {}
+    try:
+        for file in files:
+            content = await file.read()
+            preview_data[file.filename] = parse_import_file(file.filename, content)
+
+        canonical = merge_canonical(list(preview_data.values()))
+
+        all_conflicts = {}
+        all_encrypted_pins = {}
+        for filename, file_canonical in preview_data.items():
+            conflicts = detect_conflicts(file_canonical, landlord_id=principal.landlord_id)
+            if conflicts:
+                all_conflicts[filename] = conflicts
+            encrypted_pins = detect_encrypted_pins(file_canonical)
+            if encrypted_pins:
+                all_encrypted_pins[filename] = encrypted_pins
+
+        return {
+            "status": "success",
+            "files": preview_data,
+            "canonical": {
+                "version": canonical.get("version"),
+                "tenants": list(canonical.get("tenants", {}).values()),
+                "bills": canonical.get("bills", []),
+                "payments": canonical.get("payments", []),
+                "warnings": canonical.get("warnings", []),
+                "legacy_backfilled": canonical.get("legacy_backfilled", 0),
+            },
+            "conflicts": all_conflicts if all_conflicts else {},
+            "encrypted_pins": all_encrypted_pins if all_encrypted_pins else {},
+            "requires_resolution": bool(all_conflicts or all_encrypted_pins),
+            "predicted_next_tenant_id": _get_next_available_tenant_id()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post(Routes.LANDLORDAPISYNCIMPORTEXECUTEV2, name=Names.IMPORTEXECUTEDATAV2)
+async def import_execute_data_v2(
+    landlordUuid: str,
+    background_tasks: BackgroundTasks,
+    files: List[UploadFile] = File(...),
+    selectedtargets: Optional[str] = Form(None),
+    selectedTargets: Optional[str] = Form(None),
+    targetstatuses: Optional[str] = Form(None),
+    idresolutions: Optional[str] = Form(None),
+    pinhandling: Optional[str] = Form("prompt"),
+    pinresolutions: Optional[str] = Form(None),
+    receiptstrategies: Optional[str] = Form(None),
+    principal=Depends(get_current_landlord_api_strict),
+):
+    """
+    V2 execute: canonical-model import with conflict resolution inside a single
+    transaction. Mirrors the v1 form contract (targets, statuses, id resolutions,
+    pin handling, receipt strategies) over the V2 engine.
+    """
+    targets = selectedtargets or selectedTargets or ""
+    if not targets:
+        raise HTTPException(status_code=400, detail="selectedtargets is required")
+
+    try:
+        selected_list = json.loads(targets)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON in selectedtargets")
+
+    if not isinstance(selected_list, list):
+        raise HTTPException(status_code=400, detail="selectedtargets must be a JSON array")
+
+    try:
+        status_overrides: Dict[str, str] = json.loads(targetstatuses or "{}")
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON in targetstatuses.")
+
+    id_resolutions: Dict[str, str] = {}
+    if idresolutions:
+        try:
+            id_resolutions = json.loads(idresolutions)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON in idresolutions.")
+
+    pin_resolutions: Dict[str, str] = {}
+    if pinresolutions:
+        try:
+            pin_resolutions = json.loads(pinresolutions)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON in pinresolutions.")
+
+    receipt_strategies: Dict[str, str] = {}
+    if receiptstrategies:
+        try:
+            receipt_strategies = json.loads(receiptstrategies)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON in receiptstrategies.")
+
+    pin_handling_mode = (pinhandling or "prompt").strip().lower()
+    if pin_handling_mode not in {"prompt", "skip", "assign_random"}:
+        raise HTTPException(status_code=400, detail="Invalid pinhandling. Use 'prompt', 'skip', or 'assign_random'.")
+
+    if not selected_list:
+        raise HTTPException(status_code=400, detail="No tenants selected for import.")
+
+    canonical_files = {}
+    try:
+        for file in files:
+            content = await file.read()
+            canonical_files[file.filename] = parse_import_file(file.filename, content)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse files: {str(e)}")
+
+    background_tasks.add_task(create_full_backup, tag="pre_import_v2", landlord_id=principal.landlord_id)
+
+    try:
+        return apply_import(
+            canonical_files=canonical_files,
+            selected_list=selected_list,
+            id_resolutions=id_resolutions,
+            status_overrides=status_overrides,
+            pin_handling_mode=pin_handling_mode,
+            pin_resolutions=pin_resolutions,
+            receipt_strategies=receipt_strategies,
+            landlord_id=principal.landlord_id,
+        )
+    except ConflictResolutionError as e:
+        raise HTTPException(status_code=409, detail=e.to_payload())
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Import execution failed: {str(e)}")
+
+
+@router.get(Routes.LANDLORDAPISYNCEXPORTV2, name=Names.EXPORTDATAV2)
+async def export_data_v2(landlordUuid: str, format: str = "xlsx", tenants_list: str = "all", principal=Depends(get_current_landlord_api_strict)):
+    """
+    V2 export: build the canonical model (profiles + bills + payments + derived
+    PINs) and stream it back as csv / xlsx / zip. Zip bundles the 40-column flat
+    import CSV, the V2 workbook, receipts CSV and per-bill PDFs.
+    """
+    try:
+        content, filename, media_type = export_bytes(
+            export_format=format,
+            landlord_id=principal.landlord_id,
+            tenants_filter=tenants_list,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    response = StreamingResponse(iter([content]), media_type=media_type)
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
+
+
+@router.get(Routes.LANDLORDAPISYNCIMPORTTEMPLATEV2, name=Names.DOWNLOADEXCELTEMPLATEV2)
+async def download_import_template_v2(landlordUuid: str, format: str = "xlsx"):
+    """
+    V2 template download: a single-sheet 40-column flat workbook/CSV (profiles +
+    bills + payments) pre-filled with sample data for building a V2 import file.
+    """
+    try:
+        if format == "csv":
+            content = template_csv_bytes()
+            filename = "Rent_Data_Template_V2.csv"
+            media_type = "text/csv"
+        elif format == "xlsx":
+            content = template_workbook_bytes()
+            filename = "Rent_Data_Template_V2.xlsx"
+            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format. Use 'csv' or 'xlsx'.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    response = StreamingResponse(iter([content]), media_type=media_type)
+    response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return response
 
 
 @router.get(Routes.LANDLORDAPIBILLINGARCHIVEDATA)

@@ -16,6 +16,7 @@
 from datetime import date as _date, datetime as _datetime
 
 from app.core.db import get_conn
+from app.services.payment_status_engine import calculate_payment_state
 
 _MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
                 "July", "August", "September", "October", "November", "December"]
@@ -39,27 +40,43 @@ def _safe_float(val, default=0.0) -> float:
     except Exception:
         return default
 
+_VALID_PAYMENT_METHODS = ("CASH", "UPI", "BANK_TRANSFER", "CHEQUE", "CARD", "ONLINE", "OTHER")
+
+
+def _normalize_method(method):
+    """Normalize (and validate) a payment method for storage / import."""
+    m = str(method or "OTHER").strip().upper() or "OTHER"
+    if m not in _VALID_PAYMENT_METHODS:
+        raise ValueError(
+            f"Invalid payment method '{m}'. Valid: {sorted(_VALID_PAYMENT_METHODS)}"
+        )
+    return m
+
 
 def _row_to_entry(row) -> dict:
     return {
         "id": int(row["id"]),
         "billNo": row["billNo"],
         "tenantId": int(row["tenantId"] or 0),
-        "paymentDate": row["payment_date"],
-        "amount": _safe_float(row["amount"]),
-        "createdAt": row["created_at"],
-        "updatedAt": row["updated_at"],
+        "paymentDate": row["paymentDate"],
+        "amount": _safe_float(row["paymentAmount"]),
+        "createdAt": row["createdAt"],
+        "updatedAt": row["updatedAt"],
         "status": row["status"],
-        "paymentType": row["payment_type"],
+        "paymentType": row["paymentType"],
         "source": row["source"],
+        "paymentMethod": _normalize_method(row.get("paymentMethod") or "OTHER"),
+        "externalId": row.get("externalId"),
+        "reference": row.get("reference"),
+        "notes": row.get("notes"),
     }
 
 
 def _get_active_rows(conn, tenant_id, bill_no):
     return conn.execute(
-        "SELECT * FROM payment_entries "
-        "WHERE tenantId = %s AND billNo = %s AND status = 'ACTIVE' "
-        "ORDER BY payment_date ASC, id ASC",
+        "SELECT * FROM \"paymentEntries\" "
+        '''WHERE "tenantId" = %s AND "billNo" = %s AND status = 'ACTIVE' '''
+        "ORDER BY \"paymentDate\" ASC, id ASC",
         (tenant_id, bill_no),
     ).fetchall()
 
@@ -75,8 +92,8 @@ def get_tenant_outstanding_balance(tenant_id: int) -> float:
     """
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT COALESCE(SUM(COALESCE(total,0)),0) - COALESCE(SUM(COALESCE(amountreceived,0)),0) AS bal "
-            "FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
+            "SELECT COALESCE(SUM(COALESCE(\"billTotal\",0)),0) - COALESCE(SUM(COALESCE(\"amountReceived\",0)),0) AS bal "
+            """FROM receipts WHERE "tenantId" = %s AND status != 'ARCHIVED'""",
             (tenant_id,),
         ).fetchone()
     return round(float(row["bal"] or 0), 2)
@@ -84,10 +101,10 @@ def get_tenant_outstanding_balance(tenant_id: int) -> float:
 
 def _ordered_bills(conn, tenant_id):
     rows = conn.execute(
-        "SELECT id AS rowid, * FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
+        """SELECT id AS rowid, * FROM receipts WHERE "tenantId" = %s AND status != 'ARCHIVED'""",
         (tenant_id,),
     ).fetchall()
-    return sorted(rows, key=lambda r: (_month_sort_key(r["month"]), r["rowid"]))
+    return sorted(rows, key=lambda r: (_month_sort_key(r["billMonth"]), r["rowid"]))
 
 
 def _recompute_tenant_settlement(conn, tenant_id):
@@ -107,12 +124,12 @@ def _recompute_tenant_settlement(conn, tenant_id):
     """
     now = _datetime.utcnow().isoformat(timespec="seconds")
     ordered = _ordered_bills(conn, tenant_id)
-    conn.execute("DELETE FROM payment_allocations WHERE tenant_id = %s", (tenant_id,))
+    conn.execute("DELETE FROM \"paymentAllocations\" WHERE \"tenantId\" = %s", (tenant_id,))
     for r in ordered:
         conn.execute(
-            "UPDATE receipts SET settled_by_bill_no = NULL, settlement_type = 'NONE', "
-            "settled_at = NULL, settlement_amount = 0 "
-            "WHERE tenantId = %s AND billNo = %s",
+            "UPDATE receipts SET \"settledByBillNo\" = NULL, \"settlementType\" = 'NONE', "
+            "\"settledAt\" = NULL, \"settlementAmount\" = 0 "
+            'WHERE "tenantId" = %s AND "billNo" = %s',
             (tenant_id, r["billNo"]),
         )
     if not ordered:
@@ -121,20 +138,20 @@ def _recompute_tenant_settlement(conn, tenant_id):
     # Per-bill unpaid current charge (never includes carried arrears, so the
     # oldest-bills-first pass resolves an earlier bill's arrears exactly once).
     bills = [
-        {"billNo": r["billNo"], "month": r["month"], "current_total": _safe_float(r["total"]),
-         "unpaid_current": _safe_float(r["total"])}
+        {"billNo": r["billNo"], "month": r["billMonth"], "current_total": _safe_float(r["billTotal"]),
+         "unpaid_current": _safe_float(r["billTotal"])}
         for r in ordered
     ]
     bill_by_no = {b["billNo"]: b for b in bills}
 
     entries = conn.execute(
-        "SELECT * FROM payment_entries WHERE tenantId = %s AND status = 'ACTIVE' "
-        "ORDER BY payment_date ASC, id ASC",
+        '''SELECT * FROM \"paymentEntries\" WHERE "tenantId" = %s AND status = 'ACTIVE' '''
+        "ORDER BY \"paymentDate\" ASC, id ASC",
         (tenant_id,),
     ).fetchall()
 
     for e in entries:
-        amt = _safe_float(e["amount"])
+        amt = _safe_float(e["paymentAmount"])
         if amt <= 0:
             continue
         rec_bill = e["billNo"]
@@ -147,8 +164,8 @@ def _recompute_tenant_settlement(conn, tenant_id):
             current["unpaid_current"] = round(current["unpaid_current"] - take, 2)
             remaining = round(remaining - take, 2)
             conn.execute(
-                "INSERT INTO payment_allocations "
-                "(payment_entry_id, tenant_id, bill_no, allocated_amount, allocation_type, created_at) "
+                "INSERT INTO \"paymentAllocations\" "
+                "(\"paymentEntryId\", \"tenantId\", \"billNo\", \"allocatedAmount\", \"allocationType\", \"createdAt\") "
                 "VALUES (%s, %s, %s, %s, 'CURRENT_BILL', %s)",
                 (e["id"], tenant_id, rec_bill, take, now),
             )
@@ -164,8 +181,8 @@ def _recompute_tenant_settlement(conn, tenant_id):
                 b["unpaid_current"] = round(b["unpaid_current"] - take, 2)
                 remaining = round(remaining - take, 2)
                 conn.execute(
-                    "INSERT INTO payment_allocations "
-                    "(payment_entry_id, tenant_id, bill_no, allocated_amount, allocation_type, created_at) "
+                    "INSERT INTO \"paymentAllocations\" "
+                    "(\"paymentEntryId\", \"tenantId\", \"billNo\", \"allocatedAmount\", \"allocationType\", \"createdAt\") "
                     "VALUES (%s, %s, %s, %s, 'ARREAR', %s)",
                     (e["id"], tenant_id, b["billNo"], take, now),
                 )
@@ -173,8 +190,8 @@ def _recompute_tenant_settlement(conn, tenant_id):
         # 3. Remainder -> advance against the recorded bill.
         if remaining > 0.001:
             conn.execute(
-                "INSERT INTO payment_allocations "
-                "(payment_entry_id, tenant_id, bill_no, allocated_amount, allocation_type, created_at) "
+                "INSERT INTO \"paymentAllocations\" "
+                "(\"paymentEntryId\", \"tenantId\", \"billNo\", \"allocatedAmount\", \"allocationType\", \"createdAt\") "
                 "VALUES (%s, %s, %s, %s, 'ADVANCE', %s)",
                 (e["id"], tenant_id, rec_bill, round(remaining, 2), now),
             )
@@ -187,25 +204,25 @@ def _recompute_tenant_settlement(conn, tenant_id):
     settled_latest = ordered[-1]["billNo"] if ordered else None
     own_received = {}
     for e in entries:
-        own_received[e["billNo"]] = round(own_received.get(e["billNo"], 0.0) + _safe_float(e["amount"]), 2)
+        own_received[e["billNo"]] = round(own_received.get(e["billNo"], 0.0) + _safe_float(e["paymentAmount"]), 2)
     for b in bills:
         grand = round(b["current_total"] + _safe_float(_prev_arrears_of(conn, tenant_id, b["billNo"])), 2)
         recv = own_received.get(b["billNo"], 0.0)
         if b["unpaid_current"] <= 0.001 and recv < grand - 0.001:
             # Fully settled now, but historically partial -> cleared by a later payment.
             conn.execute(
-                "UPDATE receipts SET settled_by_bill_no = %s, settlement_type = 'CURRENT_PAYMENT', "
-                "settled_at = %s, settlement_amount = %s WHERE tenantId = %s AND billNo = %s",
+                "UPDATE receipts SET \"settledByBillNo\" = %s, \"settlementType\" = 'CURRENT_PAYMENT', "
+                '\"settledAt\" = %s, \"settlementAmount\" = %s WHERE "tenantId" = %s AND "billNo" = %s',
                 (settled_latest, now, round(grand - recv, 2), tenant_id, b["billNo"]),
             )
 
 
 def _prev_arrears_of(conn, tenant_id, bill_no):
     row = conn.execute(
-        "SELECT previousarrears FROM receipts WHERE tenantId = %s AND billNo = %s",
+        'SELECT \"previousArrears\" FROM receipts WHERE "tenantId" = %s AND "billNo" = %s',
         (tenant_id, bill_no),
     ).fetchone()
-    return _safe_float(row["previousarrears"]) if row else 0.0
+    return _safe_float(row["previousArrears"]) if row else 0.0
 
 
 def get_tenant_settlement_state(tenant_id: int, conn=None):
@@ -232,10 +249,10 @@ def get_tenant_settlement_state(tenant_id: int, conn=None):
                 "settlements": [],
             }
         latest = ordered[-1]
-        current_total = _safe_float(latest["total"])
-        prev_arrears = _safe_float(latest["previousarrears"])
+        current_total = _safe_float(latest["billTotal"])
+        prev_arrears = _safe_float(latest["previousArrears"])
         grand = round(current_total + prev_arrears, 2)
-        received = _safe_float(latest["amountreceived"])
+        received = _safe_float(latest["amountReceived"])
         outstanding = _tenant_outstanding(conn, tenant_id)
 
         bill_by_no = {r["billNo"]: r for r in ordered}
@@ -243,8 +260,8 @@ def get_tenant_settlement_state(tenant_id: int, conn=None):
 
         # advance = any allocations marked ADVANCE (or received > grand on current bill)
         adv = conn.execute(
-            "SELECT COALESCE(SUM(allocated_amount),0) AS a FROM payment_allocations "
-            "WHERE tenant_id = %s AND allocation_type = 'ADVANCE' AND bill_no = %s",
+            "SELECT COALESCE(SUM(\"allocatedAmount\"),0) AS a FROM \"paymentAllocations\" "
+            "WHERE \"tenantId\" = %s AND \"allocationType\" = 'ADVANCE' AND \"billNo\" = %s",
             (tenant_id, latest["billNo"]),
         ).fetchone()["a"] or 0.0
 
@@ -255,18 +272,18 @@ def get_tenant_settlement_state(tenant_id: int, conn=None):
             if current_unpaid > 0.001:
                 arrears.append({
                     "billNo": latest["billNo"],
-                    "month": latest["month"],
+                    "month": latest["billMonth"],
                     "amount": round(current_unpaid, 2),
                 })
 
         settlements = []
         for r in ordered:
-            st = r["settlement_type"] if "settlement_type" in r.keys() else None
+            st = r["settlementType"] if "settlementType" in r.keys() else None
             if st and st != "NONE":
                 settlements.append({
                     "billNo": r["billNo"],
-                    "settledByBillNo": r["settled_by_bill_no"] if "settled_by_bill_no" in r.keys() else "",
-                    "amount": _safe_float(r["settlement_amount"]),
+                    "settledByBillNo": r["settledByBillNo"] if "settledByBillNo" in r.keys() else "",
+                    "amount": _safe_float(r["settlementAmount"]),
                     "type": st,
                 })
 
@@ -276,7 +293,7 @@ def get_tenant_settlement_state(tenant_id: int, conn=None):
             "advance": round(float(adv), 2),
             "currentBill": {
                 "billNo": latest["billNo"],
-                "month": latest["month"],
+                "month": latest["billMonth"],
                 "currentAmount": current_total,
                 "previousArrears": prev_arrears,
                 "grandTotal": grand,
@@ -304,13 +321,13 @@ def _regenerate_bill_pdf(conn, tenant_id, bill_no):
         from app.services.landlord_config_service import get_effective_landlord_config
 
         row = conn.execute(
-            "SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s",
+            'SELECT * FROM receipts WHERE "tenantId" = %s AND "billNo" = %s',
             (tenant_id, bill_no),
         ).fetchone()
         if row is None:
             return
         rec = _row_to_dict(row)
-        landlord_id = row["landlord_id"]
+        landlord_id = row["landlordId"]
         entries = [e for e in _get_active_rows(conn, tenant_id, bill_no)]
         pdf_name = row["pdf"] or f"{bill_no}.pdf"
         pdf_path = os.path.join(RECEIPTS_DIR, pdf_name)
@@ -331,53 +348,46 @@ def _recalculate_and_apply(conn, tenant_id, bill_no):
     Returns the resolved dict for the bill after recalculation.
     """
     row = conn.execute(
-        "SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s",
+        'SELECT * FROM receipts WHERE "tenantId" = %s AND "billNo" = %s',
         (tenant_id, bill_no),
     ).fetchone()
     if row is None:
         raise ValueError("Receipt not found")
 
-    current_total = _safe_float(row["total"])
-    previous_arrears = _safe_float(row["previousarrears"])
-    grand_total = round(current_total + previous_arrears, 2)
-
+    current_total = _safe_float(row["billTotal"])
+    previous_arrears = _safe_float(row["previousArrears"])
     entries = _get_active_rows(conn, tenant_id, bill_no)
-    total_received = round(sum(_safe_float(e["amount"]) for e in entries), 2)
-
-    if total_received <= 0:
-        status = "PENDING"
-    elif total_received < grand_total:
-        status = "PARTIAL"
-    elif total_received == grand_total:
-        status = "PAID"
-    else:
-        status = "ADVANCE"
+    state = calculate_payment_state(
+        bill_total=current_total,
+        arrears=previous_arrears,
+        active_amounts=[_safe_float(e["paymentAmount"]) for e in entries],
+    )
 
     conn.execute(
-        "UPDATE receipts SET amountreceived = %s, paymentstatus = %s "
-        "WHERE tenantId = %s AND billNo = %s",
-        (total_received, status, tenant_id, bill_no),
+        "UPDATE receipts SET \"amountReceived\" = %s, \"paymentStatus\" = %s "
+        'WHERE "tenantId" = %s AND "billNo" = %s',
+        (state["amount_received"], state["status"], tenant_id, bill_no),
     )
 
     return {
         "billNo": bill_no,
         "tenantId": tenant_id,
-        "grandTotal": grand_total,
-        "totalReceived": total_received,
-        "balanceDue": round(max(grand_total - total_received, 0.0), 2),
-        "advanceAmount": round(max(total_received - grand_total, 0.0), 2),
-        "paymentStatus": status,
+        "grandTotal": state["grand_total"],
+        "totalReceived": state["amount_received"],
+        "balanceDue": state["balance_due"],
+        "advanceAmount": state["advance_amount"],
+        "paymentStatus": state["status"],
         "paymentCount": len(entries),
         "payments": [_row_to_entry(e) for e in entries],
         "outstandingBalance": round(_tenant_outstanding(conn, tenant_id), 2),
-        "arrearsCleared": status in ("PAID", "ADVANCE") and _tenant_outstanding(conn, tenant_id) <= 0.001,
+        "arrearsCleared": state["status"] in ("PAID", "ADVANCE") and _tenant_outstanding(conn, tenant_id) <= 0.001,
     }
 
 
 def _tenant_outstanding(conn, tenant_id) -> float:
     row = conn.execute(
-        "SELECT COALESCE(SUM(COALESCE(total,0)),0) - COALESCE(SUM(COALESCE(amountreceived,0)),0) AS bal "
-        "FROM receipts WHERE tenantId = %s AND status != 'ARCHIVED'",
+        "SELECT COALESCE(SUM(COALESCE(\"billTotal\",0)),0) - COALESCE(SUM(COALESCE(\"amountReceived\",0)),0) AS bal "
+        """FROM receipts WHERE "tenantId" = %s AND status != 'ARCHIVED'""",
         (tenant_id,),
     ).fetchone()
     return round(float(row["bal"] or 0), 2)
@@ -389,7 +399,7 @@ def _validate_owner(conn, tenant_id, bill_no, landlord_id):
     if landlord_id is not None and not get_tenant(tenant_id, landlord_id):
         raise ValueError("Tenant not found")
     row = conn.execute(
-        "SELECT 1 FROM receipts WHERE tenantId = %s AND billNo = %s",
+        'SELECT 1 FROM receipts WHERE "tenantId" = %s AND "billNo" = %s',
         (tenant_id, bill_no),
     ).fetchone()
     if row is None:
@@ -414,69 +424,71 @@ def get_payment_entries(tenant_id, bill_no, landlord_id=None):
     with get_conn() as conn:
         _validate_owner(conn, tenant_id, bill_no, landlord_id)
         row = conn.execute(
-            "SELECT * FROM receipts WHERE tenantId = %s AND billNo = %s",
+            'SELECT * FROM receipts WHERE "tenantId" = %s AND "billNo" = %s',
             (tenant_id, bill_no),
         ).fetchone()
         if row is None:
             raise ValueError("Receipt not found")
-        current_total = _safe_float(row["total"])
-        previous_arrears = _safe_float(row["previousarrears"])
-        grand_total = round(current_total + previous_arrears, 2)
+        current_total = _safe_float(row["billTotal"])
+        previous_arrears = _safe_float(row["previousArrears"])
         ordered = [
             e for e in conn.execute(
-                "SELECT * FROM payment_entries "
-                "WHERE tenantId = %s AND billNo = %s AND status = 'ACTIVE' "
-                "ORDER BY payment_date ASC, id ASC",
+                "SELECT * FROM \"paymentEntries\" "
+                '''WHERE "tenantId" = %s AND "billNo" = %s AND status = 'ACTIVE' '''
+                "ORDER BY \"paymentDate\" ASC, id ASC",
                 (tenant_id, bill_no),
             ).fetchall()
         ]
-        total_received = round(sum(_safe_float(e["amount"]) for e in ordered), 2)
-        if total_received <= 0:
-            status = "PENDING"
-        elif total_received < grand_total:
-            status = "PARTIAL"
-        elif total_received == grand_total:
-            status = "PAID"
-        else:
-            status = "ADVANCE"
+        state = calculate_payment_state(
+            bill_total=current_total,
+            arrears=previous_arrears,
+            active_amounts=[_safe_float(e["paymentAmount"]) for e in ordered],
+        )
         return {
             "billNo": bill_no,
             "tenantId": tenant_id,
-            "grandTotal": grand_total,
-            "totalReceived": total_received,
-            "balanceDue": round(max(grand_total - total_received, 0.0), 2),
-            "advanceAmount": round(max(total_received - grand_total, 0.0), 2),
-            "paymentStatus": status,
+            "grandTotal": state["grand_total"],
+            "totalReceived": state["amount_received"],
+            "balanceDue": state["balance_due"],
+            "advanceAmount": state["advance_amount"],
+            "paymentStatus": state["status"],
             "paymentCount": len(ordered),
             "payments": [_row_to_entry(e) for e in ordered],
             "outstandingBalance": _tenant_outstanding(conn, tenant_id),
-            "arrearsCleared": status in ("PAID", "ADVANCE") and _tenant_outstanding(conn, tenant_id) <= 0.001,
+            "arrearsCleared": state["status"] in ("PAID", "ADVANCE") and _tenant_outstanding(conn, tenant_id) <= 0.001,
             "settlement": get_tenant_settlement_state(tenant_id, conn=conn),
         }
 
 
-def create_payment_entry(tenant_id, bill_no, payment_date, amount, landlord_id=None, source="MANUAL"):
+def create_payment_entry(tenant_id, bill_no, payment_date, amount, landlord_id=None, source="MANUAL",
+                         payment_method="OTHER", reference=None, notes=None, external_id=None):
     """Record a new payment transaction against a bill and recompute state.
 
     amount is the amount received in THIS transaction (not cumulative). The
     backend derives the bill's total received from all active entries.
+
+    payment_method, reference, notes describe the transaction itself;
+    external_id carries the portable import/export identity (PAY-...).
     """
     amount = _safe_float(amount)
     if amount <= 0:
         raise ValueError("Amount must be greater than zero.")
     _validate_date(payment_date)
+    payment_method = _normalize_method(payment_method)
 
     with get_conn() as conn:
         _validate_owner(conn, tenant_id, bill_no, landlord_id)
         now = _datetime.utcnow().isoformat(timespec="seconds")
         conn.execute(
-            """
-            INSERT INTO payment_entries
-                (billNo, tenantId, landlord_id, payment_date, amount,
-                 created_at, updated_at, created_by, status, payment_type, source)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'ACTIVE', 'BILL', %s)
-            """,
-            (bill_no, tenant_id, landlord_id, payment_date, amount, now, now, "Landlord", source),
+            '''
+            INSERT INTO "paymentEntries"
+                ("billNo", "tenantId", "landlordId", "paymentDate", "paymentAmount",
+                 "createdAt", "updatedAt", "createdBy", status, "paymentType", source,
+                 "paymentMethod", "externalId", reference, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'ACTIVE', 'BILL', %s, %s, %s, %s, %s)
+            ''',
+            (bill_no, tenant_id, landlord_id, payment_date, amount, now, now, "Landlord", source,
+             payment_method, external_id, reference, notes),
         )
         result = _recalculate_and_apply(conn, tenant_id, bill_no)
         _apply_chain_and_pdfs(conn, tenant_id, bill_no)
@@ -484,27 +496,29 @@ def create_payment_entry(tenant_id, bill_no, payment_date, amount, landlord_id=N
     return result
 
 
-def update_payment_entry(tenant_id, bill_no, payment_id, payment_date, amount, landlord_id=None):
+def update_payment_entry(tenant_id, bill_no, payment_id, payment_date, amount, landlord_id=None,
+                         payment_method="OTHER", reference=None, notes=None):
     """Modify an existing payment entry, then recompute from the affected bill
     forward (editing an old payment can change later bills' previousArrears)."""
     amount = _safe_float(amount)
     if amount <= 0:
         raise ValueError("Amount must be greater than zero.")
     _validate_date(payment_date)
+    payment_method = _normalize_method(payment_method)
 
     with get_conn() as conn:
         _validate_owner(conn, tenant_id, bill_no, landlord_id)
         row = conn.execute(
-            "SELECT 1 FROM payment_entries WHERE id = %s AND billNo = %s AND tenantId = %s AND status = 'ACTIVE'",
+            """SELECT 1 FROM \"paymentEntries\" WHERE id = %s AND "billNo" = %s AND "tenantId" = %s AND status = 'ACTIVE'""",
             (payment_id, bill_no, tenant_id),
         ).fetchone()
         if row is None:
             raise ValueError("Payment entry not found")
         now = _datetime.utcnow().isoformat(timespec="seconds")
         conn.execute(
-            "UPDATE payment_entries SET payment_date = %s, amount = %s, updated_at = %s, updated_by = %s "
-            "WHERE id = %s",
-            (payment_date, amount, now, "Landlord", payment_id),
+            "UPDATE \"paymentEntries\" SET \"paymentDate\" = %s, \"paymentAmount\" = %s, \"paymentMethod\" = %s, "
+            "reference = %s, notes = %s, \"updatedAt\" = %s, \"updatedBy\" = %s WHERE id = %s",
+            (payment_date, amount, payment_method, reference, notes, now, "Landlord", payment_id),
         )
         result = _recalculate_and_apply(conn, tenant_id, bill_no)
         _apply_chain_and_pdfs(conn, tenant_id, bill_no)
@@ -518,20 +532,87 @@ def delete_payment_entry(tenant_id, bill_no, payment_id, landlord_id=None):
     with get_conn() as conn:
         _validate_owner(conn, tenant_id, bill_no, landlord_id)
         row = conn.execute(
-            "SELECT 1 FROM payment_entries WHERE id = %s AND billNo = %s AND tenantId = %s AND status = 'ACTIVE'",
+            """SELECT 1 FROM \"paymentEntries\" WHERE id = %s AND "billNo" = %s AND "tenantId" = %s AND status = 'ACTIVE'""",
             (payment_id, bill_no, tenant_id),
         ).fetchone()
         if row is None:
             raise ValueError("Payment entry not found")
         now = _datetime.utcnow().isoformat(timespec="seconds")
         conn.execute(
-            "UPDATE payment_entries SET status = 'DELETED', updated_at = %s, updated_by = %s WHERE id = %s",
+            "UPDATE \"paymentEntries\" SET status = 'DELETED', \"updatedAt\" = %s, \"updatedBy\" = %s WHERE id = %s",
             (now, "Landlord", payment_id),
         )
         result = _recalculate_and_apply(conn, tenant_id, bill_no)
         _apply_chain_and_pdfs(conn, tenant_id, bill_no)
         conn.commit()
     return result
+
+
+def import_payment_entries(entries, landlord_id=None, source="IMPORT"):
+    """Idempotently upsert a batch of payment transactions (import engine).
+
+    `entries` is an iterable of dicts with keys:
+        tenantId, billNo, paymentDate, amount, paymentMethod, reference, notes, externalId
+
+    Keyed by `external_id`: when the id matches an existing ACTIVE entry the
+    entry is updated to mirror the file (full sync); otherwise a new entry is
+    created. Each bill is recomputed (amountreceived / paymentStatus derived from
+    SUM of ACTIVE entries) and the arrears + allocation chain propagates once per
+    affected bill. Returns the recomputed per-bill state dicts.
+    """
+    if not entries:
+        return []
+
+    with get_conn() as conn:
+        now = _datetime.utcnow().isoformat(timespec="seconds")
+        affected = {}  # (tenant_id, bill_no) -> True, preserves first-seen order
+        for e in entries:
+            tenant_id = int(e.get("tenantId") or 0)
+            bill_no = e.get("billNo")
+            amount = _safe_float(e.get("amount"))
+            payment_date = e.get("paymentDate") or _date.today().isoformat()
+            if not bill_no or amount <= 0:
+                continue
+            payment_method = _normalize_method(e.get("paymentMethod") or "OTHER")
+            reference = (e.get("reference") or "").strip() or None
+            notes = (e.get("notes") or "").strip() or None
+            external_id = (e.get("externalId") or "").strip() or None
+
+            existing = None
+            if external_id:
+                existing = conn.execute(
+                    "SELECT id FROM \"paymentEntries\" "
+                    "WHERE \"externalId\" = %s AND status = 'ACTIVE'",
+                    (external_id,),
+                ).fetchone()
+            if existing is not None:
+                conn.execute(
+                    "UPDATE \"paymentEntries\" SET \"paymentDate\" = %s, \"paymentAmount\" = %s, "
+                    "\"paymentMethod\" = %s, reference = %s, notes = %s, "
+                    "\"updatedAt\" = %s, \"updatedBy\" = %s WHERE id = %s",
+                    (payment_date, amount, payment_method, reference, notes, now, "Import", existing["id"]),
+                )
+            else:
+                conn.execute(
+                    '''
+                    INSERT INTO "paymentEntries"
+                        ("billNo", "tenantId", "landlordId", "paymentDate", "paymentAmount",
+                         "createdAt", "updatedAt", "createdBy", status, "paymentType", source,
+                         "paymentMethod", "externalId", reference, notes)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'ACTIVE', 'BILL', %s, %s, %s, %s, %s)
+                    ''',
+                    (bill_no, tenant_id, landlord_id, payment_date, amount, now, now, "Import",
+                     source, payment_method, external_id, reference, notes),
+                )
+            affected[(tenant_id, bill_no)] = True
+
+        results = []
+        for (tenant_id, bill_no) in affected:
+            result = _recalculate_and_apply(conn, tenant_id, bill_no)
+            _apply_chain_and_pdfs(conn, tenant_id, bill_no)
+            results.append(result)
+        conn.commit()
+    return results
 
 
 def _apply_chain_and_pdfs(conn, tenant_id, bill_no):
@@ -557,25 +638,25 @@ def sync_bill_payment_from_receipt(tenant_id, bill_no, amount_received):
         return
     with get_conn() as conn:
         exists = conn.execute(
-            "SELECT 1 FROM payment_entries WHERE billNo = %s AND tenantId = %s AND status = 'ACTIVE' LIMIT 1",
+            '''SELECT 1 FROM \"paymentEntries\" WHERE "billNo" = %s AND "tenantId" = %s AND status = 'ACTIVE' LIMIT 1''',
             (bill_no, tenant_id),
         ).fetchone()
         if exists:
             return
         row = conn.execute(
-            "SELECT date FROM receipts WHERE tenantId = %s AND billNo = %s",
+            'SELECT \"billDate\" FROM receipts WHERE "tenantId" = %s AND "billNo" = %s',
             (tenant_id, bill_no),
         ).fetchone()
         if row is None:
             return
         now = _datetime.utcnow().isoformat(timespec="seconds")
         conn.execute(
-            """
-            INSERT INTO payment_entries
-                (billNo, tenantId, payment_date, amount, created_at, updated_at,
-                 created_by, status, payment_type, source)
+            '''
+            INSERT INTO "paymentEntries"
+                ("billNo", "tenantId", "paymentDate", "paymentAmount", "createdAt", "updatedAt",
+                 "createdBy", status, "paymentType", source)
             VALUES (%s, %s, %s, %s, %s, %s, %s, 'ACTIVE', 'BILL', 'MANUAL')
-            """,
-            (bill_no, tenant_id, row["date"] or _date.today().isoformat(), amount_received, now, now, "Landlord"),
+            ''',
+            (bill_no, tenant_id, row["billDate"] or _date.today().isoformat(), amount_received, now, now, "Landlord"),
         )
         conn.commit()

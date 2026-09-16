@@ -45,9 +45,9 @@ def _build_principal(payload: dict, session_id: str, auth_type: str) -> AuthPrin
     landlord_id = int(payload.get("landlord_id") or payload.get("sub"))
     landlord = get_landlord_by_id(landlord_id)
 
-    landlord_uuid = landlord["landlord_uuid"] if landlord else None
+    landlord_uuid = landlord["landlordUuid"] if landlord else None
     username = landlord["username"] if landlord else None
-    fullname = landlord["full_name"] if landlord else None
+    fullname = landlord["fullName"] if landlord else None
     email = landlord["email"] if landlord else None
 
     return AuthPrincipal(
@@ -146,7 +146,7 @@ async def get_current_landlord_api(request: Request) -> AuthPrincipal:
         )
         if not consent_exempt:
             landlord = get_landlord_by_id(principal.landlord_id)
-            if landlord and (not landlord["privacy_consented"] or not landlord["terms_consented"]):
+            if landlord and (not landlord["privacyConsented"] or not landlord["termsConsented"]):
                 raise HTTPException(
                     status_code=403,
                     detail="Privacy Policy and Terms and Conditions acceptance are required to continue.",
@@ -191,11 +191,11 @@ async def get_current_landlord_api_strict(request: Request) -> AuthPrincipal:
     from app.core.db import get_conn as _get_conn
     with _get_conn() as conn:
         row = conn.execute(
-            "SELECT requires_password_change FROM landlord_accounts WHERE id = %s",
+            "SELECT \"requiresPasswordChange\" FROM \"landlordAccounts\" WHERE id = %s",
             (principal.landlord_id,),
         ).fetchone()
 
-    if row and row["requires_password_change"]:
+    if row and row["requiresPasswordChange"]:
         raise HTTPException(
             status_code=403,
             detail="Password change required. Please update your password to continue.",

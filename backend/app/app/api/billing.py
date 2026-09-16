@@ -239,6 +239,7 @@ async def api_create_payment(landlordUuid: str, tenantId: int, billNo: str, data
         result = create_payment_entry(
             tenantId, billNo, data.paymentDate, data.amount,
             landlord_id=principal.landlord_id, source="MANUAL",
+            payment_method=data.paymentMethod, reference=data.reference, notes=data.notes,
         )
         background_tasks.add_task(create_full_backup, tag="payment_entry_create", landlord_id=principal.landlord_id)
         landlord_id = principal.landlord_id
@@ -265,6 +266,7 @@ async def api_update_payment_entry(landlordUuid: str, tenantId: int, billNo: str
         result = update_payment_entry(
             tenantId, billNo, paymentId, data.paymentDate, data.amount,
             landlord_id=principal.landlord_id,
+            payment_method=data.paymentMethod, reference=data.reference, notes=data.notes,
         )
         background_tasks.add_task(create_full_backup, tag="payment_entry_update", landlord_id=principal.landlord_id)
         landlord_id = principal.landlord_id

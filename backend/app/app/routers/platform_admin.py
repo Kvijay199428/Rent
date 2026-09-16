@@ -17,7 +17,7 @@ import secrets
 import string
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
@@ -100,11 +100,11 @@ def _get_platform_admin(request: Request) -> dict:
     admin_id = int(payload["admin_id"])
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, email, is_platform_admin, totp_secret FROM admins WHERE id = %s", (admin_id,)
+            'SELECT id, username, email, "isPlatformAdmin", "totpSecret" FROM admins WHERE id = %s', (admin_id,)
         ).fetchone()
     if not row:
         raise HTTPException(status_code=401, detail="Platform admin not found")
-    if not row["is_platform_admin"]:
+    if not row["isPlatformAdmin"]:
         raise HTTPException(status_code=403, detail="Platform admin access required")
     return dict(row)
 
@@ -147,16 +147,16 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until FROM admins WHERE username = %s",
+            'SELECT id, username, "passwordHash", "totpSecret", "isPlatformAdmin", "failedAttempts", "lockedUntil" FROM admins WHERE username = %s',
             (body.username,),
         ).fetchone()
     if not row:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # Brute-force check
-    if row["locked_until"]:
+    if row["lockedUntil"]:
         try:
-            locked_dt = datetime.fromisoformat(row["locked_until"])
+            locked_dt = datetime.fromisoformat(row["lockedUntil"])
             if datetime.utcnow() < locked_dt:
                 remaining = int((locked_dt - datetime.utcnow()).total_seconds() / 60) + 1
                 create_platform_admin_audit_log(
@@ -166,22 +166,22 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
                 raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
             else:
                 with get_conn() as conn:
-                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
+                    conn.execute('UPDATE admins SET "failedAttempts" = 0, "lockedUntil" = NULL WHERE id = %s', (row["id"],))
                     conn.commit()
         except HTTPException:
             raise
         except Exception:
             pass
 
-    if not verify_pin(body.password, row["password_hash"]):
+    if not verify_pin(body.password, row["passwordHash"]):
         # Record failed attempt
-        new_attempts = (row["failed_attempts"] or 0) + 1
+        new_attempts = (row["failedAttempts"] or 0) + 1
         locked_until_str = None
         if new_attempts >= 5:
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
+                'UPDATE admins SET "failedAttempts" = %s, "lockedUntil" = %s WHERE id = %s',
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -192,12 +192,12 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
         )
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    if not row["is_platform_admin"]:
+    if not row["isPlatformAdmin"]:
         raise HTTPException(status_code=403, detail="Platform admin access required")
 
     # Reset failed attempts on success
     with get_conn() as conn:
-        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
+        conn.execute('UPDATE admins SET "failedAttempts" = 0, "lockedUntil" = NULL WHERE id = %s', (row["id"],))
         conn.commit()
 
     # 2FA gate: require a second factor whenever TOTP is configured OR a
@@ -205,13 +205,13 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
     # OTP is an obligation when available; TOTP remains a user-chosen
     # alternative. Password-only login only for accounts with neither factor.
     telegram_available = bool(get_admin_chat_id(row["id"])) and bot_configured()
-    if row["totp_secret"] or telegram_available:
+    if row["totpSecret"] or telegram_available:
         create_platform_admin_audit_log(
             row["id"], "login_password_ok",
             admin_username=row["username"], ip_address=ip, user_agent=ua,
         )
         methods = []
-        if row["totp_secret"]:
+        if row["totpSecret"]:
             methods.append("totp")
         if telegram_available:
             methods.append("telegram_otp")
@@ -229,8 +229,8 @@ async def platform_login(body: LoginRequest, request: Request, response: Respons
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT INTO admin_sessions
-            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
+            INSERT INTO "adminSessions"
+            ("sessionId", "adminId", "refreshTokenHash", "deviceName", browser, os, "ipAddress", "createdAt", "lastActivity", "expiresAt", "rememberMe", status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now(), now() + %s::interval, %s, 'Active')
             """,
             (
@@ -270,16 +270,16 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until FROM admins WHERE username = %s",
+            'SELECT id, username, "passwordHash", "totpSecret", "isPlatformAdmin", "failedAttempts", "lockedUntil" FROM admins WHERE username = %s',
             (body.username,),
         ).fetchone()
     if not row:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # Brute-force check
-    if row["locked_until"]:
+    if row["lockedUntil"]:
         try:
-            locked_dt = datetime.fromisoformat(row["locked_until"])
+            locked_dt = datetime.fromisoformat(row["lockedUntil"])
             if datetime.utcnow() < locked_dt:
                 remaining = int((locked_dt - datetime.utcnow()).total_seconds() / 60) + 1
                 create_platform_admin_audit_log(
@@ -289,21 +289,21 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
                 raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
             else:
                 with get_conn() as conn:
-                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
+                    conn.execute('UPDATE admins SET "failedAttempts" = 0, "lockedUntil" = NULL WHERE id = %s', (row["id"],))
                     conn.commit()
         except HTTPException:
             raise
         except Exception:
             pass
 
-    if not verify_pin(body.password, row["password_hash"]):
-        new_attempts = (row["failed_attempts"] or 0) + 1
+    if not verify_pin(body.password, row["passwordHash"]):
+        new_attempts = (row["failedAttempts"] or 0) + 1
         locked_until_str = None
         if new_attempts >= 5:
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
+                'UPDATE admins SET "failedAttempts" = %s, "lockedUntil" = %s WHERE id = %s',
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -314,18 +314,18 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
         )
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    if not row["is_platform_admin"]:
+    if not row["isPlatformAdmin"]:
         raise HTTPException(status_code=403, detail="Platform admin access required")
-    if not row["totp_secret"]:
+    if not row["totpSecret"]:
         raise HTTPException(status_code=400, detail="TOTP not configured for this account")
-    if not verify_totp(row["totp_secret"], body.totpToken):
-        new_attempts = (row["failed_attempts"] or 0) + 1
+    if not verify_totp(row["totpSecret"], body.totpToken):
+        new_attempts = (row["failedAttempts"] or 0) + 1
         locked_until_str = None
         if new_attempts >= 5:
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
+                'UPDATE admins SET "failedAttempts" = %s, "lockedUntil" = %s WHERE id = %s',
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -338,7 +338,7 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
 
     # Reset failed attempts on success
     with get_conn() as conn:
-        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
+        conn.execute('UPDATE admins SET "failedAttempts" = 0, "lockedUntil" = NULL WHERE id = %s', (row["id"],))
         conn.commit()
 
     session_id, access_token = _create_session_token(row["id"])
@@ -348,8 +348,8 @@ async def platform_login_totp(body: TotpVerifyRequest, request: Request, respons
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT INTO admin_sessions
-            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
+            INSERT INTO "adminSessions"
+            ("sessionId", "adminId", "refreshTokenHash", "deviceName", browser, os, "ipAddress", "createdAt", "lastActivity", "expiresAt", "rememberMe", status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now(), now() + %s::interval, %s, 'Active')
             """,
             (
@@ -389,16 +389,16 @@ async def platform_login_otp_send(body: OtpSendRequest, request: Request):
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until, telegram_chat_id FROM admins WHERE username = %s",
+            'SELECT id, username, "passwordHash", "totpSecret", "isPlatformAdmin", "failedAttempts", "lockedUntil", "telegramChatId" FROM admins WHERE username = %s',
             (body.username,),
         ).fetchone()
     if not row:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # Brute-force check
-    if row["locked_until"]:
+    if row["lockedUntil"]:
         try:
-            locked_dt = datetime.fromisoformat(row["locked_until"])
+            locked_dt = datetime.fromisoformat(row["lockedUntil"])
             if datetime.utcnow() < locked_dt:
                 remaining = int((locked_dt - datetime.utcnow()).total_seconds() / 60) + 1
                 create_platform_admin_audit_log(
@@ -408,21 +408,21 @@ async def platform_login_otp_send(body: OtpSendRequest, request: Request):
                 raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
             else:
                 with get_conn() as conn:
-                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
+                    conn.execute('UPDATE admins SET "failedAttempts" = 0, "lockedUntil" = NULL WHERE id = %s', (row["id"],))
                     conn.commit()
         except HTTPException:
             raise
         except Exception:
             pass
 
-    if not verify_pin(body.password, row["password_hash"]):
-        new_attempts = (row["failed_attempts"] or 0) + 1
+    if not verify_pin(body.password, row["passwordHash"]):
+        new_attempts = (row["failedAttempts"] or 0) + 1
         locked_until_str = None
         if new_attempts >= 5:
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
+                'UPDATE admins SET "failedAttempts" = %s, "lockedUntil" = %s WHERE id = %s',
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -433,10 +433,10 @@ async def platform_login_otp_send(body: OtpSendRequest, request: Request):
         )
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    if not row["is_platform_admin"]:
+    if not row["isPlatformAdmin"]:
         raise HTTPException(status_code=403, detail="Platform admin access required")
 
-    chat_id = (row["telegram_chat_id"] or "").strip() or None
+    chat_id = (row["telegramChatId"] or "").strip() or None
     if not chat_id or not bot_configured():
         create_platform_admin_audit_log(
             row["id"], "login_otp_unavailable",
@@ -495,16 +495,16 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, username, password_hash, totp_secret, is_platform_admin, failed_attempts, locked_until, telegram_chat_id FROM admins WHERE username = %s",
+            'SELECT id, username, "passwordHash", "totpSecret", "isPlatformAdmin", "failedAttempts", "lockedUntil", "telegramChatId" FROM admins WHERE username = %s',
             (body.username,),
         ).fetchone()
     if not row:
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     # Brute-force check
-    if row["locked_until"]:
+    if row["lockedUntil"]:
         try:
-            locked_dt = datetime.fromisoformat(row["locked_until"])
+            locked_dt = datetime.fromisoformat(row["lockedUntil"])
             if datetime.utcnow() < locked_dt:
                 remaining = int((locked_dt - datetime.utcnow()).total_seconds() / 60) + 1
                 create_platform_admin_audit_log(
@@ -514,21 +514,21 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
                 raise HTTPException(status_code=429, detail=f"Account locked. Try again in {remaining} minute(s).")
             else:
                 with get_conn() as conn:
-                    conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
+                    conn.execute('UPDATE admins SET "failedAttempts" = 0, "lockedUntil" = NULL WHERE id = %s', (row["id"],))
                     conn.commit()
         except HTTPException:
             raise
         except Exception:
             pass
 
-    if not verify_pin(body.password, row["password_hash"]):
-        new_attempts = (row["failed_attempts"] or 0) + 1
+    if not verify_pin(body.password, row["passwordHash"]):
+        new_attempts = (row["failedAttempts"] or 0) + 1
         locked_until_str = None
         if new_attempts >= 5:
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
+                'UPDATE admins SET "failedAttempts" = %s, "lockedUntil" = %s WHERE id = %s',
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -539,17 +539,17 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
         )
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    if not row["is_platform_admin"]:
+    if not row["isPlatformAdmin"]:
         raise HTTPException(status_code=403, detail="Platform admin access required")
 
     if not verify_otp(row["id"], body.otp):
-        new_attempts = (row["failed_attempts"] or 0) + 1
+        new_attempts = (row["failedAttempts"] or 0) + 1
         locked_until_str = None
         if new_attempts >= 5:
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE admins SET failed_attempts = %s, locked_until = %s WHERE id = %s",
+                'UPDATE admins SET "failedAttempts" = %s, "lockedUntil" = %s WHERE id = %s',
                 (new_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
@@ -562,7 +562,7 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
 
     # Reset failed attempts on success
     with get_conn() as conn:
-        conn.execute("UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = %s", (row["id"],))
+        conn.execute('UPDATE admins SET "failedAttempts" = 0, "lockedUntil" = NULL WHERE id = %s', (row["id"],))
         conn.commit()
 
     session_id, access_token = _create_session_token(row["id"])
@@ -572,8 +572,8 @@ async def platform_login_otp_verify(body: OtpVerifyRequest, request: Request, re
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT INTO admin_sessions
-            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
+            INSERT INTO "adminSessions"
+            ("sessionId", "adminId", "refreshTokenHash", "deviceName", browser, os, "ipAddress", "createdAt", "lastActivity", "expiresAt", "rememberMe", status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now(), now() + %s::interval, %s, 'Active')
             """,
             (
@@ -615,14 +615,14 @@ async def platform_refresh(request: Request, response: Response):
 
     with get_conn() as conn:
         session = conn.execute(
-            "SELECT * FROM admin_sessions WHERE session_id = %s AND status = 'Active'",
+            'SELECT * FROM "adminSessions" WHERE "sessionId" = %s AND status = \'Active\'',
             (session_id,),
         ).fetchone()
 
-        if not session or not verify_pin(raw_token, session["refresh_token_hash"]):
+        if not session or not verify_pin(raw_token, session["refreshTokenHash"]):
             if session:
                 conn.execute(
-                    "UPDATE admin_sessions SET status = 'Revoked', revoked_at = now() WHERE session_id = %s",
+                    'UPDATE "adminSessions" SET status = \'Revoked\', "revokedAt" = now() WHERE "sessionId" = %s',
                     (session_id,),
                 )
                 conn.commit()
@@ -630,30 +630,30 @@ async def platform_refresh(request: Request, response: Response):
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
         conn.execute(
-            "UPDATE admin_sessions SET status = 'Revoked', revoked_at = now() WHERE session_id = %s",
+            'UPDATE "adminSessions" SET status = \'Revoked\', "revokedAt" = now() WHERE "sessionId" = %s',
             (session_id,),
         )
 
-        new_session_id, new_access_token = _create_session_token(session["admin_id"])
+        new_session_id, new_access_token = _create_session_token(session["adminId"])
         new_refresh_token = _make_refresh_token()
         new_refresh_hash = hash_pin(new_refresh_token)
-        remember_me = bool(session["remember_me"] or 0)
+        remember_me = bool(session["rememberMe"] or 0)
         expiry = "+180 days" if remember_me else "+30 days"
 
         conn.execute(
             """
-            INSERT INTO admin_sessions
-            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me, status)
+            INSERT INTO "adminSessions"
+            ("sessionId", "adminId", "refreshTokenHash", "deviceName", browser, os, "ipAddress", "createdAt", "lastActivity", "expiresAt", "rememberMe", status)
             VALUES (%s, %s, %s, %s, %s, %s, %s, now(), now(), now() + %s::interval, %s, 'Active')
             """,
             (
                 new_session_id,
-                session["admin_id"],
+                session["adminId"],
                 new_refresh_hash,
-                session["device_name"],
+                session["deviceName"],
                 session["browser"],
                 session["os"],
-                session["ip_address"],
+                session["ipAddress"],
                 expiry,
                 remember_me,
             ),
@@ -673,7 +673,7 @@ async def platform_logout(request: Request, response: Response):
 
     with get_conn() as conn:
         conn.execute(
-            "UPDATE admin_sessions SET status = 'Revoked', revoked_at = now() WHERE session_id = %s",
+            'UPDATE "adminSessions" SET status = \'Revoked\', "revokedAt" = now() WHERE "sessionId" = %s',
             (session_id,),
         )
         conn.commit()
@@ -690,7 +690,7 @@ async def platform_logout(request: Request, response: Response):
 @router.get("/api/auth/me")
 async def platform_me(request: Request):
     admin = _get_platform_admin(request)
-    return {"id": admin["id"], "username": admin["username"], "email": admin["email"], "has_totp": bool(admin.get("totp_secret"))}
+    return {"id": admin["id"], "username": admin["username"], "email": admin["email"], "has_totp": bool(admin.get("totpSecret"))}
 
 
 @router.get("/api/auth/totp-qr")
@@ -699,14 +699,14 @@ async def platform_totp_qr(request: Request):
     admin_data = get_admin_by_id(admin["id"])
     if not admin_data:
         raise HTTPException(status_code=404, detail="Admin not found")
-    if not admin_data["totp_secret"]:
+    if not admin_data["totpSecret"]:
         new_secret = regenerate_totp_secret(admin["id"])
         admin_data = get_admin_by_id(admin["id"])
-    qr_base64 = generate_totp_qr_base64(admin_data["username"], admin_data["totp_secret"])
+    qr_base64 = generate_totp_qr_base64(admin_data["username"], admin_data["totpSecret"])
     return {
         "qr_code_base64": qr_base64,
-        "secret": admin_data["totp_secret"],
-        "provisioning_uri": get_totp_uri(admin_data["username"], admin_data["totp_secret"]),
+        "secret": admin_data["totpSecret"],
+        "provisioning_uri": get_totp_uri(admin_data["username"], admin_data["totpSecret"]),
     }
 
 
@@ -720,7 +720,7 @@ async def platform_totp_regenerate(body: TotpRegenerateRequest, request: Request
     admin_data = get_admin_by_id(admin["id"])
     if not admin_data:
         raise HTTPException(status_code=404, detail="Admin not found")
-    if not verify_pin(body.current_password, admin_data["password_hash"]):
+    if not verify_pin(body.current_password, admin_data["passwordHash"]):
         raise HTTPException(status_code=401, detail="Invalid password")
     new_secret = regenerate_totp_secret(admin["id"])
     qr_base64 = generate_totp_qr_base64(admin_data["username"], new_secret)
@@ -748,10 +748,10 @@ async def get_profile(request: Request):
         "id": admin["id"],
         "username": admin["username"],
         "email": admin["email"],
-        "is_platform_admin": bool(admin["is_platform_admin"]),
-        "has_totp": bool(admin.get("totp_secret")),
-        "created_at": admin.get("created_at"),
-        "updated_at": admin.get("updated_at"),
+        "is_platform_admin": bool(admin["isPlatformAdmin"]),
+        "has_totp": bool(admin.get("totpSecret")),
+        "created_at": admin.get("createdAt"),
+        "updated_at": admin.get("updatedAt"),
     }
 
 
@@ -780,7 +780,7 @@ async def update_profile(request: Request, body: UpdateProfileRequest):
     params.append(admin["id"])
     with get_conn() as conn:
         conn.execute(
-            f"UPDATE admins SET {', '.join(updates)}, updated_at = %s WHERE id = %s",
+            f"UPDATE admins SET {', '.join(updates)}, \"updatedAt\" = %s WHERE id = %s",
             tuple(params),
         )
         conn.commit()
@@ -804,7 +804,7 @@ class ChangePasswordRequest(BaseModel):
 async def change_password(request: Request, body: ChangePasswordRequest):
     admin = _get_platform_admin(request)
     admin_data = get_admin_by_id(admin["id"])
-    if not verify_pin(body.current_password, admin_data["password_hash"]):
+    if not verify_pin(body.current_password, admin_data["passwordHash"]):
         raise HTTPException(status_code=401, detail="Current password is incorrect")
     if body.new_password != body.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
@@ -900,12 +900,12 @@ async def telegram_test(request: Request):
 async def platform_stats(request: Request):
     _get_platform_admin(request)
     with get_conn() as conn:
-        total_landlords = conn.execute("SELECT COUNT(*) FROM landlord_accounts").fetchone()[0]
+        total_landlords = conn.execute('SELECT COUNT(*) FROM "landlordAccounts"').fetchone()["count"]
         active_landlords = conn.execute(
-            "SELECT COUNT(*) FROM landlord_accounts WHERE status = 'Active'"
-        ).fetchone()[0]
-        total_admins = conn.execute("SELECT COUNT(*) FROM admins").fetchone()[0]
-        total_tenants = conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
+            'SELECT COUNT(*) FROM "landlordAccounts" WHERE status = \'Active\''
+        ).fetchone()["count"]
+        total_admins = conn.execute("SELECT COUNT(*) FROM admins").fetchone()["count"]
+        total_tenants = conn.execute("SELECT COUNT(*) FROM tenants").fetchone()["count"]
     return {
         "total_landlords": total_landlords,
         "active_landlords": active_landlords,
@@ -927,27 +927,27 @@ async def list_landlords(
     _get_platform_admin(request)
     query = """
         SELECT
-            la.id, la.landlord_uuid, la.full_name, la.email, la.phone,
-            la.username, la.status, la.created_at, la.updated_at,
-            (la.totp_enabled = 1 AND la.totp_secret IS NOT NULL) as has_totp,
-            la.failed_attempts, la.locked_until,
-            la.requires_password_change,
-            la.privacy_consented, la.privacy_version, la.privacy_accepted_at,
-            la.terms_consented, la.terms_version, la.terms_accepted_at,
-            (SELECT COUNT(*) FROM tenants WHERE landlord_id = la.id) as tenant_count,
-            (SELECT COUNT(*) FROM receipts WHERE landlord_id = la.id) as receipt_count,
-            (SELECT COUNT(*) FROM occupants WHERE landlord_id = la.id) as kyc_count
-        FROM landlord_accounts la
+            la.id, la."landlordUuid", la."fullName", la.email, la.phone,
+            la.username, la.status, la."createdAt", la."updatedAt",
+            (la."totpEnabled" = 1 AND la."totpSecret" IS NOT NULL) as has_totp,
+            la."failedAttempts", la."lockedUntil",
+            la."requiresPasswordChange",
+            la."privacyConsented", la."privacyVersion", la."privacyAcceptedAt",
+            la."termsConsented", la."termsVersion", la."termsAcceptedAt",
+            (SELECT COUNT(*) FROM tenants WHERE "landlordId" = la.id) as tenant_count,
+            (SELECT COUNT(*) FROM receipts WHERE "landlordId" = la.id) as receipt_count,
+            (SELECT COUNT(*) FROM occupants WHERE "landlordId" = la.id) as kyc_count
+        FROM "landlordAccounts" la
         WHERE 1=1
     """
     params: list = []
     if search:
-        query += " AND (la.username LIKE %s OR la.full_name LIKE %s OR la.email LIKE %s)"
+        query += ' AND (la.username LIKE %s OR la."fullName" LIKE %s OR la.email LIKE %s)'
         params.extend([f"%{search}%"] * 3)
     if status:
         query += " AND la.status = %s"
         params.append(status)
-    query += " ORDER BY la.created_at DESC LIMIT %s OFFSET %s"
+    query += ' ORDER BY la."createdAt" DESC LIMIT %s OFFSET %s'
     params.extend([limit, offset])
     with get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -959,25 +959,25 @@ async def get_landlord_details(landlord_id: int, request: Request):
     _get_platform_admin(request)
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT * FROM landlord_accounts WHERE id = %s", (landlord_id,)
+            'SELECT * FROM "landlordAccounts" WHERE id = %s', (landlord_id,)
         ).fetchone()
         if not landlord:
             raise HTTPException(status_code=404, detail="Landlord not found")
         stats = conn.execute(
             """
             SELECT
-                (SELECT COUNT(*) FROM tenants WHERE landlord_id = %s) as tenants,
-                (SELECT COUNT(*) FROM receipts WHERE landlord_id = %s) as receipts,
-                (SELECT COUNT(*) FROM occupants WHERE landlord_id = %s) as kyc,
-                (SELECT COALESCE(SUM(total), 0) FROM receipts WHERE landlord_id = %s AND paymentstatus = 'PENDING') as pending_revenue
+                (SELECT COUNT(*) FROM tenants WHERE "landlordId" = %s) as tenants,
+                (SELECT COUNT(*) FROM receipts WHERE "landlordId" = %s) as receipts,
+                (SELECT COUNT(*) FROM occupants WHERE "landlordId" = %s) as kyc,
+                (SELECT COALESCE(SUM("billTotal"), 0) FROM receipts WHERE "landlordId" = %s AND "paymentStatus" = 'PENDING') as pending_revenue
             """,
             (landlord_id, landlord_id, landlord_id, landlord_id),
         ).fetchone()
     return {
-        "landlord": {k: v for k, v in dict(landlord).items() if k != "password_hash" and k != "totp_secret"},
+        "landlord": {k: v for k, v in dict(landlord).items() if k != "passwordHash" and k != "totpSecret"},
         "has_password": True,
-        "has_totp": bool(landlord["totp_enabled"] and landlord["totp_secret"]),
-        "requires_password_change": bool(landlord["requires_password_change"]),
+        "has_totp": bool(landlord["totpEnabled"] and landlord["totpSecret"]),
+        "requires_password_change": bool(landlord["requiresPasswordChange"]),
         "stats": dict(stats),
     }
 
@@ -987,7 +987,7 @@ async def get_landlord_creator_info(landlord_id: int, request: Request):
     _get_platform_admin(request)
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, username, full_name, created_at FROM landlord_accounts WHERE id = %s",
+            'SELECT id, username, "fullName", "createdAt" FROM "landlordAccounts" WHERE id = %s',
             (landlord_id,),
         ).fetchone()
         if not landlord:
@@ -995,42 +995,42 @@ async def get_landlord_creator_info(landlord_id: int, request: Request):
         import json
         audit = conn.execute(
             """
-            SELECT ip_address, created_at, meta_json
-            FROM landlord_audit_logs
-            WHERE landlord_id = %s AND action = 'signup_success'
-            ORDER BY created_at DESC LIMIT 1
+            SELECT "ipAddress", "createdAt", "metaJson"
+            FROM "landlordAuditLogs"
+            WHERE "landlordId" = %s AND action = 'signup_success'
+            ORDER BY "createdAt" DESC LIMIT 1
             """,
             (landlord_id,),
         ).fetchone()
         last_login = conn.execute(
             """
-            SELECT created_at, ip_address
-            FROM landlord_audit_logs
-            WHERE landlord_id = %s AND action = 'login_success'
-            ORDER BY created_at DESC LIMIT 1
+            SELECT "createdAt", "ipAddress"
+            FROM "landlordAuditLogs"
+            WHERE "landlordId" = %s AND action = 'login_success'
+            ORDER BY "createdAt" DESC LIMIT 1
             """,
             (landlord_id,),
         ).fetchone()
     meta = {}
-    if audit and audit["meta_json"]:
+    if audit and audit["metaJson"]:
         try:
-            meta = json.loads(audit["meta_json"])
+            meta = json.loads(audit["metaJson"])
         except Exception:
             pass
     return {
         "landlord_id": landlord["id"],
         "username": landlord["username"],
-        "full_name": landlord["full_name"],
+        "full_name": landlord["fullName"],
         "self_registered": True,
-        "created_at": landlord["created_at"],
+        "created_at": landlord["createdAt"],
         "signup_details": {
-            "ip_address": audit["ip_address"] if audit else None,
-            "timestamp": audit["created_at"] if audit else None,
+            "ip_address": audit["ipAddress"] if audit else None,
+            "timestamp": audit["createdAt"] if audit else None,
             "user_agent": meta.get("user_agent"),
         },
         "last_login": {
-            "timestamp": last_login["created_at"] if last_login else None,
-            "ip_address": last_login["ip_address"] if last_login else None,
+            "timestamp": last_login["createdAt"] if last_login else None,
+            "ip_address": last_login["ipAddress"] if last_login else None,
         },
     }
 
@@ -1049,20 +1049,20 @@ async def preview_tenants(
     _get_platform_admin(request)
     query = """
         SELECT
-            t.id, t.name, t.phone, t.email, t.roomnumber as unit, t.status,
-            t.landlord_id, t.rent as rent_amount, t.securitydeposit as deposit,
-            t.tenantpin, t.failed_attempts, t.locked_until,
-            la.full_name AS landlord_name, la.username AS landlord_username
+            t.id, t.name, t.phone, t.email, t."roomNumber" as unit, t.status,
+            t."landlordId", t."rentAmount" as rent_amount, t."securityDeposit" as deposit,
+            t."tenantPin", t."failedAttempts", t."lockedUntil",
+            la."fullName" AS landlord_name, la.username AS landlord_username
         FROM tenants t
-        LEFT JOIN landlord_accounts la ON t.landlord_id = la.id
+        LEFT JOIN "landlordAccounts" la ON t."landlordId" = la.id
         WHERE 1=1
     """
     params: list = []
     if search:
-        query += " AND (t.name LIKE %s OR t.phone LIKE %s OR t.email LIKE %s OR t.roomnumber LIKE %s)"
+        query += ' AND (t.name LIKE %s OR t.phone LIKE %s OR t.email LIKE %s OR t."roomNumber" LIKE %s)'
         params.extend([f"%{search}%"] * 4)
     if landlord_id:
-        query += " AND t.landlord_id = %s"
+        query += ' AND t."landlordId" = %s'
         params.append(landlord_id)
     if status:
         query += " AND t.status = %s"
@@ -1071,9 +1071,9 @@ async def preview_tenants(
     params.extend([limit, offset])
     with get_conn() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM tenants" + (" WHERE landlord_id = %s" if landlord_id else ""),
+            "SELECT COUNT(*) FROM tenants" + (' WHERE "landlordId" = %s' if landlord_id else ""),
             (landlord_id,) if landlord_id else (),
-        ).fetchone()[0]
+        ).fetchone()["count"]
         rows = conn.execute(query, tuple(params)).fetchall()
     return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
@@ -1088,35 +1088,35 @@ async def preview_receipts(
     offset: int = 0,
 ):
     _get_platform_admin(request)
-    query = """
+    query = '''
         SELECT
-            r.billNo as id, r.total, r.paymentstatus, r.date as issued_at, r.month,
-            r.rent, r.water, r.electricity, r.total as amount,
-            r.landlord_id,
-            la.full_name AS landlord_name,
-            t.name AS tenant_name, t.roomnumber AS tenant_unit
+            r."billNo" as id, r."billTotal", r."paymentStatus", r."billDate" as issued_at, r."billMonth",
+            r."rentAmount", r."waterAmount", r."electricityAmount", r."billTotal" as amount,
+            r."landlordId",
+            la."fullName" AS landlord_name,
+            t.name AS tenant_name, t."roomNumber" AS tenant_unit
         FROM receipts r
-        LEFT JOIN landlord_accounts la ON r.landlord_id = la.id
-        LEFT JOIN tenants t ON r.tenantId = t.id
+        LEFT JOIN "landlordAccounts" la ON r."landlordId" = la.id
+        LEFT JOIN tenants t ON r."tenantId" = t.id
         WHERE 1=1
-    """
+    '''
     params: list = []
     if search:
-        query += " AND (t.name LIKE %s OR t.roomnumber LIKE %s OR r.billNo LIKE %s)"
+        query += ' AND (t.name LIKE %s OR t."roomNumber" LIKE %s OR r.billno LIKE %s)'
         params.extend([f"%{search}%"] * 3)
     if landlord_id:
-        query += " AND r.landlord_id = %s"
+        query += ' AND r."landlordId" = %s'
         params.append(landlord_id)
     if status:
-        query += " AND r.paymentstatus = %s"
+        query += ' AND r."paymentStatus" = %s'
         params.append(status)
     query += " ORDER BY r.id DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with get_conn() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM receipts" + (" WHERE landlord_id = %s" if landlord_id else ""),
+            "SELECT COUNT(*) FROM receipts" + (' WHERE "landlordId" = %s' if landlord_id else ""),
             (landlord_id,) if landlord_id else (),
-        ).fetchone()[0]
+        ).fetchone()["count"]
         rows = conn.execute(query, tuple(params)).fetchall()
     return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
@@ -1131,24 +1131,24 @@ async def preview_kyc(
     offset: int = 0,
 ):
     _get_platform_admin(request)
-    query = """
+    query = '''
         SELECT
-            o.occupantUuid as id, o.name, o.status, o.mobile, o.residentSince,
-            o.aadhaar_front, o.aadhaar_back, o.aadhaar_combined,
-            o.landlord_id,
-            la.full_name AS landlord_name,
-            t.name AS tenant_name, t.roomnumber AS tenant_unit
+            o."occupantUuid" as id, o.name, o.status, o.mobile, o."residentSince",
+            o."aadhaarFront", o."aadhaarBack", o."aadhaarCombined",
+            o."landlordId",
+            la."fullName" AS landlord_name,
+            t.name AS tenant_name, t."roomNumber" AS tenant_unit
         FROM occupants o
-        LEFT JOIN landlord_accounts la ON o.landlord_id = la.id
-        LEFT JOIN tenants t ON o.tenantId = t.id
+        LEFT JOIN "landlordAccounts" la ON o."landlordId" = la.id
+        LEFT JOIN tenants t ON o."tenantId" = t.id
         WHERE 1=1
-    """
+    '''
     params: list = []
     if search:
-        query += " AND (o.name LIKE %s OR t.name LIKE %s OR t.roomnumber LIKE %s)"
+        query += ' AND (o.name LIKE %s OR t.name LIKE %s OR t."roomNumber" LIKE %s)'
         params.extend([f"%{search}%"] * 3)
     if landlord_id:
-        query += " AND o.landlord_id = %s"
+        query += ' AND o."landlordId" = %s'
         params.append(landlord_id)
     if status:
         query += " AND o.status = %s"
@@ -1157,9 +1157,9 @@ async def preview_kyc(
     params.extend([limit, offset])
     with get_conn() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM occupants" + (" WHERE landlord_id = %s" if landlord_id else ""),
+            "SELECT COUNT(*) FROM occupants" + (' WHERE "landlordId" = %s' if landlord_id else ""),
             (landlord_id,) if landlord_id else (),
-        ).fetchone()[0]
+        ).fetchone()["count"]
         rows = conn.execute(query, tuple(params)).fetchall()
     return {"items": [dict(r) for r in rows], "total": total, "limit": limit, "offset": offset}
 
@@ -1202,18 +1202,18 @@ async def toggle_landlord_totp(landlord_id: int, request: Request):
     ip = request.client.host if request.client else "Unknown"
     admin = _get_platform_admin(request)
 
-    if landlord["totp_enabled"]:
+    if landlord["totpEnabled"]:
         # Disable: flip totp_enabled to 0, keep totp_secret
         with get_conn() as conn:
             conn.execute(
-                "UPDATE landlord_accounts SET totp_enabled = 0, updated_at = %s WHERE id = %s",
+                'UPDATE "landlordAccounts" SET "totpEnabled" = 0, "updatedAt" = %s WHERE id = %s',
                 (now, landlord_id),
             )
             conn.commit()
         # Broadcast TOTP state change
         try:
             from app.core.websocket_manager import sync_manager
-            ll_uuid = landlord["landlord_uuid"]
+            ll_uuid = landlord["landlordUuid"]
             await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "TOTP_STATE_CHANGED", "enabled": False})
             await sync_manager.broadcast("platform_admin", {"type": "TOTP_STATE_CHANGED", "landlordId": landlord_id, "enabled": False})
         except Exception:
@@ -1229,14 +1229,14 @@ async def toggle_landlord_totp(landlord_id: int, request: Request):
         # Enable: flip totp_enabled to 1, generate secret if missing
         with get_conn() as conn:
             conn.execute(
-                "UPDATE landlord_accounts SET totp_enabled = 1, updated_at = %s WHERE id = %s",
+                'UPDATE "landlordAccounts" SET "totpEnabled" = 1, "updatedAt" = %s WHERE id = %s',
                 (now, landlord_id),
             )
             conn.commit()
 
         landlord = _get_ll(landlord_id)
         qr_data = None
-        if not landlord["totp_secret"]:
+        if not landlord["totpSecret"]:
             new_secret = regenerate_landlord_totp_secret(landlord_id)
             landlord = _get_ll(landlord_id)
             qr_data = {
@@ -1248,7 +1248,7 @@ async def toggle_landlord_totp(landlord_id: int, request: Request):
         # Broadcast TOTP state change
         try:
             from app.core.websocket_manager import sync_manager
-            ll_uuid = landlord["landlord_uuid"]
+            ll_uuid = landlord["landlordUuid"]
             await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "TOTP_STATE_CHANGED", "enabled": True})
             await sync_manager.broadcast("platform_admin", {"type": "TOTP_STATE_CHANGED", "landlordId": landlord_id, "enabled": True})
         except Exception:
@@ -1274,7 +1274,7 @@ async def reveal_landlord_password(landlord_id: int, request: Request):
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT encrypted_password, updated_at FROM landlord_password_admin_store WHERE landlord_id = %s",
+            'SELECT "encryptedPassword", "updatedAt" FROM "landlordPasswordAdminStore" WHERE "landlordId" = %s',
             (landlord_id,),
         ).fetchone()
 
@@ -1292,8 +1292,8 @@ async def reveal_landlord_password(landlord_id: int, request: Request):
     )
     return {
         "status": "success",
-        "password": decrypt_admin_view_pin(row["encrypted_password"]),
-        "updated_at": row["updated_at"],
+        "password": decrypt_admin_view_pin(row["encryptedPassword"]),
+        "updated_at": row["updatedAt"],
     }
 
 
@@ -1308,7 +1308,7 @@ async def reset_landlord_password(landlord_id: int, request: Request):
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, username, phone FROM landlord_accounts WHERE id = %s", (landlord_id,)
+            'SELECT id, username, phone FROM "landlordAccounts" WHERE id = %s', (landlord_id,)
         ).fetchone()
         if not landlord:
             raise HTTPException(status_code=404, detail="Landlord not found")
@@ -1322,19 +1322,19 @@ async def reset_landlord_password(landlord_id: int, request: Request):
 
     with get_conn() as conn:
         conn.execute(
-            """UPDATE landlord_accounts
-               SET password_hash = %s,
-                   requires_password_change = 1,
-                   temp_password_created_at = %s,
-                   temp_password_consumed = 0,
-                   updated_at = %s
+            """UPDATE "landlordAccounts"
+               SET "passwordHash" = %s,
+                   "requiresPasswordChange" = 1,
+                   "tempPasswordCreatedAt" = %s,
+                   "tempPasswordConsumed" = 0,
+                   "updatedAt" = %s
                WHERE id = %s""",
             (password_hash, now, now, landlord_id),
         )
         conn.execute(
-            """INSERT INTO landlord_password_admin_store
-               (landlord_id, encrypted_password, updated_at) VALUES (%s, %s, %s)
-               ON CONFLICT (landlord_id) DO UPDATE SET encrypted_password = excluded.encrypted_password, updated_at = excluded.updated_at""",
+            """INSERT INTO "landlordPasswordAdminStore"
+               ("landlordId", "encryptedPassword", "updatedAt") VALUES (%s, %s, %s)
+               ON CONFLICT ("landlordId") DO UPDATE SET "encryptedPassword" = excluded."encryptedPassword", "updatedAt" = excluded."updatedAt""",
             (landlord_id, encrypted_pw, now),
         )
         conn.commit()
@@ -1370,7 +1370,7 @@ async def reset_landlord_password(landlord_id: int, request: Request):
     # Broadcast password reset event
     try:
         from app.core.websocket_manager import sync_manager
-        ll_uuid = landlord["landlord_uuid"]
+        ll_uuid = landlord["landlordUuid"]
         await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "PASSWORD_RESET", "landlordId": landlord_id})
         await sync_manager.broadcast("platform_admin", {"type": "PASSWORD_RESET", "landlordId": landlord_id})
         await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
@@ -1404,7 +1404,7 @@ async def preview_tenant_auth(tenant_id: int, request: Request):
 
     with get_conn() as conn:
         tenant = conn.execute(
-            """SELECT id, name, status, failed_attempts, locked_until, tenantpin
+            """SELECT id, name, status, "failedAttempts", "lockedUntil", "tenantPin"
                FROM tenants WHERE id = %s""",
             (tenant_id,),
         ).fetchone()
@@ -1412,7 +1412,7 @@ async def preview_tenant_auth(tenant_id: int, request: Request):
             raise HTTPException(status_code=404, detail="Tenant not found")
 
         pin_row = conn.execute(
-            "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = %s",
+            'SELECT "encryptedPin", "updatedAt" FROM "tenantPinAdminStore" WHERE "tenantId" = %s',
             (tenant_id,),
         ).fetchone()
 
@@ -1420,15 +1420,15 @@ async def preview_tenant_auth(tenant_id: int, request: Request):
         "tenant_id": tenant["id"],
         "name": tenant["name"],
         "status": tenant["status"],
-        "failed_attempts": tenant["failed_attempts"],
-        "locked_until": tenant["locked_until"],
-        "has_pin": bool(tenant["tenantpin"]),
+        "failed_attempts": tenant["failedAttempts"],
+        "locked_until": tenant["lockedUntil"],
+        "has_pin": bool(tenant["tenantPin"]),
     }
 
     if pin_row:
         try:
-            result["pin"] = decrypt_admin_view_pin(pin_row["encrypted_pin"])
-            result["pin_updated_at"] = pin_row["updated_at"]
+            result["pin"] = decrypt_admin_view_pin(pin_row["encryptedPin"])
+            result["pin_updated_at"] = pin_row["updatedAt"]
         except Exception:
             result["pin"] = "(decryption error)"
     else:
@@ -1442,26 +1442,27 @@ async def preview_tenant_auth(tenant_id: int, request: Request):
 @router.get("/api/security/alerts")
 async def security_alerts(
     request: Request,
-    type: str | None = None,
+    type_: str | None = Query(None, alias="type"),
     limit: int = 50,
     offset: int = 0,
 ):
+    type = type_
     _get_platform_admin(request)
     with get_conn() as conn:
         # Build alerts from audit logs
         query = """
             SELECT
-                id, action, ip_address, created_at, meta_json,
+                id, action, "ipAddress", "createdAt", "metaJson",
                 'admin' AS actor_type,
-                (SELECT username FROM admins WHERE id = pal.actor_id) AS actor_name
-            FROM platform_admin_audit_logs pal
-            WHERE action LIKE '%%fail%%' OR action LIKE '%%block%%' OR action LIKE '%%invalid%%'
+                (SELECT username FROM admins WHERE id = pal."adminId") AS actor_name
+            FROM "platformAdminAuditLogs" pal
+            WHERE (action LIKE %s OR action LIKE %s OR action LIKE %s)
         """
-        params: list = []
+        params: list = ["%fail%", "%block%", "%invalid%"]
         if type:
             query += " AND action LIKE %s"
             params.append(f"%{type}%")
-        query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        query += ' ORDER BY "createdAt" DESC LIMIT %s OFFSET %s'
         params.extend([limit, offset])
         rows = conn.execute(query, tuple(params)).fetchall()
 
@@ -1470,12 +1471,12 @@ async def security_alerts(
             """
             SELECT
                 la.id, 'landlord_locked' AS action,
-                la.locked_until AS created_at,
+                la."lockedUntil" AS created_at,
                 'landlord' AS actor_type,
                 la.username AS actor_name
-            FROM landlord_accounts la
-            WHERE la.locked_until IS NOT NULL AND la.locked_until > now()
-            ORDER BY la.locked_until DESC LIMIT %s OFFSET %s
+            FROM "landlordAccounts" la
+            WHERE la."lockedUntil" IS NOT NULL AND la."lockedUntil" <> '' AND la."lockedUntil"::timestamptz > now()
+            ORDER BY la."lockedUntil" DESC LIMIT %s OFFSET %s
             """,
             (limit, offset),
         ).fetchall()
@@ -1483,10 +1484,10 @@ async def security_alerts(
     alerts = []
     for r in rows:
         meta = {}
-        if r["meta_json"]:
+        if r["metaJson"]:
             try:
                 import json
-                meta = json.loads(r["meta_json"])
+                meta = json.loads(r["metaJson"])
             except Exception:
                 pass
         alerts.append({
@@ -1495,8 +1496,8 @@ async def security_alerts(
             "action": r["action"],
             "actor_type": r["actor_type"],
             "actor_name": r["actor_name"],
-            "ip_address": r["ip_address"],
-            "created_at": r["created_at"],
+            "ip_address": r["ipAddress"],
+            "created_at": r["createdAt"],
             "details": meta,
         })
     for r in locked:
@@ -1520,27 +1521,27 @@ async def list_sessions(request: Request):
         rows = conn.execute(
             """
             SELECT
-                id, actor_id, action, ip_address, created_at, meta_json
-            FROM platform_admin_audit_logs
+                id, "adminId" AS actor_id, action, "ipAddress", "createdAt", "metaJson"
+            FROM "platformAdminAuditLogs"
             WHERE action LIKE 'login%' OR action LIKE 'totp%'
-            ORDER BY created_at DESC
+            ORDER BY "createdAt" DESC
             LIMIT 20
             """
         ).fetchall()
     sessions = []
     for r in rows:
         meta = {}
-        if r["meta_json"]:
+        if r["metaJson"]:
             try:
                 import json
-                meta = json.loads(r["meta_json"])
+                meta = json.loads(r["metaJson"])
             except Exception:
                 pass
         sessions.append({
             "admin_id": r["actor_id"],
             "action": r["action"],
-            "ip_address": r["ip_address"],
-            "created_at": r["created_at"],
+            "ip_address": r["ipAddress"],
+            "created_at": r["createdAt"],
             "user_agent": meta.get("user_agent"),
         })
     return sessions
@@ -1553,14 +1554,14 @@ async def system_health(request: Request):
         db_check = conn.execute("SELECT 1").fetchone()
         stats = {
             "database": "ok" if db_check else "error",
-            "total_landlords": conn.execute("SELECT COUNT(*) FROM landlord_accounts").fetchone()[0],
+            "total_landlords": conn.execute('SELECT COUNT(*) FROM "landlordAccounts"').fetchone()["count"],
             "active_landlords": conn.execute(
-                "SELECT COUNT(*) FROM landlord_accounts WHERE status = 'Active'"
-            ).fetchone()[0],
-            "total_tenants": conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0],
-            "total_receipts": conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0],
-            "total_kyc": conn.execute("SELECT COUNT(*) FROM occupants").fetchone()[0],
-            "total_admins": conn.execute("SELECT COUNT(*) FROM admins").fetchone()[0],
+                'SELECT COUNT(*) FROM "landlordAccounts" WHERE status = \'Active\''
+            ).fetchone()["count"],
+            "total_tenants": conn.execute("SELECT COUNT(*) FROM tenants").fetchone()["count"],
+            "total_receipts": conn.execute("SELECT COUNT(*) FROM receipts").fetchone()["count"],
+            "total_kyc": conn.execute("SELECT COUNT(*) FROM occupants").fetchone()["count"],
+            "total_admins": conn.execute("SELECT COUNT(*) FROM admins").fetchone()["count"],
         }
     stats["status"] = "healthy" if stats["database"] == "ok" else "degraded"
     return stats
@@ -1596,56 +1597,56 @@ async def update_broadcast(data: BroadcastUpdateModel):
 
 # ─── Audit Logs (unified across all 3 apps) ────────────────────────────────
 
-_UNIFIED_AUDIT_QUERY = """
+_UNIFIED_AUDIT_QUERY = '''
     SELECT * FROM (
         SELECT
             pal.id,
             'platform_admin' AS app_source,
-            pal.admin_id AS actor_id,
+            pal."adminId" AS actor_id,
             a.username AS actor_name,
             pal.action,
-            pal.target_type,
-            pal.target_id,
-            pal.ip_address,
-            pal.meta_json,
-            pal.created_at
-        FROM platform_admin_audit_logs pal
-        LEFT JOIN admins a ON pal.admin_id = a.id
+            pal."targetType" AS target_type,
+            pal."targetId" AS target_id,
+            pal."ipAddress",
+            pal."metaJson",
+            pal."createdAt"
+        FROM "platformAdminAuditLogs" pal
+        LEFT JOIN admins a ON pal."adminId" = a.id
 
         UNION ALL
 
         SELECT
             ll.id,
             'landlord' AS app_source,
-            ll.landlord_id AS actor_id,
+            ll."landlordId" AS actor_id,
             la.username AS actor_name,
             ll.action,
             NULL AS target_type,
             NULL AS target_id,
-            ll.ip_address,
-            ll.meta_json,
-            ll.created_at
-        FROM landlord_audit_logs ll
-        LEFT JOIN landlord_accounts la ON ll.landlord_id = la.id
+            ll."ipAddress",
+            ll."metaJson",
+            ll."createdAt"
+        FROM "landlordAuditLogs" ll
+        LEFT JOIN "landlordAccounts" la ON ll."landlordId" = la.id
 
         UNION ALL
 
         SELECT
             tl.id,
             'tenant' AS app_source,
-            tl.tenantId AS actor_id,
+            tl."tenantId" AS actor_id,
             t.name AS actor_name,
             tl.action,
             NULL AS target_type,
             NULL AS target_id,
-            tl.ip_address,
-            tl.meta_json,
-            tl.created_at
-        FROM tenant_audit_logs tl
-        LEFT JOIN tenants t ON tl.tenantId = t.id
+            tl."ipAddress",
+            tl."metaJson",
+            tl."createdAt"
+        FROM "tenantAuditLogs" tl
+        LEFT JOIN tenants t ON tl."tenantId" = t.id
     ) unified
     WHERE 1=1
-"""
+'''
 
 
 @router.get("/api/audit-logs")
@@ -1669,20 +1670,20 @@ async def list_audit_logs(
         query += " AND action LIKE %s"
         params.append(f"%{action_type}%")
     if search:
-        query += " AND (action LIKE %s OR ip_address LIKE %s OR actor_name LIKE %s)"
+        query += ' AND (action LIKE %s OR "ipAddress" LIKE %s OR actor_name LIKE %s)'
         params.extend([f"%{search}%"] * 3)
     if date_from:
-        query += " AND created_at >= %s"
+        query += ' AND "createdAt" >= %s'
         params.append(date_from)
     if date_to:
-        query += " AND created_at <= %s"
+        query += ' AND "createdAt" <= %s'
         params.append(date_to + "T23:59:59")
 
     count_query = "SELECT COUNT(*) FROM (" + query + ")"
     with get_conn() as conn:
-        total = conn.execute(count_query, tuple(params)).fetchone()[0]
+        total = conn.execute(count_query, tuple(params)).fetchone()["count"]
 
-    query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+    query += ' ORDER BY "createdAt" DESC LIMIT %s OFFSET %s'
     params.extend([limit, offset])
     with get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -1690,9 +1691,9 @@ async def list_audit_logs(
     items = []
     for r in rows:
         meta = {}
-        if r["meta_json"]:
+        if r["metaJson"]:
             try:
-                meta = json.loads(r["meta_json"])
+                meta = json.loads(r["metaJson"])
             except Exception:
                 pass
         items.append({
@@ -1703,9 +1704,9 @@ async def list_audit_logs(
             "action": r["action"],
             "target_type": r["target_type"],
             "target_id": r["target_id"],
-            "ip_address": r["ip_address"],
+            "ip_address": r["ipAddress"],
             "meta": meta,
-            "created_at": r["created_at"],
+            "created_at": r["createdAt"],
         })
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
@@ -1718,13 +1719,13 @@ async def list_audit_action_types(request: Request, app_source: str | None = Non
     sub_params: list = []
     if app_source and app_source in ("platform_admin", "landlord", "tenant"):
         if app_source == "platform_admin":
-            query += "SELECT action FROM platform_admin_audit_logs"
+            query += 'SELECT action FROM "platformAdminAuditLogs"'
         elif app_source == "landlord":
-            query += "SELECT action FROM landlord_audit_logs"
+            query += 'SELECT action FROM "landlordAuditLogs"'
         else:
-            query += "SELECT action FROM tenant_audit_logs"
+            query += 'SELECT action FROM "tenantAuditLogs"'
     else:
-        query += "SELECT action FROM platform_admin_audit_logs UNION ALL SELECT action FROM landlord_audit_logs UNION ALL SELECT action FROM tenant_audit_logs"
+        query += 'SELECT action FROM "platformAdminAuditLogs" UNION ALL SELECT action FROM "landlordAuditLogs" UNION ALL SELECT action FROM "tenantAuditLogs"'
     query += ") ORDER BY action"
     with get_conn() as conn:
         rows = conn.execute(query, tuple(sub_params)).fetchall()
@@ -1752,15 +1753,15 @@ async def export_audit_logs(
         query += " AND action LIKE %s"
         params.append(f"%{action_type}%")
     if search:
-        query += " AND (action LIKE %s OR ip_address LIKE %s OR actor_name LIKE %s)"
+        query += ' AND (action LIKE %s OR "ipAddress" LIKE %s OR actor_name LIKE %s)'
         params.extend([f"%{search}%"] * 3)
     if date_from:
-        query += " AND created_at >= %s"
+        query += ' AND "createdAt" >= %s'
         params.append(date_from)
     if date_to:
-        query += " AND created_at <= %s"
+        query += ' AND "createdAt" <= %s'
         params.append(date_to + "T23:59:59")
-    query += " ORDER BY created_at DESC"
+    query += ' ORDER BY "createdAt" DESC'
 
     with get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -1768,19 +1769,19 @@ async def export_audit_logs(
     def generate():
         for r in rows:
             meta = {}
-            if r["meta_json"]:
+            if r["metaJson"]:
                 try:
-                    meta = json.loads(r["meta_json"])
+                    meta = json.loads(r["metaJson"])
                 except Exception:
                     pass
             entry = {
-                "timestamp": r["created_at"],
+                "timestamp": r["createdAt"],
                 "app_source": r["app_source"],
                 "actor_name": r["actor_name"],
                 "action": r["action"],
                 "target_type": r["target_type"],
                 "target_id": r["target_id"],
-                "ip_address": r["ip_address"],
+                "ip_address": r["ipAddress"],
                 "meta": meta,
             }
             yield json.dumps(entry) + "\n"
@@ -1813,20 +1814,20 @@ async def list_feedback(
     offset: int = 0,
 ):
     _get_platform_admin(request)
-    query = "SELECT * FROM tenant_qr_feedback WHERE 1=1"
+    query = 'SELECT * FROM "tenantQrFeedback" WHERE 1=1'
     params: list = []
     if status in ("open", "resolved"):
         query += " AND status = %s"
         params.append(status)
     if search:
-        query += " AND (tenant_name LIKE %s OR message LIKE %s OR qr_key LIKE %s)"
+        query += ' AND ("tenantName" LIKE %s OR message LIKE %s OR "qrKey" LIKE %s)'
         params.extend([f"%{search}%"] * 3)
 
     count_query = "SELECT COUNT(*) FROM (" + query + ")"
     with get_conn() as conn:
-        total = conn.execute(count_query, tuple(params)).fetchone()[0]
+        total = conn.execute(count_query, tuple(params)).fetchone()["count"]
 
-    query += " ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, created_at DESC LIMIT %s OFFSET %s"
+    query += ' ORDER BY CASE status WHEN \'open\' THEN 0 ELSE 1 END, "createdAt" DESC LIMIT %s OFFSET %s'
     params.extend([limit, offset])
     with get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -1834,27 +1835,27 @@ async def list_feedback(
     items = []
     for r in rows:
         diag = {}
-        if r["diagnostics_json"]:
+        if r["diagnosticsJson"]:
             try:
-                diag = json.loads(r["diagnostics_json"])
+                diag = json.loads(r["diagnosticsJson"])
             except Exception:
                 pass
         items.append({
             "id": r["id"],
-            "tenant_id": r["tenant_id"],
-            "landlord_id": r["landlord_id"],
-            "property_id": r["property_id"],
-            "tenant_name": r["tenant_name"],
-            "view_token": r["view_token"],
-            "qr_key": r["qr_key"],
+            "tenant_id": r["tenantId"],
+            "landlord_id": r["landlordId"],
+            "property_id": r["propertyId"],
+            "tenant_name": r["tenantName"],
+            "view_token": r["viewToken"],
+            "qr_key": r["qrKey"],
             "message": r["message"],
             "diagnostics": diag,
-            "failed_attempts": r["failed_attempts"],
+            "failed_attempts": r["failedAttempts"],
             "status": r["status"],
-            "admin_reply": r["admin_reply"],
-            "created_at": r["created_at"],
-            "resolved_at": r["resolved_at"],
-            "ip_address": r["ip_address"],
+            "admin_reply": r["adminReply"],
+            "created_at": r["createdAt"],
+            "resolved_at": r["resolvedAt"],
+            "ip_address": r["ipAddress"],
         })
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
@@ -1864,8 +1865,8 @@ async def feedback_unread_count(request: Request):
     _get_platform_admin(request)
     with get_conn() as conn:
         total = conn.execute(
-            "SELECT COUNT(*) FROM tenant_qr_feedback WHERE status = 'open'"
-        ).fetchone()[0]
+            'SELECT COUNT(*) FROM "tenantQrFeedback" WHERE status = \'open\''
+        ).fetchone()["count"]
     return {"unread": total}
 
 
@@ -1884,14 +1885,14 @@ async def reply_feedback(request: Request, feedback_id: int, body: FeedbackReply
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, status FROM tenant_qr_feedback WHERE id = %s", (feedback_id,)
+            'SELECT id, status FROM "tenantQrFeedback" WHERE id = %s', (feedback_id,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Feedback not found")
         conn.execute(
             """
-            UPDATE tenant_qr_feedback
-            SET admin_reply = %s, status = 'resolved', resolved_at = %s, resolved_by = %s
+            UPDATE "tenantQrFeedback"
+            SET "adminReply" = %s, status = 'resolved', "resolvedAt" = %s, "resolvedBy" = %s
             WHERE id = %s
             """,
             (body.admin_reply.strip(), now, admin["id"], feedback_id),
@@ -1914,14 +1915,14 @@ async def resolve_feedback(request: Request, feedback_id: int):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id FROM tenant_qr_feedback WHERE id = %s", (feedback_id,)
+            'SELECT id FROM "tenantQrFeedback" WHERE id = %s', (feedback_id,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Feedback not found")
         conn.execute(
             """
-            UPDATE tenant_qr_feedback
-            SET status = 'resolved', resolved_at = %s, resolved_by = %s
+            UPDATE "tenantQrFeedback"
+            SET status = 'resolved', "resolvedAt" = %s, "resolvedBy" = %s
             WHERE id = %s
             """,
             (now, admin["id"], feedback_id),

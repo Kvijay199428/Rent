@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 import secrets
 from datetime import datetime, timedelta
 from app.core.db import get_conn
@@ -18,28 +18,28 @@ def create_tenant_session(tenantId: int, request, remember_me: bool):
     now = datetime.utcnow().isoformat()
     
     with get_conn() as conn:
-        conn.execute("""
-            INSERT INTO tenant_sessions
-            (session_id, tenantId, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
+        conn.execute('''
+            INSERT INTO "tenantSessions"
+            ("sessionId", "tenantId", "refreshTokenHash", "deviceName", browser, os, "ipAddress", "createdAt", "lastActivity", "expiresAt", "rememberMe")
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (session_id, tenantId, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
+        ''', (session_id, tenantId, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
         conn.commit()
         
     return session_id, refresh_token
 
 def get_tenant_session_db(session_id: str):
     with get_conn() as conn:
-        return conn.execute("SELECT * FROM tenant_sessions WHERE session_id = %s AND status = 'Active'", (session_id,)).fetchone()
+        return conn.execute("SELECT * FROM \"tenantSessions\" WHERE \"sessionId\" = %s AND status = 'Active'", (session_id,)).fetchone()
 
 def revoke_tenant_session_db(session_id: str):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = %s WHERE session_id = %s", (now, session_id))
+        conn.execute("UPDATE \"tenantSessions\" SET status = 'Revoked', \"revokedAt\" = %s WHERE \"sessionId\" = %s", (now, session_id))
         conn.commit()
 
 def revoke_all_tenant_sessions(tenantId: int):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("UPDATE tenant_sessions SET status = 'Revoked', revoked_at = %s WHERE tenantId = %s", (now, tenantId))
+        conn.execute('''UPDATE \"tenantSessions\" SET status = 'Revoked', \"revokedAt\" = %s WHERE "tenantId" = %s''', (now, tenantId))
         conn.commit()
 

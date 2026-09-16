@@ -132,6 +132,10 @@ class LandlordRoutes:
     LANDLORDAPISYNCTEMPLATE = "/landlord/{landlordUuid}/api/import-template"
     LANDLORDAPISYNCIMPORTPREVIEW = "/landlord/{landlordUuid}/api/import-preview"
     LANDLORDAPISYNCIMPORTEXECUTE = "/landlord/{landlordUuid}/api/import-execute"
+    LANDLORDAPISYNCIMPORTPREVIEWV2 = "/landlord/{landlordUuid}/api/import-preview-v2"
+    LANDLORDAPISYNCIMPORTEXECUTEV2 = "/landlord/{landlordUuid}/api/import-execute-v2"
+    LANDLORDAPISYNCEXPORTV2 = "/landlord/{landlordUuid}/api/export-v2"
+    LANDLORDAPISYNCIMPORTTEMPLATEV2 = "/landlord/{landlordUuid}/api/import-template-v2"
 
     # Landlord API: Backups
     LANDLORDAPIBACKUPSLIST = "/landlord/{landlordUuid}/api/backups"
@@ -223,6 +227,10 @@ class LandlordNames:
     EXPORTEXCELDATA = "export_excel_data"
     IMPORTPREVIEWDATA = "import_preview_data"
     IMPORTEXECUTEDATA = "import_execute_data"
+    IMPORTPREVIEWDATAV2 = "import_preview_data_v2"
+    IMPORTEXECUTEDATAV2 = "import_execute_data_v2"
+    EXPORTDATAV2 = "export_data_v2"
+    DOWNLOADEXCELTEMPLATEV2 = "download_excel_template_v2"
 
     # API - Tenants
     APIGETTENANTS = "api_get_tenants"

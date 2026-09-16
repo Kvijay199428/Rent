@@ -19,8 +19,8 @@ def create_admin_session(admin_id: int, request, remember_me: bool):
     
     with get_conn() as conn:
         conn.execute("""
-            INSERT INTO admin_sessions
-            (session_id, admin_id, refresh_token_hash, device_name, browser, os, ip_address, created_at, last_activity, expires_at, remember_me)
+            INSERT INTO "adminSessions"
+            ("sessionId", "adminId", "refreshTokenHash", "deviceName", browser, os, "ipAddress", "createdAt", "lastActivity", "expiresAt", "rememberMe")
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (session_id, admin_id, refresh_hash, "Unknown", user_agent, "Unknown", ip, now, now, expires_at, remember_me))
         conn.commit()
@@ -29,11 +29,11 @@ def create_admin_session(admin_id: int, request, remember_me: bool):
 
 def get_admin_session_db(session_id: str):
     with get_conn() as conn:
-        return conn.execute("SELECT * FROM admin_sessions WHERE session_id = %s AND status = 'Active'", (session_id,)).fetchone()
+        return conn.execute("SELECT * FROM \"adminSessions\" WHERE \"sessionId\" = %s AND status = 'Active'", (session_id,)).fetchone()
 
 def revoke_admin_session_db(session_id: str):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("UPDATE admin_sessions SET status = 'Revoked', revoked_at = %s WHERE session_id = %s", (now, session_id))
+        conn.execute("UPDATE \"adminSessions\" SET status = 'Revoked', \"revokedAt\" = %s WHERE \"sessionId\" = %s", (now, session_id))
         conn.commit()
 

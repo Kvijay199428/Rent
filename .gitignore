@@ -34,6 +34,7 @@ dist-ssr/
 # Build artifacts
 build-output/
 update.zip
+.wrangler/
 tsconfig.tsbuildinfo
 tsconfig.*.tsbuildinfo
 .sisyphus/

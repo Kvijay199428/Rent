@@ -23,7 +23,7 @@ def get_landlord_by_username(username: str):
     """Return a single row from landlord_accounts matching *username*, or None."""
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM landlord_accounts WHERE username = %s",
+            "SELECT * FROM \"landlordAccounts\" WHERE username = %s",
             (username,),
         ).fetchone()
 
@@ -32,7 +32,7 @@ def get_landlord_by_email(email: str):
     """Return a single row from landlord_accounts matching *email*, or None."""
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM landlord_accounts WHERE email = %s",
+            "SELECT * FROM \"landlordAccounts\" WHERE email = %s",
             (email,),
         ).fetchone()
 
@@ -41,7 +41,7 @@ def get_landlord_by_id(landlord_id: int):
     """Return a single row from landlord_accounts matching *landlord_id*, or None."""
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM landlord_accounts WHERE id = %s",
+            "SELECT * FROM \"landlordAccounts\" WHERE id = %s",
             (landlord_id,),
         ).fetchone()
 
@@ -78,13 +78,13 @@ def create_landlord(
     with get_conn() as conn:
         row = conn.execute(
             """
-            INSERT INTO landlord_accounts (
-                landlord_uuid, full_name, email, phone, username,
-                password_hash, status, created_at, updated_at,
-                privacy_consented, privacy_version, privacy_accepted_at,
-                privacy_accepted_ip, privacy_accepted_user_agent,
-                terms_consented, terms_version, terms_accepted_at,
-                terms_accepted_ip, terms_accepted_user_agent
+            INSERT INTO "landlordAccounts" (
+                "landlordUuid", "fullName", email, phone, username,
+                "passwordHash", status, "createdAt", "updatedAt",
+                "privacyConsented", "privacyVersion", "privacyAcceptedAt",
+                "privacyAcceptedIp", "privacyAcceptedUserAgent",
+                "termsConsented", "termsVersion", "termsAcceptedAt",
+                "termsAcceptedIp", "termsAcceptedUserAgent"
             ) VALUES (%s, %s, %s, %s, %s, %s, 'Active', %s, %s,
                       %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING *
@@ -117,19 +117,19 @@ def record_privacy_consent(
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            """UPDATE landlord_accounts
-               SET privacy_consented = 1,
-                   privacy_version = %s,
-                   privacy_accepted_at = %s,
-                   privacy_accepted_ip = %s,
-                   privacy_accepted_user_agent = %s,
-                   updated_at = %s
+            """UPDATE "landlordAccounts"
+               SET "privacyConsented" = 1,
+                   "privacyVersion" = %s,
+                   "privacyAcceptedAt" = %s,
+                   "privacyAcceptedIp" = %s,
+                   "privacyAcceptedUserAgent" = %s,
+                   "updatedAt" = %s
                WHERE id = %s""",
             (privacy_version, now, ip_address, user_agent, now, landlord_id),
         )
         conn.execute(
-            """INSERT INTO landlord_privacy_consents
-               (landlord_id, privacy_version, accepted, accepted_at, accepted_ip, accepted_user_agent)
+            """INSERT INTO "landlordPrivacyConsents"
+               ("landlordId", "privacyVersion", accepted, "acceptedAt", "acceptedIp", "acceptedUserAgent")
                VALUES (%s, %s, 1, %s, %s, %s)""",
             (landlord_id, privacy_version, now, ip_address, user_agent),
         )
@@ -151,19 +151,19 @@ def record_terms_consent(
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            """UPDATE landlord_accounts
-               SET terms_consented = 1,
-                   terms_version = %s,
-                   terms_accepted_at = %s,
-                   terms_accepted_ip = %s,
-                   terms_accepted_user_agent = %s,
-                   updated_at = %s
+            """UPDATE "landlordAccounts"
+               SET "termsConsented" = 1,
+                   "termsVersion" = %s,
+                   "termsAcceptedAt" = %s,
+                   "termsAcceptedIp" = %s,
+                   "termsAcceptedUserAgent" = %s,
+                   "updatedAt" = %s
                WHERE id = %s""",
             (terms_version, now, ip_address, user_agent, now, landlord_id),
         )
         conn.execute(
-            """INSERT INTO landlord_terms_consents
-               (landlord_id, terms_version, accepted, accepted_at, accepted_ip, accepted_user_agent)
+            """INSERT INTO "landlordTermsConsents"
+               ("landlordId", "termsVersion", accepted, "acceptedAt", "acceptedIp", "acceptedUserAgent")
                VALUES (%s, %s, 1, %s, %s, %s)""",
             (landlord_id, terms_version, now, ip_address, user_agent),
         )
@@ -185,7 +185,7 @@ def create_landlord_audit_log(
     with get_conn() as conn:
         conn.execute(
             """
-            INSERT INTO landlord_audit_logs (landlord_id, action, ip_address, created_at, meta_json)
+            INSERT INTO "landlordAuditLogs" ("landlordId", action, "ipAddress", "createdAt", "metaJson")
             VALUES (%s, %s, %s, %s, %s)
             """,
             (landlord_id, action, ip_address, now, meta_json),
@@ -201,7 +201,7 @@ def get_landlord_by_uuid(landlord_uuid: str):
     """Return a single row from landlord_accounts matching *landlord_uuid*, or None."""
     with get_conn() as conn:
         return conn.execute(
-            "SELECT * FROM landlord_accounts WHERE landlord_uuid = %s",
+            "SELECT * FROM \"landlordAccounts\" WHERE \"landlordUuid\" = %s",
             (landlord_uuid,),
         ).fetchone()
 
@@ -210,10 +210,10 @@ def get_landlord_totp_secret(landlord_id: int):
     """Return the totp_secret for the given landlord, or None."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT totp_secret FROM landlord_accounts WHERE id = %s",
+            "SELECT \"totpSecret\" FROM \"landlordAccounts\" WHERE id = %s",
             (landlord_id,),
         ).fetchone()
-        return row["totp_secret"] if row else None
+        return row["totpSecret"] if row else None
 
 
 def update_landlord_totp_secret(landlord_id: int, secret: str):
@@ -221,7 +221,7 @@ def update_landlord_totp_secret(landlord_id: int, secret: str):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET totp_secret = %s, updated_at = %s WHERE id = %s",
+            "UPDATE \"landlordAccounts\" SET \"totpSecret\" = %s, \"updatedAt\" = %s WHERE id = %s",
             (secret, now, landlord_id),
         )
         conn.commit()
@@ -270,10 +270,10 @@ LOCKOUT_MINUTES = 15
 
 def is_landlord_locked_out(landlord) -> bool:
     """Check if the landlord account is currently locked out."""
-    if not landlord["locked_until"]:
+    if not landlord["lockedUntil"]:
         return False
     try:
-        locked_until = datetime.fromisoformat(landlord["locked_until"])
+        locked_until = datetime.fromisoformat(landlord["lockedUntil"])
         return datetime.utcnow() < locked_until
     except (ValueError, TypeError):
         return False
@@ -284,22 +284,22 @@ def record_landlord_failed_attempt(landlord_id: int):
     now = datetime.utcnow()
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT failed_attempts FROM landlord_accounts WHERE id = %s",
+            "SELECT \"failedAttempts\" FROM \"landlordAccounts\" WHERE id = %s",
             (landlord_id,),
         ).fetchone()
-        attempts = (row["failed_attempts"] or 0) + 1
+        attempts = (row["failedAttempts"] or 0) + 1
 
         if attempts >= MAX_FAILED_ATTEMPTS:
             locked_until = now.replace(
                 minute=now.minute + LOCKOUT_MINUTES
             )
             conn.execute(
-                "UPDATE landlord_accounts SET failed_attempts = %s, locked_until = %s, updated_at = %s WHERE id = %s",
+                "UPDATE \"landlordAccounts\" SET \"failedAttempts\" = %s, \"lockedUntil\" = %s, \"updatedAt\" = %s WHERE id = %s",
                 (attempts, locked_until.isoformat(), now.isoformat(), landlord_id),
             )
         else:
             conn.execute(
-                "UPDATE landlord_accounts SET failed_attempts = %s, updated_at = %s WHERE id = %s",
+                "UPDATE \"landlordAccounts\" SET \"failedAttempts\" = %s, \"updatedAt\" = %s WHERE id = %s",
                 (attempts, now.isoformat(), landlord_id),
             )
         conn.commit()
@@ -310,7 +310,7 @@ def reset_landlord_failed_attempts(landlord_id: int):
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET failed_attempts = 0, locked_until = NULL, updated_at = %s WHERE id = %s",
+            "UPDATE \"landlordAccounts\" SET \"failedAttempts\" = 0, \"lockedUntil\" = NULL, \"updatedAt\" = %s WHERE id = %s",
             (now, landlord_id),
         )
         conn.commit()

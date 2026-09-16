@@ -39,8 +39,8 @@ def create_platform_admin_audit_log(
         with get_conn() as conn:
             conn.execute(
                 """
-                INSERT INTO platform_admin_audit_logs
-                    (admin_id, action, target_type, target_id, ip_address, meta_json, created_at)
+                INSERT INTO "platformAdminAuditLogs"
+                    ("adminId", action, "targetType", "targetId", "ipAddress", "metaJson", "createdAt")
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
@@ -82,11 +82,11 @@ def cleanup_old_audit_logs(days: int) -> int:
     removed = 0
 
     # --- SQLite: clean all 3 audit tables ---
-    for table in ("platform_admin_audit_logs", "landlord_audit_logs", "tenant_audit_logs"):
+    for table in ("platformAdminAuditLogs", "landlordAuditLogs", "tenantAuditLogs"):
         try:
             with get_conn() as conn:
                 result = conn.execute(
-                    f"DELETE FROM {table} WHERE created_at < %s", (cutoff,)
+                    f'DELETE FROM "{table}" WHERE "createdAt" < %s', (cutoff,)
                 )
                 removed += result.rowcount or 0
                 conn.commit()

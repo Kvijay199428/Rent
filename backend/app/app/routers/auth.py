@@ -80,7 +80,7 @@ async def auth_refresh(
     session_id, token_secret = parts[0], parts[1]
     
     session = get_tenant_session_db(session_id)
-    if not session or not verify_pin(token_secret, session["refresh_token_hash"]):
+    if not session or not verify_pin(token_secret, session["refreshTokenHash"]):
         revoke_tenant_session_db(session_id)
         clear_tenant_auth_cookies(response, request)
         raise HTTPException(status_code=401, detail="Invalid refresh token")

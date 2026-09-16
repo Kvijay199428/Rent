@@ -130,7 +130,7 @@ async def api_create_property(
         principal.landlord_id,
         "property_created",
         ip_address=request.client.host if request.client else None,
-        meta_json=json.dumps({"property_id": prop["id"], "property_name": prop["property_name"]}),
+        meta_json=json.dumps({"property_id": prop["id"], "property_name": prop["propertyName"]}),
     )
     return {"status": "success", "property": prop}
 

@@ -101,7 +101,7 @@ def _load_landlord_theme(landlord_uuid: str) -> str:
     """Load theme preference for a specific landlord."""
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT theme FROM landlord_ui_config WHERE landlorduuid = %s",
+            'SELECT theme FROM "landlordUiConfig" WHERE "landlordUuid" = %s',
             (landlord_uuid,),
         ).fetchone()
     return row["theme"] if row else "system"
@@ -112,9 +112,9 @@ def _save_landlord_theme(landlord_uuid: str, theme: str) -> None:
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     with get_conn() as conn:
         conn.execute(
-            """INSERT INTO landlord_ui_config (landlorduuid, theme, updated_at)
-               VALUES (%s, %s, %s)
-               ON CONFLICT(landlorduuid) DO UPDATE SET theme = %s, updated_at = %s""",
+            'INSERT INTO "landlordUiConfig" ("landlordUuid", theme, "updatedAt") '
+            "VALUES (%s, %s, %s) "
+            'ON CONFLICT("landlordUuid") DO UPDATE SET theme = %s, "updatedAt" = %s',
             (landlord_uuid, theme, now, theme, now),
         )
         conn.commit()

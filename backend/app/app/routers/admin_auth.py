@@ -96,10 +96,10 @@ async def verify_forgot_password(req: EncryptedPayload):
     if not admin:
         raise HTTPException(status_code=404, detail="Admin user not found.")
     
-    if not admin["totp_secret"]:
+    if not admin["totpSecret"]:
         raise HTTPException(status_code=400, detail="TOTP not configured. Contact system administrator.")
     
-    if not verify_totp(admin["totp_secret"], totp_token):
+    if not verify_totp(admin["totpSecret"], totp_token):
         raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
     
     return {
@@ -134,7 +134,7 @@ async def reset_password(req: EncryptedPayload):
         raise HTTPException(status_code=404, detail="Admin user not found.")
     
     # Re-verify TOTP
-    if not verify_totp(admin["totp_secret"], totp_token):
+    if not verify_totp(admin["totpSecret"], totp_token):
         raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
     
     new_hash = hash_pin(new_password)

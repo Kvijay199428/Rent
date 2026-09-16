@@ -55,7 +55,7 @@ def google_login(credential: str, remember_me: bool, request, response):
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT * FROM landlord_accounts WHERE google_sub = %s", (google_sub,)
+            "SELECT * FROM \"landlordAccounts\" WHERE \"googleSub\" = %s", (google_sub,)
         ).fetchone()
 
     created_new = False
@@ -65,7 +65,7 @@ def google_login(credential: str, remember_me: bool, request, response):
         if landlord:
             with get_conn() as conn:
                 conn.execute(
-                    "UPDATE landlord_accounts SET google_sub = %s, avatar_url = %s, updated_at = %s WHERE id = %s",
+                    "UPDATE \"landlordAccounts\" SET \"googleSub\" = %s, \"avatarUrl\" = %s, \"updatedAt\" = %s WHERE id = %s",
                     (google_sub, avatar_url, datetime.utcnow().isoformat(), landlord["id"]),
                 )
                 conn.commit()
@@ -90,9 +90,9 @@ def google_login(credential: str, remember_me: bool, request, response):
 
         with get_conn() as conn:
             conn.execute(
-                """UPDATE landlord_accounts
-                   SET google_sub = %s, auth_provider = 'google', avatar_url = %s,
-                       requires_password_change = 1, updated_at = %s
+                """UPDATE "landlordAccounts"
+                   SET "googleSub" = %s, "authProvider" = 'google', "avatarUrl" = %s,
+                       "requiresPasswordChange" = 1, "updatedAt" = %s
                    WHERE id = %s""",
                 (google_sub, avatar_url, datetime.utcnow().isoformat(), landlord["id"]),
             )
@@ -111,7 +111,7 @@ def google_login(credential: str, remember_me: bool, request, response):
     # existing account that is still in a consent-pending state.
     consent_ip = request.client.host if request.client else None
     consent_ua = request.headers.get("User-Agent", "")
-    if created_new or not landlord["privacy_consented"]:
+    if created_new or not landlord["privacyConsented"]:
         record_privacy_consent(
             landlord["id"],
             privacy_version=PRIVACY_POLICY_VERSION,
@@ -128,7 +128,7 @@ def google_login(credential: str, remember_me: bool, request, response):
                 "source": "google_signup" if created_new else "google_signin",
             }),
         )
-    if created_new or not landlord["terms_consented"]:
+    if created_new or not landlord["termsConsented"]:
         record_terms_consent(
             landlord["id"],
             terms_version=TERMS_CONDITIONS_VERSION,
@@ -153,20 +153,20 @@ def google_login(credential: str, remember_me: bool, request, response):
     cookie_value = f"{session_id}:{refresh_token}"
     set_landlord_auth_cookies(response, access_token, cookie_value, remember_me, request)
 
-    if created_new or bool(landlord["requires_password_change"]):
+    if created_new or bool(landlord["requiresPasswordChange"]):
         return {
             "status": "password_change_required",
             "message": "You must set a password before continuing.",
-            "landlordUuid": landlord["landlord_uuid"],
+            "landlordUuid": landlord["landlordUuid"],
         }
 
     return {
         "status": "success",
         "landlord": {
             "id": landlord["id"],
-            "landlordUuid": landlord["landlord_uuid"],
+            "landlordUuid": landlord["landlordUuid"],
             "username": landlord["username"],
-            "fullName": landlord["full_name"],
+            "fullName": landlord["fullName"],
         },
     }
 

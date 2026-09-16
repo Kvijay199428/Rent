@@ -130,8 +130,8 @@ async def api_add_tenant(landlordUuid: str, t: Tenant, request: Request, backgro
     # Add to PIN history
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (%s, %s, %s)", (tenantId, hashed_pin, now))
-        conn.execute("INSERT INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (%s, %s, %s) ON CONFLICT (tenantId) DO UPDATE SET encrypted_pin = excluded.encrypted_pin, updated_at = excluded.updated_at", (tenantId, encrypted_pin, now))
+        conn.execute('INSERT INTO "tenantPinHistory" ("tenantId", "pinHash", "changedAt") VALUES (%s, %s, %s)', (tenantId, hashed_pin, now))
+        conn.execute('INSERT INTO "tenantPinAdminStore" ("tenantId", "encryptedPin", "updatedAt") VALUES (%s, %s, %s) ON CONFLICT ("tenantId") DO UPDATE SET "encryptedPin" = excluded."encryptedPin", "updatedAt" = excluded."updatedAt"', (tenantId, encrypted_pin, now))
         conn.commit()
 
     response_tenant = t.dict()
@@ -205,9 +205,9 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
     
     # Prevent immediate reuse (last 5 PINs)
     with get_conn() as conn:
-        history = conn.execute("SELECT pin_hash FROM tenantPin_history WHERE tenantId = %s ORDER BY id DESC LIMIT 5", (tenantId,)).fetchall()
+        history = conn.execute('SELECT "pinHash" FROM "tenantPinHistory" WHERE "tenantId" = %s ORDER BY id DESC LIMIT 5', (tenantId,)).fetchall()
         for row in history:
-            if verify_pin(payload.pin, row["pin_hash"]):
+            if verify_pin(payload.pin, row["pinHash"]):
                 raise HTTPException(status_code=400, detail="Cannot reuse a recently used PIN.")
                 
     new_hash = hash_pin(payload.pin)
@@ -218,8 +218,8 @@ async def api_change_tenantPin(landlordUuid: str, tenantId: int, payload: Change
     
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
-        conn.execute("INSERT INTO tenantPin_history (tenantId, pin_hash, changed_at) VALUES (%s, %s, %s)", (tenantId, new_hash, now))
-        conn.execute("INSERT INTO tenantPin_admin_store (tenantId, encrypted_pin, updated_at) VALUES (%s, %s, %s) ON CONFLICT (tenantId) DO UPDATE SET encrypted_pin = excluded.encrypted_pin, updated_at = excluded.updated_at", (tenantId, encrypted_pin, now))
+        conn.execute('INSERT INTO "tenantPinHistory" ("tenantId", "pinHash", "changedAt") VALUES (%s, %s, %s)', (tenantId, new_hash, now))
+        conn.execute('INSERT INTO "tenantPinAdminStore" ("tenantId", "encryptedPin", "updatedAt") VALUES (%s, %s, %s) ON CONFLICT ("tenantId") DO UPDATE SET "encryptedPin" = excluded."encryptedPin", "updatedAt" = excluded."updatedAt"', (tenantId, encrypted_pin, now))
         conn.commit()
     
     if payload.logout_all:
@@ -246,7 +246,7 @@ async def admin_reveal_tenantPin(
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT encrypted_pin, updated_at FROM tenantPin_admin_store WHERE tenantId = %s",
+            'SELECT "encryptedPin", "updatedAt" FROM "tenantPinAdminStore" WHERE "tenantId" = %s',
             (tenantId,)  # CHANGED: tenantId → tenantId
         ).fetchone()
 
@@ -258,8 +258,8 @@ async def admin_reveal_tenantPin(
 
     return {
         "status": "success",
-        "pin": decrypt_admin_view_pin(row["encrypted_pin"]),
-        "updated_at": row["updated_at"]
+        "pin": decrypt_admin_view_pin(row["encryptedPin"]),
+        "updated_at": row["updatedAt"]
     }
 
 
@@ -283,7 +283,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
 
     with get_conn() as conn:
         existing = conn.execute(
-            "SELECT id, name FROM tenants WHERE id = %s AND landlord_id = %s", (tenantId, principal.landlord_id)
+            'SELECT id, name FROM tenants WHERE id = %s AND "landlordId" = %s', (tenantId, principal.landlord_id)
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Tenant not found")
@@ -291,10 +291,10 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
         # Clear portal auth when nothing is provided
         if not payload.tenantUsername and not payload.temporaryPassword:
             conn.execute(
-                "UPDATE tenants SET tenant_username = NULL, password_hash = NULL, "
-                "password_reset_required = 0, password_failed_attempts = 0, password_locked_until = NULL, "
-                "password_reset_token_hash = NULL, password_reset_expires_at = NULL "
-                "WHERE id = %s",
+                'UPDATE tenants SET "tenantUsername" = NULL, "passwordHash" = NULL, '
+                '"passwordResetRequired" = 0, "passwordFailedAttempts" = 0, "passwordLockedUntil" = NULL, '
+                '"passwordResetTokenHash" = NULL, "passwordResetExpiresAt" = NULL '
+                'WHERE id = %s',
                 (tenantId,),
             )
             conn.commit()
@@ -311,7 +311,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
 
         # Uniqueness check
         conflict = conn.execute(
-            "SELECT id FROM tenants WHERE LOWER(tenant_username) = %s AND id != %s LIMIT 1",
+            'SELECT id FROM tenants WHERE LOWER("tenantUsername") = %s AND id != %s LIMIT 1',
             (username, tenantId),
         ).fetchone()
         if conflict:
@@ -319,7 +319,7 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
 
         now = datetime.utcnow().isoformat()
 
-        updates = ["tenant_username = %s"]
+        updates = ['"tenantUsername" = %s']
         params = [username]
 
         if payload.temporaryPassword:
@@ -328,21 +328,21 @@ async def api_tenant_portal_auth(landlordUuid: str, tenantId: int, payload: Port
             from app.authentication.common.utils import validate_password
             validate_password(str(payload.temporaryPassword))
             pwd_hash = hash_pin(str(payload.temporaryPassword))
-            updates.append("password_hash = %s")
+            updates.append('"passwordHash" = %s')
             params.append(pwd_hash)
-            updates.append("password_reset_required = %s")
+            updates.append('"passwordResetRequired" = %s')
             params.append(1 if payload.resetRequired else 0)
-            updates.append("last_password_change_at = %s")
+            updates.append('"lastPasswordChangeAt" = %s')
             params.append(now)
             conn.execute(
-                "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (%s, %s, %s, 'landlord')",
+                'INSERT INTO "tenantPasswordHistory" ("tenantId", "passwordHash", "changedAt", "changedBy") VALUES (%s, %s, %s, \'landlord\')',
                 (tenantId, pwd_hash, now),
             )
         else:
-            updates.append("password_reset_required = 0")
+            updates.append('"passwordResetRequired" = 0')
 
-        updates.append("password_failed_attempts = 0")
-        updates.append("password_locked_until = NULL")
+        updates.append('"passwordFailedAttempts" = 0')
+        updates.append('"passwordLockedUntil" = NULL')
         params.append(tenantId)
         conn.execute(
             f"UPDATE tenants SET {', '.join(updates)} WHERE id = %s",
@@ -388,11 +388,11 @@ async def api_tenant_regenerate_qr_key(landlordUuid: str, tenantId: int, request
     new_key = _uuid.uuid4().hex
     with get_conn() as conn:
         existing = conn.execute(
-            "SELECT id, name FROM tenants WHERE id = %s AND landlord_id = %s", (tenantId, principal.landlord_id)
+            'SELECT id, name FROM tenants WHERE id = %s AND "landlordId" = %s', (tenantId, principal.landlord_id)
         ).fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Tenant not found")
-        conn.execute("UPDATE tenants SET qr_key = %s WHERE id = %s", (new_key, tenantId))
+        conn.execute('UPDATE tenants SET "qrKey" = %s WHERE id = %s', (new_key, tenantId))
         conn.commit()
 
     revoke_all_tenant_sessions(tenantId)
@@ -432,16 +432,16 @@ async def api_tenant_qr(
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name, property_id, viewToken, qr_key FROM tenants WHERE id = %s",
+            'SELECT id, name, "propertyId", "viewToken", "qrKey" FROM tenants WHERE id = %s',
             (tenantId,),
         ).fetchone()
 
     if not row or not row["viewToken"]:
         raise HTTPException(status_code=400, detail="Tenant portal token is missing.")
-    if not row["qr_key"]:
+    if not row["qrKey"]:
         raise HTTPException(status_code=400, detail="Tenant QR key is missing.")
 
-    url = tenant_qr_payload(landlordUuid, row["property_id"], tenantId, row["viewToken"], row["qr_key"])
+    url = tenant_qr_payload(landlordUuid, row["propertyId"], tenantId, row["viewToken"], row["qrKey"])
     try:
         qr, fmt, count = build_branded_qr(url, size=size, fmt=format, validate=True)
     except QrBuildError as exc:

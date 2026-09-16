@@ -106,10 +106,10 @@ def get_db_stats():
     
     try:
         with get_conn() as conn:
-            receipt_count = conn.execute("SELECT COUNT(*) FROM receipts").fetchone()[0]
-            archived_count = conn.execute("SELECT COUNT(*) FROM receipts WHERE status = 'ARCHIVED'").fetchone()[0]
-            tenant_count = conn.execute("SELECT COUNT(*) FROM tenants").fetchone()[0]
-            inactive_tenant_count = conn.execute("SELECT COUNT(*) FROM tenants WHERE status = 'Inactive'").fetchone()[0]
+            receipt_count = conn.execute("SELECT COUNT(*) FROM receipts").fetchone()["count"]
+            archived_count = conn.execute("SELECT COUNT(*) FROM receipts WHERE status = 'ARCHIVED'").fetchone()["count"]
+            tenant_count = conn.execute("SELECT COUNT(*) FROM tenants").fetchone()["count"]
+            inactive_tenant_count = conn.execute("SELECT COUNT(*) FROM tenants WHERE status = 'Inactive'").fetchone()["count"]
     except Exception as e:
         pass
             
@@ -191,13 +191,13 @@ def _stage_landlord_export(landlord_id: int, temp_dir: str):
 
     with get_conn() as conn:
         tenants = [dict(r) for r in conn.execute(
-            "SELECT * FROM tenants WHERE landlord_id = %s", (landlord_id,)
+            "SELECT * FROM tenants WHERE \"landlordId\" = %s", (landlord_id,)
         ).fetchall()]
         receipts = [dict(r) for r in conn.execute(
-            "SELECT * FROM receipts WHERE landlord_id = %s", (landlord_id,)
+            "SELECT * FROM receipts WHERE \"landlordId\" = %s", (landlord_id,)
         ).fetchall()]
         occupants = [dict(r) for r in conn.execute(
-            "SELECT * FROM occupants WHERE landlord_id = %s", (landlord_id,)
+            'SELECT * FROM occupants WHERE "landlordId" = %s', (landlord_id,)
         ).fetchall()]
 
     with open(os.path.join(data_dir, "tenants.json"), "w", encoding="utf-8") as f:
@@ -347,7 +347,7 @@ def _landlord_tenants(landlord_id: int) -> list:
     from app.core.db import get_conn
     with get_conn() as conn:
         return [dict(r) for r in conn.execute(
-            "SELECT id, name, status, phone, roomnumber FROM tenants WHERE landlord_id = %s",
+            "SELECT id, name, status, phone, \"roomNumber\" FROM tenants WHERE \"landlordId\" = %s",
             (landlord_id,),
         ).fetchall()]
 

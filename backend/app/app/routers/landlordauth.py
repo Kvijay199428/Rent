@@ -322,9 +322,9 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
     now_iso = datetime.utcnow().isoformat()
     with _get_conn() as vault_conn:
         vault_conn.execute(
-            """INSERT INTO landlord_password_admin_store
-               (landlord_id, encrypted_password, updated_at) VALUES (%s, %s, %s)
-               ON CONFLICT (landlord_id) DO UPDATE SET encrypted_password = excluded.encrypted_password, updated_at = excluded.updated_at""",
+            """INSERT INTO "landlordPasswordAdminStore"
+               ("landlordId", "encryptedPassword", "updatedAt") VALUES (%s, %s, %s)
+               ON CONFLICT ("landlordId") DO UPDATE SET "encryptedPassword" = excluded."encryptedPassword", "updatedAt" = excluded."updatedAt""",
             (landlord["id"], encrypted_pw, now_iso),
         )
         vault_conn.commit()
@@ -352,9 +352,9 @@ async def landlord_signup(request: Request, payload: LandlordSignupRequest):
         "status": "success",
         "landlord": {
             "id": landlord["id"],
-            "landlordUuid": landlord["landlord_uuid"],
+            "landlordUuid": landlord["landlordUuid"],
             "username": landlord["username"],
-            "fullName": landlord["full_name"],
+            "fullName": landlord["fullName"],
         },
     }
 
@@ -461,7 +461,7 @@ async def landlord_login(
         )
         raise HTTPException(status_code=429, detail="Account locked. Try again later.")
 
-    if not verify_pin(payload.password, landlord["password_hash"]):
+    if not verify_pin(payload.password, landlord["passwordHash"]):
         record_landlord_failed_attempt(landlord["id"])
         create_landlord_audit_log(
             landlord["id"],
@@ -472,7 +472,7 @@ async def landlord_login(
         raise HTTPException(status_code=401, detail="Invalid username or password.")
 
     # Check if TOTP is required for login
-    if landlord["totp_enabled"] and landlord["totp_secret"]:
+    if landlord["totpEnabled"] and landlord["totpSecret"]:
         return {
             "status": "totp_required",
             "message": "TOTP verification required.",
@@ -480,8 +480,8 @@ async def landlord_login(
         }
 
     # Check if password change is required (admin reset)
-    if landlord["requires_password_change"]:
-        if dict(landlord).get("temp_password_consumed"):
+    if landlord["requiresPasswordChange"]:
+        if dict(landlord).get("tempPasswordConsumed"):
             create_landlord_audit_log(
                 landlord["id"],
                 "temp_password_reuse_blocked",
@@ -497,7 +497,7 @@ async def landlord_login(
         now = datetime.utcnow().isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = %s",
+                "UPDATE \"landlordAccounts\" SET \"tempPasswordConsumed\" = 1 WHERE id = %s",
                 (landlord["id"],),
             )
             conn.commit()
@@ -521,7 +521,7 @@ async def landlord_login(
             "status": "password_change_required",
             "message": "You must change your password before continuing.",
             "username": username,
-            "landlordUuid": landlord["landlord_uuid"],
+            "landlordUuid": landlord["landlordUuid"],
         }
 
     reset_landlord_failed_attempts(landlord["id"])
@@ -544,9 +544,9 @@ async def landlord_login(
         "status": "success",
         "landlord": {
             "id": landlord["id"],
-            "landlordUuid": landlord["landlord_uuid"],
+            "landlordUuid": landlord["landlordUuid"],
             "username": landlord["username"],
-            "fullName": landlord["full_name"],
+            "fullName": landlord["fullName"],
         },
     }
 
@@ -565,7 +565,7 @@ async def landlord_refresh(request: Request, response: Response):
     session_id, raw_token = refresh_cookie.split(":", 1)
 
     session = get_landlord_session_db(session_id)
-    if not session or not verify_pin(raw_token, session["refresh_token_hash"]):
+    if not session or not verify_pin(raw_token, session["refreshTokenHash"]):
         if session:
             revoke_landlord_session_db(session_id)
         clear_landlord_auth_cookies(response, request)
@@ -573,8 +573,8 @@ async def landlord_refresh(request: Request, response: Response):
 
     revoke_landlord_session_db(session_id)
 
-    landlord_id = session["landlord_id"]
-    remember_me = bool(session["remember_me"] or 0)
+    landlord_id = session["landlordId"]
+    remember_me = bool(session["rememberMe"] or 0)
 
     new_session_id, new_refresh_token = create_landlord_session(
         landlord_id, request, remember_me=remember_me
@@ -629,11 +629,11 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
     """
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT totp_secret, totp_enabled, requires_password_change, "
-            "privacy_consented, privacy_version, "
-            "terms_consented, terms_version, "
-            "setup_completed, setup_skipped "
-            "FROM landlord_accounts WHERE id = %s",
+            "SELECT \"totpSecret\", \"totpEnabled\", \"requiresPasswordChange\", "
+            "\"privacyConsented\", \"privacyVersion\", "
+            "\"termsConsented\", \"termsVersion\", "
+            "\"setupCompleted\", \"setupSkipped\" "
+            "FROM \"landlordAccounts\" WHERE id = %s",
             (principal.landlord_id,),
         ).fetchone()
 
@@ -645,15 +645,15 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "username": principal.username,
             "fullName": principal.fullname,
             "email": principal.email,
-            "hasTotp": bool(row and row["totp_secret"]),
-            "totpEnabled": bool(row and row["totp_enabled"]),
-            "requiresPasswordChange": bool(row and row["requires_password_change"]),
-            "privacyConsented": bool(row and row["privacy_consented"]),
-            "privacyVersion": row["privacy_version"] if row else None,
-            "termsConsented": bool(row and row["terms_consented"]),
-            "termsVersion": row["terms_version"] if row else None,
-            "setupCompleted": bool(row and row["setup_completed"]),
-            "setupSkipped": bool(row and row["setup_skipped"]),
+            "hasTotp": bool(row and row["totpSecret"]),
+            "totpEnabled": bool(row and row["totpEnabled"]),
+            "requiresPasswordChange": bool(row and row["requiresPasswordChange"]),
+            "privacyConsented": bool(row and row["privacyConsented"]),
+            "privacyVersion": row["privacyVersion"] if row else None,
+            "termsConsented": bool(row and row["termsConsented"]),
+            "termsVersion": row["termsVersion"] if row else None,
+            "setupCompleted": bool(row and row["setupCompleted"]),
+            "setupSkipped": bool(row and row["setupSkipped"]),
         },
     }
 
@@ -683,7 +683,7 @@ async def landlord_login_with_totp(
         )
         raise HTTPException(status_code=429, detail="Account locked. Try again later.")
 
-    if not verify_pin(payload.password, landlord["password_hash"]):
+    if not verify_pin(payload.password, landlord["passwordHash"]):
         record_landlord_failed_attempt(landlord["id"])
         create_landlord_audit_log(
             landlord["id"],
@@ -693,10 +693,10 @@ async def landlord_login_with_totp(
         )
         raise HTTPException(status_code=401, detail="Invalid username or password.")
 
-    if not landlord["totp_secret"]:
+    if not landlord["totpSecret"]:
         raise HTTPException(status_code=400, detail="TOTP not configured for this account.")
 
-    if not verify_totp(landlord["totp_secret"], payload.totpToken):
+    if not verify_totp(landlord["totpSecret"], payload.totpToken):
         record_landlord_failed_attempt(landlord["id"])
         create_landlord_audit_log(
             landlord["id"],
@@ -709,8 +709,8 @@ async def landlord_login_with_totp(
     reset_landlord_failed_attempts(landlord["id"])
 
     # Check if password change is required (admin reset)
-    if landlord["requires_password_change"]:
-        if dict(landlord).get("temp_password_consumed"):
+    if landlord["requiresPasswordChange"]:
+        if dict(landlord).get("tempPasswordConsumed"):
             create_landlord_audit_log(
                 landlord["id"],
                 "temp_password_reuse_blocked",
@@ -725,7 +725,7 @@ async def landlord_login_with_totp(
         now = datetime.utcnow().isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE landlord_accounts SET temp_password_consumed = 1 WHERE id = %s",
+                "UPDATE \"landlordAccounts\" SET \"tempPasswordConsumed\" = 1 WHERE id = %s",
                 (landlord["id"],),
             )
             conn.commit()
@@ -748,7 +748,7 @@ async def landlord_login_with_totp(
             "status": "password_change_required",
             "message": "You must change your password before continuing.",
             "username": username,
-            "landlordUuid": landlord["landlord_uuid"],
+            "landlordUuid": landlord["landlordUuid"],
         }
 
     session_id, refresh_token = create_landlord_session(
@@ -770,9 +770,9 @@ async def landlord_login_with_totp(
         "status": "success",
         "landlord": {
             "id": landlord["id"],
-            "landlordUuid": landlord["landlord_uuid"],
+            "landlordUuid": landlord["landlordUuid"],
             "username": landlord["username"],
-            "fullName": landlord["full_name"],
+            "fullName": landlord["fullName"],
         },
     }
 
@@ -824,7 +824,7 @@ async def landlord_change_password(
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, landlord_uuid, username, password_hash, requires_password_change FROM landlord_accounts WHERE id = %s",
+            "SELECT id, \"landlordUuid\", username, \"passwordHash\", \"requiresPasswordChange\" FROM \"landlordAccounts\" WHERE id = %s",
             (landlord_id,),
         ).fetchone()
         if not landlord:
@@ -832,12 +832,12 @@ async def landlord_change_password(
 
     # When a password change is required (Google signup / admin reset), the user
     # does not know the current (placeholder/temporary) password, so skip it.
-    if not landlord["requires_password_change"]:
+    if not landlord["requiresPasswordChange"]:
         if not current_password:
             raise HTTPException(status_code=400, detail="Current password is required.")
         if current_password == new_password:
             raise HTTPException(status_code=400, detail="New password must be different from current password.")
-        if not verify_pin(current_password, landlord["password_hash"]):
+        if not verify_pin(current_password, landlord["passwordHash"]):
             raise HTTPException(status_code=401, detail="Current password is incorrect.")
 
     new_hash = hash_pin(new_password)
@@ -846,24 +846,24 @@ async def landlord_change_password(
 
     with get_conn() as conn:
         conn.execute(
-            """UPDATE landlord_accounts
-               SET password_hash = %s,
-                   requires_password_change = 0,
-                   temp_password_created_at = NULL,
-                   temp_password_consumed = 0,
-                   updated_at = %s
+            """UPDATE "landlordAccounts"
+               SET "passwordHash" = %s,
+                   "requiresPasswordChange" = 0,
+                   "tempPasswordCreatedAt" = NULL,
+                   "tempPasswordConsumed" = 0,
+                   "updatedAt" = %s
                WHERE id = %s""",
             (new_hash, now, landlord_id),
         )
         conn.execute(
-            """INSERT INTO landlord_password_admin_store
-               (landlord_id, encrypted_password, updated_at) VALUES (%s, %s, %s)
-               ON CONFLICT (landlord_id) DO UPDATE SET encrypted_password = excluded.encrypted_password, updated_at = excluded.updated_at""",
+            """INSERT INTO "landlordPasswordAdminStore"
+               ("landlordId", "encryptedPassword", "updatedAt") VALUES (%s, %s, %s)
+               ON CONFLICT ("landlordId") DO UPDATE SET "encryptedPassword" = excluded."encryptedPassword", "updatedAt" = excluded."updatedAt""",
             (landlord_id, encrypted_pw, now),
         )
         # Check if landlord has TOTP configured
         row = conn.execute(
-            "SELECT totp_secret FROM landlord_accounts WHERE id = %s",
+            "SELECT \"totpSecret\" FROM \"landlordAccounts\" WHERE id = %s",
             (landlord_id,),
         ).fetchone()
         conn.commit()
@@ -877,24 +877,24 @@ async def landlord_change_password(
     # Broadcast auth state change
     try:
         from app.core.websocket_manager import sync_manager
-        ll_uuid = landlord["landlord_uuid"]
+        ll_uuid = landlord["landlordUuid"]
         await sync_manager.broadcast(f"landlord:{ll_uuid}", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
         await sync_manager.broadcast("platform_admin", {"type": "AUTH_STATE_CHANGED", "role": "landlord", "id": landlord_id})
     except Exception:
         pass
 
     # Return TOTP data if configured, so frontend can show QR dialog
-    if row and row["totp_secret"]:
+    if row and row["totpSecret"]:
         username = (landlord["username"] if landlord else "") or ""
-        qr_base64 = generate_totp_qr_base64(username, row["totp_secret"])
+        qr_base64 = generate_totp_qr_base64(username, row["totpSecret"])
         return {
             "status": "success",
             "message": "Password updated successfully.",
             "next_step": "totp_review",
             "totp": {
-                "secret": row["totp_secret"],
+                "secret": row["totpSecret"],
                 "qr_code_base64": qr_base64,
-                "provisioning_uri": get_totp_uri(username, row["totp_secret"]),
+                "provisioning_uri": get_totp_uri(username, row["totpSecret"]),
             },
         }
 
@@ -914,10 +914,10 @@ async def landlord_totp_qr(
     if not landlord:
         raise HTTPException(status_code=404, detail="Landlord not found.")
 
-    if not landlord["totp_secret"]:
+    if not landlord["totpSecret"]:
         return {"status": "success", "totp": None, "message": "TOTP is not configured"}
 
-    new_secret = landlord["totp_secret"]
+    new_secret = landlord["totpSecret"]
     qr_base64 = generate_totp_qr_base64(landlord["username"], new_secret)
 
     return {
@@ -979,14 +979,14 @@ async def landlord_totp_enable(
 
     now = datetime.utcnow().isoformat()
 
-    if not landlord["totp_secret"]:
+    if not landlord["totpSecret"]:
         new_secret = regenerate_landlord_totp_secret(landlord["id"])
     else:
-        new_secret = landlord["totp_secret"]
+        new_secret = landlord["totpSecret"]
 
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET totp_enabled = 1, updated_at = %s WHERE id = %s",
+            "UPDATE \"landlordAccounts\" SET \"totpEnabled\" = 1, \"updatedAt\" = %s WHERE id = %s",
             (now, landlord["id"]),
         )
         conn.commit()
@@ -1036,7 +1036,7 @@ async def landlord_totp_disable(
     now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
-            "UPDATE landlord_accounts SET totp_enabled = 0, updated_at = %s WHERE id = %s",
+            "UPDATE \"landlordAccounts\" SET \"totpEnabled\" = 0, \"updatedAt\" = %s WHERE id = %s",
             (now, landlord["id"]),
         )
         conn.commit()
@@ -1078,62 +1078,62 @@ async def landlord_audit_logs(
     """Return audit logs for this landlord (own actions + all their tenants' actions)."""
     landlord_id = principal.id
 
-    query = """
+    query = '''
         SELECT * FROM (
             SELECT
                 ll.id,
                 'landlord' AS app_source,
-                ll.landlord_id AS actor_id,
+                ll."landlordId" AS actor_id,
                 la.username AS actor_name,
                 ll.action,
                 NULL AS target_type,
                 NULL AS target_id,
-                ll.ip_address,
-                ll.meta_json,
-                ll.created_at
-            FROM landlord_audit_logs ll
-            LEFT JOIN landlord_accounts la ON ll.landlord_id = la.id
-            WHERE ll.landlord_id = %s
+                ll."ipAddress",
+                ll."metaJson",
+                ll."createdAt"
+            FROM "landlordAuditLogs" ll
+            LEFT JOIN "landlordAccounts" la ON ll."landlordId" = la.id
+            WHERE ll."landlordId" = %s
 
             UNION ALL
 
             SELECT
                 tl.id,
                 'tenant' AS app_source,
-                tl.tenantId AS actor_id,
+                tl."tenantId" AS actor_id,
                 t.name AS actor_name,
                 tl.action,
                 NULL AS target_type,
                 NULL AS target_id,
-                tl.ip_address,
-                tl.meta_json,
-                tl.created_at
-            FROM tenant_audit_logs tl
-            LEFT JOIN tenants t ON tl.tenantId = t.id
-            WHERE tl.tenantId IN (SELECT id FROM tenants WHERE landlord_id = %s)
+                tl."ipAddress",
+                tl."metaJson",
+                tl."createdAt"
+            FROM "tenantAuditLogs" tl
+            LEFT JOIN tenants t ON tl."tenantId" = t.id
+            WHERE tl."tenantId" IN (SELECT id FROM tenants WHERE "landlordId" = %s)
         ) unified
         WHERE 1=1
-    """
+    '''
     params: list = [landlord_id, landlord_id]
 
     if action_type:
         query += " AND action LIKE %s"
         params.append(f"%{action_type}%")
     if search:
-        query += " AND (action LIKE %s OR ip_address LIKE %s OR actor_name LIKE %s)"
+        query += " AND (action LIKE %s OR \"ipAddress\" LIKE %s OR actor_name LIKE %s)"
         params.extend([f"%{search}%"] * 3)
     if date_from:
-        query += " AND created_at >= %s"
+        query += " AND \"createdAt\" >= %s"
         params.append(date_from)
     if date_to:
-        query += " AND created_at <= %s"
+        query += " AND \"createdAt\" <= %s"
         params.append(date_to + "T23:59:59")
 
     count_query = "SELECT COUNT(*) FROM (" + query + ")"
     with get_conn() as conn:
-        total = conn.execute(count_query, tuple(params)).fetchone()[0]
+        total = conn.execute(count_query, tuple(params)).fetchone()["count"]
 
-    query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+    query += " ORDER BY \"createdAt\" DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -1141,9 +1141,9 @@ async def landlord_audit_logs(
     items = []
     for r in rows:
         meta = {}
-        if r["meta_json"]:
+        if r["metaJson"]:
             try:
-                meta = json.loads(r["meta_json"])
+                meta = json.loads(r["metaJson"])
             except Exception:
                 pass
         items.append({
@@ -1154,9 +1154,9 @@ async def landlord_audit_logs(
             "action": r["action"],
             "target_type": r["target_type"],
             "target_id": r["target_id"],
-            "ip_address": r["ip_address"],
+            "ip_address": r["ipAddress"],
             "meta": meta,
-            "created_at": r["created_at"],
+            "created_at": r["createdAt"],
         })
 
     return {"items": items, "total": total}
@@ -1170,14 +1170,14 @@ async def landlord_audit_action_types(
 ):
     """Return distinct action types for this landlord's logs."""
     landlord_id = principal.id
-    query = """
+    query = '''
         SELECT DISTINCT action FROM (
-            SELECT action FROM landlord_audit_logs WHERE landlord_id = %s
+            SELECT action FROM "landlordAuditLogs" WHERE "landlordId" = %s
             UNION ALL
-            SELECT action FROM tenant_audit_logs
-            WHERE tenantId IN (SELECT id FROM tenants WHERE landlord_id = %s)
+            SELECT action FROM "tenantAuditLogs"
+            WHERE "tenantId" IN (SELECT id FROM tenants WHERE "landlordId" = %s)
         ) ORDER BY action
-    """
+    '''
     with get_conn() as conn:
         rows = conn.execute(query, (landlord_id, landlord_id)).fetchall()
     return [r["action"] for r in rows]

@@ -49,7 +49,7 @@ def _resolve_tenant_property_id(tenant_id: int, landlord_id):
     from app.core.db import get_conn
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id FROM landlord_properties WHERE landlord_id = %s ORDER BY sort_order, id LIMIT 1",
+            "SELECT id FROM \"landlordProperties\" WHERE \"landlordId\" = %s ORDER BY \"sortOrder\", id LIMIT 1",
             (landlord_id,),
         ).fetchone()
         if row:
@@ -171,13 +171,13 @@ async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, re
     # Brute-force lockout (5 failed PIN/QR attempts -> 15 minute lock).
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT failed_attempts, locked_until FROM tenants WHERE id = %s",
+            "SELECT \"failedAttempts\", \"lockedUntil\" FROM tenants WHERE id = %s",
             (tenant.id,),
         ).fetchone()
 
-    if row and row["locked_until"]:
+    if row and row["lockedUntil"]:
         try:
-            locked_dt = datetime.fromisoformat(row["locked_until"])
+            locked_dt = datetime.fromisoformat(row["lockedUntil"])
             if datetime.utcnow() < locked_dt:
                 log_audit(tenant.id, "Login Blocked - Too Many Failed PIN Attempts", ip)
                 raise HTTPException(
@@ -188,13 +188,13 @@ async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, re
             pass
 
     def _record_failed_attempt(detail: str):
-        failed_attempts = (row["failed_attempts"] or 0) + 1 if row else 1
+        failed_attempts = (row["failedAttempts"] or 0) + 1 if row else 1
         locked_until_str = None
         if failed_attempts >= 5:
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET failed_attempts = %s, locked_until = %s WHERE id = %s",
+                "UPDATE tenants SET \"failedAttempts\" = %s, \"lockedUntil\" = %s WHERE id = %s",
                 (failed_attempts, locked_until_str, tenant.id),
             )
             conn.commit()
@@ -232,10 +232,10 @@ async def public_tenant_login(propertyId: int, tenantId: int, viewToken: str, re
         raise HTTPException(status_code=401, detail="wrong qrKey or pin rescan the qr")
 
     # Reset attempts on success
-    if (row and row["failed_attempts"]) or (row and row["locked_until"]):
+    if (row and row["failedAttempts"]) or (row and row["lockedUntil"]):
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET failed_attempts = 0, locked_until = NULL WHERE id = %s",
+                "UPDATE tenants SET \"failedAttempts\" = 0, \"lockedUntil\" = NULL WHERE id = %s",
                 (tenant.id,),
             )
             conn.commit()
@@ -297,9 +297,9 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name, landlord_id, viewToken, password_hash, property_id, "
-            "password_failed_attempts, password_locked_until, password_reset_required "
-            "FROM tenants WHERE LOWER(tenant_username) = %s ORDER BY id LIMIT 1",
+            'SELECT id, name, \"landlordId\", "viewToken", \"passwordHash\", \"propertyId\", '
+            "\"passwordFailedAttempts\", \"passwordLockedUntil\", \"passwordResetRequired\" "
+            "FROM tenants WHERE LOWER(\"tenantUsername\") = %s ORDER BY id LIMIT 1",
             (username,),
         ).fetchone()
 
@@ -307,58 +307,58 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
     def generic_fail():
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    if not row or not row["password_hash"]:
+    if not row or not row["passwordHash"]:
         generic_fail()
 
     from datetime import datetime, timedelta
-    if row["password_locked_until"]:
+    if row["passwordLockedUntil"]:
         try:
-            locked_until = datetime.fromisoformat(row["password_locked_until"])
+            locked_until = datetime.fromisoformat(row["passwordLockedUntil"])
             if datetime.utcnow() < locked_until:
                 raise HTTPException(status_code=429, detail="Account locked. Try again later.")
         except ValueError:
             pass
 
-    if not verify_pin(password, row["password_hash"]):
+    if not verify_pin(password, row["passwordHash"]):
         log_audit(row["id"], "Portal Login Failed - Wrong Password", ip)
-        failed_attempts = (row["password_failed_attempts"] or 0) + 1
+        failed_attempts = (row["passwordFailedAttempts"] or 0) + 1
         locked_until_str = None
         if failed_attempts >= 5:
             locked_until_str = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET password_failed_attempts = %s, password_locked_until = %s WHERE id = %s",
+                "UPDATE tenants SET \"passwordFailedAttempts\" = %s, \"passwordLockedUntil\" = %s WHERE id = %s",
                 (failed_attempts, locked_until_str, row["id"]),
             )
             conn.commit()
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    if (row["password_failed_attempts"] or 0) > 0:
+    if (row["passwordFailedAttempts"] or 0) > 0:
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET password_failed_attempts = 0, password_locked_until = NULL WHERE id = %s",
+                "UPDATE tenants SET \"passwordFailedAttempts\" = 0, \"passwordLockedUntil\" = NULL WHERE id = %s",
                 (row["id"],),
             )
             conn.commit()
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT landlord_uuid FROM landlord_accounts WHERE id = %s",
-            (row["landlord_id"],),
+            "SELECT \"landlordUuid\" FROM \"landlordAccounts\" WHERE id = %s",
+            (row["landlordId"],),
         ).fetchone()
 
     if not landlord:
         landlord = conn.execute(
-            "SELECT landlord_uuid FROM landlord_accounts ORDER BY id LIMIT 1"
+            "SELECT \"landlordUuid\" FROM \"landlordAccounts\" ORDER BY id LIMIT 1"
         ).fetchone()
 
     if not landlord:
         raise HTTPException(status_code=500, detail="Landlord account not found")
 
-    landlord_uuid = landlord["landlord_uuid"]
+    landlord_uuid = landlord["landlordUuid"]
     view_token = row["viewToken"]
     tenant_id = row["id"]
-    property_id = row["property_id"] or _resolve_tenant_property_id(tenant_id, row["landlord_id"])
+    property_id = row["propertyId"] or _resolve_tenant_property_id(tenant_id, row["landlordId"])
 
     session_id, refresh_token = create_tenant_session(tenant_id, request, remember_me)
     access_token = create_access_token(tenant_id, session_id)
@@ -391,7 +391,7 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
             "view_token": view_token,
         },
         "redirect_url": f"{rootpath}/{landlord_uuid}/t/{property_id}/{tenant_id}/{view_token}",
-        "reset_required": bool(row["password_reset_required"]),
+        "reset_required": bool(row["passwordResetRequired"]),
     }
 
 
@@ -419,7 +419,7 @@ async def global_tenant_forgot_password(request: Request, login_req: EncryptedLo
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id FROM tenants WHERE LOWER(tenant_username) = %s ORDER BY id LIMIT 1",
+            "SELECT id FROM tenants WHERE LOWER(\"tenantUsername\") = %s ORDER BY id LIMIT 1",
             (username,),
         ).fetchone()
 
@@ -429,11 +429,11 @@ async def global_tenant_forgot_password(request: Request, login_req: EncryptedLo
         expires_at = now + timedelta(minutes=15)
         with get_conn() as conn:
             conn.execute(
-                "UPDATE tenants SET password_reset_token_hash = %s, password_reset_expires_at = %s, password_reset_requested_at = %s WHERE id = %s",
+                "UPDATE tenants SET \"passwordResetTokenHash\" = %s, \"passwordResetExpiresAt\" = %s, \"passwordResetRequestedAt\" = %s WHERE id = %s",
                 (hash_pin(token), expires_at.isoformat(), now.isoformat(), row["id"]),
             )
             conn.execute(
-                "INSERT INTO tenant_password_reset_events (tenantId, channel, token_hash, created_at, expires_at, requested_ip) VALUES (%s, 'self-service', %s, %s, %s, %s)",
+                '''INSERT INTO \"tenantPasswordResetEvents\" ("tenantId", channel, \"tokenHash\", \"createdAt\", \"expiresAt\", \"requestedIp\") VALUES (%s, 'self-service', %s, %s, %s, %s)''',
                 (row["id"], hash_pin(token), now.isoformat(), expires_at.isoformat(), ip),
             )
             conn.commit()
@@ -477,19 +477,19 @@ async def global_tenant_reset_password(request: Request, response: Response, log
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, name, landlord_id, viewToken, password_reset_token_hash, password_reset_expires_at FROM tenants WHERE LOWER(tenant_username) = %s ORDER BY id LIMIT 1",
+            'SELECT id, name, \"landlordId\", "viewToken", \"passwordResetTokenHash\", \"passwordResetExpiresAt\" FROM tenants WHERE LOWER(\"tenantUsername\") = %s ORDER BY id LIMIT 1',
             (username,),
         ).fetchone()
 
-    if not row or not row["password_reset_token_hash"]:
+    if not row or not row["passwordResetTokenHash"]:
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
-    if not verify_pin(token, row["password_reset_token_hash"]):
+    if not verify_pin(token, row["passwordResetTokenHash"]):
         raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
-    if row["password_reset_expires_at"]:
+    if row["passwordResetExpiresAt"]:
         try:
-            expires_at = datetime.fromisoformat(row["password_reset_expires_at"])
+            expires_at = datetime.fromisoformat(row["passwordResetExpiresAt"])
             if datetime.utcnow() > expires_at:
                 raise HTTPException(status_code=400, detail="Reset token has expired")
         except ValueError:
@@ -499,15 +499,15 @@ async def global_tenant_reset_password(request: Request, response: Response, log
     tenant_id = row["id"]
     with get_conn() as conn:
         conn.execute(
-            "UPDATE tenants SET password_hash = %s, password_reset_token_hash = NULL, password_reset_expires_at = NULL, password_reset_requested_at = NULL, password_reset_required = 0, password_failed_attempts = 0, password_locked_until = NULL, last_password_change_at = %s WHERE id = %s",
+            "UPDATE tenants SET \"passwordHash\" = %s, \"passwordResetTokenHash\" = NULL, \"passwordResetExpiresAt\" = NULL, \"passwordResetRequestedAt\" = NULL, \"passwordResetRequired\" = 0, \"passwordFailedAttempts\" = 0, \"passwordLockedUntil\" = NULL, \"lastPasswordChangeAt\" = %s WHERE id = %s",
             (hash_pin(new_password), now.isoformat(), tenant_id),
         )
         conn.execute(
-            "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (%s, %s, %s, 'tenant-reset')",
+            '''INSERT INTO \"tenantPasswordHistory\" ("tenantId", \"passwordHash\", \"changedAt\", \"changedBy\") VALUES (%s, %s, %s, 'tenant-reset')''',
             (tenant_id, hash_pin(new_password), now.isoformat()),
         )
         conn.execute(
-            "UPDATE tenant_password_reset_events SET used_at = %s WHERE tenantId = %s AND used_at IS NULL",
+            'UPDATE \"tenantPasswordResetEvents\" SET \"usedAt\" = %s WHERE "tenantId" = %s AND \"usedAt\" IS NULL',
             (now.isoformat(), tenant_id),
         )
         conn.commit()
@@ -549,22 +549,22 @@ async def global_tenant_change_password(request: Request, response: Response, lo
 
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT id, password_hash FROM tenants WHERE LOWER(tenant_username) = %s ORDER BY id LIMIT 1",
+            "SELECT id, \"passwordHash\" FROM tenants WHERE LOWER(\"tenantUsername\") = %s ORDER BY id LIMIT 1",
             (username,),
         ).fetchone()
 
-    if not row or not row["password_hash"] or not verify_pin(current_password, row["password_hash"]):
+    if not row or not row["passwordHash"] or not verify_pin(current_password, row["passwordHash"]):
         raise HTTPException(status_code=401, detail="Current password is incorrect")
 
     now = datetime.utcnow()
     tenant_id = row["id"]
     with get_conn() as conn:
         conn.execute(
-            "UPDATE tenants SET password_hash = %s, password_reset_required = 0, password_reset_token_hash = NULL, password_reset_expires_at = NULL, password_reset_requested_at = NULL, password_failed_attempts = 0, password_locked_until = NULL, last_password_change_at = %s WHERE id = %s",
+            "UPDATE tenants SET \"passwordHash\" = %s, \"passwordResetRequired\" = 0, \"passwordResetTokenHash\" = NULL, \"passwordResetExpiresAt\" = NULL, \"passwordResetRequestedAt\" = NULL, \"passwordFailedAttempts\" = 0, \"passwordLockedUntil\" = NULL, \"lastPasswordChangeAt\" = %s WHERE id = %s",
             (hash_pin(new_password), now.isoformat(), tenant_id),
         )
         conn.execute(
-            "INSERT INTO tenant_password_history (tenantId, password_hash, changed_at, changed_by) VALUES (%s, %s, %s, 'tenant-change')",
+            '''INSERT INTO \"tenantPasswordHistory\" ("tenantId", \"passwordHash\", \"changedAt\", \"changedBy\") VALUES (%s, %s, %s, 'tenant-change')''',
             (tenant_id, hash_pin(new_password), now.isoformat()),
         )
         conn.commit()
@@ -662,7 +662,7 @@ async def public_tenant_kyc_upload(
     today = datetime.utcnow().strftime("%Y-%m-%d")
     with get_conn() as conn:
         today_count = conn.execute(
-            "SELECT COUNT(*) as cnt FROM occupants WHERE tenantId = %s AND DATE(uploaddate) = %s",
+            'SELECT COUNT(*) as cnt FROM occupants WHERE "tenantId" = %s AND DATE("uploadDate") = %s',
             (tenant.id, today),
         ).fetchone()["cnt"]
     daily_limit = config.get("system", "security.kyc_daily_upload_limit", default=5)
@@ -826,42 +826,42 @@ async def tenant_audit_logs(
     from app.core.db import get_conn as _get_conn
     import json as _json
 
-    query = """
+    query = '''
         SELECT
             tl.id,
             'tenant' AS app_source,
-            tl.tenantId AS actor_id,
+            tl."tenantId" AS actor_id,
             t.name AS actor_name,
             tl.action,
             NULL AS target_type,
             NULL AS target_id,
-            tl.ip_address,
-            tl.meta_json,
-            tl.created_at
-        FROM tenant_audit_logs tl
-        LEFT JOIN tenants t ON tl.tenantId = t.id
-        WHERE tl.tenantId = %s
-    """
+            tl."ipAddress" AS ip_address,
+            tl."metaJson" AS meta_json,
+            tl."createdAt" AS created_at
+        FROM "tenantAuditLogs" tl
+        LEFT JOIN tenants t ON tl."tenantId" = t.id
+        WHERE tl."tenantId" = %s
+    '''
     params: list = [principal.id]
 
     if action_type:
         query += " AND tl.action LIKE %s"
         params.append(f"%{action_type}%")
     if search:
-        query += " AND (tl.action LIKE %s OR tl.ip_address LIKE %s)"
+        query += " AND (tl.action LIKE %s OR tl.\"ipAddress\" LIKE %s)"
         params.extend([f"%{search}%"] * 2)
     if date_from:
-        query += " AND tl.created_at >= %s"
+        query += " AND tl.\"createdAt\" >= %s"
         params.append(date_from)
     if date_to:
-        query += " AND tl.created_at <= %s"
+        query += " AND tl.\"createdAt\" <= %s"
         params.append(date_to + "T23:59:59")
 
     count_query = "SELECT COUNT(*) FROM (" + query + ")"
     with _get_conn() as conn:
-        total = conn.execute(count_query, tuple(params)).fetchone()[0]
+        total = conn.execute(count_query, tuple(params)).fetchone()["count"]
 
-    query += " ORDER BY tl.created_at DESC LIMIT %s OFFSET %s"
+    query += " ORDER BY tl.\"createdAt\" DESC LIMIT %s OFFSET %s"
     params.extend([limit, offset])
     with _get_conn() as conn:
         rows = conn.execute(query, tuple(params)).fetchall()
@@ -928,9 +928,9 @@ async def submit_tenant_feedback(
     with _get_conn() as conn:
         row = conn.execute(
             """
-            INSERT INTO tenant_qr_feedback
-            (tenant_id, landlord_id, property_id, tenant_name, view_token, qr_key,
-             message, diagnostics_json, failed_attempts, status, created_at, ip_address)
+            INSERT INTO "tenantQrFeedback"
+            ("tenantId", "landlordId", "propertyId", "tenantName", "viewToken", "qrKey",
+             message, "diagnosticsJson", "failedAttempts", status, "createdAt", "ipAddress")
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'open', %s, %s)
             RETURNING id
             """,
