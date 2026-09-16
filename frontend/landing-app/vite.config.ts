@@ -12,6 +12,7 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "../shared"),
       react: path.resolve(__dirname, "node_modules/react"),
       "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
+      "framer-motion": path.resolve(__dirname, "node_modules/framer-motion"),
     },
   },
   build: {

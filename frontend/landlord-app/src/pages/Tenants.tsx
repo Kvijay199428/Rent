@@ -14,7 +14,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { api } from '@/services/api';
-import { API_BASE } from '@/services/base';
 import { getPublicAppUrl } from '@shared/api-config';
 import { useToast } from '@/hooks/useToast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -567,7 +566,7 @@ export default function Tenants() {
 
         {['all', 'active', 'inactive'].map((tab) => (
           <TabsContent key={tab} value={tab}>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 motion-stagger">
               {filtered
                 .filter((t) => tab === 'all' || t.status.toLowerCase() === tab)
                 .map((tenant) => (

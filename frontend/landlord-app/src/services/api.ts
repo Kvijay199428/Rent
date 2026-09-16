@@ -1,4 +1,4 @@
-import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, PaymentState, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig } from "@/types";
+import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, PaymentState, PaymentEntryCreate, PaymentEntryUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig } from "@/types";
 import { ROUTES } from "@/lib/routes";
 import { silentRefresh } from "@/lib/auth";
 
@@ -313,7 +313,7 @@ export const api = {
     return res.json();
   },
 
-  createPayment: async (landlordUuid: string, tenantId: number, billNo: string, data: { paymentDate: string; amount: number }): Promise<{ status: string; data: PaymentState }> => {
+  createPayment: async (landlordUuid: string, tenantId: number, billNo: string, data: PaymentEntryCreate): Promise<{ status: string; data: PaymentState }> => {
     const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGPAYMENTS(landlordUuid, tenantId, billNo), {
       method: "POST",
       body: JSON.stringify(data),
@@ -322,7 +322,7 @@ export const api = {
     return res.json();
   },
 
-  updatePayment: async (landlordUuid: string, tenantId: number, billNo: string, paymentId: number, data: { paymentDate: string; amount: number }): Promise<{ status: string; data: PaymentState }> => {
+  updatePayment: async (landlordUuid: string, tenantId: number, billNo: string, paymentId: number, data: PaymentEntryUpdate): Promise<{ status: string; data: PaymentState }> => {
     const res = await fetchWithAuth(ROUTES.LANDLORDAPIBILLINGPAYMENT(landlordUuid, tenantId, billNo, paymentId), {
       method: "PUT",
       body: JSON.stringify(data),
@@ -424,12 +424,12 @@ export const api = {
     return res.json();
   },
 
-  downloadTemplate: (landlordUuid: string): string => ROUTES.LANDLORDAPISYNCTEMPLATE(landlordUuid),
+  downloadTemplate: (landlordUuid: string): string => ROUTES.LANDLORDAPISYNCIMPORTTEMPLATEV2(landlordUuid),
 
   exportExcel: (landlordUuid: string, format: string): string => ROUTES.LANDLORDAPISYNCEXPORTEXCEL(landlordUuid, format),
 
   importPreview: async (landlordUuid: string, data: FormData): Promise<any> => {
-    const res = await fetch(ROUTES.LANDLORDAPISYNCIMPORTPREVIEW(landlordUuid), {
+    const res = await fetch(ROUTES.LANDLORDAPISYNCIMPORTPREVIEWV2(landlordUuid), {
       method: 'POST',
       body: data,
       credentials: 'include',
@@ -442,7 +442,7 @@ export const api = {
   },
 
   importExecute: async (landlordUuid: string, data: FormData): Promise<{ status: string }> => {
-    const res = await fetch(ROUTES.LANDLORDAPISYNCIMPORTEXECUTE(landlordUuid), {
+    const res = await fetch(ROUTES.LANDLORDAPISYNCIMPORTEXECUTEV2(landlordUuid), {
       method: 'POST',
       body: data,
       credentials: 'include',

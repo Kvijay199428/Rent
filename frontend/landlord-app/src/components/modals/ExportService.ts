@@ -64,41 +64,11 @@ export async function fetchExportPreview(landlordUuid: string): Promise<ExportPr
     return { tenants, receipts };
 }
 
-export async function exportCsv(landlordUuid: string, tenantIds: number[] | 'all'): Promise<Blob> {
+export async function exportV2(landlordUuid: string, format: 'xlsx' | 'csv' | 'zip', tenantIds: number[] | 'all'): Promise<Blob> {
     const idsParam = tenantIds === 'all' ? 'all' : tenantIds.join(',');
 
     const response = await fetch(
-        `${ROUTES.LANDLORDAPISYNCEXPORTCSV(landlordUuid)}?tenants_list=${encodeURIComponent(idsParam)}`,
-        { credentials: 'include' }
-    );
-
-    if (!response.ok) {
-        throw new Error(`CSV export failed: ${response.status}`);
-    }
-
-    return response.blob();
-}
-
-export async function exportZip(landlordUuid: string, tenantIds: number[] | 'all'): Promise<Blob> {
-    const idsParam = tenantIds === 'all' ? 'all' : tenantIds.join(',');
-
-    const response = await fetch(
-        `${ROUTES.LANDLORDAPISYNCEXPORTZIP(landlordUuid)}?tenants_list=${encodeURIComponent(idsParam)}`,
-        { credentials: 'include' }
-    );
-
-    if (!response.ok) {
-        throw new Error(`ZIP export failed: ${response.status}`);
-    }
-
-    return response.blob();
-}
-
-export async function exportExcel(landlordUuid: string, format: 'xlsx' | 'csv' | 'zip', tenantIds: number[] | 'all'): Promise<Blob> {
-    const idsParam = tenantIds === 'all' ? 'all' : tenantIds.join(',');
-
-    const response = await fetch(
-        `${ROUTES.LANDLORDAPISYNCEXPORTEXCEL(landlordUuid, format)}?tenants_list=${encodeURIComponent(idsParam)}`,
+        `${ROUTES.LANDLORDAPISYNCEXPORTV2(landlordUuid)}?format=${encodeURIComponent(format)}&tenants_list=${encodeURIComponent(idsParam)}`,
         { credentials: 'include' }
     );
 
@@ -107,6 +77,18 @@ export async function exportExcel(landlordUuid: string, format: 'xlsx' | 'csv' |
     }
 
     return response.blob();
+}
+
+export async function exportCsv(landlordUuid: string, tenantIds: number[] | 'all'): Promise<Blob> {
+    return exportV2(landlordUuid, 'csv', tenantIds);
+}
+
+export async function exportZip(landlordUuid: string, tenantIds: number[] | 'all'): Promise<Blob> {
+    return exportV2(landlordUuid, 'zip', tenantIds);
+}
+
+export async function exportExcel(landlordUuid: string, format: 'xlsx' | 'csv' | 'zip', tenantIds: number[] | 'all'): Promise<Blob> {
+    return exportV2(landlordUuid, format, tenantIds);
 }
 
 export function downloadBlob(blob: Blob, filename: string) {

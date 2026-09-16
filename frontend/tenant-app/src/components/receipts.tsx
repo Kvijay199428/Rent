@@ -29,7 +29,7 @@ export function ReceiptRoller({
   if (receipts.length === 0) return null;
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-2 motion-stagger">
       {receipts.map((r) => {
         const state = isSettled(r) ? "PAID" : getPaymentState(r);
         const grandTotal = getGrandTotal(r);

@@ -1,57 +1,43 @@
 import type { ReactNode } from "react";
+import { Globe } from "lucide-react";
 import { Logo } from "@shared/brand/Logo";
 
 const NAV_LINKS = [
-  { label: "Home", href: "/", icon: "🌍" },
+  { label: "Home", href: "/", Icon: Globe },
   // { label: "Landlord Portal", href: "/landlord/login", icon: "🏠" },
   // { label: "Tenant Portal", href: "/tenant", icon: "👤" },
 ];
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div style={{
-      minHeight: "100vh", display: "flex", flexDirection: "column",
-      background: "linear-gradient(135deg, #1a1d2e 0%, #2d3561 100%)",
-      fontFamily: "system-ui, sans-serif",
-    }}>
+    <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#1a1d2e] via-[#2d3561] to-[#1a1d2e] font-sans">
       {/* Header */}
-      <header style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "16px 32px", flexWrap: "wrap", gap: 12,
-      }}>
-        <a href="/admin/login" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none" }}>
+      <header className="flex flex-wrap items-center justify-between gap-3 px-8 py-4">
+        <a href="/admin/login" className="flex items-center gap-2.5 no-underline">
           <Logo variant="light" height={22} />
         </a>
-        <nav style={{ display: "flex", gap: 10 }}>
-          {NAV_LINKS.map((link) => (
+        <nav className="flex gap-2.5">
+          {NAV_LINKS.map(({ label, href, Icon }) => (
             <a
-              key={link.href}
-              href={link.href}
-              style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "8px 16px", borderRadius: 9999,
-                border: "1px solid rgba(255,255,255,0.18)",
-                background: "rgba(255,255,255,0.08)",
-                color: "rgba(255,255,255,0.75)",
-                fontSize: 13, fontWeight: 600, textDecoration: "none",
-                transition: "background 0.15s, color 0.15s",
-              }}
+              key={href}
+              href={href}
+              className="flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-[13px] font-semibold text-white/75 no-underline transition-colors hover:bg-white/20 hover:text-white"
             >
-              <span style={{ fontSize: 14 }}>{link.icon}</span>
-              {link.label}
+              <Icon size={14} />
+              {label}
             </a>
           ))}
         </nav>
       </header>
 
       {/* Content */}
-      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 16px" }}>
+      <div className="flex flex-1 items-center justify-center px-4">
         {children}
       </div>
 
       {/* Footer */}
-      <footer style={{ borderTop: "1px solid rgba(255,255,255,0.08)", padding: "16px 32px", textAlign: "center" }}>
-        <p style={{ margin: 0, fontSize: 12, color: "rgba(255,255,255,0.45)" }}>
+      <footer className="border-t border-white/10 px-8 py-4 text-center">
+        <p className="m-0 text-xs text-white/45">
           &copy; {new Date().getFullYear()} <Logo variant="light" height={10} /> by Vijay Kumar Sharma. All rights reserved.
         </p>
       </footer>

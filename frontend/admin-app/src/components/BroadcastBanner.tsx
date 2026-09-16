@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { getApiUrl } from "@shared/api-config";
-import "./BroadcastBanner.css";
+import { cn } from "../lib/utils";
 
 interface BroadcastConfig {
   enabled: boolean;
@@ -12,6 +12,12 @@ interface BroadcastConfig {
 interface BroadcastBannerProps {
   healthUrl?: string;
 }
+
+const typeClasses: Record<string, string> = {
+  info: "bg-blue-800 text-white",
+  warning: "bg-amber-800 text-white",
+  maintenance: "bg-red-800 text-white",
+};
 
 export default function BroadcastBanner({ healthUrl }: BroadcastBannerProps) {
   const [broadcast, setBroadcast] = useState<BroadcastConfig | null>(null);
@@ -45,16 +51,20 @@ export default function BroadcastBanner({ healthUrl }: BroadcastBannerProps) {
   const typeClass = broadcast.type || "info";
 
   return (
-    <div className={`broadcast-banner broadcast-${typeClass}`}>
-      <div className="broadcast-banner-content">
-        <span className="broadcast-banner-icon">
+    <div className={cn(
+      "sticky top-0 z-[9999] flex items-center justify-between px-4 py-2.5 text-sm font-medium leading-[1.4]",
+      "animate-[broadcast-slide-in_0.3s_ease-out]",
+      typeClasses[typeClass]
+    )}>
+      <div className="flex flex-1 items-center gap-2.5">
+        <span className="shrink-0 text-base">
           {typeClass === "maintenance" ? "🔧" : typeClass === "warning" ? "⚠️" : "ℹ️"}
         </span>
-        <span className="broadcast-banner-message">{broadcast.message}</span>
+        <span className="flex-1">{broadcast.message}</span>
       </div>
       {broadcast.dismissible && (
         <button
-          className="broadcast-banner-close"
+          className="shrink-0 cursor-pointer border-none bg-transparent p-0 text-[22px] font-bold leading-none text-inherit opacity-70 transition-opacity hover:opacity-100"
           onClick={() => setDismissed(true)}
           aria-label="Dismiss"
         >

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { tenantApi } from "@/lib/api";
@@ -33,13 +33,24 @@ function formatTs(ts: string) {
 export default function ActivityLog() {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      const res = await tenantApi.audit.getLogs({ limit: 50 });
+      setLogs(res.data.items || []);
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    tenantApi.audit.getLogs({ limit: 50 })
-      .then((res) => setLogs(res.data.items || []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    load();
+  }, [load]);
 
   if (loading) {
     return (
@@ -58,7 +69,17 @@ export default function ActivityLog() {
         <p className="text-sm text-muted-foreground">Your login and portal activity</p>
       </div>
 
-      {logs.length === 0 ? (
+      {error ? (
+        <div className="text-center py-8 space-y-2">
+          <p className="text-sm text-muted-foreground">Couldn't load your activity.</p>
+          <button
+            onClick={load}
+            className="text-sm font-bold hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      ) : logs.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No activity recorded yet.</p>
       ) : (
         <ScrollArea className="h-[400px]">

@@ -1,10 +1,14 @@
 import { featureCategories } from "../data";
+import { useScrollReveal, useStaggerReveal } from "@shared/motion";
 
 export default function FeaturesGrid() {
+  const { ref: headerRef, motionStyle: headerStyle } = useScrollReveal();
+  const { parentRef, childStyles } = useStaggerReveal({ count: featureCategories.length });
+
   return (
     <section className="features-grid-section">
       <div className="section-container">
-        <div className="section-header">
+        <div className="section-header" ref={headerRef} style={headerStyle}>
           <span className="section-badge">03 — Capabilities</span>
           <h2 className="section-title">A full-stack rent management solution</h2>
           <div className="section-rule" />
@@ -13,9 +17,9 @@ export default function FeaturesGrid() {
             documents, and admin — all unified under one roof.
           </p>
         </div>
-        <div className="feature-cat-grid">
-          {featureCategories.map((cat) => (
-            <div key={cat.title} className="feature-cat-card">
+        <div className="feature-cat-grid" ref={parentRef}>
+          {featureCategories.map((cat, i) => (
+            <div key={cat.title} className="feature-cat-card" style={childStyles[i]}>
               <h3 className="feature-cat-title">{cat.title}</h3>
               <ul className="feature-cat-list">
                 {cat.items.map((item) => (

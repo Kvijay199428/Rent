@@ -3,12 +3,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, Trash2, Plus, Check } from "lucide-react";
 import { api } from "@/services/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/useToast";
 import type { Receipt, PaymentState, PaymentEntry } from "@/types";
+import { deriveStatus } from "@/lib/paymentMath";
 
 interface PaymentModalProps {
     open: boolean;
@@ -25,6 +34,8 @@ function todayISO(): string {
     return `${d.getFullYear()}-${m}-${day}`;
 }
 
+const PAYMENT_METHODS = ["CASH", "UPI", "BANK_TRANSFER", "CHEQUE", "CARD", "ONLINE", "OTHER"];
+
 const statusConfig: Record<string, { label: string; color: string }> = {
     PAID: { label: "PAID", color: "bg-green-100 text-green-700" },
     PARTIAL: { label: "PARTIAL", color: "bg-amber-100 text-amber-700" },
@@ -39,10 +50,12 @@ export default function PaymentModal({ open, onOpenChange, receipt, onChange }: 
     const grandTotal = Number(receipt?.Total || 0) + Number(receipt?.previousArrears || 0);
 
     const [state, setState] = useState<PaymentState | null>(null);
-    const [loading, setLoading] = useState(false);
 
     const [amount, setAmount] = useState<string>("");
     const [paymentDate, setPaymentDate] = useState<string>(todayISO());
+    const [paymentMethod, setPaymentMethod] = useState<string>("OTHER");
+    const [reference, setReference] = useState<string>("");
+    const [notes, setNotes] = useState<string>("");
     const [editingId, setEditingId] = useState<number | null>(null);
 
     const loadPayments = useCallback(async () => {
@@ -69,12 +82,18 @@ export default function PaymentModal({ open, onOpenChange, receipt, onChange }: 
         setEditingId(entry.id);
         setAmount(entry.amount.toString());
         setPaymentDate(entry.paymentDate || todayISO());
+        setPaymentMethod(entry.paymentMethod || "OTHER");
+        setReference(entry.reference || "");
+        setNotes(entry.notes || "");
     };
 
     const resetForm = () => {
         setEditingId(null);
         setAmount("");
         setPaymentDate(todayISO());
+        setPaymentMethod("OTHER");
+        setReference("");
+        setNotes("");
     };
 
     const handleSubmit = async () => {
@@ -89,17 +108,18 @@ export default function PaymentModal({ open, onOpenChange, receipt, onChange }: 
             return;
         }
         try {
+            const payload = {
+                paymentDate,
+                amount: numAmount,
+                paymentMethod,
+                reference: reference.trim() || undefined,
+                notes: notes.trim() || undefined,
+            };
             if (editingId != null) {
-                await api.updatePayment(landlordUuid, receipt.TenantId, receipt.Bill, editingId, {
-                    paymentDate,
-                    amount: numAmount,
-                });
+                await api.updatePayment(landlordUuid, receipt.TenantId, receipt.Bill, editingId, payload);
                 toast.success("Payment updated");
             } else {
-                await api.createPayment(landlordUuid, receipt.TenantId, receipt.Bill, {
-                    paymentDate,
-                    amount: numAmount,
-                });
+                await api.createPayment(landlordUuid, receipt.TenantId, receipt.Bill, payload);
                 toast.success("Payment recorded");
             }
             resetForm();
@@ -182,6 +202,39 @@ export default function PaymentModal({ open, onOpenChange, receipt, onChange }: 
                         </div>
                     </div>
 
+                    <div className="space-y-1.5">
+                        <Label>Payment Method</Label>
+                        <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Select method..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {PAYMENT_METHODS.map((m) => (
+                                    <SelectItem key={m} value={m}>{m}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label>Reference (optional)</Label>
+                        <Input
+                            value={reference}
+                            onChange={(e) => setReference(e.target.value)}
+                            placeholder="UTR / cheque no / transaction id"
+                        />
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label>Notes (optional)</Label>
+                        <Textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="Any remarks for this payment"
+                            rows={2}
+                        />
+                    </div>
+
                     {/* Live preview after this payment */}
                     {numAmount > 0 && (
                         <div className="text-xs text-muted-foreground space-y-0.5 bg-accent/40 rounded p-2">
@@ -195,7 +248,7 @@ export default function PaymentModal({ open, onOpenChange, receipt, onChange }: 
                             </div>
                             <div className="font-medium">
                                 Status will be{" "}
-                                {numAmount <= 0 ? "PENDING" : afterReceived < grandTotal ? "PARTIAL" : afterReceived === grandTotal ? "PAID" : "ADVANCE"}
+                                {deriveStatus(grandTotal, afterReceived)}
                             </div>
                         </div>
                     )}
@@ -217,9 +270,13 @@ export default function PaymentModal({ open, onOpenChange, receipt, onChange }: 
                         <div className="border rounded-lg divide-y">
                             {state.payments.map((p) => (
                                 <div key={p.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                                    <div>
+                                    <div className="min-w-0">
                                         <div className="font-mono text-xs text-muted-foreground">{p.paymentDate}</div>
                                         <div className="font-semibold">₹{p.amount.toFixed(2)}</div>
+                                        <div className="text-xs text-muted-foreground truncate">
+                                            {p.paymentMethod || "OTHER"}
+                                            {p.reference ? <> · {p.reference}</> : null}
+                                        </div>
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <Button

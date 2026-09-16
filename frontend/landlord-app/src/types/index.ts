@@ -115,7 +115,21 @@ export interface PaymentEntry {
   status: string;
   paymentType?: string;
   source?: string;
+  paymentMethod?: string;
+  externalId?: string;
+  reference?: string;
+  notes?: string;
 }
+
+export interface PaymentEntryCreate {
+  paymentDate: string;
+  amount: number;
+  paymentMethod: string;
+  reference?: string;
+  notes?: string;
+}
+
+export interface PaymentEntryUpdate extends PaymentEntryCreate {}
 
 export interface PaymentState {
   billNo: string;
@@ -210,6 +224,8 @@ export interface RecentBill {
   month: string;
   paymentStatus: string;
   previousArrears: number;
+  settlementType?: string;
+  settledByBill?: string;
   paymentCount?: number;
   lastPaymentDate?: string;
 }

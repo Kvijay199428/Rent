@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Shield, User, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Shield, User, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { APP_BASE } from '@/lib/runtime';
-import { ROUTES } from '@/lib/routes';
 import AuthLayout from '@/components/layout/AuthLayout';
 import LoadingOverlay from '@shared/loading/LoadingOverlay';
 import { Logo } from '@shared/brand/Logo';

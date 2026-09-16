@@ -80,6 +80,7 @@ services:
       - ./backend/app/app:/code/app
       - ./backend/app/static:/code/static
       - ./backend/app/templates:/code/templates
+      - ./backend/scripts:/code/scripts
       - ./storage/dev:/code/storage
       - ./frontend:/code/frontend
     networks:

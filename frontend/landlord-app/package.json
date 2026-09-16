@@ -44,6 +44,7 @@
     "country-flag-icons": "^1.6.20",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
+    "framer-motion": "^13.2.0",
     "input-otp": "^1.4.2",
     "libphonenumber-js": "^1.13.10",
     "lucide-react": "^0.562.0",

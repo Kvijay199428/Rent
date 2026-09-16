@@ -52,8 +52,8 @@ export default function LandlordSignupPage() {
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
   const [termsModalOpen, setTermsModalOpen] = useState(false);
 
-  const usernameTimer = useRef<ReturnType<typeof setTimeout>>();
-  const emailTimer = useRef<ReturnType<typeof setTimeout>>();
+  const usernameTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const emailTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const checkUsername = useCallback((value: string) => {
     if (usernameTimer.current) clearTimeout(usernameTimer.current);
@@ -490,7 +490,6 @@ export default function LandlordSignupPage() {
                 onError={() => setError("Google Sign-Up failed")}
                 size="large"
                 width={384}
-                disabled={googleLoading || !privacyAccepted || !termsAccepted}
               />
             </div>
 

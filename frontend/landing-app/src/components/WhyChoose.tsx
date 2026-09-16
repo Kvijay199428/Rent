@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { whyChooseFeatures, screenshotTabs } from "../data";
 import { Logo } from "@shared/brand/Logo";
+import { useScrollReveal } from "@shared/motion";
 
 export default function WhyChoose() {
   const [activeTab, setActiveTab] = useState(0);
+  const { ref: contentRef, motionStyle: contentStyle } = useScrollReveal();
+  const { ref: previewRef, motionStyle: previewStyle } = useScrollReveal({ delay: 120 });
 
   return (
     <section className="why-section" id="benefits">
       <div className="why-grid">
-        <div className="why-content">
+        <div className="why-content" ref={contentRef} style={contentStyle}>
           <span className="section-badge">Why Rent</span>
           <h2 className="section-title">Built for modern landlords</h2>
           <div className="section-rule" />
@@ -26,7 +29,7 @@ export default function WhyChoose() {
             ))}
           </ul>
         </div>
-        <div className="why-preview">
+        <div className="why-preview" ref={previewRef} style={previewStyle}>
           <div className="screenshot-tabs">
             {screenshotTabs.map((tab, i) => (
               <button

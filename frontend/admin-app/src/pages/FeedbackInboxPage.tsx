@@ -1,103 +1,76 @@
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import Layout from "../components/Layout";
 import { fetchApi } from "../api/client";
+import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Card } from "../components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 
 interface FeedbackItem {
   id: number;
-  tenant_id: number | null;
-  landlord_id: number | null;
-  property_id: number | null;
-  tenant_name: string;
-  view_token: string;
-  qr_key: string;
+  username: string;
+  display_name: string;
+  email: string;
   message: string;
-  diagnostics: Record<string, unknown>;
-  failed_attempts: number;
-  status: string;
+  qr_key: string | null;
+  status: "open" | "resolved";
   admin_reply: string | null;
   created_at: string;
-  resolved_at: string | null;
-  ip_address: string;
+  diagnostics?: Record<string, string>[];
 }
 
-function formatTs(ts: string) {
-  if (!ts) return "\u2014";
-  try {
-    const d = new Date(ts + (ts.includes("Z") ? "" : "Z"));
-    return d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
-  } catch { return ts; }
+function formatTs(ts: string): string {
+  const d = new Date(ts);
+  const date = d.toISOString().slice(0, 10);
+  const time = d.toISOString().slice(11, 16);
+  return `${date} ${time} (UTC)`;
 }
 
-function statusBadge(status: string) {
+function StatusBadge({ status }: { status: FeedbackItem["status"] }) {
   const open = status !== "resolved";
   return (
-    <span style={{
-      display: "inline-block", padding: "2px 10px", borderRadius: 9999,
-      fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5,
-      background: open ? "#fef3c7" : "#dcfce7",
-      color: open ? "#b45309" : "#16a34a",
-      whiteSpace: "nowrap",
-    }}>
+    <Badge
+      className={`rounded-full border-transparent px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide ${
+        open ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"
+      }`}
+    >
       {open ? "Open" : "Resolved"}
-    </span>
+    </Badge>
   );
 }
 
-function Diagnostics({ diagnostics }: { diagnostics: Record<string, unknown> }) {
+function Diagnostics({ diag, className }: { diag: Record<string, string>[]; className?: string }) {
   const [open, setOpen] = useState(false);
-  const rows: [string, string][] = [];
-  const push = (k: string, v: unknown) => {
-    if (v === null || v === undefined || v === "") return;
-    if (typeof v === "object") {
-      try { rows.push([k, JSON.stringify(v)]); } catch { /* ignore */ }
-    } else {
-      rows.push([k, String(v)]);
-    }
-  };
-
-  push("Browser", (diagnostics as any).user_agent);
-  push("Platform", (diagnostics as any).platform);
-  push("Language", (diagnostics as any).language);
-  push("Screen", (diagnostics as any).screen);
-  push("Viewport", (diagnostics as any).viewport);
-  push("Online", (diagnostics as any).online);
-  push("Connection", (diagnostics as any).connection);
-  push("Page URL", (diagnostics as any).url);
-  push("Path", (diagnostics as any).pathname);
-  push("Reported attempts", (diagnostics as any).attempts);
-
   return (
-    <div style={{ marginTop: 10 }}>
+    <div className={className}>
       <button
-        onClick={() => setOpen(!open)}
-        style={{
-          background: "none", border: "none", padding: 0, cursor: "pointer",
-          fontSize: 12, fontWeight: 700, color: "#2563eb",
-        }}
+        onClick={() => setOpen((o) => !o)}
+        className="cursor-pointer text-[12px] font-semibold text-[#3b4a6b]"
       >
-        {open ? "\u25be Hide device / network details" : "\u25b8 Show device / network details"}
+        {open ? "▾" : "▸"} Diagnostics
       </button>
       {open && (
-        <div style={{
-          marginTop: 8, padding: "10px 12px", borderRadius: 8,
-          background: "#f8fafc", border: "1px solid #e5e7eb",
-          fontSize: 12, overflowX: "auto",
-        }}>
-          {rows.length === 0 ? (
-            <span style={{ color: "#9ca3af" }}>No diagnostics captured.</span>
-          ) : (
-            <table style={{ borderCollapse: "collapse", width: "100%" }}>
-              <tbody>
-                {rows.map(([k, v]) => (
-                  <tr key={k}>
-                    <td style={{ padding: "3px 12px 3px 0", fontWeight: 600, color: "#374151", whiteSpace: "nowrap", verticalAlign: "top" }}>{k}</td>
-                    <td style={{ padding: "3px 0", color: "#6b7280", fontFamily: "monospace", wordBreak: "break-all", maxWidth: 380 }}>{v}</td>
+        <div className="mt-2 overflow-x-auto rounded-lg border border-gray-200 bg-slate-50 p-3">
+          <table className="w-full text-[12px]">
+            <tbody>
+              {diag.map((row, i) =>
+                Object.entries(row).map(([k, v]) => (
+                  <tr key={`${k}-${i}`} className="border-b border-gray-100 last:border-0">
+                    <td className="whitespace-nowrap py-1.5 pr-4 font-semibold text-gray-500">{k}</td>
+                    <td className="break-all py-1.5 text-[#1a1d2e]">{v}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -107,55 +80,68 @@ function Diagnostics({ diagnostics }: { diagnostics: Record<string, unknown> }) 
 export default function FeedbackInboxPage() {
   const [items, setItems] = useState<FeedbackItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("");
-  const [searchFilter, setSearchFilter] = useState("");
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [offset, setOffset] = useState(0);
-  const [limit] = useState(30);
-  const [replyText, setReplyText] = useState<Record<number, string>>({});
+  const [limit] = useState(10);
+  const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState<Record<number, string>>({});
 
-  const fetchFeedback = useCallback(async () => {
+  const params = () => {
+    const p = new URLSearchParams();
+    if (search) p.set("search", search);
+    if (statusFilter && statusFilter !== "all") p.set("status", statusFilter);
+    p.set("limit", String(limit));
+    p.set("offset", String(offset));
+    return p;
+  };
+
+  const fetchFeedback = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (statusFilter) params.set("status", statusFilter);
-      if (searchFilter) params.set("search", searchFilter);
-      params.set("limit", String(limit));
-      params.set("offset", String(offset));
-
-      const res = await fetchApi(`/feedback?${params}`);
-      if (!res.ok) throw new Error("Failed to load");
+      const res = await fetchApi(`/feedback?${params()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setItems(data.items);
-      setTotal(data.total);
-    } catch {
-      setItems([]);
+      setItems(data.items || []);
+      setTotal(data.total || 0);
+      setCounts(data.counts || {});
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to load feedback");
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, searchFilter, offset, limit]);
+  };
 
-  useEffect(() => { fetchFeedback(); }, [fetchFeedback]);
+  useEffect(() => { fetchFeedback(); }, [offset, limit, statusFilter, search]);
+
+  const resetFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setOffset(0);
+  };
+
+  const hasFilters = search || statusFilter !== "all";
+
+  const setReply = (id: number, val: string) => setReplyText((prev) => ({ ...prev, [id]: val }));
 
   const handleReply = async (id: number) => {
-    const reply = (replyText[id] || "").trim();
-    if (!reply) {
-      toast.error("Write a reply first.");
-      return;
-    }
+    const text = (replyText[id] || "").trim();
+    if (!text) { toast.error("Please write a reply first"); return; }
     setBusyId(id);
     try {
-      const res = await fetchApi(`/feedback/${id}/reply`, {
-        method: "POST",
-        body: JSON.stringify({ admin_reply: reply }),
+      const res = await fetchApi(`/feedback/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin_reply: text, status: "resolved" }),
       });
-      if (!res.ok) throw new Error("Reply failed");
-      toast.success("Reply saved and feedback marked resolved.");
-      setReplyText((r) => { const n = { ...r }; delete n[id]; return n; });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Reply sent & marked as resolved");
+      setReply(id, "");
       await fetchFeedback();
-    } catch {
-      toast.error("Could not save reply. Please try again.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to send reply");
     } finally {
       setBusyId(null);
     }
@@ -164,182 +150,137 @@ export default function FeedbackInboxPage() {
   const handleResolve = async (id: number) => {
     setBusyId(id);
     try {
-      const res = await fetchApi(`/feedback/${id}/resolve`, {
-        method: "POST",
+      const res = await fetchApi(`/feedback/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "resolved" }),
       });
-      if (!res.ok) throw new Error("Resolve failed");
-      toast.success("Feedback marked resolved.");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success("Marked as resolved");
       await fetchFeedback();
-    } catch {
-      toast.error("Could not resolve feedback.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update status");
     } finally {
       setBusyId(null);
     }
   };
 
-  const totalPages = Math.ceil(total / limit);
-
   return (
     <Layout>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>QR Feedback Inbox</h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
-            Tenants reporting a wrong QR key from the unlock screen
-          </p>
+      <h1 className="mb-6 text-[26px] font-bold text-[#1a1d2e]">Feedback Mainbox</h1>
+
+      <div className="mb-4 flex flex-wrap items-end gap-4">
+        <div className="min-w-[180px]">
+          <div className="mb-1 text-[13px] font-semibold text-gray-500">Open</div>
+          <div className="text-lg font-bold text-[#1a1d2e]">{counts.open ?? 0}</div>
+        </div>
+        <div className="min-w-[180px]">
+          <div className="mb-1 text-[13px] font-semibold text-gray-500">Resolved</div>
+          <div className="text-lg font-bold text-[#1a1d2e]">{counts.resolved ?? 0}</div>
+        </div>
+        <div className="min-w-[180px]">
+          <div className="mb-1 text-[13px] font-semibold text-gray-500">Total</div>
+          <div className="text-lg font-bold text-[#1a1d2e]">{total}</div>
         </div>
       </div>
 
-      <div style={{
-        display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end",
-        padding: "14px 16px", borderRadius: 10, background: "#fff", border: "1px solid #e5e7eb",
-      }}>
-        <div>
-          <label style={labelSm}>Status</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => { setStatusFilter(e.target.value); setOffset(0); }}
-            style={selectStyle}
-          >
-            <option value="">All</option>
-            <option value="open">Open</option>
-            <option value="resolved">Resolved</option>
-          </select>
-        </div>
-        <div style={{ flex: 1, minWidth: 180 }}>
-          <label style={labelSm}>Search</label>
-          <input
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") { setOffset(0); fetchFeedback(); } }}
-            placeholder="Tenant, message, QR key\u2026"
-            style={inputStyle}
-          />
-        </div>
-        {(statusFilter || searchFilter) && (
-          <button
-            onClick={() => { setStatusFilter(""); setSearchFilter(""); setOffset(0); }}
-            style={btnSecondary}
-          >
-            Reset
-          </button>
-        )}
-      </div>
-
-      <div style={{ marginBottom: 12, fontSize: 13, color: "#6b7280" }}>
-        {total} total{statusFilter || searchFilter ? " (filtered)" : ""}
+      <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-4">
+        <Input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search…"
+          onKeyDown={(e) => { if (e.key === "Enter") { setOffset(0); fetchFeedback(); } }}
+          className="min-w-[200px] flex-1"
+        />
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-auto">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="open">Open</SelectItem>
+            <SelectItem value="resolved">Resolved</SelectItem>
+          </SelectContent>
+        </Select>
+        <Button variant="outline" size="sm" onClick={resetFilters} disabled={!hasFilters}>
+          Reset
+        </Button>
       </div>
 
       {loading ? (
-        <p style={{ color: "#9ca3af" }}>Loading…</p>
+        <p className="p-8 text-center text-gray-400">Loading…</p>
       ) : items.length === 0 ? (
-        <div style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: 40, textAlign: "center", color: "#9ca3af" }}>
-          No feedback found.
-        </div>
+        <p className="p-8 text-center text-gray-400">No feedback found.</p>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div className="flex flex-col gap-3">
           {items.map((item) => (
-            <div key={item.id} style={{ background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb", padding: "18px 20px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                  <strong style={{ fontSize: 15, color: "#1a1d2e" }}>{item.tenant_name || `Tenant #${item.tenant_id ?? "\u2014"}`}</strong>
-                  {statusBadge(item.status)}
-                  <span style={{ fontSize: 12, color: "#9ca3af" }}>{formatTs(item.created_at)}</span>
+            <Card key={item.id} className="rounded-xl border border-gray-200 p-5">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <strong className="text-[#1a1d2e]">{item.display_name || item.username}</strong>
+                  <span className="text-xs text-gray-400">· {item.email}</span>
                 </div>
-                <span style={{ fontSize: 12, color: "#6b7280" }}>
-                  {item.failed_attempts} attempts {"\u00b7"} IP: <span style={{ fontFamily: "monospace" }}>{item.ip_address || "\u2014"}</span>
-                </span>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={item.status} />
+                  <span className="text-xs text-gray-400">{formatTs(item.created_at)}</span>
+                </div>
               </div>
-
-              <div style={{ fontSize: 13, color: "#374151", marginBottom: 6 }}>
-                {item.message || <span style={{ color: "#9ca3af" }}>No message included.</span>}
+              <p className="whitespace-pre-wrap text-[14px] text-[#1a1d2e]">{item.message}</p>
+              <div className="mt-2 text-xs text-gray-400">
+                QR key: <span className="font-mono">{item.qr_key || "—"}</span>
               </div>
-              <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>
-                QR key: <span style={{ fontFamily: "monospace", color: "#374151" }}>{item.qr_key ? item.qr_key.slice(0, 20) + "\u2026" : "\u2014"}</span>
-                {item.property_id ? <span style={{ marginLeft: 12 }}>Property #{item.property_id}</span> : null}
-              </div>
-
-              <Diagnostics diagnostics={item.diagnostics} />
-
+              {item.diagnostics && item.diagnostics.length > 0 && (
+                <Diagnostics diag={item.diagnostics} className="mt-2" />
+              )}
               {item.admin_reply && (
-                <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 8, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 13, color: "#1e40af" }}>
-                  <strong>Your reply:</strong> {item.admin_reply}
+                <div className="mt-3 rounded-lg bg-blue-50 p-3 text-[13px]">
+                  <span className="font-semibold text-[#3b4a6b]">Admin reply:</span>{" "}
+                  <span className="text-[#1a1d2e]">{item.admin_reply}</span>
                 </div>
               )}
-
               {item.status === "open" && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #f3f4f6", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <input
+                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
+                  <Input
+                    type="text"
                     value={replyText[item.id] || ""}
-                    onChange={(e) => setReplyText((r) => ({ ...r, [item.id]: e.target.value }))}
-                    placeholder="Provide a solution / fix\u2026"
+                    onChange={(e) => setReply(item.id, e.target.value)}
+                    placeholder="Provide a solution / fix…"
                     disabled={busyId === item.id}
-                    style={{ ...inputStyle, flex: 1, minWidth: 220 }}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleReply(item.id); }}
+                    className="min-w-[220px] flex-1"
                   />
-                  <button
+                  <Button
+                    size="sm"
                     onClick={() => handleReply(item.id)}
                     disabled={busyId === item.id}
-                    style={{ ...btnPrimary, opacity: busyId === item.id ? 0.6 : 1 }}
+                    className="bg-[#3b4a6b] text-white hover:bg-[#34405a]"
                   >
-                    {busyId === item.id ? "Saving\u2026" : "Reply & Resolve"}
-                  </button>
-                  <button
-                    onClick={() => handleResolve(item.id)}
-                    disabled={busyId === item.id}
-                    style={{ ...btnSecondary, opacity: busyId === item.id ? 0.6 : 1 }}
-                  >
+                    {busyId === item.id ? "Saving…" : "Reply & Resolve"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleResolve(item.id)} disabled={busyId === item.id}>
                     Mark resolved
-                  </button>
+                  </Button>
                 </div>
               )}
-            </div>
+            </Card>
           ))}
         </div>
       )}
 
-      {totalPages > 1 && (
-        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 12, marginTop: 16 }}>
-          <button
-            onClick={() => setOffset(Math.max(0, offset - limit))}
-            disabled={offset === 0}
-            style={{ ...btnSecondary, opacity: offset === 0 ? 0.4 : 1 }}
-          >
+      {total > limit && !loading && (
+        <div className="mt-4 flex items-center justify-center gap-3">
+          <Button variant="outline" disabled={offset === 0} onClick={() => setOffset((o) => Math.max(0, o - limit))}>
             Previous
-          </button>
-          <span style={{ fontSize: 13, color: "#6b7280" }}>
-            Page {Math.floor(offset / limit) + 1} of {totalPages}
+          </Button>
+          <span className="text-[13px] text-gray-500">
+            {offset + 1}–{Math.min(offset + limit, total)} of {total}
           </span>
-          <button
-            onClick={() => setOffset(offset + limit)}
-            disabled={offset + limit >= total}
-            style={{ ...btnSecondary, opacity: offset + limit >= total ? 0.4 : 1 }}
-          >
+          <Button variant="outline" disabled={offset + limit >= total} onClick={() => setOffset((o) => o + limit)}>
             Next
-          </button>
+          </Button>
         </div>
       )}
     </Layout>
   );
 }
-
-const labelSm: React.CSSProperties = {
-  display: "block", marginBottom: 4, fontSize: 11, fontWeight: 600,
-  color: "#6b7280", textTransform: "uppercase", letterSpacing: 0.5,
-};
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "7px 10px", borderRadius: 6,
-  border: "1.5px solid #d1d5db", fontSize: 13, outline: "none",
-};
-const selectStyle: React.CSSProperties = {
-  padding: "7px 10px", borderRadius: 6,
-  border: "1.5px solid #d1d5db", fontSize: 13, outline: "none",
-  background: "#fff", minWidth: 140,
-};
-const btnSecondary: React.CSSProperties = {
-  padding: "7px 16px", borderRadius: 6, border: "1.5px solid #d1d5db",
-  background: "#fff", fontSize: 13, fontWeight: 500, cursor: "pointer",
-};
-const btnPrimary: React.CSSProperties = {
-  padding: "7px 16px", borderRadius: 6, border: "none",
-  background: "#3b4a6b", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
-};

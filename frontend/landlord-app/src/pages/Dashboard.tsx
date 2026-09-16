@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,9 @@ export default function Dashboard() {
   const [meterOpen, setMeterOpen] = useState(false);
   const [allTenants, setAllTenants] = useState<Tenant[]>([]);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [statsError, setStatsError] = useState<string | null>(null);
+  const [activityError, setActivityError] = useState(false);
+  const activityGenRef = useRef(0);
 
   const toast = useToast();
   const navigate = useNavigate();
@@ -56,12 +59,27 @@ export default function Dashboard() {
   const loadStats = async () => {
     try {
       setLoading(true);
+      setStatsError(null);
       const data = await api.getDashboardStats(landlordUuid!);
       setStats(data);
     } catch {
+      setStatsError('Failed to load dashboard data');
       toast.error('Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadActivity = async () => {
+    const gen = ++activityGenRef.current;
+    setActivityError(false);
+    try {
+      const d = await api.getActivityLogs(landlordUuid!, { limit: 5 });
+      if (gen !== activityGenRef.current) return;
+      setRecentActivity(d.items ?? []);
+    } catch {
+      if (gen !== activityGenRef.current) return;
+      setActivityError(true);
     }
   };
 
@@ -69,7 +87,7 @@ export default function Dashboard() {
     if (!landlordUuid) return;
     loadStats();
     api.getTenants(landlordUuid).then(setAllTenants).catch(() => {});
-    api.getActivityLogs(landlordUuid, { limit: 5 }).then((d) => setRecentActivity(d.items)).catch(() => {});
+    loadActivity();
   }, [landlordUuid]);
 
   useSync(
@@ -97,7 +115,18 @@ export default function Dashboard() {
     );
   }
 
-  if (!stats) return null;
+  if (!stats) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {statsError ?? 'Failed to load dashboard data'}
+          </p>
+          <Button variant="outline" onClick={loadStats}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   const chartLabels = stats.chart_labels ?? [];
   const chartRevenue = stats.chart_revenue ?? [];
@@ -139,7 +168,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 motion-stagger">
         {statCards.map((card) => {
           const value = Number(stats[card.key as keyof DashboardStats] ?? 0);
           const isDueCard = card.key === 'pending_payments_amount';
@@ -220,7 +249,7 @@ export default function Dashboard() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 motion-stagger">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -241,7 +270,7 @@ export default function Dashboard() {
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip
                   contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                  formatter={(value: number) => [`₹${value.toLocaleString('en-IN')}`, 'Revenue']}
+                  formatter={(value) => { const v = typeof value === 'number' ? value : Number(value) || 0; return [`₹${v.toLocaleString('en-IN')}`, 'Revenue']; }}
                 />
                 <Area type="monotone" dataKey="revenue" stroke="#22c55e" fill="url(#revGrad)" strokeWidth={2} />
               </AreaChart>
@@ -269,7 +298,7 @@ export default function Dashboard() {
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip
                   contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                  formatter={(value: number) => [`${value} Units`, 'Electricity']}
+                  formatter={(value) => { const v = typeof value === 'number' ? value : Number(value) || 0; return [`${v} Units`, 'Electricity']; }}
                 />
                 <Area type="monotone" dataKey="electricity" stroke="#f59e0b" fill="url(#elecGrad)" strokeWidth={2} />
               </AreaChart>
@@ -279,7 +308,7 @@ export default function Dashboard() {
       </div>
 
       {/* Recent Bills + Activity */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 motion-stagger">
         <Card className="xl:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -463,7 +492,12 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {recentActivity.length === 0 ? (
+            {activityError ? (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">Couldn't load recent activity</p>
+                <Button variant="outline" size="sm" onClick={loadActivity}>Retry</Button>
+              </div>
+            ) : recentActivity.length === 0 ? (
               <p className="text-sm text-muted-foreground">No recent activity</p>
             ) : recentActivity.map((item, i) => {
               const colorMap: Record<string, string> = {

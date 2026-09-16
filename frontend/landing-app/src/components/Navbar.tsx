@@ -13,7 +13,7 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="navbar">
+    <nav className="navbar motion-slide-in-top">
       <div className="navbar-inner">
         <a href="#" className="navbar-logo" aria-label="Home">
           <Logo height={22} />

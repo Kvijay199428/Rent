@@ -23,59 +23,23 @@ export default class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 16,
-            background: "#0b1120",
-            color: "#e2e8f0",
-            fontFamily: "system-ui, -apple-system, sans-serif",
-            padding: 24,
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: 40, marginBottom: 8 }}>⚠️</div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#fff" }}>
+        <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 bg-slate-950 p-6 text-center text-slate-200">
+          <div className="mb-2 text-[40px]">⚠️</div>
+          <h1 className="m-0 text-[22px] font-bold text-white">
             Something went wrong
           </h1>
-          <p style={{ margin: 0, fontSize: 14, color: "#94a3b8", maxWidth: 560 }}>
+          <p className="m-0 max-w-[560px] text-sm text-slate-400">
             An unexpected error occurred while rendering this page. Try reloading, or
             contact support if the problem persists.
           </p>
           {this.state.message && (
-            <code
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: 8,
-                padding: "8px 12px",
-                fontSize: 12,
-                color: "#fca5a5",
-                maxWidth: 560,
-                overflowWrap: "break-word",
-              }}
-            >
+            <code className="max-w-[560px] break-words rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-red-300">
               {this.state.message}
             </code>
           )}
           <button
             onClick={() => window.location.reload()}
-            style={{
-              marginTop: 8,
-              padding: "10px 20px",
-              borderRadius: 8,
-              border: "none",
-              background: "#3b4a6b",
-              color: "#fff",
-              fontSize: 14,
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
+            className="mt-2 cursor-pointer rounded-lg border-none bg-[#3b4a6b] px-5 py-2.5 text-sm font-semibold text-white"
           >
             Reload page
           </button>

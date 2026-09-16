@@ -236,15 +236,15 @@ export default function ExportPreviewModal({
             switch (format) {
                 case 'csv':
                     blob = await exportCsv(landlordUuid!, ids);
-                    filename = `receipts_export_${dateStr}.csv`;
+                    filename = `flat_import_40col_${dateStr}.csv`;
                     break;
                 case 'xlsx':
                     blob = await exportExcel(landlordUuid!, 'xlsx', ids);
-                    filename = `Rent_Data_Export_${dateStr}.xlsx`;
+                    filename = `Rent_Data_Export_V2_${dateStr}.xlsx`;
                     break;
                 case 'zip':
                     blob = await exportZip(landlordUuid!, ids);
-                    filename = `tenant_data_${dateStr}.zip`;
+                    filename = `tenants_data_v2_${dateStr}.zip`;
                     break;
             }
 

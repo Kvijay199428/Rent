@@ -240,7 +240,11 @@
         "template": "/landlord/{landlordUuid}/api/import-template",
         "exportExcel": "/landlord/{landlordUuid}/api/export-excel",
         "importPreview": "/landlord/{landlordUuid}/api/import-preview",
-        "importExecute": "/landlord/{landlordUuid}/api/import-execute"
+        "importExecute": "/landlord/{landlordUuid}/api/import-execute",
+        "exportV2": "/landlord/{landlordUuid}/api/export-v2",
+        "importTemplateV2": "/landlord/{landlordUuid}/api/import-template-v2",
+        "importPreviewV2": "/landlord/{landlordUuid}/api/import-preview-v2",
+        "importExecuteV2": "/landlord/{landlordUuid}/api/import-execute-v2"
       },
       "backups": {
         "list": "/landlord/{landlordUuid}/api/backups",

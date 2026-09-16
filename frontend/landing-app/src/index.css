@@ -907,11 +907,27 @@ main { position: relative; }
 }
 
 .faq-answer {
-  padding: 0 var(--space-3) var(--space-3);
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
   font-size: 0.88rem;
   color: var(--muted);
   line-height: 1.7;
   max-width: 720px;
+  transition: grid-template-rows 0.28s cubic-bezier(0.45, 0, 0.55, 1);
+}
+
+.faq-item.open .faq-answer {
+  grid-template-rows: 1fr;
+}
+
+.faq-answer-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.faq-answer p {
+  padding: 0 var(--space-3) var(--space-3);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

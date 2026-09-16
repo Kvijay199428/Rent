@@ -21,6 +21,7 @@ type TenantContextType = {
   isUnlocked: boolean;
   readOnly: boolean;
   isLoading: boolean;
+  profileLoadError: boolean;
   login: (pin: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refetch: () => void;
@@ -32,7 +33,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const { landlordUuid, propertyId, tenantId, viewToken } = getTenantRuntime();
   const queryClient = useQueryClient();
 
-  const { data, isLoading, refetch } = useQuery<PortalResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<PortalResponse>({
     queryKey: ["tenant-profile", viewToken],
     queryFn: async () => {
       let res = await tenantApi.profile.get();
@@ -89,6 +90,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       isUnlocked,
       readOnly,
       isLoading,
+      profileLoadError: isError,
       login,
       logout,
       refetch,
@@ -104,6 +106,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       isUnlocked,
       readOnly,
       isLoading,
+      isError,
       login,
       logout,
       refetch,

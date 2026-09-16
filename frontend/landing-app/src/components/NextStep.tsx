@@ -1,3 +1,4 @@
+import { useScrollReveal, useStaggerReveal } from "@shared/motion";
 import { HomeIcon, UserIcon, ShieldIcon, ArrowRightIcon, type IconComponent } from "./Icons";
 
 const portals: {
@@ -43,10 +44,13 @@ const btnClass: Record<string, string> = {
 };
 
 export default function NextStep() {
+  const { ref: headerRef, motionStyle: headerStyle } = useScrollReveal();
+  const { parentRef, childStyles } = useStaggerReveal({ count: portals.length });
+
   return (
     <section className="nextstep-section" id="contact">
       <div className="section-container">
-        <div className="section-header">
+        <div className="section-header" ref={headerRef} style={headerStyle}>
           <span className="section-badge">06 — Access</span>
           <h2 className="section-title">The next step</h2>
           <div className="section-rule" />
@@ -54,11 +58,11 @@ export default function NextStep() {
             Choose how you'd like to access the platform.
           </p>
         </div>
-        <div className="nextstep-grid">
-          {portals.map((portal) => {
+        <div className="nextstep-grid" ref={parentRef}>
+          {portals.map((portal, i) => {
             const IconCmp = portal.icon;
             return (
-              <div key={portal.title} className="nextstep-card">
+              <div key={portal.title} className="nextstep-card" style={childStyles[i]}>
                 <div className="nextstep-icon">
                   <IconCmp size={34} />
                 </div>

@@ -2,6 +2,30 @@ import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router";
 import Layout from "../components/Layout";
 import { fetchApi } from "../api/client";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Card } from "../components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui/table";
 
 interface Landlord {
   id: number;
@@ -36,19 +60,37 @@ interface ModalData {
   loading: boolean;
 }
 
-const badgeStyle = (status: string): React.CSSProperties => ({
-  display: "inline-block",
-  padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
-  background: status === "Active" ? "#dcfce7" : status === "Locked" ? "#fee2e2" : "#f3f4f6",
-  color: status === "Active" ? "#16a34a" : status === "Locked" ? "#dc2626" : "#6b7280",
-});
+function Pill({ tone, title, children }: { tone: "green" | "amber" | "red" | "gray"; title?: string; children: React.ReactNode }) {
+  const tones = {
+    green: "bg-green-100 text-green-700",
+    amber: "bg-amber-100 text-amber-700",
+    red: "bg-red-100 text-red-600",
+    gray: "bg-gray-100 text-gray-500",
+  };
+  return (
+    <span
+      title={title}
+      className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${tones[tone]} ${title ? "cursor-help" : ""}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+const STATUS_TONE: Record<string, "green" | "amber" | "red" | "gray"> = {
+  Active: "green",
+  Locked: "red",
+  Inactive: "gray",
+};
+
+const COL_HEADERS = ["ID", "Name", "Username", "Status", "Privacy", "Terms", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"];
 
 export default function LandlordsPage() {
   const [landlords, setLandlords] = useState<Landlord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [modal, setModal] = useState<ModalData | null>(null);
 
   const fetchData = useCallback(async () => {
@@ -57,7 +99,7 @@ export default function LandlordsPage() {
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
-      if (statusFilter) params.set("status", statusFilter);
+      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
       params.set("limit", "50");
       const res = await fetchApi(`/landlords?${params}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -131,80 +173,79 @@ export default function LandlordsPage() {
 
   return (
     <Layout>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <h1 style={{ margin: 0, fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Landlords</h1>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="m-0 text-[26px] font-bold text-[#1a1d2e]">Landlords</h1>
       </div>
 
-      <div style={{
-        background: "#fff", borderRadius: 14, padding: "16px 20px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
-        display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
-      }}>
-        <input
+      <Card className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl p-4 shadow-[0_2px_12px_rgba(0,0,0,0.07)]">
+        <Input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by name, username, or email…"
-          style={{ flex: 1, minWidth: 200, padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
+          className="min-w-[200px] flex-1"
         />
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
-        >
-          <option value="">All statuses</option>
-          <option value="Active">Active</option>
-          <option value="Locked">Locked</option>
-          <option value="Inactive">Inactive</option>
-        </select>
-      </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-auto">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="Active">Active</SelectItem>
+            <SelectItem value="Locked">Locked</SelectItem>
+            <SelectItem value="Inactive">Inactive</SelectItem>
+          </SelectContent>
+        </Select>
+      </Card>
 
       {error && (
-        <div style={{ background: "#fef2f2", color: "#dc2626", padding: "12px 16px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
+        <div className="mb-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
           {error}
         </div>
       )}
 
       {loading ? (
-        <p style={{ color: "#9ca3af" }}>Loading…</p>
+        <p className="text-gray-400">Loading…</p>
       ) : (
-        <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", overflow: "hidden" }}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-              <thead>
-                <tr style={{ background: "#f9fafb" }}>
-                  {["ID", "Name", "Username", "Status", "Privacy", "Terms", "TOTP", "PW Reset", "Tenants", "Receipts", "KYC", "Joined", "Actions"].map((h) => (
-                    <th key={h} style={{ padding: "12px 12px", textAlign: "left", fontWeight: 600, color: "#374151", borderBottom: "1px solid #e5e7eb", fontSize: 13, whiteSpace: "nowrap" }}>{h}</th>
+        <Card className="overflow-hidden rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.07)]">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50 hover:bg-slate-50">
+                  {COL_HEADERS.map((h) => (
+                    <TableHead key={h} className="whitespace-nowrap px-3 py-3 text-[13px] font-semibold text-gray-700">
+                      {h}
+                    </TableHead>
                   ))}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {landlords.length === 0 && (
-                  <tr>
-                    <td colSpan={12} style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>
+                  <TableRow>
+                    <TableCell colSpan={COL_HEADERS.length} className="px-3 py-8 text-center text-gray-400">
                       No landlords found.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
                 {landlords.map((l) => (
-                  <tr key={l.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "12px 12px", color: "#6b7280" }}>{l.id}</td>
-                    <td style={{ padding: "12px 12px", fontWeight: 600, color: "#1a1d2e" }}>
-                      <Link to={`/landlords/${l.id}`} style={{ color: "#3b4a6b", textDecoration: "none" }}>
+                  <TableRow key={l.id} className="border-b border-gray-100">
+                    <TableCell className="px-3 py-3 text-gray-500">{l.id}</TableCell>
+                    <TableCell className="px-3 py-3 font-semibold text-[#1a1d2e]">
+                      <Link to={`/landlords/${l.id}`} className="text-[#3b4a6b] no-underline hover:underline">
                         {l.full_name || "—"}
                       </Link>
-                      {l.email && <div style={{ fontSize: 12, color: "#9ca3af", fontWeight: 400 }}>{l.email}</div>}
-                    </td>
-                    <td style={{ padding: "12px 12px" }}>
-                      <code style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 6, fontSize: 13 }}>{l.username}</code>
-                    </td>
-                    <td style={{ padding: "12px 12px" }}>
-                      <span style={badgeStyle(l.status)}>{l.status}</span>
-                    </td>
-                    <td style={{ padding: "12px 12px" }}>
+                      {l.email && <div className="text-xs font-normal text-gray-400">{l.email}</div>}
+                    </TableCell>
+                    <TableCell className="px-3 py-3">
+                      <code className="rounded-md bg-slate-100 px-2 py-0.5 text-[13px]">{l.username}</code>
+                    </TableCell>
+                    <TableCell className="px-3 py-3">
+                      <Pill tone={STATUS_TONE[l.status] ?? "gray"}>{l.status}</Pill>
+                    </TableCell>
+                    <TableCell className="px-3 py-3">
                       {l.privacy_consented ? (
-                        <span
-                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#dcfce7", color: "#16a34a", cursor: "help" }}
+                        <Pill
+                          tone="green"
                           title={[
                             "Privacy Policy accepted",
                             l.privacy_version ? `Version ${l.privacy_version}` : null,
@@ -212,20 +253,15 @@ export default function LandlordsPage() {
                           ].filter(Boolean).join(" · ")}
                         >
                           Accepted
-                        </span>
+                        </Pill>
                       ) : (
-                        <span
-                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#fef3c7", color: "#92400e", cursor: "help" }}
-                          title="Privacy Policy not yet accepted"
-                        >
-                          Pending
-                        </span>
+                        <Pill tone="amber" title="Privacy Policy not yet accepted">Pending</Pill>
                       )}
-                    </td>
-                    <td style={{ padding: "12px 12px" }}>
+                    </TableCell>
+                    <TableCell className="px-3 py-3">
                       {l.terms_consented ? (
-                        <span
-                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#dcfce7", color: "#16a34a", cursor: "help" }}
+                        <Pill
+                          tone="green"
                           title={[
                             "Terms and Conditions accepted",
                             l.terms_version ? `Version ${l.terms_version}` : null,
@@ -233,98 +269,88 @@ export default function LandlordsPage() {
                           ].filter(Boolean).join(" · ")}
                         >
                           Accepted
-                        </span>
+                        </Pill>
                       ) : (
-                        <span
-                          style={{ display: "inline-block", padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600, background: "#fef3c7", color: "#92400e", cursor: "help" }}
-                          title="Terms and Conditions not yet accepted"
-                        >
-                          Pending
-                        </span>
+                        <Pill tone="amber" title="Terms and Conditions not yet accepted">Pending</Pill>
                       )}
-                    </td>
-                    <td style={{ padding: "12px 12px", fontSize: 13 }}>
+                    </TableCell>
+                    <TableCell className="px-3 py-3 text-[13px]">
                       {l.has_totp ? "✅" : "—"}
-                    </td>
-                    <td style={{ padding: "12px 12px", textAlign: "center" }}>
+                    </TableCell>
+                    <TableCell className="px-3 py-3 text-center">
                       {l.requires_password_change ? (
-                        <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: 99, fontSize: 11, fontWeight: 600, background: "#fef3c7", color: "#92400e" }}>
-                          PW Pending
-                        </span>
+                        <Pill tone="amber">PW Pending</Pill>
                       ) : "—"}
-                    </td>
-                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.tenant_count}</td>
-                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.receipt_count}</td>
-                    <td style={{ padding: "12px 12px", textAlign: "center" }}>{l.kyc_count}</td>
-                    <td style={{ padding: "12px 12px", fontSize: 12, color: "#9ca3af", whiteSpace: "nowrap" }}>
+                    </TableCell>
+                    <TableCell className="px-3 py-3 text-center">{l.tenant_count}</TableCell>
+                    <TableCell className="px-3 py-3 text-center">{l.receipt_count}</TableCell>
+                    <TableCell className="px-3 py-3 text-center">{l.kyc_count}</TableCell>
+                    <TableCell className="whitespace-nowrap px-3 py-3 text-xs text-gray-400">
                       {l.created_at ? new Date(l.created_at).toLocaleDateString() : "—"}
-                    </td>
-                    <td style={{ padding: "12px 12px" }}>
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        <button
+                    </TableCell>
+                    <TableCell className="px-3 py-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        <Button
+                          size="sm"
                           onClick={() => toggleTOTP(l)}
-                          style={{
-                            padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600,
-                            background: l.has_totp ? "#fef9c3" : "#dcfce7",
-                            color: l.has_totp ? "#92400e" : "#166534",
-                          }}
+                          className={`h-7 px-2.5 text-[11px] font-semibold ${
+                            l.has_totp
+                              ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+                              : "bg-green-100 text-green-700 hover:bg-green-200"
+                          }`}
                         >
                           {l.has_totp ? "Disable TOTP" : "Enable TOTP"}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          size="sm"
                           onClick={() => revealPassword(l)}
-                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#e0e7ff", color: "#3730a3" }}
+                          className="h-7 bg-indigo-100 px-2.5 text-[11px] font-semibold text-indigo-800 hover:bg-indigo-200"
                         >
                           Show PW
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          size="sm"
                           onClick={() => resetPassword(l)}
-                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#fee2e2", color: "#dc2626" }}
+                          className="h-7 bg-red-100 px-2.5 text-[11px] font-semibold text-red-600 hover:bg-red-200"
                         >
                           Reset PW
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          size="sm"
                           onClick={() => resetWithWhatsApp(l)}
-                          style={{ padding: "4px 10px", borderRadius: 6, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 600, background: "#dcfce7", color: "#166534" }}
                           title="Reset password and send via WhatsApp"
+                          className="h-7 bg-green-100 px-2.5 text-[11px] font-semibold text-green-700 hover:bg-green-200"
                         >
                           Send WA
-                        </button>
+                        </Button>
                       </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
-        </div>
+        </Card>
       )}
 
       {/* Modal */}
       {modal && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
-          onClick={() => setModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff", borderRadius: 16, padding: "28px 32px", width: "100%", maxWidth: 440, margin: "0 16px", maxHeight: "80vh", overflowY: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-            }}
-          >
-            <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 700, color: "#1a1d2e" }}>
-              {modal.type === "totp" && (modal.landlord.has_totp ? "Disable TOTP" : "Enable TOTP")}
-              {modal.type === "password" && "Reveal Password"}
-              {modal.type === "reset" && "Reset Password"}
-              {modal.type === "reset_whatsapp" && "Reset & Send via WhatsApp"}
-              <span style={{ fontWeight: 400, color: "#6b7280", fontSize: 14 }}> — {modal.landlord.username}</span>
-            </h2>
+        <Dialog open onOpenChange={(open) => { if (!open) setModal(null); }}>
+          <DialogContent className="max-h-[80vh] max-w-[440px] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-[17px] font-bold text-[#1a1d2e]">
+                {modal.type === "totp" && (modal.landlord.has_totp ? "Disable TOTP" : "Enable TOTP")}
+                {modal.type === "password" && "Reveal Password"}
+                {modal.type === "reset" && "Reset Password"}
+                {modal.type === "reset_whatsapp" && "Reset & Send via WhatsApp"}
+                <span className="text-sm font-normal text-gray-500"> — {modal.landlord.username}</span>
+              </DialogTitle>
+            </DialogHeader>
 
-            {modal.loading && <p style={{ color: "#9ca3af" }}>Loading…</p>}
+            {modal.loading && <p className="text-gray-400">Loading…</p>}
 
             {modal.error && (
-              <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
+              <div className="mb-3 rounded-lg bg-red-50 px-3.5 py-2.5 text-[13px] text-red-600">
                 {modal.error}
               </div>
             )}
@@ -332,48 +358,45 @@ export default function LandlordsPage() {
             {modal.result && (
               <div>
                 {modal.type === "totp" && (
-                  <div style={{ textAlign: "center" }}>
+                  <div className="text-center">
                     {modal.result.qr_code_base64 && (
                       <>
-                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>Scan this QR code with the landlord's authenticator app:</p>
+                        <p className="mb-2 text-[13px] text-gray-700">Scan this QR code with the landlord's authenticator app:</p>
                         <img
                           src={`data:image/png;base64,${modal.result.qr_code_base64}`}
                           alt="TOTP QR"
-                          style={{ width: 200, height: 200, borderRadius: 8, border: "1px solid #e5e7eb", marginBottom: 12 }}
+                          className="mb-3 h-[200px] w-[200px] rounded-lg border border-gray-200"
                         />
                       </>
                     )}
                     {modal.result.secret && (
-                      <div style={{ background: "#f1f5f9", padding: "10px 14px", borderRadius: 8, fontSize: 13, fontFamily: "monospace" }}>
+                      <div className="rounded-lg bg-slate-100 px-3.5 py-2.5 text-[13px] font-mono">
                         Secret: {modal.result.secret}
                       </div>
                     )}
                     {modal.result.message && (
-                      <p style={{ fontSize: 13, color: "#16a34a", marginTop: 8 }}>{modal.result.message}</p>
+                      <p className="mt-2 text-[13px] text-green-600">{modal.result.message}</p>
                     )}
                   </div>
                 )}
 
                 {(modal.type === "password" || modal.type === "reset") && modal.result.password && (
                   <div>
-                    <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
+                    <p className="mb-2 text-[13px] text-gray-700">
                       {modal.type === "reset" ? "New password (copy now — shown only once):" : "Current password:"}
                     </p>
-                    <div style={{
-                      background: "#f1f5f9", padding: "12px 16px", borderRadius: 8,
-                      fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: "#1a1d2e",
-                      display: "flex", alignItems: "center", justifyContent: "space-between",
-                    }}>
+                    <div className="flex items-center justify-between rounded-lg bg-slate-100 px-4 py-3 font-mono text-base font-bold text-[#1a1d2e]">
                       <span>{modal.result.password}</span>
-                      <button
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => navigator.clipboard.writeText(modal.result!.password!)}
-                        style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}
                       >
                         Copy
-                      </button>
+                      </Button>
                     </div>
                     {modal.result.updated_at && (
-                      <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 8 }}>
+                      <p className="mt-2 text-xs text-gray-400">
                         Last updated: {new Date(modal.result.updated_at).toLocaleString()}
                       </p>
                     )}
@@ -384,52 +407,44 @@ export default function LandlordsPage() {
                   <div>
                     {modal.result.password && (
                       <>
-                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
+                        <p className="mb-2 text-[13px] text-gray-700">
                           New password (copy now — shown only once):
                         </p>
-                        <div style={{
-                          background: "#f1f5f9", padding: "12px 16px", borderRadius: 8,
-                          fontFamily: "monospace", fontSize: 16, fontWeight: 700, color: "#1a1d2e",
-                          display: "flex", alignItems: "center", justifyContent: "space-between",
-                        }}>
+                        <div className="flex items-center justify-between rounded-lg bg-slate-100 px-4 py-3 font-mono text-base font-bold text-[#1a1d2e]">
                           <span>{modal.result.password}</span>
-                          <button
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => navigator.clipboard.writeText(modal.result!.password!)}
-                            style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer" }}
                           >
                             Copy
-                          </button>
+                          </Button>
                         </div>
                       </>
                     )}
 
                     {modal.result.whatsapp_url ? (
-                      <div style={{ marginTop: 16 }}>
-                        <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>
+                      <div className="mt-4">
+                        <p className="mb-2 text-[13px] text-gray-700">
                           Open WhatsApp to send the credentials:
                         </p>
                         <a
                           href={modal.result.whatsapp_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{
-                            display: "inline-flex", alignItems: "center", gap: 8,
-                            padding: "10px 20px", borderRadius: 8,
-                            background: "#25D366", color: "#fff", fontWeight: 600, fontSize: 14,
-                            textDecoration: "none",
-                          }}
+                          className="inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white no-underline hover:bg-[#1eb958]"
                         >
                           Open WhatsApp
                         </a>
                       </div>
                     ) : (
-                      <p style={{ fontSize: 13, color: "#9ca3af", marginTop: 12 }}>
+                      <p className="mt-3 text-[13px] text-gray-400">
                         No phone number on file — WhatsApp URL not generated.
                       </p>
                     )}
 
                     {modal.result.requires_password_change && (
-                      <p style={{ fontSize: 12, color: "#92400e", marginTop: 12, background: "#fef3c7", padding: "8px 12px", borderRadius: 6 }}>
+                      <p className="mt-3 rounded-md bg-amber-100 px-3 py-2 text-xs text-amber-700">
                         The landlord will be required to change their password on next login.
                       </p>
                     )}
@@ -438,17 +453,15 @@ export default function LandlordsPage() {
               </div>
             )}
 
-            <button
+            <Button
+              variant="outline"
               onClick={() => setModal(null)}
-              style={{
-                marginTop: 20, width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
-                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
-              }}
+              className="mt-5 w-full text-sm font-semibold"
             >
               Close
-            </button>
-          </div>
-        </div>
+            </Button>
+          </DialogContent>
+        </Dialog>
       )}
     </Layout>
   );

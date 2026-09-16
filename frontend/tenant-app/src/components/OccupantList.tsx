@@ -43,7 +43,7 @@ export default function OccupantList() {
       {occupants.length === 0 ? (
         <p className="text-muted-foreground">No occupants registered.</p>
       ) : (
-        <div className="grid md:grid-cols-2 gap-3">
+        <div className="grid md:grid-cols-2 gap-3 motion-stagger">
           {occupants.map((o) => (
             <OccupantCard
               key={o["Occupant UUID"] || o.occupantUuid}

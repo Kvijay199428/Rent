@@ -6,6 +6,7 @@ import { ThemeProvider } from "./components/theme-provider";
 import ErrorBoundary from "./components/ErrorBoundary";
 import App from "./App";
 import "./index.css";
+import "@shared/motion/_root.css";
 import { getTenantRuntime } from "./lib/tenant-runtime";
 import { queryClient } from "./lib/queryClient";
 

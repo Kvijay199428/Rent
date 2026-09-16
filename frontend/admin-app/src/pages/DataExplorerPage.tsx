@@ -1,6 +1,30 @@
 import { useEffect, useState, useCallback } from "react";
 import Layout from "../components/Layout";
 import { fetchApi } from "../api/client";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Card } from "../components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui/table";
 
 type Tab = "tenants" | "receipts" | "kyc";
 
@@ -34,143 +58,119 @@ const TABS: { key: Tab; label: string; icon: string }[] = [
   { key: "kyc", label: "KYC Files", icon: "📄" },
 ];
 
-const thStyle: React.CSSProperties = {
-  padding: "12px 14px", textAlign: "left", fontWeight: 600, color: "#374151",
-  borderBottom: "1px solid #e5e7eb", fontSize: 13,
-};
-const tdStyle: React.CSSProperties = {
-  padding: "12px 14px", fontSize: 14, color: "#1a1d2e",
-};
-const btnSm: React.CSSProperties = {
-  padding: "4px 12px", borderRadius: 6, border: "none", cursor: "pointer",
-  fontSize: 12, fontWeight: 600,
-};
+const TH_CLS = "bg-[#f9fafb] text-[13px] font-semibold text-gray-700";
+const TD_CLS = "text-[#1a1d2e]";
 
 function TenantsTable({ items, onAuth }: { items: Record<string, unknown>[]; onAuth: (id: number) => void }) {
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-      <thead>
-        <tr style={{ background: "#f9fafb" }}>
-          <th style={thStyle}>ID</th>
-          <th style={thStyle}>Name</th>
-          <th style={thStyle}>Unit</th>
-          <th style={thStyle}>Status</th>
-          <th style={thStyle}>Rent</th>
-          <th style={thStyle}>Landlord</th>
-          <th style={thStyle}>Auth</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-[#f9fafb]">
+          {["ID", "Name", "Unit", "Status", "Rent", "Landlord", "Auth"].map((h) => (
+            <TableHead key={h} className={TH_CLS}>{h}</TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {items.map((r) => (
-          <tr key={Number(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
-            <td style={tdStyle}>{String(r.id)}</td>
-            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.name)}</td>
-            <td style={tdStyle}>{String(r.unit ?? "—")}</td>
-            <td style={tdStyle}>
-              <span style={{
-                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
-                background: r.status === "Active" ? "#dcfce7" : "#fee2e2",
-                color: r.status === "Active" ? "#16a34a" : "#dc2626",
-              }}>
+          <TableRow key={Number(r.id)} className="border-b border-gray-100">
+            <TableCell className={TD_CLS}>{String(r.id)}</TableCell>
+            <TableCell className={`${TD_CLS} font-semibold`}>{String(r.name)}</TableCell>
+            <TableCell className={TD_CLS}>{String(r.unit ?? "—")}</TableCell>
+            <TableCell className={TD_CLS}>
+              <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                r.status === "Active" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+              }`}>
                 {String(r.status)}
               </span>
-            </td>
-            <td style={tdStyle}>₱{String(r.rent_amount ?? 0)}</td>
-            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
-            <td style={tdStyle}>
-              <button
+            </TableCell>
+            <TableCell className={TD_CLS}>₱{String(r.rent_amount ?? 0)}</TableCell>
+            <TableCell className={TD_CLS}>{String(r.landlord_name ?? "—")}</TableCell>
+            <TableCell className={TD_CLS}>
+              <Button
+                size="sm"
                 onClick={() => onAuth(Number(r.id))}
-                style={{ ...btnSm, background: "#e0e7ff", color: "#3730a3" }}
+                className="h-7 bg-indigo-100 px-2.5 text-[11px] font-semibold text-indigo-800 hover:bg-indigo-200"
               >
                 View PIN
-              </button>
-            </td>
-          </tr>
+              </Button>
+            </TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 }
 
 function ReceiptsTable({ items }: { items: Record<string, unknown>[] }) {
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-      <thead>
-        <tr style={{ background: "#f9fafb" }}>
-          <th style={thStyle}>Bill #</th>
-          <th style={thStyle}>Tenant</th>
-          <th style={thStyle}>Unit</th>
-          <th style={thStyle}>Total</th>
-          <th style={thStyle}>Status</th>
-          <th style={thStyle}>Date</th>
-          <th style={thStyle}>Month</th>
-          <th style={thStyle}>Landlord</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-[#f9fafb]">
+          {["Bill #", "Tenant", "Unit", "Total", "Status", "Date", "Month", "Landlord"].map((h) => (
+            <TableHead key={h} className={TH_CLS}>{h}</TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {items.map((r) => (
-          <tr key={String(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
-            <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 13 }}>{String(r.id)}</td>
-            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.tenant_name ?? "—")}</td>
-            <td style={tdStyle}>{String(r.tenant_unit ?? "—")}</td>
-            <td style={tdStyle}>₱{String(r.total ?? 0)}</td>
-            <td style={tdStyle}>
-              <span style={{
-                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
-                background: r.paymentstatus === "PAID" ? "#dcfce7" : r.paymentstatus === "PENDING" ? "#fef9c3" : "#fee2e2",
-                color: r.paymentstatus === "PAID" ? "#16a34a" : r.paymentstatus === "PENDING" ? "#92400e" : "#dc2626",
-              }}>
+          <TableRow key={String(r.id)} className="border-b border-gray-100">
+            <TableCell className={`${TD_CLS} font-mono text-[13px]`}>{String(r.id)}</TableCell>
+            <TableCell className={`${TD_CLS} font-semibold`}>{String(r.tenant_name ?? "—")}</TableCell>
+            <TableCell className={TD_CLS}>{String(r.tenant_unit ?? "—")}</TableCell>
+            <TableCell className={TD_CLS}>₱{String(r.total ?? 0)}</TableCell>
+            <TableCell className={TD_CLS}>
+              <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                r.paymentstatus === "PAID"
+                  ? "bg-green-100 text-green-700"
+                  : r.paymentstatus === "PENDING"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-red-100 text-red-600"
+              }`}>
                 {String(r.paymentstatus)}
               </span>
-            </td>
-            <td style={tdStyle}>{r.issued_at ? new Date(String(r.issued_at)).toLocaleDateString() : "—"}</td>
-            <td style={tdStyle}>{String(r.month ?? "—")}</td>
-            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
-          </tr>
+            </TableCell>
+            <TableCell className={TD_CLS}>{r.issued_at ? new Date(String(r.issued_at)).toLocaleDateString() : "—"}</TableCell>
+            <TableCell className={TD_CLS}>{String(r.month ?? "—")}</TableCell>
+            <TableCell className={TD_CLS}>{String(r.landlord_name ?? "—")}</TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 }
 
 function KYCTable({ items }: { items: Record<string, unknown>[] }) {
   return (
-    <table style={{ width: "100%", borderCollapse: "collapse" }}>
-      <thead>
-        <tr style={{ background: "#f9fafb" }}>
-          <th style={thStyle}>UUID</th>
-          <th style={thStyle}>Name</th>
-          <th style={thStyle}>Status</th>
-          <th style={thStyle}>Mobile</th>
-          <th style={thStyle}>Since</th>
-          <th style={thStyle}>Tenant</th>
-          <th style={thStyle}>Unit</th>
-          <th style={thStyle}>Landlord</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table>
+      <TableHeader>
+        <TableRow className="hover:bg-[#f9fafb]">
+          {["UUID", "Name", "Status", "Mobile", "Since", "Tenant", "Unit", "Landlord"].map((h) => (
+            <TableHead key={h} className={TH_CLS}>{h}</TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
         {items.map((r) => (
-          <tr key={String(r.id)} style={{ borderBottom: "1px solid #f3f4f6" }}>
-            <td style={{ ...tdStyle, fontFamily: "monospace", fontSize: 12, color: "#6b7280" }}>{String(r.id).slice(0, 8)}…</td>
-            <td style={{ ...tdStyle, fontWeight: 600 }}>{String(r.name)}</td>
-            <td style={tdStyle}>
-              <span style={{
-                padding: "2px 10px", borderRadius: 99, fontSize: 12, fontWeight: 600,
-                background: r.status === "Active" ? "#dcfce7" : "#f3f4f6",
-                color: r.status === "Active" ? "#16a34a" : "#6b7280",
-              }}>
+          <TableRow key={String(r.id)} className="border-b border-gray-100">
+            <TableCell className="font-mono text-xs text-gray-500">{String(r.id).slice(0, 8)}…</TableCell>
+            <TableCell className={`${TD_CLS} font-semibold`}>{String(r.name)}</TableCell>
+            <TableCell className={TD_CLS}>
+              <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                r.status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+              }`}>
                 {String(r.status ?? "—")}
               </span>
-            </td>
-            <td style={tdStyle}>{String(r.mobile ?? "—")}</td>
-            <td style={tdStyle}>{String(r.residentSince ?? "—")}</td>
-            <td style={tdStyle}>{String(r.tenant_name ?? "—")}</td>
-            <td style={tdStyle}>{String(r.tenant_unit ?? "—")}</td>
-            <td style={tdStyle}>{String(r.landlord_name ?? "—")}</td>
-          </tr>
+            </TableCell>
+            <TableCell className={TD_CLS}>{String(r.mobile ?? "—")}</TableCell>
+            <TableCell className={TD_CLS}>{String(r.residentSince ?? "—")}</TableCell>
+            <TableCell className={TD_CLS}>{String(r.tenant_name ?? "—")}</TableCell>
+            <TableCell className={TD_CLS}>{String(r.tenant_unit ?? "—")}</TableCell>
+            <TableCell className={TD_CLS}>{String(r.landlord_name ?? "—")}</TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 }
 
@@ -179,22 +179,32 @@ export default function DataExplorerPage() {
   const [selectedLandlord, setSelectedLandlord] = useState<Landlord | null>(null);
   const [landlordSearch, setLandlordSearch] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
+  const [landlordLoadError, setLandlordLoadError] = useState(false);
 
   const [tab, setTab] = useState<Tab>("tenants");
   const [data, setData] = useState<PageResult>({ items: [], total: 0, limit: 20, offset: 0 });
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(false);
 
   const [authModal, setAuthModal] = useState<TenantAuth | null>(null);
   const [authLoading, setAuthLoading] = useState(false);
 
-  // Fetch landlords for dropdown
-  useEffect(() => {
+  const loadLandlords = () => {
     fetchApi("/landlords?limit=1000")
-      .then((r) => r.json())
-      .then((data) => setLandlords(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setLandlords(Array.isArray(data) ? data : []);
+        setLandlordLoadError(false);
+      })
+      .catch(() => setLandlordLoadError(true));
+  };
+
+  useEffect(() => {
+    loadLandlords();
   }, []);
 
   const filteredLandlords = landlords.filter((l) => {
@@ -203,14 +213,13 @@ export default function DataExplorerPage() {
     return l.full_name?.toLowerCase().includes(q) || l.username?.toLowerCase().includes(q);
   });
 
-  // Fetch preview data
   const fetchData = useCallback(async () => {
     if (!selectedLandlord) { setData({ items: [], total: 0, limit: 20, offset: 0 }); return; }
     setLoading(true);
     const params = new URLSearchParams();
     params.set("landlord_id", String(selectedLandlord.id));
     if (search) params.set("search", search);
-    if (statusFilter) params.set("status", statusFilter);
+    if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
     params.set("limit", "20");
     params.set("offset", String(data.offset));
     try {
@@ -243,18 +252,12 @@ export default function DataExplorerPage() {
 
   return (
     <Layout>
-      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Data Explorer</h1>
+      <h1 className="mb-6 text-[26px] font-bold text-[#1a1d2e]">Data Explorer</h1>
 
-      {/* Landlord Selector */}
-      <div style={{
-        background: "#fff", borderRadius: 14, padding: "16px 20px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
-      }}>
-        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-          Select Landlord
-        </label>
-        <div style={{ position: "relative" }}>
-          <input
+      <Card className="mb-5 rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.07)]">
+        <label className="mb-1.5 block text-[13px] font-semibold text-gray-700">Select Landlord</label>
+        <div className="relative">
+          <Input
             type="text"
             value={selectedLandlord ? `${selectedLandlord.full_name} (@${selectedLandlord.username})` : landlordSearch}
             onChange={(e) => {
@@ -264,108 +267,108 @@ export default function DataExplorerPage() {
             }}
             onFocus={() => setShowDropdown(true)}
             placeholder="Search landlord by name or username…"
-            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14, boxSizing: "border-box" }}
           />
           {showDropdown && !selectedLandlord && filteredLandlords.length > 0 && (
-            <div style={{
-              position: "absolute", top: "100%", left: 0, right: 0, zIndex: 50,
-              background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8,
-              maxHeight: 240, overflowY: "auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
-            }}>
+            <div className="absolute left-0 right-0 top-full z-50 max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
               {filteredLandlords.map((l) => (
                 <div
                   key={l.id}
-                  onClick={() => { setSelectedLandlord(l); setLandlordSearch(""); setShowDropdown(false); setSearch(""); setStatusFilter(""); }}
-                  style={{ padding: "10px 14px", cursor: "pointer", borderBottom: "1px solid #f3f4f6", fontSize: 14 }}
+                  onClick={() => { setSelectedLandlord(l); setLandlordSearch(""); setShowDropdown(false); setSearch(""); setStatusFilter("all"); }}
+                  className="cursor-pointer border-b border-gray-100 px-3.5 py-2.5 text-sm last:border-0"
                 >
-                  <div style={{ fontWeight: 600, color: "#1a1d2e" }}>{l.full_name}</div>
-                  <div style={{ fontSize: 12, color: "#9ca3af" }}>@{l.username}</div>
+                  <div className="font-semibold text-[#1a1d2e]">{l.full_name}</div>
+                  <div className="text-xs text-gray-400">@{l.username}</div>
                 </div>
               ))}
             </div>
           )}
         </div>
+        {landlordLoadError && (
+          <p className="mt-2 flex items-center gap-2 text-xs text-amber-600">
+            Couldn't load landlords.
+            <button type="button" onClick={loadLandlords} className="font-semibold text-amber-700 hover:underline">
+              Retry
+            </button>
+          </p>
+        )}
         {selectedLandlord && (
           <button
             onClick={() => { setSelectedLandlord(null); setLandlordSearch(""); }}
-            style={{ marginTop: 8, padding: "4px 12px", borderRadius: 6, border: "1px solid #d1d5db", background: "#fff", fontSize: 12, cursor: "pointer", color: "#6b7280" }}
+            className="mt-2 cursor-pointer rounded-md border border-gray-300 bg-white px-3 py-1 text-xs text-gray-500"
           >
             Clear selection
           </button>
         )}
-      </div>
+      </Card>
 
       {!selectedLandlord && (
-        <div style={{ background: "#fff", borderRadius: 14, padding: "48px 24px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)", textAlign: "center", color: "#9ca3af" }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
-          <p style={{ fontSize: 15 }}>Select a landlord above to explore their data</p>
-        </div>
+        <Card className="rounded-2xl p-12 text-center text-gray-400 shadow-[0_2px_12px_rgba(0,0,0,0.07)]">
+          <div className="mb-3 text-4xl">🔍</div>
+          <p className="text-[15px]">Select a landlord above to explore their data</p>
+        </Card>
       )}
 
       {selectedLandlord && (
         <>
-          <div style={{ display: "flex", gap: 8, marginBottom: 20 }}>
+          <div className="mb-5 flex gap-2">
             {TABS.map((t) => (
-              <button
+              <Button
                 key={t.key}
+                size="lg"
                 onClick={() => setTab(t.key)}
-                style={{
-                  padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, fontWeight: 600,
-                  background: tab === t.key ? "#3b4a6b" : "#f3f4f6",
-                  color: tab === t.key ? "#fff" : "#374151",
-                  transition: "all 0.15s",
-                }}
+                className={`rounded-lg px-5 ${
+                  tab === t.key
+                    ? "bg-[#3b4a6b] text-white hover:bg-[#3b4a6b]"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                }`}
               >
                 {t.icon} {t.label}
-              </button>
+              </Button>
             ))}
           </div>
 
-          <div style={{
-            background: "#fff", borderRadius: 14, padding: "16px 20px",
-            boxShadow: "0 2px 12px rgba(0,0,0,0.07)", marginBottom: 20,
-            display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap",
-          }}>
-            <input
+          <Card className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.07)]">
+            <Input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search…"
-              style={{ flex: 1, minWidth: 200, padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
+              className="min-w-[200px] flex-1"
             />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              style={{ padding: "10px 14px", borderRadius: 8, border: "1.5px solid #d1d5db", fontSize: 14 }}
-            >
-              <option value="">All statuses</option>
-              {tab === "tenants" && (
-                <>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </>
-              )}
-              {tab === "receipts" && (
-                <>
-                  <option value="PAID">Paid</option>
-                  <option value="PENDING">Pending</option>
-                  <option value="OVERDUE">Overdue</option>
-                </>
-              )}
-              {tab === "kyc" && (
-                <>
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </>
-              )}
-            </select>
-          </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-auto">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {tab === "tenants" && (
+                  <>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </>
+                )}
+                {tab === "receipts" && (
+                  <>
+                    <SelectItem value="PAID">Paid</SelectItem>
+                    <SelectItem value="PENDING">Pending</SelectItem>
+                    <SelectItem value="OVERDUE">Overdue</SelectItem>
+                  </>
+                )}
+                {tab === "kyc" && (
+                  <>
+                    <SelectItem value="Active">Active</SelectItem>
+                    <SelectItem value="Inactive">Inactive</SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          </Card>
 
-          <div style={{ background: "#fff", borderRadius: 14, boxShadow: "0 2px 12px rgba(0,0,0,0.07)", overflow: "hidden" }}>
+          <Card className="overflow-hidden rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.07)]">
             {loading ? (
-              <p style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>Loading…</p>
+              <p className="p-8 text-center text-gray-400">Loading…</p>
             ) : data.items.length === 0 ? (
-              <p style={{ padding: "32px 16px", textAlign: "center", color: "#9ca3af" }}>No results found for this landlord.</p>
+              <p className="p-8 text-center text-gray-400">No results found for this landlord.</p>
             ) : tab === "tenants" ? (
               <TenantsTable items={data.items} onAuth={showTenantAuth} />
             ) : tab === "receipts" ? (
@@ -373,89 +376,67 @@ export default function DataExplorerPage() {
             ) : (
               <KYCTable items={data.items} />
             )}
-          </div>
+          </Card>
 
           {data.total > data.limit && (
-            <div style={{ display: "flex", justifyContent: "center", gap: 12, marginTop: 20 }}>
-              <button
+            <div className="mt-5 flex items-center justify-center gap-3">
+              <Button
+                variant="outline"
                 disabled={data.offset === 0}
                 onClick={() => setData((d) => ({ ...d, offset: Math.max(0, d.offset - d.limit) }))}
-                style={{
-                  padding: "8px 20px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff",
-                  cursor: data.offset === 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
-                  opacity: data.offset === 0 ? 0.5 : 1,
-                }}
               >
                 Previous
-              </button>
-              <span style={{ padding: "8px 0", fontSize: 13, color: "#6b7280" }}>
+              </Button>
+              <span className="text-[13px] text-gray-500">
                 {data.offset + 1}–{Math.min(data.offset + data.limit, data.total)} of {data.total}
               </span>
-              <button
+              <Button
+                variant="outline"
                 disabled={data.offset + data.limit >= data.total}
                 onClick={() => setData((d) => ({ ...d, offset: d.offset + d.limit }))}
-                style={{
-                  padding: "8px 20px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff",
-                  cursor: data.offset + data.limit >= data.total ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
-                  opacity: data.offset + data.limit >= data.total ? 0.5 : 1,
-                }}
               >
                 Next
-              </button>
+              </Button>
             </div>
           )}
         </>
       )}
 
-      {/* Tenant Auth Modal */}
       {(authModal || authLoading) && (
-        <div
-          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200 }}
-          onClick={() => { setAuthModal(null); setAuthLoading(false); }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#fff", borderRadius: 16, padding: "28px 32px", width: "100%", maxWidth: 400, margin: "0 16px", maxHeight: "80vh", overflowY: "auto",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-            }}
-          >
-            <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 700, color: "#1a1d2e" }}>
-              Tenant Auth Details
-            </h2>
-            {authLoading && <p style={{ color: "#9ca3af" }}>Loading…</p>}
+        <Dialog open onOpenChange={(open) => { if (!open) { setAuthModal(null); setAuthLoading(false); } }}>
+          <DialogContent className="max-h-[80vh] max-w-[400px] overflow-y-auto rounded-2xl">
+            <DialogHeader>
+              <DialogTitle className="text-[17px] font-bold text-[#1a1d2e]">Tenant Auth Details</DialogTitle>
+            </DialogHeader>
+            {authLoading && <p className="text-gray-400">Loading…</p>}
             {authModal && !authLoading && (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                <tbody>
-                  {[
-                    ["Name", authModal.name],
-                    ["Status", authModal.status],
-                    ["Portal PIN", authModal.pin ?? "Not set"],
-                    ["Has PIN", authModal.has_pin ? "Yes" : "No"],
-                    ["Failed Attempts", String(authModal.failed_attempts)],
-                    ["Locked Until", authModal.locked_until ? new Date(authModal.locked_until).toLocaleString() : "Not locked"],
-                  ].map(([label, value]) => (
-                    <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                      <td style={{ padding: "10px 0", fontWeight: 600, color: "#6b7280", width: 130 }}>{label}</td>
-                      <td style={{ padding: "10px 0", color: "#1a1d2e", fontFamily: label === "Portal PIN" ? "monospace" : "inherit" }}>
-                        {String(value)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="text-sm">
+                {[
+                  ["Name", authModal.name],
+                  ["Status", authModal.status],
+                  ["Portal PIN", authModal.pin ?? "Not set"],
+                  ["Has PIN", authModal.has_pin ? "Yes" : "No"],
+                  ["Failed Attempts", String(authModal.failed_attempts)],
+                  ["Locked Until", authModal.locked_until ? new Date(authModal.locked_until).toLocaleString() : "Not locked"],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex items-baseline gap-3 border-b border-gray-100 py-2.5 last:border-0">
+                    <span className="w-[130px] shrink-0 font-semibold text-gray-500">{label}</span>
+                    <span className={`break-all text-[#1a1d2e] ${label === "Portal PIN" ? "font-mono" : ""}`}>
+                      {String(value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
-            <button
+            <Button
+              variant="outline"
               onClick={() => { setAuthModal(null); setAuthLoading(false); }}
-              style={{
-                marginTop: 20, width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
-                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
-              }}
+              className="mt-4 w-full text-sm font-semibold"
             >
               Close
-            </button>
-          </div>
-        </div>
+            </Button>
+          </DialogContent>
+        </Dialog>
       )}
     </Layout>
   );

@@ -138,7 +138,7 @@ export default function PortalLoginPage() {
   return (
     <>
       <AuthLayout>
-      <Card className="w-full max-w-md rounded-3xl border shadow-xl">
+      <Card className="w-full max-w-md rounded-3xl border shadow-xl motion-fade-up">
         <CardContent className="p-8">
           {view === "login" && (
             <>

@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { faqItems } from "../data";
+import { useScrollReveal } from "@shared/motion";
 
 export default function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const { ref: headerRef, motionStyle: headerStyle } = useScrollReveal();
 
   return (
     <section className="faq-section" id="faq">
       <div className="section-container">
-        <div className="section-header">
+        <div className="section-header" ref={headerRef} style={headerStyle}>
           <span className="section-badge">05 — FAQ</span>
           <h2 className="section-title">Frequently asked questions</h2>
           <div className="section-rule" />
@@ -26,11 +28,11 @@ export default function FAQ() {
                 <span>{item.question}</span>
                 <span className="faq-chevron" aria-hidden="true">{openIndex === i ? "−" : "+"}</span>
               </button>
-              {openIndex === i && (
-                <div className="faq-answer">
+              <div className="faq-answer">
+                <div className="faq-answer-inner">
                   <p>{item.answer}</p>
                 </div>
-              )}
+              </div>
             </div>
           ))}
         </div>

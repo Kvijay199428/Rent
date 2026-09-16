@@ -6,7 +6,6 @@
 
 import routesJson from "@shared/routes.json";
 import { getApiUrl } from "@shared/api-config";
-import { APP_BASE } from "./runtime";
 
 interface RouteManifest {
     basePath: string;
@@ -82,17 +81,9 @@ function fullPath(template: string, params?: Record<string, string | number>): s
     return `${base}${resolvePath(template, params)}`;
 }
 
-function clean(part: string): string {
-    return part.replace(/^\/+/, "").replace(/\/+$/, "");
-}
 
-function build(base: string, ...parts: string[]): string {
-    const suffix = parts.filter(Boolean).map(clean).join("/");
-    const normalizedBase = (base || "").replace(/\/+$/, "");
-    if (!suffix) return normalizedBase || "/";
-    if (!normalizedBase) return `/${suffix}`;
-    return `${normalizedBase}/${suffix}`;
-}
+
+
 
 function api(domain: "admin" | "tenant" | "landlord", section: string, key: string, params?: Record<string, string | number>): string {
     const node = (manifest as any)[domain];
@@ -344,6 +335,10 @@ export const ROUTES = {
     LANDLORDAPISYNCEXPORTEXCEL(landlordUuid: string, format: string) { return api("landlord", "sync", "exportExcel", { landlordUuid, format }); },
     LANDLORDAPISYNCIMPORTPREVIEW(landlordUuid: string) { return api("landlord", "sync", "importPreview", { landlordUuid }); },
     LANDLORDAPISYNCIMPORTEXECUTE(landlordUuid: string) { return api("landlord", "sync", "importExecute", { landlordUuid }); },
+    LANDLORDAPISYNCEXPORTV2(landlordUuid: string) { return api("landlord", "sync", "exportV2", { landlordUuid }); },
+    LANDLORDAPISYNCIMPORTTEMPLATEV2(landlordUuid: string) { return api("landlord", "sync", "importTemplateV2", { landlordUuid }); },
+    LANDLORDAPISYNCIMPORTPREVIEWV2(landlordUuid: string) { return api("landlord", "sync", "importPreviewV2", { landlordUuid }); },
+    LANDLORDAPISYNCIMPORTEXECUTEV2(landlordUuid: string) { return api("landlord", "sync", "importExecuteV2", { landlordUuid }); },
 
     // Landlord API: Backups
     LANDLORDAPIBACKUPSLIST(landlordUuid: string) { return api("landlord", "backups", "list", { landlordUuid }); },

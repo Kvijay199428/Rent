@@ -45,7 +45,7 @@ function parseMonthOrder(month: string) {
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
 
-export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId, billNo, allTenantIds }: Props) {
+export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId, allTenantIds }: Props) {
   const toast = useToast();
   const { landlordUuid } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -258,10 +258,11 @@ export default function MeterReadingDetailsModal({ open, onOpenChange, tenantId,
                         <YAxis tick={{ fontSize: 12 }} />
                         <Tooltip
                           contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)' }}
-                          formatter={(value: number, name: string) => {
-                            if (name === 'units') return [`${value} Units`, 'Consumed'];
-                            if (name === 'amount') return [`₹${value}`, 'Charge'];
-                            return [value, name];
+                          formatter={(value, name) => {
+                            const v = typeof value === 'number' ? value : Number(value) || 0;
+                            if (name === 'units') return [`${v} Units`, 'Consumed'];
+                            if (name === 'amount') return [`₹${v}`, 'Charge'];
+                            return [v, name];
                           }}
                         />
                         <Area

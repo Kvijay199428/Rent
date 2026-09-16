@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import {
     AlertTriangle,
     Download,
+    FileText,
     X,
     CheckCircle2,
     XCircle,
@@ -40,7 +41,7 @@ type SchemaMismatchDialogProps = {
     /** Single mismatch or list of mismatches (for multi-file upload) */
     mismatches: SchemaMismatchInfo | SchemaMismatchInfo[];
     /** Called when user clicks "Download Template" */
-    onDownloadTemplate?: () => void;
+    onDownloadTemplate?: (format?: 'xlsx' | 'csv') => void;
     /** Called when user clicks "Try Again" */
     onRetry?: () => void;
 };
@@ -254,17 +255,30 @@ export default function SchemaMismatchDialog({
                             </Button>
                         )}
                         {onDownloadTemplate && (
-                            <Button
-                                size="sm"
-                                onClick={() => {
-                                    onDownloadTemplate();
-                                    onOpenChange(false);
-                                }}
-                                className="bg-red-600 hover:bg-red-700 text-white"
-                            >
-                                <Download className="mr-2 h-4 w-4" />
-                                Download Template
-                            </Button>
+                            <>
+                                <Button
+                                    size="sm"
+                                    onClick={() => {
+                                        onDownloadTemplate!('xlsx');
+                                        onOpenChange(false);
+                                    }}
+                                    className="bg-red-600 hover:bg-red-700 text-white"
+                                >
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Excel (.xlsx)
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                        onDownloadTemplate!('csv');
+                                        onOpenChange(false);
+                                    }}
+                                >
+                                    <FileText className="mr-2 h-4 w-4" />
+                                    CSV (.csv)
+                                </Button>
+                            </>
                         )}
                         <Button
                             variant="ghost"

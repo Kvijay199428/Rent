@@ -6,6 +6,13 @@ import LoadingOverlay from "@shared/loading/LoadingOverlay";
 import useCapsLock from "@shared/capslock/useCapsLock";
 import CapsLockWarning from "@shared/capslock/CapsLockWarning";
 import { API_BASE } from "../lib/runtime";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+} from "../components/ui/dialog";
 
 type OtpMethod = "totp" | "telegram";
 
@@ -148,35 +155,26 @@ export default function LoginPage() {
       <AuthLayout>
       <form
         onSubmit={totpRequired ? handleCodeSubmit : handleSubmit}
-        style={{
-          background: "#fff", borderRadius: 16, padding: "40px 36px",
-          width: 360, boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-        }}
+        className="motion-fade-up w-[360px] rounded-2xl bg-white p-9 shadow-[0_20px_60px_rgba(0,0,0,0.3)]"
       >
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>{totpRequired ? "🔐" : "🏢"}</div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#1a1d2e" }}>
+        <div className="mb-7 text-center">
+          <div className="mb-2 text-[32px]">{totpRequired ? "🔐" : "🏢"}</div>
+          <h1 className="m-0 text-xl font-bold text-[#1a1d2e]">
             {totpRequired ? "Two-Factor Authentication" : "Platform Admin"}
           </h1>
-          <p style={{ margin: "6px 0 0", fontSize: 13, color: "#6b7280" }}>
+          <p className="mt-1.5 text-[13px] text-gray-500">
             {totpRequired ? "Verify your identity to continue" : "Sign in to manage landlords"}
           </p>
         </div>
 
         {error && (
-          <div style={{
-            background: "#fef2f2", border: "1px solid #fca5a5", color: "#dc2626",
-            borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13,
-          }}>
+          <div className="mb-[18px] rounded-lg border border-red-300 bg-red-50 px-3.5 py-2.5 text-[13px] text-red-600">
             {error}
           </div>
         )}
 
         {otpMsg && (
-          <div style={{
-            background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1d4ed8",
-            borderRadius: 8, padding: "10px 14px", marginBottom: 18, fontSize: 13,
-          }}>
+          <div className="mb-[18px] rounded-lg border border-blue-200 bg-blue-50 px-3.5 py-2.5 text-[13px] text-blue-700">
             {otpMsg}
           </div>
         )}
@@ -185,36 +183,36 @@ export default function LoginPage() {
 
         {!totpRequired ? (
           <>
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+            <div className="mb-4">
+              <Label htmlFor="username" className="mb-1.5 block text-[13px] font-semibold text-gray-700">
                 Username
-              </span>
-              <input
+              </Label>
+              <Input
+                id="username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 autoFocus
-                style={inputStyle}
                 placeholder="admin"
               />
-            </label>
+            </div>
 
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+            <div className="mb-4">
+              <Label htmlFor="password" className="mb-1.5 block text-[13px] font-semibold text-gray-700">
                 Password
-              </span>
-              <input
+              </Label>
+              <Input
+                id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                style={inputStyle}
                 placeholder="••••••••"
               />
-            </label>
+            </div>
 
-            <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24, fontSize: 13, color: "#374151", cursor: "pointer" }}>
+            <label className="mb-6 flex cursor-pointer items-center gap-2 text-[13px] text-gray-700">
               <input
                 type="checkbox"
                 checked={rememberMe}
@@ -226,30 +224,26 @@ export default function LoginPage() {
         ) : (
           <>
             {methods.length > 1 && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              <div className="mb-4 flex gap-2">
                 <button
                   type="button"
                   onClick={() => setMethod("totp")}
-                  style={{
-                    flex: 1, padding: "9px 0", borderRadius: 8, border: "1.5px solid",
-                    borderColor: method === "totp" ? "#3b4a6b" : "#d1d5db",
-                    background: method === "totp" ? "#eef2f7" : "#fff",
-                    color: method === "totp" ? "#3b4a6b" : "#6b7280",
-                    fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  }}
+                  className={`flex-1 rounded-lg border-[1.5px] py-2.5 text-[13px] font-semibold transition-colors ${
+                    method === "totp"
+                      ? "border-[#3b4a6b] bg-[#eef2f7] text-[#3b4a6b]"
+                      : "border-gray-300 bg-white text-gray-500 hover:bg-gray-50"
+                  }`}
                 >
                   Authenticator
                 </button>
                 <button
                   type="button"
                   onClick={() => setMethod("telegram")}
-                  style={{
-                    flex: 1, padding: "9px 0", borderRadius: 8, border: "1.5px solid",
-                    borderColor: method === "telegram" ? "#3b4a6b" : "#d1d5db",
-                    background: method === "telegram" ? "#eef2f7" : "#fff",
-                    color: method === "telegram" ? "#3b4a6b" : "#6b7280",
-                    fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  }}
+                  className={`flex-1 rounded-lg border-[1.5px] py-2.5 text-[13px] font-semibold transition-colors ${
+                    method === "telegram"
+                      ? "border-[#3b4a6b] bg-[#eef2f7] text-[#3b4a6b]"
+                      : "border-gray-300 bg-white text-gray-500 hover:bg-gray-50"
+                  }`}
                 >
                   Telegram OTP
                 </button>
@@ -259,26 +253,22 @@ export default function LoginPage() {
             {useTelegram() ? (
               <>
                 {!otpSent ? (
-                  <button
+                  <Button
                     type="button"
                     onClick={handleSendOtp}
                     disabled={sending}
-                    style={{
-                      width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-                      background: "#3b4a6b", color: "#fff",
-                      fontSize: 15, fontWeight: 700, cursor: sending ? "not-allowed" : "pointer",
-                      transition: "background 0.2s", marginBottom: 16,
-                    }}
+                    className="mb-4 w-full bg-[#3b4a6b] py-3 text-[15px] font-bold text-white hover:bg-[#34405a] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Send code via Telegram
-                  </button>
+                  </Button>
                 ) : (
                   <>
-                    <label style={{ display: "block", marginBottom: 16 }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+                    <div className="mb-4">
+                      <Label htmlFor="telegram-code" className="mb-1.5 block text-[13px] font-semibold text-gray-700">
                         Telegram Code
-                      </span>
-                      <input
+                      </Label>
+                      <Input
+                        id="telegram-code"
                         type="text"
                         value={code}
                         onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -288,39 +278,33 @@ export default function LoginPage() {
                         pattern="[0-9]{6}"
                         inputMode="numeric"
                         autoComplete="one-time-code"
-                        style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
+                        className="text-center text-2xl tracking-[8px]"
                         placeholder="000000"
                       />
-                    </label>
+                    </div>
                     {cooldown > 0 ? (
-                      <p style={{
-                        margin: 0, textAlign: "center", fontSize: 13, color: "#6b7280", marginBottom: 16,
-                      }}>
+                      <p className="mb-4 text-center text-[13px] text-gray-500">
                         Resend available in {formatCountdown(cooldown)}
                       </p>
                     ) : (
-                      <button
+                      <Button
                         type="button"
                         onClick={handleSendOtp}
-                        style={{
-                          width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-                          background: "#3b4a6b", color: "#fff",
-                          fontSize: 15, fontWeight: 700, cursor: "pointer",
-                          transition: "background 0.2s", marginBottom: 16,
-                        }}
+                        className="mb-4 w-full bg-[#3b4a6b] py-3 text-[15px] font-bold text-white hover:bg-[#34405a]"
                       >
                         Resend OTP
-                      </button>
+                      </Button>
                     )}
                   </>
                 )}
               </>
             ) : (
-              <label style={{ display: "block", marginBottom: 24 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>
+              <div className="mb-6">
+                <Label htmlFor="auth-code" className="mb-1.5 block text-[13px] font-semibold text-gray-700">
                   Authenticator Code
-                </span>
-                <input
+                </Label>
+                <Input
+                  id="auth-code"
                   type="text"
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
@@ -330,120 +314,92 @@ export default function LoginPage() {
                   pattern="[0-9]{6}"
                   inputMode="numeric"
                   autoComplete="one-time-code"
-                  style={{ ...inputStyle, textAlign: "center", fontSize: 24, letterSpacing: 8 }}
+                  className="text-center text-2xl tracking-[8px]"
                   placeholder="000000"
                 />
-              </label>
+              </div>
             )}
           </>
         )}
 
         {!(totpRequired && useTelegram() && !otpSent) && (
-          <button
+          <Button
             type="submit"
             disabled={busy}
-            style={{
-              width: "100%", padding: "12px 0", borderRadius: 8, border: "none",
-              background: busy ? "#9ca3af" : "#3b4a6b", color: "#fff",
-              fontSize: 15, fontWeight: 700, cursor: busy ? "not-allowed" : "pointer",
-              transition: "background 0.2s",
-            }}
+            className={`w-full py-3 text-[15px] font-bold ${
+              busy
+                ? "cursor-not-allowed bg-gray-400 text-white hover:bg-gray-400"
+                : "bg-[#3b4a6b] text-white hover:bg-[#34405a]"
+            }`}
           >
             {totpRequired ? "Verify" : "Sign In"}
-          </button>
+          </Button>
         )}
 
         {totpRequired && (
-          <button
+          <Button
             type="button"
             onClick={resetSecondFactor}
-            style={{
-              width: "100%", padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
-              background: "transparent", color: "#6b7280",
-              fontSize: 13, fontWeight: 600, cursor: "pointer", marginTop: 12,
-            }}
+            variant="outline"
+            className="mt-3 w-full text-[13px] font-semibold text-gray-500"
           >
             Back to login
-          </button>
+          </Button>
         )}
       </form>
       </AuthLayout>
       {sending && <LoadingOverlay label="Sending code…" />}
       {!sending && busy && <LoadingOverlay label={totpRequired ? "Verifying…" : "Signing in…"} />}
 
-      {pendingFeedback && (
-        <div style={{
-          position: "fixed", inset: 0, zIndex: 200,
-          background: "rgba(0,0,0,0.45)",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          padding: 16,
-        }}>
-          <div style={{
-            background: "#fff", borderRadius: 16, padding: "28px 24px",
-            width: 460, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-              <span style={{ fontSize: 26 }}>📬</span>
-              <div>
-                <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#1a1d2e" }}>
-                  Pending QR Feedback
-                </h2>
-                <p style={{ margin: "2px 0 0", fontSize: 13, color: "#6b7280" }}>
-                  Tenants reported a wrong QR key on the unlock screen.
-                </p>
-              </div>
-            </div>
-
-            {pendingFeedback.map((f) => (
-              <div key={f.id} style={{
-                padding: "12px 14px", borderRadius: 10, border: "1px solid #e5e7eb",
-                background: "#f8fafc", marginBottom: 8,
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                  <strong style={{ fontSize: 13, color: "#1a1d2e" }}>{f.tenant_name || `Tenant #${f.id}`}</strong>
-                  <span style={{ fontSize: 11, color: "#9ca3af" }}>
-                    {new Date(f.created_at + "Z").toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
-                  </span>
-                </div>
-                <p style={{ margin: "4px 0 0", fontSize: 13, color: "#374151" }}>
-                  {f.message || <span style={{ color: "#9ca3af" }}>No message included.</span>}
-                </p>
-              </div>
-            ))}
-
-            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
-              <button
-                onClick={() => setPendingFeedback(null)}
-                style={{
-                  flex: 1, padding: "10px 0", borderRadius: 8, border: "1.5px solid #d1d5db",
-                  background: "#fff", color: "#6b7280", fontSize: 14, fontWeight: 600, cursor: "pointer",
-                }}
-              >
-                Later
-              </button>
-              <Link
-                to="/feedback"
-                onClick={() => setPendingFeedback(null)}
-                style={{
-                  flex: 1, textAlign: "center", padding: "10px 0", borderRadius: 8, border: "none",
-                  background: "#3b4a6b", color: "#fff", fontSize: 14, fontWeight: 700,
-                  textDecoration: "none", display: "inline-block",
-                }}
-              >
-                View Inbox
-              </Link>
+      <Dialog
+        open={pendingFeedback !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingFeedback(null);
+        }}
+      >
+        <DialogContent className="max-h-[85vh] max-w-[460px] overflow-y-auto">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span className="text-[26px]">📬</span>
+            <div>
+              <h2 className="m-0 text-lg font-bold text-[#1a1d2e]">
+                Pending QR Feedback
+              </h2>
+              <p className="mt-0.5 text-[13px] text-gray-500">
+                Tenants reported a wrong QR key on the unlock screen.
+              </p>
             </div>
           </div>
-        </div>
-      )}
+
+          {pendingFeedback?.map((f) => (
+            <div key={f.id} className="mb-2 rounded-[10px] border border-gray-200 bg-slate-50 p-3.5">
+              <div className="flex flex-wrap justify-between gap-2">
+                <strong className="text-[13px] text-[#1a1d2e]">{f.tenant_name || `Tenant #${f.id}`}</strong>
+                <span className="text-[11px] text-gray-400">
+                  {new Date(f.created_at + "Z").toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
+                </span>
+              </div>
+              <p className="mt-1 text-[13px] text-gray-700">
+                {f.message || <span className="text-gray-400">No message included.</span>}
+              </p>
+            </div>
+          ))}
+
+          <div className="mt-[18px] flex gap-2.5">
+            <Button
+              variant="outline"
+              onClick={() => setPendingFeedback(null)}
+              className="flex-1 text-sm font-semibold text-gray-500"
+            >
+              Later
+            </Button>
+            <Button asChild className="flex-1 bg-[#3b4a6b] text-sm font-bold text-white hover:bg-[#34405a]">
+              <Link to="/feedback" onClick={() => setPendingFeedback(null)}>
+                View Inbox
+              </Link>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 12px", borderRadius: 8,
-  border: "1.5px solid #d1d5db", fontSize: 14, outline: "none",
-  boxSizing: "border-box",
-  transition: "border-color 0.15s",
-};

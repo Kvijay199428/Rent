@@ -1,6 +1,8 @@
 import { Logo } from "@shared/brand/Logo";
+import { useScrollReveal } from "@shared/motion";
 
 export default function Footer() {
+  const { ref, motionStyle } = useScrollReveal();
   const year = new Date().getFullYear();
 
   const sitemap: { heading: string; links: { label: string; href: string }[] }[] = [
@@ -43,7 +45,7 @@ export default function Footer() {
 
   return (
     <footer className="site-footer">
-      <div className="footer-inner">
+      <div className="footer-inner" ref={ref} style={motionStyle}>
         <div className="footer-brand">
           <div className="footer-logo">
             <Logo variant="light" height={24} />

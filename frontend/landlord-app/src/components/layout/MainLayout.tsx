@@ -5,6 +5,7 @@ import Header from './Header';
 import { useAuth } from '@/contexts/AuthContext';
 import BroadcastBanner from '@/components/BroadcastBanner';
 import LoadingScreen from '@shared/loading/LoadingScreen';
+import { PageTransition } from '@shared/motion/PageTransition';
 import { ROUTES } from '@/lib/routes';
 
 export default function MainLayout() {
@@ -25,7 +26,9 @@ export default function MainLayout() {
         <Header />
         <BroadcastBanner healthUrl={ROUTES.HEALTHCHECK} />
         <main className="flex-1 p-4 lg:p-6 overflow-y-auto">
-          <Outlet />
+          <PageTransition>
+            <Outlet />
+          </PageTransition>
         </main>
       </div>
       <Toaster position="top-right" richColors />

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { StructuredAddress, EMPTY_ADDRESS } from './address';
+import { EMPTY_ADDRESS } from './address';
+import type { StructuredAddress } from './address';
 import { COUNTRY_OPTIONS, getCountryName } from './countries';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

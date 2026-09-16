@@ -1,4 +1,5 @@
 import { features } from "../data";
+import { useScrollReveal, useStaggerReveal } from "@shared/motion";
 import { ReceiptIcon, TeamIcon, HomeIcon, BellIcon, DatabaseIcon, SpreadsheetIcon, type IconComponent } from "./Icons";
 
 const iconMap: Record<string, IconComponent> = {
@@ -11,10 +12,13 @@ const iconMap: Record<string, IconComponent> = {
 };
 
 export default function Features() {
+  const { ref: headerRef, motionStyle: headerStyle } = useScrollReveal();
+  const { parentRef, childStyles } = useStaggerReveal({ count: features.length });
+
   return (
     <section className="features-section" id="features">
       <div className="section-container">
-        <div className="section-header">
+        <div className="section-header" ref={headerRef} style={headerStyle}>
           <span className="section-badge">01 — Features</span>
           <h2 className="section-title">
             Everything you need to manage rent digitally
@@ -25,11 +29,11 @@ export default function Features() {
             handles the complexity so you don't have to.
           </p>
         </div>
-        <div className="features-grid">
+        <div className="features-grid" ref={parentRef}>
           {features.map((feature, i) => {
             const IconCmp = iconMap[feature.icon] ?? HomeIcon;
             return (
-              <div key={feature.title} className="feature-card">
+              <div key={feature.title} className="feature-card" style={childStyles[i]}>
                 <span className="feature-index">{String(i + 1).padStart(2, "0")}</span>
                 <div className="feature-icon">
                   <IconCmp size={30} />

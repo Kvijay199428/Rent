@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import Layout from "../components/Layout";
 import { fetchApi } from "../api/client";
 import { useHealthStream } from "../hooks/useHealthStream";
+import { Button } from "../components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog";
 
 interface Profile {
   id: number;
@@ -13,9 +15,27 @@ interface Profile {
   updated_at: string;
 }
 
+const inputClass =
+  "w-full rounded-lg border-[1.5px] border-gray-300 px-3 py-2.5 text-sm outline-none";
+
+const successClass = "mb-4 rounded-lg bg-green-100 px-3.5 py-2.5 text-[13px] text-green-600";
+const errorClass = "mb-4 rounded-lg bg-red-100 px-3.5 py-2.5 text-[13px] text-red-600";
+const hintClass = "mb-4 rounded-lg bg-amber-50 px-3.5 py-2.5 text-[13px] text-amber-700";
+
+const outlineBtn =
+  "cursor-pointer whitespace-nowrap rounded-lg border-[1.5px] border-gray-300 bg-white px-3.5 py-2 text-[13px] font-semibold disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400";
+const dangerBtn =
+  "cursor-pointer whitespace-nowrap rounded-lg border-[1.5px] border-red-300 bg-red-50 px-3.5 py-2 text-[13px] font-semibold text-red-600";
+
+const cardClass =
+  "rounded-2xl bg-white p-7 shadow-[0_2px_12px_rgba(0,0,0,0.07)]";
+
 export default function SettingsPage() {
   const health = useHealthStream();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileLoadErr, setProfileLoadErr] = useState(false);
+  const [auditSettingsLoadErr, setAuditSettingsLoadErr] = useState(false);
+  const [tgStatusLoadErr, setTgStatusLoadErr] = useState(false);
 
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -61,14 +81,14 @@ export default function SettingsPage() {
         setUsername(p.username);
         setEmail(p.email ?? "");
       })
-      .catch(() => {});
+      .catch(() => setProfileLoadErr(true));
   }, []);
 
   useEffect(() => {
     fetchApi("/settings/audit")
       .then((r) => r.json())
       .then((d) => { if (d.retention_days) setRetentionDays(d.retention_days); })
-      .catch(() => {});
+      .catch(() => setAuditSettingsLoadErr(true));
   }, []);
 
   useEffect(() => {
@@ -81,10 +101,10 @@ export default function SettingsPage() {
           setTgChatMasked(d.chat_id_masked ?? null);
         }
       })
-      .catch(() => {});
+      .catch(() => setTgStatusLoadErr(true));
   }, []);
 
-  async function handleSaveProfile(e: React.FormEvent) {
+  async function handleSaveProfile(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setSaveMsg(null);
@@ -106,7 +126,7 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleChangePassword(e: React.FormEvent) {
+  async function handleChangePassword(e: FormEvent) {
     e.preventDefault();
     if (newPw !== confirmPw) { setPwErr("Passwords do not match"); return; }
     setPwSaving(true);
@@ -189,7 +209,7 @@ export default function SettingsPage() {
     }
   }
 
-  async function handleSaveAudit(e: React.FormEvent) {
+  async function handleSaveAudit(e: FormEvent) {
     e.preventDefault();
     setAuditSaving(true);
     setAuditMsg(null);
@@ -237,120 +257,104 @@ export default function SettingsPage() {
 
   return (
     <Layout>
-      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>Settings</h1>
+      <h1 className="mb-6 text-[26px] font-bold text-[#1a1d2e]">Settings</h1>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, maxWidth: 900 }}>
+      <div className="motion-stagger grid max-w-[900px] grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Profile */}
-        <form onSubmit={handleSaveProfile} style={{
-          background: "#fff", borderRadius: 14, padding: "28px 32px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.07)",
-        }}>
-          <h2 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Profile</h2>
+        <form onSubmit={handleSaveProfile} className={cardClass}>
+          <h2 className="mb-5 text-[17px] font-semibold text-gray-700">Profile</h2>
 
-          {saveMsg && <div style={successStyle}>{saveMsg}</div>}
-          {saveErr && <div style={errorStyle}>{saveErr}</div>}
+          {saveMsg && <div className={successClass}>{saveMsg}</div>}
+          {saveErr && <div className={errorClass}>{saveErr}</div>}
+          {profileLoadErr && (
+            <div className={hintClass}>
+              Profile details couldn't be loaded — saving may fail until this resolves.
+            </div>
+          )}
 
-          <label style={labelStyle}>
+          <label className="mb-4 block">
             <span>Username</span>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required style={inputStyle} />
+            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required className={`mt-1.5 ${inputClass}`} />
           </label>
-          <label style={labelStyle}>
+          <label className="mb-4 block">
             <span>Email</span>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} placeholder="admin@example.com" />
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={`mt-1.5 ${inputClass}`} placeholder="admin@example.com" />
           </label>
 
-          <div style={{ marginTop: 16, fontSize: 13, color: "#6b7280" }}>
+          <div className="mt-4 space-y-0.5 text-[13px] text-gray-500">
             <div>ID: {profile?.id ?? "—"}</div>
             <div>Role: Platform Super Admin</div>
             {profile?.created_at && <div>Created: {new Date(profile.created_at).toLocaleString()}</div>}
           </div>
 
-          <button type="submit" disabled={saving} style={primaryBtn}>
+          <Button type="submit" disabled={saving} className="mt-2 bg-[#3b4a6b] text-white">
             {saving ? "Saving…" : "Save Changes"}
-          </button>
+          </Button>
         </form>
 
         {/* Password */}
-        <form onSubmit={handleChangePassword} style={{
-          background: "#fff", borderRadius: 14, padding: "28px 32px",
-          boxShadow: "0 2px 12px rgba(0,0,0,0.07)",
-        }}>
-          <h2 style={{ margin: "0 0 20px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Change Password</h2>
+        <form onSubmit={handleChangePassword} className={cardClass}>
+          <h2 className="mb-5 text-[17px] font-semibold text-gray-700">Change Password</h2>
 
-          {pwMsg && <div style={successStyle}>{pwMsg}</div>}
-          {pwErr && <div style={errorStyle}>{pwErr}</div>}
+          {pwMsg && <div className={successClass}>{pwMsg}</div>}
+          {pwErr && <div className={errorClass}>{pwErr}</div>}
 
-          <label style={labelStyle}>
+          <label className="mb-4 block">
             <span>Current Password</span>
-            <input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required style={inputStyle} />
+            <input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} required className={`mt-1.5 ${inputClass}`} />
           </label>
-          <label style={labelStyle}>
+          <label className="mb-4 block">
             <span>New Password</span>
-            <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={6} style={inputStyle} />
+            <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} required minLength={6} className={`mt-1.5 ${inputClass}`} />
           </label>
-          <label style={labelStyle}>
+          <label className="mb-4 block">
             <span>Confirm New Password</span>
-            <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} required minLength={6} style={inputStyle} />
+            <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} required minLength={6} className={`mt-1.5 ${inputClass}`} />
           </label>
 
-          <button type="submit" disabled={pwSaving} style={primaryBtn}>
+          <Button type="submit" disabled={pwSaving} className="mt-2 bg-[#3b4a6b] text-white">
             {pwSaving ? "Changing…" : "Change Password"}
-          </button>
+          </Button>
         </form>
       </div>
 
       {/* TOTP */}
-      <div style={{
-        background: "#fff", borderRadius: 14, padding: "28px 32px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
-      }}>
-        <h2 style={{ margin: "0 0 16px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Two-Factor Authentication</h2>
-        <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
+      <div className={`motion-fade-up ${cardClass} mt-5 max-w-[900px]`}>
+        <h2 className="mb-4 text-[17px] font-semibold text-gray-700">Two-Factor Authentication</h2>
+        <p className="mb-4 text-sm text-gray-500">
           {profile?.has_totp
             ? "TOTP is currently enabled. You must enter a verification code after your password to login."
             : "Two-factor authentication adds an extra layer of security to your account."}
         </p>
 
-        {totpErr && <div style={errorStyle}>{totpErr}</div>}
-        {totpSuccess && <div style={successStyle}>{totpSuccess}</div>}
+        {totpErr && <div className={errorClass}>{totpErr}</div>}
+        {totpSuccess && <div className={successClass}>{totpSuccess}</div>}
 
         {totpQr && (
-          <div style={{ marginBottom: 20, textAlign: "center" }}>
-            <p style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>Scan this QR code with your authenticator app:</p>
-            <img src={`data:image/png;base64,${totpQr}`} alt="TOTP QR Code" style={{ width: 200, height: 200, borderRadius: 8, border: "1px solid #e5e7eb" }} />
+          <div className="mb-5 text-center">
+            <p className="mb-2 text-[13px] text-gray-700">Scan this QR code with your authenticator app:</p>
+            <img src={`data:image/png;base64,${totpQr}`} alt="TOTP QR Code" className="h-[200px] w-[200px] rounded-lg border border-gray-200" />
           </div>
         )}
 
         {totpSecret && (
-          <div style={{ marginBottom: 20 }}>
-            <p style={{ fontSize: 13, color: "#374151", marginBottom: 6, fontWeight: 600 }}>TOTP Secret (Manual Entry)</p>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <div style={{
-                flex: 1, padding: "10px 12px", borderRadius: 8,
-                border: "1.5px solid #d1d5db", fontFamily: "monospace", fontSize: 14,
-                background: "#f9fafb", wordBreak: "break-all",
-              }}>
+          <div className="mb-5">
+            <p className="mb-1.5 text-[13px] font-semibold text-gray-700">TOTP Secret (Manual Entry)</p>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 break-all rounded-lg border-[1.5px] border-gray-300 bg-gray-50 px-3 py-2.5 font-mono text-sm">
                 {showTotpSecret ? totpSecret : "•".repeat(totpSecret.length)}
               </div>
               <button
                 type="button"
                 onClick={() => setShowTotpSecret(!showTotpSecret)}
-                style={{
-                  padding: "8px 14px", borderRadius: 8, border: "1.5px solid #d1d5db",
-                  background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
+                className={outlineBtn}
               >
                 {showTotpSecret ? "Hide" : "Show"}
               </button>
               <button
                 type="button"
                 onClick={() => { navigator.clipboard.writeText(totpSecret); }}
-                style={{
-                  padding: "8px 14px", borderRadius: 8, border: "1.5px solid #d1d5db",
-                  background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                  whiteSpace: "nowrap",
-                }}
+                className={outlineBtn}
               >
                 Copy
               </button>
@@ -358,27 +362,18 @@ export default function SettingsPage() {
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 10 }}>
+        <div className="flex gap-2.5">
           {profile?.has_totp && (
             <button
               onClick={handleShowTotpQr}
-              style={{
-                padding: "10px 20px", borderRadius: 8, border: "1.5px solid #d1d5db",
-                background: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer",
-              }}
+              className="cursor-pointer rounded-lg border-[1.5px] border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold"
             >
               {totpQr ? "Hide TOTP QR" : "Show TOTP QR"}
             </button>
           )}
           <button
             onClick={() => openTotpDialog(profile?.has_totp ? "regenerate" : "setup")}
-            style={{
-              padding: "10px 20px", borderRadius: 8,
-              border: profile?.has_totp ? "1.5px solid #fca5a5" : "1.5px solid #d1d5db",
-              background: profile?.has_totp ? "#fef2f2" : "#fff",
-              color: profile?.has_totp ? "#dc2626" : "#374151",
-              fontSize: 14, fontWeight: 600, cursor: "pointer",
-            }}
+            className={profile?.has_totp ? dangerBtn : "cursor-pointer rounded-lg border-[1.5px] border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700"}
           >
             {profile?.has_totp ? "Regenerate TOTP Secret" : "Set Up TOTP"}
           </button>
@@ -386,44 +381,39 @@ export default function SettingsPage() {
       </div>
 
       {/* Telegram OTP */}
-      <div style={{
-        background: "#fff", borderRadius: 14, padding: "28px 32px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
-      }}>
-        <h2 style={{ margin: "0 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Telegram OTP Login</h2>
-        <p style={{ fontSize: 14, color: "#6b7280", marginBottom: 16 }}>
+      <div className={`motion-fade-up ${cardClass} mt-5 max-w-[900px]`}>
+        <h2 className="mb-3 text-[17px] font-semibold text-gray-700">Telegram OTP Login</h2>
+        <p className="mb-4 text-sm text-gray-500">
           Receive a one-time login code in Telegram as an alternative to your authenticator app.
         </p>
 
-        {tgErr && <div style={errorStyle}>{tgErr}</div>}
-        {tgMsg && <div style={successStyle}>{tgMsg}</div>}
+        {tgErr && <div className={errorClass}>{tgErr}</div>}
+        {tgStatusLoadErr && (
+          <div className={hintClass}>Telegram status couldn't be loaded — refresh to retry.</div>
+        )}
+        {tgMsg && <div className={successClass}>{tgMsg}</div>}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 16, fontSize: 13 }}>
+        <div className="mb-4 flex flex-col gap-1.5 text-[13px]">
           <div>
             Bot configured:{" "}
-            <strong style={{ color: tgBotConfigured ? "#16a34a" : "#dc2626" }}>
+            <strong className={tgBotConfigured ? "text-green-600" : "text-red-600"}>
               {tgBotConfigured ? "Yes" : "No"}
             </strong>
             {!tgBotConfigured && " — add TELEGRAM_BOT_TOKEN to the backend .env and redeploy."}
           </div>
           <div>
             Telegram chat linked:{" "}
-            <strong style={{ color: tgChatLinked ? "#16a34a" : "#6b7280" }}>
+            <strong className={tgChatLinked ? "text-green-600" : "text-gray-500"}>
               {tgChatLinked ? (tgChatMasked ? `Yes (${tgChatMasked})` : "Yes") : "No"}
             </strong>
           </div>
         </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+        <div className="flex flex-wrap gap-2.5">
           <button
             onClick={() => handleTgAction("link")}
             disabled={tgBusy || !tgBotConfigured}
-            style={{
-              padding: "10px 20px", borderRadius: 8, border: "1.5px solid #d1d5db",
-              background: tgBusy || !tgBotConfigured ? "#f3f4f6" : "#fff",
-              color: tgBusy || !tgBotConfigured ? "#9ca3af" : "#374151",
-              fontSize: 14, fontWeight: 600, cursor: tgBusy || !tgBotConfigured ? "not-allowed" : "pointer",
-            }}
+            className={outlineBtn}
           >
             {tgBusy ? "Working…" : "Link Telegram"}
           </button>
@@ -432,21 +422,14 @@ export default function SettingsPage() {
               <button
                 onClick={() => handleTgAction("test")}
                 disabled={tgBusy}
-                style={{
-                  padding: "10px 20px", borderRadius: 8, border: "1.5px solid #d1d5db",
-                  background: "#fff", fontSize: 14, fontWeight: 600, cursor: tgBusy ? "not-allowed" : "pointer",
-                }}
+                className={outlineBtn}
               >
                 Send Test Message
               </button>
               <button
                 onClick={() => handleTgAction("unlink")}
                 disabled={tgBusy}
-                style={{
-                  padding: "10px 20px", borderRadius: 8, border: "1.5px solid #fca5a5",
-                  background: "#fef2f2", color: "#dc2626",
-                  fontSize: 14, fontWeight: 600, cursor: tgBusy ? "not-allowed" : "pointer",
-                }}
+                className={dangerBtn}
               >
                 Unlink
               </button>
@@ -454,139 +437,70 @@ export default function SettingsPage() {
           )}
         </div>
         {tgBotConfigured && !tgChatLinked && (
-          <p style={{ margin: "12px 0 0", fontSize: 12, color: "#9ca3af" }}>
+          <p className="mt-3 text-xs text-gray-400">
             Open <strong>@propauraBot</strong> on your Telegram, send{" "}
             <strong>/start</strong>, then click <strong>Link Telegram</strong> above to capture your chat.
           </p>
         )}
       </div>
 
-      {/* Password Confirmation Dialog */}
-      {showTotpDialog && (
-        <div style={overlayStyle} onClick={() => setShowTotpDialog(false)}>
-          <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
-            <h3 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 700, color: "#1a1d2e" }}>
-              {totpAction === "setup" ? "Set Up Two-Factor Authentication" : "Regenerate TOTP Secret"}
-            </h3>
-            <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 16 }}>
-              {totpAction === "setup"
-                ? "Enter your current password to set up TOTP for your account."
-                : "Enter your current password to regenerate your TOTP secret. Your old authenticator codes will stop working."}
-            </p>
-            {totpErr && <div style={errorStyle}>{totpErr}</div>}
-            <label style={{ display: "block", marginBottom: 16 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "#374151", display: "block", marginBottom: 6 }}>Current Password</span>
-              <div style={{ position: "relative" }}>
-                <input
-                  type={showPwText ? "text" : "password"}
-                  value={totpPassword}
-                  onChange={(e) => setTotpPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoFocus
-                  onKeyDown={(e) => { if (e.key === "Enter") handleTotpConfirm(); }}
-                  style={inputStyle}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPwText(!showPwText)}
-                  style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#6b7280", fontSize: 13 }}
-                >
-                  {showPwText ? "Hide" : "Show"}
-                </button>
-              </div>
-            </label>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-              <button
-                onClick={() => { setShowTotpDialog(false); setTotpPassword(""); setTotpErr(null); }}
-                style={{ padding: "8px 16px", borderRadius: 8, border: "1.5px solid #d1d5db", background: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleTotpConfirm}
-                disabled={totpBusy || !totpPassword}
-                style={{
-                  padding: "8px 16px", borderRadius: 8, border: "none",
-                  background: totpBusy || !totpPassword ? "#9ca3af" : totpAction === "regenerate" ? "#dc2626" : "#3b4a6b",
-                  color: "#fff", fontSize: 13, fontWeight: 700,
-                  cursor: totpBusy || !totpPassword ? "not-allowed" : "pointer",
-                }}
-              >
-                {totpBusy ? "Processing..." : totpAction === "setup" ? "Set Up TOTP" : "Regenerate Secret"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* System Info */}
-      <div style={{
-        background: "#fff", borderRadius: 14, padding: "28px 32px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
-      }}>
-        <h2 style={{ margin: "0 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>System Info</h2>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-          <tbody>
-            {[
-              ["API Base", "/admin/api"],
-              ["Frontend Base", "/admin"],
-              ["Auth Scope", "Cookie: access_token"],
-            ].map(([label, value]) => (
-              <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>
-                <td style={{ padding: "12px 0" }}><code style={{ background: "#f1f5f9", padding: "2px 8px", borderRadius: 6 }}>{value}</code></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className={`motion-fade-up ${cardClass} mt-5 max-w-[900px]`}>
+        <h2 className="mb-3 text-[17px] font-semibold text-gray-700">System Info</h2>
+        <div className="divide-y divide-gray-100 text-sm">
+          {[
+            ["API Base", "/admin/api"],
+            ["Frontend Base", "/admin"],
+            ["Auth Scope", "Cookie: access_token"],
+          ].map(([label, value]) => (
+            <div key={label} className="flex gap-4 py-3">
+              <span className="w-40 shrink-0 font-semibold text-gray-500">{label}</span>
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[13px]">{value}</span>
+            </div>
+          ))}
+        </div>
 
         {health && (
           <>
-            <h2 style={{ margin: "20px 0 12px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Live Health</h2>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-              <tbody>
-                {[
-                  ["Status", health.status],
-                  ["Database", health.database],
-                  ["Active Connections", String(health.active_connections)],
-                  ["Uptime", health.uptime],
-                  ["Last Update", new Date(health.timestamp).toLocaleTimeString()],
-                ].map(([label, value]) => (
-                  <tr key={label} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "12px 0", fontWeight: 600, color: "#6b7280", width: 160 }}>{label}</td>
-                    <td style={{ padding: "12px 0" }}>
-                      <code style={{
-                        background: label === "Status" || label === "Database"
-                          ? value === "ok" ? "#dcfce7" : "#fef2f2"
-                          : "#f1f5f9",
-                        color: label === "Status" || label === "Database"
-                          ? value === "ok" ? "#16a34a" : "#dc2626"
-                          : "inherit",
-                        padding: "2px 8px", borderRadius: 6,
-                      }}>{value}</code>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <h2 className="mb-3 mt-5 text-[17px] font-semibold text-gray-700">Live Health</h2>
+            <div className="divide-y divide-gray-100 text-sm">
+              {[
+                ["Status", health.status],
+                ["Database", health.database],
+                ["Active Connections", String(health.active_connections)],
+                ["Uptime", health.uptime],
+                ["Last Update", new Date(health.timestamp).toLocaleTimeString()],
+              ].map(([label, value]) => (
+                <div key={label} className="flex gap-4 py-3">
+                  <span className="w-40 shrink-0 font-semibold text-gray-500">{label}</span>
+                  {label === "Status" || label === "Database" ? (
+                    <span className={`rounded-md px-2 py-0.5 font-mono text-[13px] ${value === "ok" ? "bg-green-100 text-green-600" : "bg-red-100 text-red-600"}`}>
+                      {value}
+                    </span>
+                  ) : (
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[13px]">{value}</span>
+                  )}
+                </div>
+              ))}
+            </div>
           </>
         )}
       </div>
 
       {/* Audit Log Settings */}
-      <form onSubmit={handleSaveAudit} style={{
-        background: "#fff", borderRadius: 14, padding: "28px 32px",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.07)", maxWidth: 900, marginTop: 20,
-      }}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 17, fontWeight: 600, color: "#374151" }}>Audit Log Settings</h2>
-        <p style={{ margin: "0 0 16px", fontSize: 13, color: "#6b7280" }}>
+      <form onSubmit={handleSaveAudit} className={`motion-fade-up ${cardClass} mt-5 max-w-[900px]`}>
+        <h2 className="mb-1 text-[17px] font-semibold text-gray-700">Audit Log Settings</h2>
+        <p className="mb-4 text-[13px] text-gray-500">
           Configure how long audit log entries are retained before cleanup.
         </p>
-        {auditMsg && <p style={successStyle}>{auditMsg}</p>}
-        {auditErr && <p style={errorStyle}>{auditErr}</p>}
-        <div style={{ display: "flex", alignItems: "flex-end", gap: 16 }}>
+        {auditMsg && <p className={successClass}>{auditMsg}</p>}
+        {auditErr && <p className={errorClass}>{auditErr}</p>}
+        {auditSettingsLoadErr && (
+          <p className={hintClass}>Current retention setting couldn't be loaded.</p>
+        )}
+        <div className="flex items-end gap-4">
           <div>
-            <label style={{ display: "block", marginBottom: 6, fontSize: 14, fontWeight: 600, color: "#374151" }}>
+            <label className="mb-1.5 block text-sm font-semibold text-gray-700">
               Retention Period (days)
             </label>
             <input
@@ -595,50 +509,82 @@ export default function SettingsPage() {
               max={365}
               value={retentionDays}
               onChange={(e) => setRetentionDays(Math.max(1, Math.min(365, Number(e.target.value) || 30)))}
-              style={{ ...inputStyle, width: 120 }}
+              className={`${inputClass} w-[120px]`}
             />
           </div>
-          <button
+          <Button
             type="submit"
             disabled={auditSaving}
-            style={{
-              ...primaryBtn,
-              opacity: auditSaving ? 0.6 : 1,
-            }}
+            className="bg-[#3b4a6b] text-white"
           >
             {auditSaving ? "Saving…" : "Save"}
-          </button>
+          </Button>
         </div>
-        <p style={{ margin: "10px 0 0", fontSize: 12, color: "#9ca3af" }}>
+        <p className="mt-2.5 text-xs text-gray-400">
           Logs older than this period are automatically cleaned up. Default: 30 days.
         </p>
       </form>
+
+      {/* Password Confirmation Dialog */}
+      <Dialog open={showTotpDialog} onOpenChange={(open) => {
+        setShowTotpDialog(open);
+        if (!open) {
+          setTotpPassword("");
+          setTotpErr(null);
+        }
+      }}>
+        <DialogContent className="max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle>
+              {totpAction === "setup" ? "Set Up Two-Factor Authentication" : "Regenerate TOTP Secret"}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="mb-4 text-[13px] text-gray-500">
+            {totpAction === "setup"
+              ? "Enter your current password to set up TOTP for your account."
+              : "Enter your current password to regenerate your TOTP secret. Your old authenticator codes will stop working."}
+          </p>
+          {totpErr && <div className={errorClass}>{totpErr}</div>}
+          <label className="mb-4 block">
+            <span className="mb-1.5 block text-[13px] font-semibold text-gray-700">Current Password</span>
+            <div className="relative">
+              <input
+                type={showPwText ? "text" : "password"}
+                value={totpPassword}
+                onChange={(e) => setTotpPassword(e.target.value)}
+                placeholder="Enter your password"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") handleTotpConfirm(); }}
+                className={`${inputClass} pr-14`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwText(!showPwText)}
+                className="absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer border-none bg-transparent text-[13px] text-gray-500"
+              >
+                {showPwText ? "Hide" : "Show"}
+              </button>
+            </div>
+          </label>
+          <div className="flex justify-end gap-2.5">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { setShowTotpDialog(false); setTotpPassword(""); setTotpErr(null); }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleTotpConfirm}
+              disabled={totpBusy || !totpPassword}
+              className={totpAction === "regenerate" ? "bg-red-600 text-white hover:bg-red-700" : "bg-[#3b4a6b] text-white"}
+            >
+              {totpBusy ? "Processing..." : totpAction === "setup" ? "Set Up TOTP" : "Regenerate Secret"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "10px 12px", borderRadius: 8,
-  border: "1.5px solid #d1d5db", fontSize: 14, outline: "none", boxSizing: "border-box",
-};
-const labelStyle: React.CSSProperties = {
-  display: "block", marginBottom: 16,
-};
-const primaryBtn: React.CSSProperties = {
-  marginTop: 8, padding: "10px 24px", borderRadius: 8, border: "none",
-  background: "#3b4a6b", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
-};
-const successStyle: React.CSSProperties = {
-  background: "#dcfce7", color: "#16a34a", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13,
-};
-const errorStyle: React.CSSProperties = {
-  background: "#fef2f2", color: "#dc2626", padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13,
-};
-const overlayStyle: React.CSSProperties = {
-  position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex",
-  alignItems: "center", justifyContent: "center", zIndex: 1000,
-};
-const dialogStyle: React.CSSProperties = {
-  background: "#fff", borderRadius: 14, padding: "24px 28px", width: "100%", maxWidth: 380, margin: "0 16px",
-  boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-};

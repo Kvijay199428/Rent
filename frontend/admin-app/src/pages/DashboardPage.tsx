@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import Layout from "../components/Layout";
 import { fetchApi } from "../api/client";
+import { Card, CardContent } from "../components/ui/card";
+import { Button } from "../components/ui/button";
 
 interface Stats {
   total_landlords: number;
@@ -10,17 +12,15 @@ interface Stats {
   total_tenants: number;
 }
 
-function StatCard({ icon, label, value, color }: { icon: string; label: string; value: number | string; color: string }) {
+function StatCard({ icon, label, value, colorClass }: { icon: string; label: string; value: number | string; colorClass: string }) {
   return (
-    <div style={{
-      background: "#fff", borderRadius: 14, padding: "24px 28px",
-      boxShadow: "0 2px 12px rgba(0,0,0,0.07)", flex: "1 1 200px", minWidth: 180,
-      borderTop: `4px solid ${color}`,
-    }}>
-      <div style={{ fontSize: 28, marginBottom: 10 }}>{icon}</div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: "#1a1d2e" }}>{value}</div>
-      <div style={{ fontSize: 13, color: "#6b7280", marginTop: 4 }}>{label}</div>
-    </div>
+    <Card className={`min-w-[180px] flex-1 basis-[200px] rounded-2xl border-t-4 ${colorClass}`}>
+      <CardContent className="p-6">
+        <div className="mb-2.5 text-[28px]">{icon}</div>
+        <div className="text-[28px] font-bold text-[#1a1d2e]">{value}</div>
+        <div className="mt-1 text-[13px] text-gray-500">{label}</div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -48,59 +48,56 @@ export default function DashboardPage() {
 
   return (
     <Layout>
-      <h1 style={{ margin: "0 0 24px", fontSize: 26, fontWeight: 700, color: "#1a1d2e" }}>
+      <h1 className="mb-6 text-[26px] font-bold text-[#1a1d2e]">
         Dashboard
       </h1>
 
       {unread > 0 && (
-        <Link to="/feedback" style={{ textDecoration: "none", display: "block", marginBottom: 20 }}>
-          <div style={{
-            background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10,
-            padding: "14px 18px", display: "flex", alignItems: "center", gap: 12,
-            cursor: "pointer",
-          }}>
-            <span style={{ fontSize: 22 }}>📬</span>
-            <div style={{ flex: 1 }}>
-              <strong style={{ color: "#92400e", fontSize: 14 }}>
+        <Link to="/feedback" className="mb-5 block no-underline">
+          <div className="flex cursor-pointer items-center gap-3 rounded-[10px] border border-amber-200 bg-amber-50 p-3.5">
+            <span className="text-[22px]">📬</span>
+            <div className="flex-1">
+              <strong className="text-sm text-amber-800">
                 {unread} pending QR feedback {unread === 1 ? "item" : "items"}
               </strong>
-              <p style={{ margin: "2px 0 0", fontSize: 13, color: "#b45309" }}>
+              <p className="mt-0.5 text-[13px] text-amber-700">
                 Tenants reported a wrong QR key on the unlock screen. Review and provide a fix.
               </p>
             </div>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#92400e" }}>View inbox →</span>
+            <span className="text-[13px] font-bold text-amber-800">View inbox →</span>
           </div>
         </Link>
       )}
 
       {error && (
-        <div style={{ background: "#fef2f2", color: "#dc2626", padding: "12px 16px", borderRadius: 8, marginBottom: 20, fontSize: 14 }}>
+        <div className="mb-5 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600">
           Error loading stats: {error}
         </div>
       )}
 
       {!stats && !error && (
-        <p style={{ color: "#9ca3af" }}>Loading stats…</p>
+        <p className="text-gray-400">Loading stats…</p>
       )}
 
       {stats && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 20, marginBottom: 32 }}>
-          <StatCard icon="🏢" label="Total Landlords"  value={stats.total_landlords}  color="#3b82f6" />
-          <StatCard icon="✅" label="Active Landlords" value={stats.active_landlords} color="#22c55e" />
-          <StatCard icon="👤" label="Admin Accounts"  value={stats.total_admins}     color="#a855f7" />
-          <StatCard icon="🏠" label="Total Tenants"   value={stats.total_tenants}    color="#f59e0b" />
+        <div className="motion-stagger mb-8 flex flex-wrap gap-5">
+          <StatCard icon="🏢" label="Total Landlords"  value={stats.total_landlords}  colorClass="border-t-blue-500" />
+          <StatCard icon="✅" label="Active Landlords" value={stats.active_landlords} colorClass="border-t-green-500" />
+          <StatCard icon="👤" label="Admin Accounts"  value={stats.total_admins}     colorClass="border-t-purple-500" />
+          <StatCard icon="🏠" label="Total Tenants"   value={stats.total_tenants}    colorClass="border-t-amber-500" />
         </div>
       )}
 
-      <div style={{ background: "#fff", borderRadius: 14, padding: "24px 28px", boxShadow: "0 2px 12px rgba(0,0,0,0.07)" }}>
-        <h2 style={{ margin: "0 0 12px", fontSize: 16, fontWeight: 600, color: "#374151" }}>Quick Actions</h2>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-          <Link to="/landlords"
-            style={{ padding: "10px 20px", borderRadius: 8, background: "#3b4a6b", color: "#fff", textDecoration: "none", fontSize: 14, fontWeight: 600 }}>
-            Manage Landlords
-          </Link>
-        </div>
-      </div>
+      <Card className="motion-fade-up rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.07)]">
+        <CardContent className="p-6">
+          <h2 className="mb-3 text-base font-semibold text-gray-700">Quick Actions</h2>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild className="bg-[#3b4a6b] text-sm font-semibold text-white hover:bg-[#34405a]">
+              <Link to="/landlords">Manage Landlords</Link>
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </Layout>
   );
 }

@@ -4,6 +4,7 @@ import { TenantProvider } from "@/context/TenantContext";
 import { useTenant } from "@/context/TenantContext";
 import BroadcastBanner from "@/components/BroadcastBanner";
 import LoadingScreen from "@shared/loading/LoadingScreen";
+import { PageTransition } from "@shared/motion/PageTransition";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ReceiptRoller } from "@/components/receipts";
 import PdfPreviewModal from "@/components/modals/PdfPreviewModal";
@@ -22,7 +23,7 @@ import { Logo } from "@shared/brand/Logo";
 import type { Receipt, QrTenantProfile } from "@/types";
 
 function TenantPortalInner() {
-  const { profile, receipts, occupants, logout, isUnlocked, isLoading } = useTenant();
+  const { profile, receipts, occupants, logout, isUnlocked, isLoading, profileLoadError } = useTenant();
   const [previewBill, setPreviewBill] = useState<string | null>(null);
 
   const tenant = profile?.tenant;
@@ -51,6 +52,25 @@ function TenantPortalInner() {
 
   if (isLoading) {
     return <LoadingScreen isLoading={true} />;
+  }
+
+  if (profileLoadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-3xl border bg-card p-8 text-center shadow-sm">
+          <h2 className="text-xl font-bold mb-2">Couldn't load your portal</h2>
+          <p className="text-muted-foreground">
+            We hit an error while loading your profile. Please try again.
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 rounded-full border px-4 py-2 text-sm font-semibold hover:bg-muted transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!tenant) {
@@ -238,19 +258,21 @@ function TenantPortalInner() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/tenant" element={<Navigate to="/tenant/login" replace />} />
-      <Route path="/tenant/login" element={<PortalLoginPage />} />
-      <Route path="/login" element={<PortalLoginPage />} />
-      <Route
-        path="/:landlordUuid/t/:propertyId/:tenantId/:viewToken"
-        element={
-          <TenantProvider>
-            <TenantPortalInner />
-          </TenantProvider>
-        }
-      />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <PageTransition>
+      <Routes>
+        <Route path="/tenant" element={<Navigate to="/tenant/login" replace />} />
+        <Route path="/tenant/login" element={<PortalLoginPage />} />
+        <Route path="/login" element={<PortalLoginPage />} />
+        <Route
+          path="/:landlordUuid/t/:propertyId/:tenantId/:viewToken"
+          element={
+            <TenantProvider>
+              <TenantPortalInner />
+            </TenantProvider>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </PageTransition>
   );
 }

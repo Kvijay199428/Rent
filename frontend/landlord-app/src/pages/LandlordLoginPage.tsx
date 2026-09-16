@@ -110,7 +110,7 @@ export default function LandlordLoginPage() {
   return (
     <>
       <AuthLayout>
-      <Card className="w-full max-w-md shadow-xl">
+      <Card className="w-full max-w-md shadow-xl motion-fade-up">
         <CardHeader className="space-y-1">
           <div className="flex items-center justify-center mb-4">
             <div className="p-3 bg-primary/10 rounded-full">

@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from "react-router";
 import { useAuth, AuthProvider } from "./contexts/AuthContext";
 import BroadcastBanner from "./components/BroadcastBanner";
 import LoadingScreen from "@shared/loading/LoadingScreen";
+import { PageTransition } from "@shared/motion/PageTransition";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import LandlordsPage from "./pages/LandlordsPage";
@@ -22,18 +23,20 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
-      <Route path="/landlords" element={<RequireAuth><LandlordsPage /></RequireAuth>} />
-      <Route path="/landlords/:id" element={<RequireAuth><LandlordDetailPage /></RequireAuth>} />
-      <Route path="/explorer" element={<RequireAuth><DataExplorerPage /></RequireAuth>} />
-      <Route path="/feedback" element={<RequireAuth><FeedbackInboxPage /></RequireAuth>} />
-      <Route path="/audit-logs" element={<RequireAuth><AuditLogsPage /></RequireAuth>} />
-      <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+    <PageTransition>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<RequireAuth><DashboardPage /></RequireAuth>} />
+        <Route path="/landlords" element={<RequireAuth><LandlordsPage /></RequireAuth>} />
+        <Route path="/landlords/:id" element={<RequireAuth><LandlordDetailPage /></RequireAuth>} />
+        <Route path="/explorer" element={<RequireAuth><DataExplorerPage /></RequireAuth>} />
+        <Route path="/feedback" element={<RequireAuth><FeedbackInboxPage /></RequireAuth>} />
+        <Route path="/audit-logs" element={<RequireAuth><AuditLogsPage /></RequireAuth>} />
+        <Route path="/settings" element={<RequireAuth><SettingsPage /></RequireAuth>} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </PageTransition>
   );
 }
 

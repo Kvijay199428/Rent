@@ -1,0 +1,228 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   MOTION TOKENS — transitions.dev scale
+   Two-tier system: utility tokens + named recipes for micro-interactions
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── Tier 1: Primitive tokens ────────────────────────────────────────── */
+:root {
+  /* Durations */
+  --motion-duration-instant: 0ms;
+  --motion-duration-fast: 120ms;
+  --motion-duration-normal: 200ms;
+  --motion-duration-slow: 350ms;
+  --motion-duration-slower: 500ms;
+
+  /* Easings */
+  --motion-ease-in: cubic-bezier(0.32, 0, 1, 1);
+  --motion-ease-out: cubic-bezier(0, 0, 0.32, 1);
+  --motion-ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  --motion-ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.1);
+
+  /* Distances */
+  --motion-distance-xs: 4px;
+  --motion-distance-sm: 8px;
+  --motion-distance-md: 16px;
+  --motion-distance-lg: 24px;
+
+  /* Scales */
+  --motion-scale-sm: 0.97;
+  --motion-scale-md: 0.95;
+
+  /* Blurs */
+  --motion-blur-sm: 4px;
+  --motion-blur-md: 8px;
+}
+
+/* ── Tier 2: Named recipes (CSS class compositions) ──────────────────── */
+
+/* Fade in — universal entry */
+.motion-fade-in {
+  animation: motionFadeIn var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Fade up — subtle upward entrance */
+.motion-fade-up {
+  animation: motionFadeUp var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+
+@keyframes motionFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-distance-sm));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scale in — gentle pop */
+.motion-scale-in {
+  animation: motionScaleIn var(--motion-duration-normal) var(--motion-ease-spring) both;
+}
+
+@keyframes motionScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(var(--motion-scale-sm));
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Slide in from right — page/panel entrance */
+.motion-slide-in-right {
+  animation: motionSlideInRight var(--motion-duration-slow) var(--motion-ease-out) both;
+}
+
+@keyframes motionSlideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(var(--motion-distance-lg));
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Slide in from top — banner/notification entrance */
+.motion-slide-in-top {
+  animation: motionSlideInTop var(--motion-duration-slow) var(--motion-ease-out) both;
+}
+
+@keyframes motionSlideInTop {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Backwards-compatible keyframe name consumed by BroadcastBanner components */
+@keyframes broadcast-slide-in {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Hover lift — card/button interactive feedback */
+.motion-hover-lift {
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-out),
+    box-shadow var(--motion-duration-fast) var(--motion-ease-out);
+}
+.motion-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Hover scale — button/interactive press feedback */
+.motion-hover-scale {
+  transition: transform var(--motion-duration-fast) var(--motion-ease-out);
+}
+.motion-hover-scale:hover {
+  transform: scale(1.02);
+}
+.motion-hover-scale:active {
+  transform: scale(0.98);
+}
+
+/* Focus ring — accessibility-enhanced focus indicator */
+.motion-focus-ring {
+  transition: box-shadow var(--motion-duration-fast) var(--motion-ease-out);
+}
+.motion-focus-ring:focus-visible {
+  box-shadow: 0 0 0 2px var(--motion-focus-ring-color, #FF0000);
+}
+
+/* Skeleton shimmer — loading placeholder */
+.motion-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: motionShimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes motionShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Pulse dot — live indicator */
+.motion-pulse {
+  animation: motionPulse 2s ease-in-out infinite;
+}
+
+@keyframes motionPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Spinner — loading indicator */
+.motion-spin {
+  animation: motionSpin 0.8s linear infinite;
+}
+
+@keyframes motionSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Error shake — form validation feedback */
+.motion-shake {
+  animation: motionShake 0.4s var(--motion-ease-out);
+}
+
+@keyframes motionShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+/* Stagger children — sequential entrance for lists/grids */
+.motion-stagger > * {
+  animation: motionFadeUp var(--motion-duration-normal) var(--motion-ease-out) both;
+}
+.motion-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.motion-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.motion-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.motion-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.motion-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.motion-stagger > *:nth-child(6) { animation-delay: 300ms; }
+.motion-stagger > *:nth-child(7) { animation-delay: 360ms; }
+.motion-stagger > *:nth-child(8) { animation-delay: 420ms; }
+
+/* ── Accessibility ────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

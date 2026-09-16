@@ -24,7 +24,14 @@ import type { AppConfig, Property } from '@/types';
 import ImportPreviewModal from '../components/modals/ImportPreviewModal';
 import ExportPreviewModal from '../components/modals/ExportPreviewModal';
 import SchemaMismatchDialog, { type SchemaMismatchInfo } from '../components/modals/SchemaMismatchDialog';
-import { importPreview, downloadImportTemplate, isSchemaMismatchError } from '../components/modals/importService';
+import { importPreview, downloadImportTemplateV2, isSchemaMismatchError } from '../components/modals/importService';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Receipt,
   UserCircle,
@@ -41,6 +48,7 @@ import {
   Shield,
   HardDrive,
   Download,
+  FileText,
   QrCode,
   Building2,
   Plus,
@@ -53,6 +61,7 @@ export default function Settings() {
   const [whatsappEditMode, setWhatsappEditMode] = useState(false);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [configError, setConfigError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [signatureFile, setSignatureFile] = useState<File | null>(null);
   const [importFiles, setImportFiles] = useState<File[]>([]);
@@ -60,6 +69,7 @@ export default function Settings() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [mismatchOpen, setMismatchOpen] = useState(false);
   const [mismatchInfo, setMismatchInfo] = useState<SchemaMismatchInfo | null>(null);
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrData, setQrData] = useState<{ secret: string, qr_code_base64: string } | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
@@ -90,9 +100,11 @@ export default function Settings() {
   const loadConfig = async () => {
     try {
       setLoading(true);
+      setConfigError(false);
       const data = await api.getConfig(landlordUuid!);
       setConfig(data);
     } catch {
+      setConfigError(true);
       toast.error('Failed to load settings');
     } finally {
       setLoading(false);
@@ -283,13 +295,13 @@ export default function Settings() {
     updateWhatsappTemplate(defaultMessage);
   };
 
-  const handleDownloadTemplate = async () => {
+  const handleDownloadTemplate = async (format: 'xlsx' | 'csv') => {
     try {
-      const blob = await downloadImportTemplate(landlordUuid!);
+      const blob = await downloadImportTemplateV2(landlordUuid!, format);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'Rent_Data_Template.xlsx';
+      a.download = format === 'csv' ? 'Rent_Data_Template_V2.csv' : 'Rent_Data_Template_V2.xlsx';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -360,7 +372,18 @@ export default function Settings() {
     );
   }
 
-  if (!config) return null;
+  if (!config) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {configError ? 'Failed to load settings' : 'Settings unavailable'}
+          </p>
+          <Button variant="outline" onClick={loadConfig}>Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-6">
@@ -440,16 +463,49 @@ export default function Settings() {
                   />
                 </div>
 
-                <Button
-                  variant="outline"
-                  onClick={handleDownloadTemplate}
-                  className="gap-2 h-auto py-6"
-                >
-                  <Download className="h-4 w-4" />
-                  <div className="text-left">
-                    <div className="text-xs font-bold">Blank Template</div>
-                  </div>
-                </Button>
+                <DropdownMenu open={templateMenuOpen} onOpenChange={setTemplateMenuOpen}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="gap-2 h-auto py-6"
+                      onMouseEnter={() => setTemplateMenuOpen(true)}
+                    >
+                      <Download className="h-4 w-4" />
+                      <div className="text-left">
+                        <div className="text-xs font-bold">Blank Template</div>
+                      </div>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="bottom"
+                    align="start"
+                    onMouseLeave={() => setTemplateMenuOpen(false)}
+                  >
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">
+                      Download Template
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      className="gap-2"
+                      onSelect={() => {
+                        handleDownloadTemplate('xlsx');
+                        setTemplateMenuOpen(false);
+                      }}
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                      Excel Template (.xlsx)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="gap-2"
+                      onSelect={() => {
+                        handleDownloadTemplate('csv');
+                        setTemplateMenuOpen(false);
+                      }}
+                    >
+                      <FileText className="h-4 w-4" />
+                      CSV Template (.csv)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
 
               <ImportPreviewModal
@@ -477,7 +533,7 @@ export default function Settings() {
                   expected: 'Tenant_Profile, Rent_Receipts',
                   actual: 'Unknown schema mismatch'
                 }}
-                onDownloadTemplate={handleDownloadTemplate}
+                onDownloadTemplate={(format) => handleDownloadTemplate(format ?? 'xlsx')}
                 onRetry={() => {
                   setImportFiles([]);
                 }}
