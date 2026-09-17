@@ -1155,7 +1155,6 @@ main { position: relative; }
   }
   .navbar-links.open { display: flex; }
   .navbar-links a { padding: 12px 0; font-size: 0.9rem; border-bottom: 1px solid var(--line); }
-  .navbar-mobile-login a { color: var(--ink); }
   .navbar-logins { display: none; }
   .navbar-toggle { display: block; }
 

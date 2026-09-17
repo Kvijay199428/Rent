@@ -1,16 +1,10 @@
 import { useState } from "react";
 import { navLinks } from "../data";
-import { ArrowUpRightIcon, HomeIcon, ShieldIcon, UserIcon } from "./Icons";
+import { ArrowUpRightIcon, HomeIcon, UserIcon } from "./Icons";
 import { Logo } from "@shared/brand/Logo";
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-
-  const logins = [
-    { label: "Landlord", href: "/landlord/login", icon: HomeIcon },
-    { label: "Tenant", href: "/tenant/login", icon: UserIcon },
-    { label: "Admin", href: "/admin/login", icon: ShieldIcon },
-  ];
 
   return (
     <nav className="navbar motion-slide-in-top">
@@ -30,21 +24,6 @@ export default function Navbar() {
               </a>
             </li>
           ))}
-          {logins.map((login) => {
-            const IconCmp = login.icon;
-            return (
-              <li key={login.label} className="navbar-mobile-login">
-                <a
-                  href={login.href}
-                  onClick={() => setMobileOpen(false)}
-                  style={{ display: "flex", alignItems: "center", gap: 8 }}
-                >
-                  <IconCmp size={18} />
-                  {login.label} Login
-                </a>
-              </li>
-            );
-          })}
         </ul>
 
         <div className="navbar-logins">
