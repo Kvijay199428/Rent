@@ -188,6 +188,11 @@ SCOPE_SERVICES = {
     "database": "propaura_backend_dev",
 }
 
+# Dev nginx gateway hot-reload, run after every dev deploy so a freshly synced
+# nginx/dev-gateway.conf takes effect and container IP changes from a recreate
+# are re-resolved via Docker DNS — no container restart needed.
+NGINX_RELOAD_CMD = "docker exec propaura_nginx_gateway_dev nginx -s reload"
+
 # Transport. --main/--release (branch self-pull) default to running locally on
 # the server; explicit SSH flags push the code from this machine instead.
 if github_mode:
@@ -654,12 +659,14 @@ def get_deploy_commands():
             "docker builder prune -af",
             f"cd {REMOTE_DIR} && {base} build --no-cache",
             f"cd {REMOTE_DIR} && {base} up -d --force-recreate",
+            NGINX_RELOAD_CMD,
         ]
     elif scope == "all" or svc is None:
         cmds = extract_zip_cmds()
         cmds.extend([
             f"cd {REMOTE_DIR} && {base} build",
             f"cd {REMOTE_DIR} && {base} up -d",
+            NGINX_RELOAD_CMD,
         ])
     elif scope == "frontend":
         # Dev frontend is a live bind-mounted Vite container (image-only, no
@@ -668,6 +675,7 @@ def get_deploy_commands():
         # that would come from passing a container_name to a compose command.
         cmds = extract_zip_cmds()
         cmds.append("docker restart propaura_frontend_dev")
+        cmds.append(NGINX_RELOAD_CMD)
     else:
         # Unified path for backend/storage/database dev scopes. The dev backend
         # is a bind-mounted image with uvicorn --reload, so code and config
@@ -678,6 +686,7 @@ def get_deploy_commands():
         # scope the restart also reloads the in-memory config cache from disk.
         cmds = extract_zip_cmds()
         cmds.append("docker restart propaura_backend_dev")
+        cmds.append(NGINX_RELOAD_CMD)
     return cmds
 
 
@@ -842,14 +851,17 @@ def main():
                     f"cd {LOCAL_DIR} && {base} down --rmi all -v --remove-orphans || true",
                     f"cd {LOCAL_DIR} && {base} build --no-cache",
                     f"cd {LOCAL_DIR} && {base} up -d --force-recreate",
+                    NGINX_RELOAD_CMD,
                 ])
             elif scope == "all" or svc is None:
                 commands.extend([
                     f"cd {LOCAL_DIR} && {base} build",
                     f"cd {LOCAL_DIR} && {base} up -d",
+                    NGINX_RELOAD_CMD,
                 ])
             elif scope == "frontend":
                 commands.append("docker restart propaura_frontend_dev")
+                commands.append(NGINX_RELOAD_CMD)
             else:
                 # Unified path for backend/storage/database dev scopes. The dev
                 # backend is a bind-mounted image with uvicorn --reload. Target
@@ -858,6 +870,7 @@ def main():
                 # because compose subcommands expect the service name, not the
                 # container_name (SCOPE_SERVICES holds container names).
                 commands.append("docker restart propaura_backend_dev")
+                commands.append(NGINX_RELOAD_CMD)
 
         for cmd in commands:
             if not run_local(cmd):
