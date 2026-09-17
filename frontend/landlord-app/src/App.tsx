@@ -15,8 +15,7 @@ import Archive from './pages/Archive';
 import SecuritySettingsPage from './pages/SecuritySettingsPage';
 import ChangePasswordPage from './pages/ChangePasswordPage';
 import ActivityPage from './pages/ActivityPage';
-import LandlordLoginPage from './pages/LandlordLoginPage';
-import LandlordSignupPage from './pages/LandlordSignupPage';
+import LandlordAuthPage from './pages/LandlordAuthPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import PrivacyConsentPage from './pages/PrivacyConsentPage';
 import TermsConditionsPage from './pages/TermsConditionsPage';
@@ -57,8 +56,8 @@ function App() {
         <BrowserRouter basename={basename}>
           <Routes>
             {/* Public/Auth Routes */}
-            <Route path="/login" element={<LandlordLoginPage />} />
-            <Route path="/signup" element={<LandlordSignupPage />} />
+            <Route path="/login" element={<LandlordAuthPage defaultTab="login" />} />
+            <Route path="/signup" element={<LandlordAuthPage defaultTab="signup" />} />
             <Route path="/change-password" element={<ChangePasswordPage />} />
             <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
             <Route path="/privacy-consent" element={<PrivacyConsentPage />} />
