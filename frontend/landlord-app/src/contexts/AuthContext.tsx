@@ -37,7 +37,7 @@ interface AuthContextType {
     rememberMe?: boolean
   ) => Promise<LoginResult>;
   googleLogin: (
-    credential: string,
+    code: string,
     rememberMe?: boolean
   ) => Promise<LoginResult>;
   verifyTotp: (
@@ -231,7 +231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const googleLogin = useCallback(
     async (
-      credential: string,
+      code: string,
       rememberMe = false
     ): Promise<LoginResult> => {
       setIsLoading(true);
@@ -241,7 +241,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ credential, rememberMe }),
+          body: JSON.stringify({ code, rememberMe }),
         });
 
         const data = await response.json().catch(() => null);

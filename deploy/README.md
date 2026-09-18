@@ -1,6 +1,6 @@
-# Dev/Release Split — Single-Slot Deployment
+# Dev/Production Split — Single-Slot Deployment
 
-Two fully isolated environments. `release` is production; `main` is development.
+Two fully isolated environments. `production` is production; `dev` is development.
 
 ```
 RELEASE (production, api.vijaykrsha.online)        DEVELOPMENT (ngrok)
@@ -91,17 +91,29 @@ Shared client ID:
 Notes for the audit:
 
 - **No `redirect_uri` / `auth_uri` in the repo.** The app uses Google Identity
-  Services (GSI) ID-token flow: the frontend
-  (`frontend/landlord-app/src/main.tsx` → `GoogleOAuthProvider`) obtains a
-  credential and `backend/app/app/services/google_oauth_service.py` verifies it
-  with `id_token.verify_oauth2_token(...)`. No redirect URI is used and the
-  client secret is not read by the backend.
-- **Redirect URIs / authorized JavaScript origins live in the Google Cloud
-  Console** for the OAuth client above, not in this repo. For the dev flow to
-  work end-to-end, the dev origin (ngrok URL) must be registered there.
+  Services (GSI) auth-code flow: the frontend
+  (`frontend/landlord-app/src/pages/LandlordAuthPage.tsx` →
+  `useGoogleLogin({ flow: "auth-code" })`) opens Google's popup and forwards the
+  returned authorization `code` to
+  `backend/app/app/services/google_oauth_service.py`, which exchanges it at
+  `https://oauth2.googleapis.com/token` for an ID token using
+  `GOOGLE_CLIENT_SECRET` (with `redirect_uri=postmessage`), then verifies it
+  with `id_token.verify_oauth2_token(...)`. No explicit redirect URI needs to be
+  registered; the GSI popup handshake validates JavaScript origins only.
+- **Authorized JavaScript origins live in the Google Cloud Console** for the
+  OAuth client above, not in this repo. Every origin that serves a frontend
+  build must be registered there or the Google popup is rejected
+  (`origin_mismatch`). Required origins today:
+  - `https://app.vijaykrsha.online` (release landlord/admin SPA)
+  - `https://rent.vijaykrsha.online` (public frontend)
+  - `https://endomorphic-semiprotectively-jamaal.ngrok-free.dev` (dev ngrok
+    tunnel; must be re-added if the tunnel domain ever changes)
+  - http://localhost:3000 / other local Vite origins for local development
 - **`VITE_GOOGLE_CLIENT_ID` is not a secret** and is committed in
   `frontend/landlord-app/.env.example`; `GOOGLE_CLIENT_SECRET` is gitignored
-  and must never be committed.
+  and must never be committed. The backend reads `GOOGLE_CLIENT_SECRET` from the
+  environment to exchange the auth code — it must be present in both
+  `.env.development` and `.env.release`.
 
 Reproduce the check (values are hashed only, never printed):
 
@@ -126,17 +138,16 @@ or from GitHub Actions.
 
 | Flags | Deploys | Example |
 |-------|---------|---------|
-| `--dev` | Development stack (`compose.dev.yml` + `.env.development`, ngrok) | `python3 deploy.py --dev --sshPublic` |
-| `--prod` | Production single-slot (`deploy/deploy-release.sh`) | `python3 deploy.py --prod --sshPublic` |
-| `--main` | Main-branch deploy — runs **here** (self-pull on the server) | `python3 deploy.py --main` |
-| `--release` | Release-branch deploy — runs **here** (self-pull on the server) | `python3 deploy.py --release` |
+| `--dev` | Development branch (`dev`) via `compose.dev.yml` + `.env.development`, ngrok | `python3 deploy.py --dev --sshPublic` |
+| `--prod` | Production branch (`production`) via `deploy/deploy-release.sh` | `python3 deploy.py --prod --sshPublic` |
 
 Existing flags still work: `--local`, `--sshLocal`, `--sshPublic`, `--clean`
 (dev only — refused for prod), `--no-build`. No env flag given defaults to
-`--dev`. `--main`/`--release` default to running locally on the server
-(self-pull); combine them with `--sshLocal`/`--sshPublic` to push from a
-machine instead. For manual push deploys, `DEPLOY_PASSWORD` (server password,
-default `1010`) overrides the embedded password.
+`--dev`. An explicit `--dev`/`--prod` with no transport flag defaults to running
+locally on the server (self-pull of that `dev`/`production` branch); combine
+them with `--sshLocal`/`--sshPublic` to push from a machine instead. For manual
+push deploys, `DEPLOY_PASSWORD` (server password, default `1010`) overrides the
+embedded password.
 
 Deploy writes `deploy/ports.env` from `deploy/ports.py` before provisioning the
 frontend env so every `*_DEV_PORT` / `*_RELEASE_PORT` stays in sync.
@@ -234,7 +245,7 @@ The script:
 docker compose --env-file .env.release -f compose.prod.yml up -d --force-recreate propaura_backend_prod
 ```
 
-Or simply: `git revert HEAD` and re-push to `release` (re-deploys old code).
+Or simply: `git revert HEAD` and re-push to `production` (re-deploys old code).
 
 ## Server self-pull (automatic backend deploys)
 
@@ -243,13 +254,13 @@ The deploy server is behind home NAT — it only has a Tailscale address
 pulls from GitHub and deploys itself using the same `deploy.py`:
 
 ```
-GitHub (main/release push)
+GitHub (dev/production push)
         │
         ▼  git fetch (outbound — always works)
-server systemd timer ──► ./deploy/self-pull.sh main|release
+server systemd timer ──► ./deploy/self-pull.sh dev|production
         │                          │
-             └──► python3 deploy.py --main (dev)   ──► compose.dev.yml up
-              python3 deploy.py --release --no-build (prod) ──► deploy-release.sh (single slot)
+             └──► python3 deploy.py --dev (dev)   ──► compose.dev.yml up
+              python3 deploy.py --prod --no-build (production) ──► deploy-release.sh (single slot)
 ```
 
 Setup (run once on the server):
@@ -267,7 +278,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/home/vega/rent-app
-ExecStart=/home/vega/rent-app/deploy/self-pull.sh main
+ExecStart=/home/vega/rent-app/deploy/self-pull.sh dev
 EOF
 cat > /etc/systemd/system/rent-deploy-dev.timer <<'EOF'
 [Unit]
@@ -279,14 +290,14 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 EOF
-# same for release (self-pull.sh release)
+# same for production (self-pull.sh production)
 systemctl daemon-reload
-systemctl enable --now rent-deploy-dev.timer rent-deploy-release.timer
+systemctl enable --now rent-deploy-dev.timer rent-deploy-production.timer
 ```
 
-Release deploys are gated: `deploy/self-pull.sh release` exits without deploying
-until `/home/vega/rent-secrets/RELEASE_READY` exists. Create it only after the
-cloudflared tunnel ingress has been switched from the legacy
+Production deploys are gated: `deploy/self-pull.sh production` exits without
+deploying until `/home/vega/rent-secrets/RELEASE_READY` exists. Create it only
+after the cloudflared tunnel ingress has been switched from the legacy
 `propaura_legacy_gateway` (port 80) to `propaura_nginx_gateway_prod`
 (host 28014).
 
@@ -318,15 +329,15 @@ release clone (`/home/vega/rent-app-release`):
    docker stop propaura_legacy_gateway propaura_legacy_backend
    touch /home/vega/rent-secrets/RELEASE_READY
    ```
-After this, all future release deploys run the standard gated single-slot flow
+After this, all future production deploys run the standard gated single-slot flow
 via the self-pull timer.
 
 ## GitHub Actions (auto deploy)
 
 | Workflow | Trigger | Deploys |
 |----------|---------|---------|
-| server self-pull | push to `main` or `release` (polled every 2 min by systemd timer) | `deploy.py --main` (main → dev stack) or `deploy.py --release` (release → single-slot prod) |
-| `deploy-cloudflare-pages.yml` | push to `release` (`frontend/**`) | Build → Cloudflare Pages (branch `release`) |
+| server self-pull | push to `dev` or `production` (polled every 2 min by systemd timer) | `deploy.py --dev` (dev → dev stack) or `deploy.py --prod` (production → single-slot prod) |
+| `deploy-cloudflare-pages.yml` | push to `production` (`frontend/**`) | Build → Cloudflare Pages (branch `production`) |
 | `create-github-release.yml` | tag `v*` | GitHub Release with auto notes |
 
 ### Secrets & variables
@@ -342,11 +353,11 @@ No server SSH key or password is needed in GitHub Actions — backend deploys ru
 server-side via self-pull. The server only needs `docker` (with compose v2),
 `python3`, and `git`.
 
-### Cloudflare Pages: set production branch to `release`
+### Cloudflare Pages: set production branch to `production`
 
 In the Cloudflare dashboard (Workers & Pages → your `rent` project → Settings →
-Builds & deployments), set **Production branch = `release`**. The
-`deploy-cloudflare-pages.yml` workflow deploys with `--branch=release`.
+Builds & deployments), set **Production branch = `production`**. The
+`deploy-cloudflare-pages.yml` workflow deploys with `--branch=production`.
 
 ## API + static-SPA release backend
 

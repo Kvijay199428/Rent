@@ -1,0 +1,11 @@
+{
+  "current_branch": "REPLACE_ME",
+  "working_tree": "REPLACE_ME_clean_or_dirty",
+  "head": "REPLACE_ME",
+  "ahead": 0,
+  "behind": 0,
+  "testing": {
+    "status": "NOT_RUN",
+    "last_run": null
+  }
+}

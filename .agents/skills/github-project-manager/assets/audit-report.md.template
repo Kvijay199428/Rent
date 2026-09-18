@@ -1,0 +1,54 @@
+# GitHub Manager Audit — REPLACE_ME_DATE
+
+## Repository
+Owner: REPLACE_ME
+Repository: REPLACE_ME
+Remote: REPLACE_ME
+
+## Branch strategy
+REPLACE_ME (e.g. feature/* → developer → production)
+
+## Starting state
+Branch: REPLACE_ME
+Commit: REPLACE_ME
+Working tree: REPLACE_ME
+
+## Changes
+Files changed: REPLACE_ME
+Insertions: REPLACE_ME
+Deletions: REPLACE_ME
+
+## Tests
+Result: REPLACE_ME (PASSED/FAILED/NOT_RUN/etc.)
+Notes: REPLACE_ME
+
+## Commit
+SHA: REPLACE_ME
+Message: REPLACE_ME
+
+## Push
+Remote: REPLACE_ME
+Status: REPLACE_ME
+
+## Pull request
+Number: REPLACE_ME
+Status: REPLACE_ME
+
+## Merge
+Source: REPLACE_ME
+Target: REPLACE_ME
+Strategy: REPLACE_ME
+Resulting commit: REPLACE_ME
+
+## Tag / release
+Tag: REPLACE_ME
+Release created: REPLACE_ME
+
+## Final state
+Production HEAD: REPLACE_ME
+Development HEAD: REPLACE_ME
+Working tree: REPLACE_ME
+
+## Decision log
+- REPLACE_ME (e.g. "User approved commit abc1234")
+- REPLACE_ME

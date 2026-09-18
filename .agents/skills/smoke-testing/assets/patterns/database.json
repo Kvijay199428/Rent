@@ -1,0 +1,16 @@
+{
+  "technology_detection": {
+    "postgresql": "(?i)\\b(psycopg2|asyncpg|pg8000|postgresql://|postgres://)\\b",
+    "mysql": "(?i)\\b(pymysql|mysqlclient|mysql2|mysql://)\\b",
+    "sqlite": "(?i)\\b(sqlite3|sqlite://)\\b",
+    "mongodb": "(?i)\\b(pymongo|mongoose|mongodb(\\+srv)?://)\\b",
+    "redis": "(?i)\\b(redis-py|ioredis|redis://)\\b",
+    "cockroachdb": "(?i)\\b(cockroach|cockroachdb://)\\b",
+    "sqlalchemy_orm": "(?i)\\b(SQLAlchemy|declarative_base|sessionmaker)\\b",
+    "prisma_orm": "(?i)\\b(PrismaClient|schema\\.prisma)\\b",
+    "mongoose_orm": "(?i)\\bmongoose\\.(Schema|model)\\(",
+    "hibernate_jpa": "(?i)\\b(@Entity|@Table|EntityManager|Hibernate)\\b"
+  },
+  "connectivity_check_hint": "A read-only 'SELECT 1' (SQL) or ping/status command (Mongo/Redis) is enough to confirm connectivity — never run anything that writes, and never print the resolved credential/password into a report or evidence file, only host + db name.",
+  "usage": "Run these against config/env files and the backend's dependency manifest (requirements.txt/package.json/pom.xml) to identify DB technology before Level 1's backend.database check. Record the result in smoke-state.json under discovery.stack.database. This complements patterns/backend.json (framework detection) and patterns/configuration.json (host/port mismatch) — together they tell you what to connect to and how before you try connecting."
+}

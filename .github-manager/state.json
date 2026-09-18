@@ -1,0 +1,11 @@
+{
+  "current_branch": "dev",
+  "working_tree": "dirty",
+  "head": "df6264b",
+  "ahead": 0,
+  "behind": 0,
+  "testing": {
+    "status": "NOT_RUN",
+    "last_run": null
+  }
+}

@@ -6,35 +6,35 @@
 # it pulls the branch from GitHub (outbound, always works) and deploys it with
 # the same deploy.py used everywhere.
 #
-#   main    -> deploy.py --main    (development stack, compose.dev.yml)
-#   release -> deploy.py --release (single-slot, deploy-release.sh)
+#   dev        -> deploy.py --dev      (development stack, compose.dev.yml)
+#   production -> deploy.py --prod     (single-slot, deploy-release.sh)
 #
 # Usage:
-#   ./deploy/self-pull.sh main
-#   ./deploy/self-pull.sh release
+#   ./deploy/self-pull.sh dev
+#   ./deploy/self-pull.sh production
 #
 # Env:
 #   REPO_DIR           repo checkout on the server (default: repo root)
 #   SECRETS_DIR        dir holding the gitignored .env files (default: /home/vega/rent-secrets)
-#   RELEASE_READY_FILE gate marker; release deploys are skipped until it exists
+#   RELEASE_READY_FILE gate marker; production deploys are skipped until it exists
 #
 # systemd units (install as root):
-#   /etc/systemd/system/rent-deploy-dev.service     -> ExecStart=... self-pull.sh main
-#   /etc/systemd/system/rent-deploy-release.service -> ExecStart=... self-pull.sh release
+#   /etc/systemd/system/rent-deploy-dev.service      -> ExecStart=... self-pull.sh dev
+#   /etc/systemd/system/rent-deploy-production.service -> ExecStart=... self-pull.sh production
 #   timers run every 2 minutes (OnUnitActiveSec=2min, Persistent=true)
 set -euo pipefail
 
-BRANCH="${1:?usage: self-pull.sh <main|release>}"
+BRANCH="${1:?usage: self-pull.sh <dev|production>}"
 REPO_DIR="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 SECRETS_DIR="${SECRETS_DIR:-/home/vega/rent-secrets}"
 RELEASE_READY_FILE="${RELEASE_READY_FILE:-$SECRETS_DIR/RELEASE_READY}"
 
 log() { printf '\033[36m[self-pull]\033[0m %s\n' "$*"; }
 
-# Release deploys are gated behind a marker so they only run once the operator
-# has switched the cloudflared tunnel ingress to propaura_nginx_gateway_prod
+# Production deploys are gated behind a marker so they only run once the
+# operator has switched the cloudflared tunnel ingress to propaura_nginx_gateway_prod
 # (host port 28014).
-if [ "$BRANCH" = "release" ] && [ ! -f "$RELEASE_READY_FILE" ]; then
+if [ "$BRANCH" = "production" ] && [ ! -f "$RELEASE_READY_FILE" ]; then
   log "release deploy gated — create $RELEASE_READY_FILE to enable"
   exit 0
 fi
@@ -62,10 +62,10 @@ log "$BRANCH $LOCAL -> $REMOTE"
 git checkout -f -B "$BRANCH" "origin/$BRANCH"
 git submodule update --init --recursive 2>/dev/null || true
 
-if [ "$BRANCH" = "release" ]; then
-  python3 deploy.py --release --local --no-build
+if [ "$BRANCH" = "production" ]; then
+  python3 deploy.py --prod --local --no-build
 else
-  python3 deploy.py --main --local
+  python3 deploy.py --dev --local
 fi
 
 log "$BRANCH deployed OK"

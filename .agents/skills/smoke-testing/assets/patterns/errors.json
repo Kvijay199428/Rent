@@ -1,0 +1,306 @@
+[
+  {
+    "id": "db-auth-failed",
+    "category": "DATABASE",
+    "severity": "critical",
+    "regex": "password authentication failed|FATAL:.*authentication|access denied for user|Authentication failed.*(mongo|postgres|mysql)",
+    "flags": "i",
+    "signal": "Backend reached the database host but credentials were rejected.",
+    "likelyCauses": [
+      "Wrong DB username/password in env/config",
+      "Credentials rotated but not updated in this environment",
+      "Wrong DB name/user pair for this environment (e.g. prod creds used against staging DB)"
+    ],
+    "candidateFixes": [
+      {"label": "Update the DB credential env var(s) for this environment", "tradeoff": "Config-only change; ask which value(s) are stale."},
+      {"label": "Point the connection string at the correct DB/user pair", "tradeoff": "Config-only change; confirm the correct target first."},
+      {"label": "Regenerate/rotate the DB credential and update the secret store", "tradeoff": "Bigger change, touches secret management — needs explicit sign-off."}
+    ]
+  },
+  {
+    "id": "db-conn-refused",
+    "category": "DATABASE",
+    "severity": "critical",
+    "regex": "ECONNREFUSED|connection refused|could not connect to server|Connection.*refused.*(5432|3306|27017)",
+    "flags": "i",
+    "signal": "Database (or a dependency) is not reachable from the backend process.",
+    "likelyCauses": [
+      "DB container/service not running",
+      "Wrong host/port in connection string",
+      "Backend started before DB finished initializing",
+      "Network/firewall rule blocking the port"
+    ],
+    "candidateFixes": [
+      {"label": "Restart the DB service and re-run", "tradeoff": "No code change; only fixes it if the DB was simply down."},
+      {"label": "Fix the host/port in the connection string/env var", "tradeoff": "Config change — confirm the correct value before editing."},
+      {"label": "Add a startup retry/backoff to the DB client", "tradeoff": "Real code/behavior change; review before applying, prevents future start-order races."}
+    ]
+  },
+  {
+    "id": "db-relation-missing",
+    "category": "DATABASE",
+    "severity": "high",
+    "regex": "no such table|relation \".*\" does not exist|Table '.*' doesn't exist|Unknown collection",
+    "flags": "i",
+    "signal": "Expected schema object is missing — migrations likely haven't run against this DB.",
+    "likelyCauses": [
+      "Migrations not applied in this environment",
+      "Pointed at the wrong database (e.g. a fresh/empty one)",
+      "Migration failed partway through silently"
+    ],
+    "candidateFixes": [
+      {"label": "Run the pending migrations", "tradeoff": "Standard fix; confirm which migration tool/command before running it — this is a Zone B action, needs approval."},
+      {"label": "Re-point config at the correct DB", "tradeoff": "Config-only, if this was just the wrong target."},
+      {"label": "Investigate why a migration failed silently", "tradeoff": "Deeper dig, not a quick fix — flag as blocked if time-boxed."}
+    ]
+  },
+  {
+    "id": "http-500",
+    "category": "BACKEND",
+    "severity": "critical",
+    "regex": "HTTP/[0-9.]+\\s?500|status(Code)?\\s*[:=]\\s*500|Internal Server Error",
+    "flags": "i",
+    "signal": "Backend returned 500 where the smoke test expected success or a clean 4xx.",
+    "likelyCauses": [
+      "Unhandled exception in the request handler",
+      "Missing/invalid config or env var for this route's dependency",
+      "Contract drift — request shape changed but handler wasn't updated"
+    ],
+    "candidateFixes": [
+      {"label": "Add proper error handling so this returns a clean 4xx/5xx with a message", "tradeoff": "Improves robustness; doesn't fix the underlying trigger, just the failure mode."},
+      {"label": "Fix the root cause named in the accompanying stack trace", "tradeoff": "Direct fix; needs the specific trace to identify — ask if not already captured."},
+      {"label": "Roll back the change that introduced this if it's a regression", "tradeoff": "Fast mitigation; defers the real fix."}
+    ]
+  },
+  {
+    "id": "http-401-unexpected",
+    "category": "AUTHENTICATION",
+    "severity": "high",
+    "regex": "HTTP/[0-9.]+\\s?401|status(Code)?\\s*[:=]\\s*401|Unauthorized",
+    "flags": "i",
+    "signal": "A call expected to succeed with valid test credentials was rejected as unauthorized.",
+    "likelyCauses": [
+      "Test credentials expired or were never seeded in this environment",
+      "Token not being attached/forwarded correctly",
+      "Auth middleware change broke a previously-valid token format"
+    ],
+    "candidateFixes": [
+      {"label": "Re-seed or refresh the smoke-test fixture account", "tradeoff": "No code change; only fixes it if credentials were the issue."},
+      {"label": "Check the client is attaching the Authorization header correctly", "tradeoff": "Could be a smoke-test harness bug, not the app — verify before touching app code."},
+      {"label": "Review the recent auth middleware change for a regression", "tradeoff": "Real code review needed; ask before editing."}
+    ]
+  },
+  {
+    "id": "http-403-unexpected",
+    "category": "AUTHORIZATION",
+    "severity": "high",
+    "regex": "HTTP/[0-9.]+\\s?403|status(Code)?\\s*[:=]\\s*403|Forbidden",
+    "flags": "i",
+    "signal": "A call expected to succeed with the smoke-test account was rejected as forbidden (authenticated but not permitted).",
+    "likelyCauses": [
+      "Smoke-test fixture account lacks the role/permission the endpoint now requires",
+      "A permissions/RBAC change tightened access without updating the fixture account",
+      "Resource ownership check failing against a fixture that doesn't own the target record"
+    ],
+    "candidateFixes": [
+      {"label": "Grant the smoke-test fixture account the needed role/permission", "tradeoff": "Config/fixture-data change, not application code — confirm the correct role first."},
+      {"label": "Review the recent authorization-logic change for a regression", "tradeoff": "Real code review needed; ask before editing."}
+    ]
+  },
+  {
+    "id": "http-404-on-critical-route",
+    "category": "BACKEND",
+    "severity": "high",
+    "regex": "HTTP/[0-9.]+\\s?404|status(Code)?\\s*[:=]\\s*404|Not Found",
+    "flags": "i",
+    "signal": "A route the smoke config marked as critical returned 404 instead of succeeding.",
+    "likelyCauses": [
+      "Route path changed/renamed and config wasn't updated",
+      "Route genuinely removed/broken by a recent change",
+      "Wrong base URL/API version prefix in smoke-config.json"
+    ],
+    "candidateFixes": [
+      {"label": "Update smoke-config.json's path to match the current route", "tradeoff": "Zone A change, if the route just moved — fine for this skill to edit itself."},
+      {"label": "Restore the missing route in the backend", "tradeoff": "Zone B change — needs explicit approval."},
+      {"label": "Confirm the correct base URL/API version with the user", "tradeoff": "Quick check, no change yet."}
+    ]
+  },
+  {
+    "id": "cors-blocked",
+    "category": "NETWORK",
+    "severity": "high",
+    "regex": "CORS|Cross-Origin Request Blocked|No 'Access-Control-Allow-Origin'",
+    "flags": "i",
+    "signal": "Browser blocked the frontend-to-backend call due to CORS policy.",
+    "likelyCauses": [
+      "Backend CORS allow-list doesn't include this frontend origin",
+      "Preflight (OPTIONS) not handled for this route",
+      "Environment-specific origin (e.g. staging domain) missing from config",
+      "Cross-check against a configuration-mismatch finding from patterns/configuration.json — it may already explain this"
+    ],
+    "candidateFixes": [
+      {"label": "Add this origin to the backend's CORS allow-list", "tradeoff": "Zone B config/code change on backend — confirm the exact origin string first."},
+      {"label": "Verify OPTIONS preflight handling for the route", "tradeoff": "Deeper backend check, may reveal a separate bug."},
+      {"label": "Use a proxy in the frontend dev/test setup instead of changing backend CORS", "tradeoff": "Avoids touching backend but only fixes local/dev testing, not real deployments."}
+    ]
+  },
+  {
+    "id": "port-in-use",
+    "category": "ENVIRONMENT",
+    "severity": "critical",
+    "regex": "EADDRINUSE|address already in use|port is already allocated",
+    "flags": "i",
+    "signal": "The service couldn't bind because another process already holds the port.",
+    "likelyCauses": [
+      "A previous instance of the service is still running",
+      "Another unrelated process is using the same port",
+      "Port misconfigured to collide with another service"
+    ],
+    "candidateFixes": [
+      {"label": "Stop the stale process holding the port and retry", "tradeoff": "No code change; safe if it really is a leftover process."},
+      {"label": "Change the configured port for this service", "tradeoff": "Zone B config change — confirm the new port won't collide elsewhere."}
+    ]
+  },
+  {
+    "id": "timeout",
+    "category": "NETWORK",
+    "severity": "high",
+    "regex": "ETIMEDOUT|timed out|timeout of \\d+ms exceeded|Gateway Timeout|HTTP/[0-9.]+\\s?504",
+    "flags": "i",
+    "signal": "A call didn't complete within the expected time.",
+    "likelyCauses": [
+      "Downstream dependency (DB, third-party API) is slow or hanging",
+      "Deadlock or blocking call on the request path",
+      "Smoke-test timeout threshold too low for this environment"
+    ],
+    "candidateFixes": [
+      {"label": "Increase the smoke-test timeout threshold if this environment is just slower", "tradeoff": "Zone A change in smoke-config.json — safe for this skill to adjust itself."},
+      {"label": "Investigate the slow downstream dependency", "tradeoff": "Deeper dig; flag as blocked if time-boxed."},
+      {"label": "Add a timeout/circuit-breaker around the slow call in app code", "tradeoff": "Zone B code change — needs approval."}
+    ]
+  },
+  {
+    "id": "build-failure",
+    "category": "BUILD",
+    "severity": "critical",
+    "regex": "npm ERR!|Module not found|Cannot find module|Failed to compile|vite.*error|ModuleNotFoundError",
+    "flags": "i",
+    "signal": "Frontend or backend build/dev-server failed to start — nothing downstream can be tested until this is fixed.",
+    "likelyCauses": [
+      "Dependency not installed / lockfile out of sync",
+      "Import path typo or a file that was moved/renamed",
+      "Environment variable required at build time is missing"
+    ],
+    "candidateFixes": [
+      {"label": "Run a clean install (delete node_modules/venv, reinstall from lockfile)", "tradeoff": "No source change; fixes dependency drift issues."},
+      {"label": "Fix the specific import/module path named in the error", "tradeoff": "Zone B source fix — confirm the exact file before editing."},
+      {"label": "Set the missing build-time env var", "tradeoff": "Config-only, if that's the actual cause."}
+    ]
+  },
+  {
+    "id": "react-error-boundary",
+    "category": "FRONTEND",
+    "severity": "critical",
+    "regex": "Something went wrong|Uncaught Error|React will try to recreate|ErrorBoundary|Minified React error #\\d+",
+    "flags": "i",
+    "signal": "The React app crashed into an error boundary instead of rendering the expected screen.",
+    "likelyCauses": [
+      "Unhandled exception in a component (often a null/undefined access)",
+      "A prop/shape contract with the backend changed",
+      "A third-party library version mismatch"
+    ],
+    "candidateFixes": [
+      {"label": "Fix the null/undefined access named in the console trace", "tradeoff": "Zone B source fix — confirm the exact component/line before editing."},
+      {"label": "Add a guard/loading state for the data that's arriving in an unexpected shape", "tradeoff": "Zone B code change; improves robustness beyond just this bug."},
+      {"label": "Pin/align the third-party library version if this followed a dependency bump", "tradeoff": "Config/lockfile change — confirm which version to pin."}
+    ]
+  },
+  {
+    "id": "cannot-get-route",
+    "category": "FRONTEND",
+    "severity": "high",
+    "regex": "Cannot GET /|404.*(page|route) not found|No routes matched location",
+    "flags": "i",
+    "signal": "A frontend route the smoke config marked critical didn't resolve to any page.",
+    "likelyCauses": [
+      "Route was renamed/removed in the router config",
+      "Server-side routing/rewrite rules missing for this SPA route",
+      "smoke-config.json path doesn't match the current router"
+    ],
+    "candidateFixes": [
+      {"label": "Update smoke-config.json to the current route path", "tradeoff": "Zone A change, if the route just moved — fine for this skill to edit itself."},
+      {"label": "Add the missing SPA fallback/rewrite rule on the server", "tradeoff": "Zone B infra/config change — confirm before applying."},
+      {"label": "Restore the route in the router config", "tradeoff": "Zone B application code change — needs approval."}
+    ]
+  },
+  {
+    "id": "python-traceback",
+    "category": "BACKEND",
+    "severity": "critical",
+    "regex": "Traceback \\(most recent call last\\):|(?<!\\w)\\w*Error: |(?<!\\w)\\w*Exception: ",
+    "flags": "",
+    "signal": "An unhandled Python exception surfaced during the request/flow.",
+    "likelyCauses": [
+      "The specific exception type/message names the root cause directly",
+      "Missing null/None check before an attribute or index access",
+      "Type mismatch between expected and actual data"
+    ],
+    "candidateFixes": [
+      {"label": "Fix the specific line/exception named in the traceback", "tradeoff": "Zone B source fix — quote the exact traceback tail before editing."},
+      {"label": "Add input validation before the point of failure", "tradeoff": "Broader Zone B robustness change, not just a one-line fix."},
+      {"label": "Catch and return a clean error response instead of crashing", "tradeoff": "Improves failure mode; doesn't address root cause alone."}
+    ]
+  },
+  {
+    "id": "java-nullpointer",
+    "category": "BACKEND",
+    "severity": "critical",
+    "regex": "java\\.lang\\.NullPointerException|Caused by:.*Exception",
+    "flags": "",
+    "signal": "An unhandled Java exception (often NPE) surfaced during the request/flow.",
+    "likelyCauses": [
+      "Object expected to be initialized was null at the failure point",
+      "Optional/Autowired dependency not injected in this environment",
+      "Config value missing, leaving a field null"
+    ],
+    "candidateFixes": [
+      {"label": "Fix the specific null access named in the stack trace", "tradeoff": "Zone B source fix — quote the top of the stack trace before editing."},
+      {"label": "Add a null-check/Optional guard at that point", "tradeoff": "Zone B code change, improves robustness beyond this one path."},
+      {"label": "Verify the missing config/bean is set for this environment", "tradeoff": "Config-only, if that's the actual gap."}
+    ]
+  },
+  {
+    "id": "jwt-invalid",
+    "category": "AUTHENTICATION",
+    "severity": "high",
+    "regex": "invalid signature|jwt (expired|malformed)|JsonWebTokenError|TokenExpiredError",
+    "flags": "i",
+    "signal": "Token validation failed — either the token or the verifying secret/key is wrong.",
+    "likelyCauses": [
+      "JWT secret/key mismatch between issuer and verifier (e.g. different envs)",
+      "Test token genuinely expired",
+      "Clock skew between services"
+    ],
+    "candidateFixes": [
+      {"label": "Re-issue a fresh smoke-test token and retry", "tradeoff": "No code change; only fixes it if the token was simply stale."},
+      {"label": "Align the JWT secret/key across services for this environment", "tradeoff": "Config/secret change — confirm the correct value first."},
+      {"label": "Check for clock skew between services", "tradeoff": "Infra-level check, no code change."}
+    ]
+  },
+  {
+    "id": "rate-limited",
+    "category": "NETWORK",
+    "severity": "medium",
+    "regex": "HTTP/[0-9.]+\\s?429|Too Many Requests|rate limit exceeded",
+    "flags": "i",
+    "signal": "A call was rate-limited rather than genuinely failing.",
+    "likelyCauses": [
+      "Smoke suite is running too many requests too fast against a rate-limited endpoint",
+      "Shared test environment being hit by other processes too"
+    ],
+    "candidateFixes": [
+      {"label": "Add a short delay between requests in the smoke run", "tradeoff": "Smoke-harness change, not app code — safe to adjust."},
+      {"label": "Whitelist the smoke-test source IP/key against the rate limiter", "tradeoff": "Zone B config change on the rate-limiting layer — confirm before applying."}
+    ]
+  }
+]

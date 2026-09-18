@@ -1,0 +1,5 @@
+{
+  "frontend_api_url_vars": "(?i)(VITE_API_URL|NEXT_PUBLIC_API_URL|REACT_APP_API_URL)\\s*=",
+  "backend_host_port_vars": "(?i)(HOST|PORT|API_PORT|SERVER_PORT)\\s*=",
+  "docker_ports": "(?i)\\bports\\s*:"
+}

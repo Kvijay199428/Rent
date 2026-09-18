@@ -70,3 +70,5 @@ output/
 
 # runtime sqlite artifacts
 backend/app/app/database/tenant.db
+.github-manager/secrets/
+.smoke-test/

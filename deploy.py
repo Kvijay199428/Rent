@@ -46,7 +46,7 @@ EXCLUDE_DIRS = {
 TARGETS = {
     "sshLocal": {
         "host": "192.168.1.50",
-        "port": 22009,
+        "port": 24,
         "user": "vega",
         "password": "1010",
         "label": "LAN (same Wi-Fi as the server)",
@@ -91,8 +91,8 @@ parser = argparse.ArgumentParser(
            "  python deploy.py --dev --sshPublic --clean   # dev stack, full wipe+rebuild, via SSH to public IP\n"
            "  python deploy.py --dev --sshPublic           # dev stack via SSH to public IP\n"
            "  python deploy.py --prod --sshPublic          # single-slot production deploy\n"
-           "  python deploy.py --release                   # release branch deploy (self-pull, runs here)\n"
-           "  python deploy.py --main                      # main branch deploy (self-pull, runs here)\n"
+           "  python deploy.py --dev                       # dev branch deploy (self-pull, runs here)\n"
+           "  python deploy.py --prod                      # production branch deploy (self-pull, runs here)\n"
            "  python deploy.py --dev --self-test           # check SSH connectivity to the target only\n"
            "\n"
            "Scopes (default --all):\n"
@@ -112,12 +112,8 @@ group.add_argument("--sshLocal", action="store_true", help="Deploy via SSH to LA
 group.add_argument("--sshPublic", action="store_true", help="Deploy via SSH to public IP over Tailscale (100.107.83.28:22009).")
 
 env_group = parser.add_mutually_exclusive_group()
-env_group.add_argument("--dev", action="store_true", help="Deploy development environment (compose.dev.yml + .env.development, ngrok). Default when no env flag is given.")
-env_group.add_argument("--prod", action="store_true", help="Deploy production environment (single backend slot via deploy/deploy-release.sh).")
-
-gh_group = parser.add_mutually_exclusive_group()
-gh_group.add_argument("--main", action="store_true", help="Deploy the main (development) branch. Defaults to running here (server self-pull); combine with --sshLocal/--sshPublic to push from a machine.")
-gh_group.add_argument("--release", action="store_true", help="Deploy the release (production) branch. Defaults to running here (server self-pull); combine with --sshLocal/--sshPublic to push from a machine.")
+env_group.add_argument("--dev", action="store_true", help="Deploy the dev branch (compose.dev.yml + .env.development, ngrok). Selection defaults to this when no env flag is given.")
+env_group.add_argument("--prod", action="store_true", help="Deploy the production branch (single backend slot via deploy/deploy-release.sh).")
 
 scope_group = parser.add_mutually_exclusive_group()
 scope_group.add_argument("--all", action="store_true", help="Ship the entire repo (default).")
@@ -126,21 +122,23 @@ scope_group.add_argument("--backend", action="store_true", help="Ship only backe
 scope_group.add_argument("--storage", action="store_true", help="Ship storage/ data (keys, backups) — overwrites server data with local data. PostgreSQL data lives in named volumes and is NOT shipped.")
 scope_group.add_argument("--database", action="store_true", help="Ship database schema + migrations (backend/app/app/db, database/, core/db.py).")
 
-parser.add_argument("--clean", action="store_true", help="Full rebuild: remove containers, images, volumes, and rebuild from scratch. NOT supported with --prod/--release or scoped flags (implies --all).")
+parser.add_argument("--clean", action="store_true", help="Full rebuild: remove containers, images, volumes, and rebuild from scratch. NOT supported with --prod or scoped flags (implies --all).")
 parser.add_argument("--no-build", action="store_true", help="Skip frontend npm builds (useful for backend-only changes).")
 parser.add_argument("--debug", action="store_true", help="Print full Python tracebacks when something fails.")
 parser.add_argument("--self-test", action="store_true", help="Only check connectivity to the deploy target, then exit (no build, no zip, no deploy).")
 args = parser.parse_args()
 
-# Environment: --prod or --release wins, otherwise development (safe default).
+# Environment: --prod wins, otherwise development (safe default). The source
+# branch follows the environment: --dev deploys the 'dev' branch, --prod the
+# 'production' branch.
 ENV_PROD = "prod"
 ENV_DEV = "dev"
-env = ENV_PROD if (args.prod or args.release) else ENV_DEV
-github_mode = args.main or args.release
+env = ENV_PROD if args.prod else ENV_DEV
+BRANCH_NAME = "production" if env == ENV_PROD else "dev"
 REMOTE_DIR = REMOTE_DIR_PROD if env == ENV_PROD else REMOTE_DIR_DEV
 
 if env == ENV_PROD and args.clean:
-    parser.error("--clean is not supported for --prod/--release: it would delete the server repo and wipe storage/release and the pgdata_prod PostgreSQL volume. Use the rollback path in deploy/deploy-release.sh instead.")
+    parser.error("--clean is not supported for --prod: it would delete the server repo and wipe storage/release and the pgdata_prod PostgreSQL volume. Use the rollback path in deploy/deploy-release.sh instead.")
 
 # Scope: which components are shipped. Default --all.
 SCOPES = ("all", "frontend", "backend", "storage", "database")
@@ -193,9 +191,11 @@ SCOPE_SERVICES = {
 # are re-resolved via Docker DNS — no container restart needed.
 NGINX_RELOAD_CMD = "docker exec propaura_nginx_gateway_dev nginx -s reload"
 
-# Transport. --main/--release (branch self-pull) default to running locally on
-# the server; explicit SSH flags push the code from this machine instead.
-if github_mode:
+# Transport. An explicit --dev/--prod (branch deploy) defaults to running
+# locally on the server (self-pull of that branch); SSH flags push the local
+# working tree from this machine instead. With no env flag and no transport
+# flag, keep the backward-compatible sshLocal default.
+if args.dev or args.prod:
     if not (args.local or args.sshLocal or args.sshPublic):
         args.local = True
 elif not args.local and not args.sshLocal and not args.sshPublic:
@@ -799,7 +799,7 @@ def run_self_test():
     cfg = TARGETS[target_name]
     print("=" * 60)
     print(f" SELF-TEST: {target_name.upper()} -> {cfg['user']}@{cfg['host']}:{cfg['port']}")
-    print(f" MODE: {'PROD' if env == ENV_PROD else 'DEV'}   SCOPE: {scope.upper()}   REMOTE_DIR: {REMOTE_DIR}")
+    print(f" MODE: {'PROD' if env == ENV_PROD else 'DEV'}   BRANCH: {BRANCH_NAME}   SCOPE: {scope.upper()}   REMOTE_DIR: {REMOTE_DIR}")
     print("=" * 60)
     preflight_tcp(cfg["host"], cfg["port"], target_name)
     print()
@@ -813,7 +813,11 @@ def run_self_test():
 def main():
     print("=" * 50)
     print(f" MODE: {'PROD' if env == ENV_PROD else 'DEV'}")
-    print(f" TARGET: {target_name.upper()}{' (GitHub)' if github_mode else ''}")
+    print(f" TARGET: {target_name.upper()}")
+    if args.local:
+        print(f" SOURCE: branch '{BRANCH_NAME}' (server self-pull)")
+    else:
+        print(f" SOURCE: local working tree (SSH push)")
     print(f" CLEAN: {'YES' if args.clean else 'no'}")
     print(f" SCOPE: {scope.upper()}")
     print(f" BUILD: {'skip' if not build_enabled else 'yes'}")

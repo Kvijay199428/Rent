@@ -1,0 +1,13 @@
+{
+  "repository": {
+    "owner": "REPLACE_ME",
+    "name": "REPLACE_ME",
+    "remote": "origin",
+    "url": "REPLACE_ME",
+    "default_branch": "REPLACE_ME"
+  },
+  "management": {
+    "managed_by": "github-project-manager",
+    "initialized_at": "REPLACE_ME_ISO8601"
+  }
+}

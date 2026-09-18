@@ -1,0 +1,46 @@
+{
+  "name": "smoke-testing",
+  "version": "1.2.0",
+  "type": "nested-skill",
+  "purpose": "Read-only, evidence-based, fingerprint-aware backend/frontend/integration/E2E aliveness checks with regex-driven stack/route discovery, a persistent dependency-aware TODO, an append-only audit trail, and a formal change-approval gate before any codebase modification.",
+  "invariant": "READ-ONLY toward the application codebase, config, dependencies, schema, migrations, env files, and deployment/CI config unless the user explicitly approves a named change per change request. Freely creates/updates only within the project's .smoke-test/ directory (Zone A). Never infers approval from silence, an unrelated prior approval, or a change merely looking safe.",
+  "levels": [
+    "0: discovery (stack, routes, DB technology, config-mismatch checks, TODO build/refresh)",
+    "1: backend (health, readiness/DB, auth, core business flow, error-handling sanity)",
+    "2: frontend (app load, critical routes, critical elements, one basic interaction)",
+    "3: integration (real frontend -> real backend -> real DB, one critical workflow)",
+    "4: critical E2E (the 1-3 workflows the user names as most important)"
+  ],
+  "invocationContract": {
+    "calledBy": "parent orchestrator (e.g. testing-audit-debugging-protocol, only after audit-report approval), or directly by the user",
+    "expectsInput": [
+      "projectRoot",
+      "scope: backend | frontend | integration | full",
+      "optional: approvedAuditReport reference, if invoked from an orchestrator"
+    ],
+    "producesOutput": [
+      ".smoke-test/smoke-config.json (created/merged on bootstrap)",
+      ".smoke-test/smoke-state.json (discovery cache, fingerprints, change_requests)",
+      ".smoke-test/smoke-todo.json (persistent, dependency-aware checklist)",
+      ".smoke-test/audit.jsonl (append-only action log)",
+      ".smoke-test/reports/latest.{md,json} and reports/history/<run_id>.{md,json}",
+      ".smoke-test/evidence/{backend,frontend,e2e}/"
+    ]
+  },
+  "hardConstraints": [
+    "never modifies application source code, migrations, or run configs without an explicit, named approval per change request (see references/change-control.md)",
+    "never infers approval from silence, a prior unrelated approval, or a change merely looking safe",
+    "always distinguishes FAIL (ran, didn't pass) from BLOCKED (couldn't meaningfully run) from AWAITING_USER (fix proposed, decision pending)",
+    "never deletes or rewrites prior reports/history/ entries or audit.jsonl lines",
+    "never runs destructive/write core-flow checks unless smoke-config.json's test_environment.allow_writes is explicitly true, and then only against the configured smoke-test fixture account",
+    "re-validates 'passed' TODO items via fingerprint comparison before trusting them on a subsequent run"
+  ],
+  "filesCreatedInProject": [
+    {"path": ".smoke-test/smoke-config.json", "why": "scope/endpoints/routes/auth and the write-safety gate, so runs are repeatable without re-asking every time"},
+    {"path": ".smoke-test/smoke-state.json", "why": "discovery cache + fingerprints for staleness detection + the authoritative change-request log"},
+    {"path": ".smoke-test/smoke-todo.json", "why": "persistent, dependency-aware checklist so state survives across sessions and interruptions"},
+    {"path": ".smoke-test/audit.jsonl", "why": "append-only trail proving no MODIFY/DELETE happened without a preceding approval"},
+    {"path": ".smoke-test/reports/*", "why": "human- and machine-readable audit trail of every run, live and final, with full history retained"}
+  ],
+  "orchestratorNotes": "When invoked by a parent orchestrator, read its approved audit report first and run only what it asked for, but still write to .smoke-test/ and audit.jsonl in the standard shape described above so the orchestrator can aggregate results rather than needing a bespoke output format. This skill's own definition (skills/smoke-testing/) never gets project-specific results written into it — see references/state-management.md 'Skill vs project separation'."
+}

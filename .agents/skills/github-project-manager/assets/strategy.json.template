@@ -1,0 +1,13 @@
+{
+  "strategy": "REPLACE_ME_e.g._feature-developer-production",
+  "reason": [
+    "REPLACE_ME — why this strategy fits this repo"
+  ],
+  "branches": {
+    "development": "REPLACE_ME",
+    "production": "REPLACE_ME"
+  },
+  "feature_branches": { "enabled": true, "pattern": "feature/*" },
+  "hotfix_branches": { "enabled": true, "pattern": "hotfix/*" },
+  "release_branches": { "enabled": false }
+}

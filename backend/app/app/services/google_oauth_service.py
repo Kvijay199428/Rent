@@ -1,7 +1,9 @@
 import json
+import os
 import uuid
 from datetime import datetime
 
+import requests
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 
@@ -20,14 +22,46 @@ from app.database.landlord_repository import (
 )
 
 GOOGLE_CLIENT_ID: str | None = None
+GOOGLE_CLIENT_SECRET: str | None = None
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 
 
 def _get_client_id() -> str:
     global GOOGLE_CLIENT_ID
     if GOOGLE_CLIENT_ID is None:
-        import os
         GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
     return GOOGLE_CLIENT_ID
+
+
+def _get_client_secret() -> str:
+    global GOOGLE_CLIENT_SECRET
+    if GOOGLE_CLIENT_SECRET is None:
+        GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+    return GOOGLE_CLIENT_SECRET
+
+
+def _exchange_code_for_id_token(code: str) -> str:
+    client_id = _get_client_id()
+    client_secret = _get_client_secret()
+    if not client_secret:
+        raise ValueError("GOOGLE_CLIENT_SECRET is not configured")
+    resp = requests.post(
+        GOOGLE_TOKEN_URL,
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "grant_type": "authorization_code",
+            "redirect_uri": "postmessage",
+        },
+        timeout=15,
+    )
+    if resp.status_code != 200:
+        raise ValueError("Google authorization code exchange failed")
+    id_token = resp.json().get("id_token")
+    if not id_token:
+        raise ValueError("Google token response did not include an id_token")
+    return id_token
 
 
 def verify_google_token(credential: str) -> dict | None:
@@ -43,7 +77,8 @@ def verify_google_token(credential: str) -> dict | None:
         return None
 
 
-def google_login(credential: str, remember_me: bool, request, response):
+def google_login(code: str, remember_me: bool, request, response):
+    credential = _exchange_code_for_id_token(code)
     info = verify_google_token(credential)
     if info is None:
         raise ValueError("Invalid Google credential")

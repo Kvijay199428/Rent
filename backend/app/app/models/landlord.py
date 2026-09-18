@@ -35,7 +35,7 @@ class LandlordLoginWithTotpRequest(BaseModel):
 
 
 class LandlordGoogleRequest(BaseModel):
-    credential: str
+    code: str
     rememberMe: bool = False
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the frontend and deploy the static bundle to Cloudflare Pages (release).
+# Build the frontend and deploy the static bundle to Cloudflare Pages (production).
 #
 # Usage:
 #   ./deploy/deploy-cloudflare-pages.sh
@@ -24,9 +24,9 @@ command -v npx >/dev/null || { echo "npx not found" >&2; exit 1; }
 echo "=== Building frontend (VITE_API_BASE_URL=$VITE_API_BASE_URL) ==="
 bash build.sh
 
-echo "=== Deploying to Cloudflare Pages ($PROJECT, branch: release) ==="
+echo "=== Deploying to Cloudflare Pages ($PROJECT, branch: production) ==="
 npx wrangler pages deploy build-output \
   --project-name="$PROJECT" \
-  --branch=release
+  --branch=production
 
 echo "=== Deploy complete ==="

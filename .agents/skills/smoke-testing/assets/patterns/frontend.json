@@ -1,0 +1,16 @@
+{
+  "framework_detection": {
+    "react": "(?i)\\b(react|createRoot|ReactDOM|jsx|tsx)\\b",
+    "vite": "(?i)\\b(vite|vite\\.config\\.(js|ts|mjs))\\b",
+    "nextjs": "(?i)\\b(next|next\\.config\\.(js|ts|mjs))\\b",
+    "vue": "(?i)\\b(vue|createApp|\\.vue)\\b",
+    "angular": "(?i)\\b(@angular/core|ngOnInit|angular\\.json)\\b"
+  },
+  "route_discovery": {
+    "react_router_jsx": "(?i)<Route\\b[^>]*\\bpath\\s*=\\s*[\"'][^\"']+[\"']",
+    "react_router_object": "(?i)\\bpath\\s*:\\s*[\"'][^\"']+[\"']"
+  },
+  "api_call_discovery": {
+    "js_ts": "(?i)\\b(fetch|axios\\.(get|post|put|patch|delete)|api\\.(get|post|put|patch|delete))\\s*\\("
+  }
+}

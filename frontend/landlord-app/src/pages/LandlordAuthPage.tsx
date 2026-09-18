@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { useGoogleLogin, type CredentialResponse } from "@react-oauth/google";
+import { useGoogleLogin } from "@react-oauth/google";
 import { ArrowLeft, KeyRound, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthLayout from "@/components/layout/AuthLayout";
@@ -182,16 +182,16 @@ export default function LandlordAuthPage({ defaultTab = "login" }: LandlordAuthP
   };
 
   const googleSignIn = useGoogleLogin({
-    flow: "implicit",
-    onSuccess: async (tokenResponse) => {
+    flow: "auth-code",
+    onSuccess: async (codeResponse) => {
       startLoading("Signing in…");
       try {
-        const credential = (tokenResponse as CredentialResponse).credential;
-        if (!credential) {
+        const code = codeResponse.code;
+        if (!code) {
           setError("Google authentication failed");
           return;
         }
-        const result = await googleAuth(credential, rememberMe);
+        const result = await googleAuth(code, rememberMe);
 
         if (result.status === "failed") {
           setError(result.message || "Google authentication failed");

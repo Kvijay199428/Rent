@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "project": { "name": "" },
+  "mode": { "read_only": true, "require_change_approval": true },
+  "components": { "backend": true, "frontend": true, "integration": true },
+  "backend": { "base_url": "http://localhost:8000", "health_endpoints": ["/health", "/ready"] },
+  "frontend": { "base_url": "http://localhost:5173" },
+  "test_environment": {
+    "allow_writes": false,
+    "allow_destructive_operations": false,
+    "smoke_test_account": null,
+    "smoke_test_fixture_prefix": "SMOKE_TEST_"
+  },
+  "reporting": { "retain_history": true, "evidence": true }
+}

@@ -1,8 +1,8 @@
-name: Deploy Frontend to Cloudflare Pages (release)
+name: Deploy Frontend to Cloudflare Pages (production)
 
 on:
   push:
-    branches: [release]
+    branches: [production]
     paths:
       - 'frontend/**'
       - 'wrangler.toml'
@@ -43,4 +43,4 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: frontend/build-output
           wranglerVersion: "3.90.0"
-          command: pages deploy . --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME || 'rent' }} --branch=release
+          command: pages deploy . --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME || 'rent' }} --branch=production

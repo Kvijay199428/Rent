@@ -1,0 +1,13 @@
+{
+  "repository": {
+    "owner": "Kvijay199428",
+    "name": "Rent",
+    "remote": "origin",
+    "url": "https://github.com/Kvijay199428/Rent.git",
+    "default_branch": "dev"
+  },
+  "management": {
+    "managed_by": "github-project-manager",
+    "initialized_at": "2026-09-18T12:00:00+05:30"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "last_run_id": null,
+  "last_run_at": null,
+  "discovery": {
+    "stack": {},
+    "backend_routes": [],
+    "frontend_routes": [],
+    "dependency_map": []
+  },
+  "coarse_fingerprints": {
+    "dependencies": { "files": [], "hash": null, "computed_at": null },
+    "infra": { "files": [], "hash": null, "computed_at": null },
+    "database_schema": { "files": [], "hash": null, "computed_at": null }
+  },
+  "change_requests": []
+}

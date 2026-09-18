@@ -1,0 +1,14 @@
+{
+  "framework_detection": {
+    "fastapi": "(?i)\\b(FastAPI|APIRouter|uvicorn)\\b",
+    "flask": "(?i)\\b(Flask|Blueprint)\\b",
+    "django": "(?i)\\b(Django|urlpatterns|APIView)\\b",
+    "spring": "(?i)\\b(SpringBootApplication|RestController|RequestMapping|SpringApplication)\\b",
+    "express": "(?i)\\b(express\\(|Router\\(|app\\.(get|post|put|patch|delete)\\()\\b"
+  },
+  "route_discovery": {
+    "python": "(?i)@\\s*(app|router)\\.(get|post|put|patch|delete)\\s*\\(",
+    "java": "(?i)@(GetMapping|PostMapping|PutMapping|PatchMapping|DeleteMapping|RequestMapping)",
+    "express": "(?i)\\b(app|router)\\.(get|post|put|patch|delete)\\s*\\("
+  }
+}

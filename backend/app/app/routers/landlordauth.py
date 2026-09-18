@@ -129,7 +129,7 @@ async def landlord_google(
     """
     from app.services.google_oauth_service import google_login
     try:
-        result = google_login(payload.credential, payload.rememberMe, request, response)
+        result = google_login(payload.code, payload.rememberMe, request, response)
         return result
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))

@@ -1,0 +1,46 @@
+version: 1
+
+repository:
+  remote: origin
+
+strategy:
+  mode: auto   # or "manual" if the user wants to control strategy re-evaluation themselves
+
+branches:
+  development: dev
+  production: production
+
+features:
+  enabled: true
+  pattern: "feature/*"
+
+bugfix:
+  enabled: true
+  pattern: "bugfix/*"
+
+hotfix:
+  enabled: true
+  pattern: "hotfix/*"
+
+testing:
+  required_before_commit: false
+  required_before_production_merge: true
+
+commit:
+  require_confirmation: true
+
+push:
+  require_confirmation: true
+
+merge:
+  require_confirmation: true
+  preferred_method: pull_request   # pull_request | direct | squash | rebase
+
+release:
+  tag_pattern: "vMAJOR.MINOR.PATCH"
+  require_confirmation: true
+
+safety:
+  allow_force_push: false
+  allow_history_rewrite: false
+  allow_branch_delete: false

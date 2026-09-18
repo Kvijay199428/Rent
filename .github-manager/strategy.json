@@ -1,0 +1,16 @@
+{
+  "strategy": "developer-production",
+  "reason": [
+    "Explicit owner request: organize the repository around a developer and a production branch",
+    "deploy.py / self-pull.sh / workflows are branch-aware: --dev deploys the 'dev' branch, --prod deploys the 'production' branch",
+    "Legacy 'main' (production content) and 'release' branches are being retired",
+    "Both 'dev' and 'production' were created from the local state of 'main' at df6264b (the agreed creation point)"
+  ],
+  "branches": {
+    "development": "dev",
+    "production": "production"
+  },
+  "feature_branches": { "enabled": true, "pattern": "feature/*" },
+  "hotfix_branches": { "enabled": true, "pattern": "hotfix/*" },
+  "release_branches": { "enabled": false }
+}
