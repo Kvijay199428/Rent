@@ -4,7 +4,7 @@
     "name": "Rent",
     "remote": "origin",
     "url": "https://github.com/Kvijay199428/Rent.git",
-    "default_branch": "dev"
+    "default_branch": "main"
   },
   "management": {
     "managed_by": "github-project-manager",

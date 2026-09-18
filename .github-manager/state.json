@@ -1,8 +1,8 @@
 {
   "current_branch": "dev",
-  "working_tree": "clean",
-  "head": "19f49ad",
-  "ahead": 1,
+  "working_tree": "dirty",
+  "head": "d913c0d",
+  "ahead": 0,
   "behind": 0,
   "testing": {
     "status": "PASSED",

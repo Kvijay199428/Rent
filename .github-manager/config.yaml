@@ -7,8 +7,9 @@ strategy:
   mode: auto   # or "manual" if the user wants to control strategy re-evaluation themselves
 
 branches:
-  development: dev
-  production: production
+  development: dev          # alpha — developer branch, initial build for development
+  production: production    # beta — production-grade, candidate for release after bug fixes
+  release: main             # release — final release branch
 
 features:
   enabled: true

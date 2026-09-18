@@ -138,15 +138,16 @@ or from GitHub Actions.
 
 | Flags | Deploys | Example |
 |-------|---------|---------|
-| `--dev` | Development branch (`dev`) via `compose.dev.yml` + `.env.development`, ngrok | `python3 deploy.py --dev --sshPublic` |
-| `--prod` | Production branch (`production`) via `deploy/deploy-release.sh` | `python3 deploy.py --prod --sshPublic` |
+| `--dev` | Alpha / developer branch (`dev`) via `compose.dev.yml` + `.env.development`, ngrok | `python3 deploy.py --dev --sshPublic` |
+| `--prod` | Beta / production-grade branch (`production`) via `deploy/deploy-release.sh` | `python3 deploy.py --prod --sshPublic` |
+| `--release` | Release branch (`main`) via `deploy/deploy-release.sh` | `python3 deploy.py --release --sshPublic` |
 
 Existing flags still work: `--local`, `--sshLocal`, `--sshPublic`, `--clean`
-(dev only — refused for prod), `--no-build`. No env flag given defaults to
-`--dev`. An explicit `--dev`/`--prod` with no transport flag defaults to running
-locally on the server (self-pull of that `dev`/`production` branch); combine
-them with `--sshLocal`/`--sshPublic` to push from a machine instead. For manual
-push deploys, `DEPLOY_PASSWORD` (server password, default `1010`) overrides the
+(dev only — refused for prod/release), `--no-build`. No env flag given defaults to
+`--dev`. An explicit `--dev`/`--prod`/`--release` with no transport flag defaults
+to running locally on the server (self-pull of that branch); combine them with
+`--sshLocal`/`--sshPublic` to push from a machine instead. For manual push
+deploys, `DEPLOY_PASSWORD` (server password, default `1010`) overrides the
 embedded password.
 
 Deploy writes `deploy/ports.env` from `deploy/ports.py` before provisioning the
@@ -254,13 +255,14 @@ The deploy server is behind home NAT — it only has a Tailscale address
 pulls from GitHub and deploys itself using the same `deploy.py`:
 
 ```
-GitHub (dev/production push)
+GitHub (dev/production/main push)
         │
         ▼  git fetch (outbound — always works)
-server systemd timer ──► ./deploy/self-pull.sh dev|production
+server systemd timer ──► ./deploy/self-pull.sh dev|production|release
         │                          │
-             └──► python3 deploy.py --dev (dev)   ──► compose.dev.yml up
-              python3 deploy.py --prod --no-build (production) ──► deploy-release.sh (single slot)
+        │   └──► python3 deploy.py --dev (dev)   ──► compose.dev.yml up
+        │    python3 deploy.py --prod --no-build (production) ──► deploy-release.sh (single slot)
+        └──── python3 deploy.py --release --no-build (release/main) ──► deploy-release.sh (single slot)
 ```
 
 Setup (run once on the server):
@@ -290,14 +292,15 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 EOF
-# same for production (self-pull.sh production)
+# same for production (self-pull.sh production) and release (self-pull.sh release)
 systemctl daemon-reload
-systemctl enable --now rent-deploy-dev.timer rent-deploy-production.timer
+systemctl enable --now rent-deploy-dev.timer rent-deploy-production.timer rent-deploy-release.timer
 ```
 
-Production deploys are gated: `deploy/self-pull.sh production` exits without
-deploying until `/home/vega/rent-secrets/RELEASE_READY` exists. Create it only
-after the cloudflared tunnel ingress has been switched from the legacy
+Production and release deploys are gated: `deploy/self-pull.sh production` /
+`deploy/self-pull.sh release` exit without deploying until
+`/home/vega/rent-secrets/RELEASE_READY` exists. Create it only after the
+cloudflared tunnel ingress has been switched from the legacy
 `propaura_legacy_gateway` (port 80) to `propaura_nginx_gateway_prod`
 (host 28014).
 
@@ -336,7 +339,7 @@ via the self-pull timer.
 
 | Workflow | Trigger | Deploys |
 |----------|---------|---------|
-| server self-pull | push to `dev` or `production` (polled every 2 min by systemd timer) | `deploy.py --dev` (dev → dev stack) or `deploy.py --prod` (production → single-slot prod) |
+| server self-pull | push to `dev`, `production`, or `main` (polled every 2 min by systemd timer) | `deploy.py --dev` (dev → dev stack), `deploy.py --prod` (production → single-slot prod), or `deploy.py --release` (main → single-slot prod) |
 | `deploy-cloudflare-pages.yml` | push to `production` (`frontend/**`) | Build → Cloudflare Pages (branch `production`) |
 | `create-github-release.yml` | tag `v*` | GitHub Release with auto notes |
 
