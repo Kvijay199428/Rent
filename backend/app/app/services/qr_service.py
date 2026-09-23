@@ -46,6 +46,13 @@ MARK_VIEWBOX_HEIGHT = 1566.89
 QR_BRAND_VERSION = 1
 QR_BRAND_VERSION_TAG = "propaura-qr-version"
 
+# Version contract for the tenant portal QR URL scheme (see tenant_qr_payload).
+# Migration 006 added tenants."qrUriVersion" DEFAULT 1 (legacy scheme); this
+# constant is bumped to 2 whenever the canonical QR deep-link shape changes so
+# the QR endpoint can stamp the new generation and landlords get a
+# regenerate-QR notice while any tenant is below it.
+QR_URI_SCHEME_VERSION = 2
+
 BADGE_BORDER_COLOR = "#e5e7eb"
 
 # Fraction of the QR matrix excavated for the lockup (option B: modules
@@ -237,10 +244,16 @@ def build_branded_qr_png(url: str, size: int = 200, internal: bool = False) -> b
 
 
 def tenant_qr_payload(landlord_uuid: str, property_id, tenant_id: int, view_token: str, qr_key: str) -> str:
-    """Canonical tenant portal URL encoded in the QR."""
+    """Canonical tenant portal URL encoded in the QR.
+
+    Scheme: /tenant/{landlordUuid}/QR/{propertyId}/{tenantId}/{viewToken}
+    (the QR marker keeps it distinct from /tenant/login). The QR key stays at
+    the END of the URI — QR-PIN auth and QR feedback bind to it, and the deep
+    link itself must remain stable so a stored QR keeps working.
+    """
     base = (
-        f"{public_app_url()}/{urllib.parse.quote(landlord_uuid)}"
-        f"/t/{int(property_id) if property_id else 0}/{tenant_id}/{urllib.parse.quote(view_token)}"
+        f"{public_app_url()}/tenant/{urllib.parse.quote(landlord_uuid)}"
+        f"/QR/{int(property_id) if property_id else 0}/{tenant_id}/{urllib.parse.quote(view_token)}"
     )
     if qr_key:
         base += f"?qr_key={urllib.parse.quote(qr_key)}"

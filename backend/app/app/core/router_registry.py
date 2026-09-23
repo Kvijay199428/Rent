@@ -15,6 +15,7 @@ from app.api.public import router as public_api_router
 from app.api.health import router as health_api_router
 from app.api.location import router as location_api_router
 from app.api.dashboard import router as dashboard_api_router
+from app.api.notifications import router as notifications_api_router
 from app.api.landlord_setup import router as landlord_setup_router
 from app.routers.auth import router as auth_api_router
 from app.routers.admin_auth import router as admin_auth_router
@@ -41,6 +42,7 @@ PROTECTED_API_ROUTERS = [
     sync_api_router,
     pdf_api_router,
     dashboard_api_router,
+    notifications_api_router,
     landlord_setup_router,
 ]
 

@@ -120,7 +120,7 @@
   },
   "tenant": {
  "pages": {
-  "root": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}",
+  "root": "/tenant/{landlordUuid}/QR/{propertyId}/{tenantId}/{viewToken}",
   "catchAll": "/*"
  },
  "api": {

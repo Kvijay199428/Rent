@@ -106,6 +106,9 @@ class LandlordRoutes:
     LANDLORDAPITENANTSQRKEY = "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr-key"
     LANDLORDAPITENANTSQR = "/landlord/{landlordUuid}/api/tenants/{tenantId}/qr"
 
+    # Landlord API: Notifications (reusable, auth-scoped notice surface)
+    LANDLORDAPINOTIFICATIONS = "/landlord/{landlordUuid}/api/notifications"
+
     # Landlord API: Tenant Recovery Snapshots
     LANDLORDAPITENANTSNAPSHOTS = "/landlord/{landlordUuid}/api/tenant-recovery-snapshots"
     LANDLORDAPITENANTSNAPSHOT_PREVIEW = "/landlord/{landlordUuid}/api/tenant-recovery-snapshots/{snapshotId}/preview"
@@ -291,6 +294,9 @@ class LandlordNames:
     LANDLORDTENANTPORTALAUTH = "landlord_tenant_portal_auth"
     LANDLORDTENANTQRKEY = "landlord_tenant_qr_key"
     LANDLORDTENANTQR = "landlord_tenant_qr"
+
+    # API - Notifications
+    LANDLORDNOTIFICATIONS = "landlord_notifications"
 
 
 class LandlordTemplates:

@@ -109,14 +109,6 @@ _app_prefix("t", TENANT_DIST)
 _app_prefix("tenant", TENANT_DIST)
 
 
-# ─── Tenant portal deep links /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken} ──
-
-@router.get("/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}", include_in_schema=False)
-@router.get("/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/{path:path}", include_in_schema=False)
-async def tenant_deep_link(request: Request, landlordUuid: str, propertyId: str, tenantId: str, viewToken: str, path: str = ""):
-    return _spa_index(TENANT_DIST, request, path)
-
-
 # ─── Catch-all: anything else under / → landing app (prod try_files) ────
 
 @router.get("/{path:path}", include_in_schema=False)

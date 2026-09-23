@@ -15,13 +15,17 @@ export function getTenantRuntime(pathname = window.location.pathname): TenantRun
   const appBase = APP_BASE === "/" ? "" : APP_BASE;
 
   const escapedBase = appBase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`^${escapedBase}/([^/]+)/t/([^/]+)/([^/]+)/([^/]+)`);
+  // Canonical tenant portal URL: /tenant/{landlordUuid}/QR/{propertyId}/{tenantId}/{viewToken}
+  // (the /QR/ marker keeps it distinct from /tenant/login).
+  const re = new RegExp(`^${escapedBase}/tenant/([^/]+)/QR/([^/]+)/([^/]+)/([^/]+)`);
   const match = cleanPath.match(re);
 
   const landlordUuid = match?.[1] ?? null;
   const propertyId = match?.[2] ?? null;
   const tenantId = match?.[3] ?? null;
   const viewToken = match?.[4] ?? null;
+  // The tenant API base stays /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/...
+  // (cookie scope + backend auth), decoupled from the portal path above.
   const tenantBase =
     landlordUuid && propertyId && tenantId && viewToken
       ? `${appBase}/${landlordUuid}/t/${propertyId}/${tenantId}/${viewToken}`

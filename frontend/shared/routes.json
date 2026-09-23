@@ -120,7 +120,7 @@
   },
   "tenant": {
  "pages": {
-  "root": "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}",
+  "root": "/tenant/{landlordUuid}/QR/{propertyId}/{tenantId}/{viewToken}",
   "catchAll": "/*"
  },
  "api": {
@@ -268,6 +268,9 @@
       "audit": {
         "logs": "/landlord/{landlordUuid}/api/audit-logs",
         "actions": "/landlord/{landlordUuid}/api/audit-logs/actions"
+      },
+      "notifications": {
+        "list": "/landlord/{landlordUuid}/api/notifications"
       },
       "setup": {
         "required": "/landlord/api/setup/required",

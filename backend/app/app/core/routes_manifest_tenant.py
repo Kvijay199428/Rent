@@ -1,11 +1,13 @@
 # app/app/core/routes_manifest_tenant.py
 
 class TenantRoutes:
-    # Canonical tenant portal URL: /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}
+    # Canonical tenant portal URL: /tenant/{landlordUuid}/QR/{propertyId}/{tenantId}/{viewToken}
     # The propertyId scopes the tenant link to a specific property (property-first billing).
-    TENANTPAGEROOT = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}"
+    # (Frontend routes base /tenant/*, tenant SPA; /QR/ marker keeps it distinct from /tenant/login.)
+    TENANTPAGEROOT = "/tenant/{landlordUuid}/QR/{propertyId}/{tenantId}/{viewToken}"
 
-    # Tenant API: Auth — paths follow /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/...
+    # Tenant API: paths follow /{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/...
+    # (the API base stays /t/... — it is the cookie scope, decoupled from the portal URL)
     TENANTAPIAUTHPUBLICKEY = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/public-key"
     TENANTAPIAUTHLOGIN = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/login"
     TENANTAPIAUTHREFRESH = "/{landlordUuid}/t/{propertyId}/{tenantId}/{viewToken}/api/auth/refresh"

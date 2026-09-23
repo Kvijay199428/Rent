@@ -215,7 +215,7 @@ export const ROUTES = {
     get ADMINAPISETTINGSDELETESIGNATURE() { return api("admin", "settings", "deleteSignature"); },
 
     // Tenant Pages
-    TENANTPAGEROOT(tenantId: number | string, viewToken: string) { return page("tenant", "root", { tenantId, viewToken }); },
+    TENANTPAGEROOT(landlordUuid: string, propertyId: number | string, tenantId: number | string, viewToken: string) { return page("tenant", "root", { landlordUuid, propertyId, tenantId, viewToken }); },
 
     // Tenant API: Auth
     get TENANTAPIAUTHPUBLICKEY() { return api("tenant", "auth", "publicKey"); },
@@ -362,6 +362,9 @@ export const ROUTES = {
     // Landlord API: Audit Logs
     LANDLORDAPIAUDITLOGS(landlordUuid: string) { return api("landlord", "audit", "logs", { landlordUuid }); },
     LANDLORDAPIAUDITLOGSACTIONS(landlordUuid: string) { return api("landlord", "audit", "actions", { landlordUuid }); },
+
+    // Landlord API: Notifications
+    LANDLORDAPINOTIFICATIONS(landlordUuid: string) { return api("landlord", "notifications", "list", { landlordUuid }); },
 } as const;
 
 export type RoutesType = typeof ROUTES;

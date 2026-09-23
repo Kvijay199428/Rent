@@ -19,6 +19,7 @@ import { isOlderThan12Months } from "@/lib/utils";
 import QrUnlockPage from "@/pages/QrUnlockPage";
 import PortalLoginPage from "@/pages/PortalLoginPage";
 import { getApiBaseUrl } from "@shared/api-config";
+import { getTenantRuntime } from "@/lib/tenant-runtime";
 import { Logo } from "@shared/brand/Logo";
 import type { Receipt, QrTenantProfile } from "@/types";
 
@@ -99,7 +100,7 @@ function TenantPortalInner() {
       return (
         <QrUnlockPage
           tenant={tenant as QrTenantProfile}
-          basePath={window.location.pathname}
+          basePath={getTenantRuntime().tenantBase}
         />
       );
     }
@@ -264,7 +265,7 @@ export default function App() {
         <Route path="/tenant/login" element={<PortalLoginPage />} />
         <Route path="/login" element={<PortalLoginPage />} />
         <Route
-          path="/:landlordUuid/t/:propertyId/:tenantId/:viewToken"
+          path="/tenant/:landlordUuid/QR/:propertyId/:tenantId/:viewToken"
           element={
             <TenantProvider>
               <TenantPortalInner />

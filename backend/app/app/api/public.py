@@ -390,7 +390,7 @@ async def global_tenant_login(request: Request, response: Response, login_req: E
             "property_id": property_id,
             "view_token": view_token,
         },
-        "redirect_url": f"{rootpath}/{landlord_uuid}/t/{property_id}/{tenant_id}/{view_token}",
+        "redirect_url": f"{rootpath}/tenant/{landlord_uuid}/QR/{property_id}/{tenant_id}/{view_token}",
         "reset_required": bool(row["passwordResetRequired"]),
     }
 

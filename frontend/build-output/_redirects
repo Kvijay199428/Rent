@@ -1,0 +1,14 @@
+# SPA rewrite rules (status 200): an unmatched path inside an app serves that
+# app's index.html. Static files always win over _redirects, so /assets/* and
+# /landlord/assets/* /admin/assets/* /t/assets/* still serve the raw assets.
+# This is the durable per-app fallback; build-output/functions/_middleware.js
+# covers the same paths plus the canonical tenant portal URLs
+# (/tenant/{landlordUuid}/QR/{property}/{tenant}/{token}) when Pages Functions
+# are enabled.
+/admin/*      /admin/index.html    200
+/landlord/*   /landlord/index.html 200
+/t/*          /t/index.html        200
+/tenant/*     /t/index.html        200
+# Complete drop: landing app is served at / directly. No root redirect.
+# Old /rent deep links canonicalize to / (also breaks stale cached /rent bodies).
+/rent/*  /  308

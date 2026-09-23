@@ -443,9 +443,19 @@ async def api_tenant_qr(
 
     url = tenant_qr_payload(landlordUuid, row["propertyId"], tenantId, row["viewToken"], row["qrKey"])
     try:
-        qr, fmt, count = build_branded_qr(url, size=size, fmt=format, validate=True)
+        qr, fmt, count = build_branded_qr(url, size=size, fmt=fmt, validate=True)
     except QrBuildError as exc:
         raise HTTPException(status_code=500, detail=str(exc))
+
+    # Stamp this tenant as served under the current QR URL-scheme generation.
+    # Bumps tenants."qrUriVersion" so the landlord notification surface stops
+    # demanding a regenerate notice for this tenant.
+    from app.services.qr_service import QR_URI_SCHEME_VERSION
+    with get_conn() as conn:
+        conn.execute(
+            'UPDATE tenants SET "qrUriVersion" = %s WHERE id = %s',
+            (QR_URI_SCHEME_VERSION, tenantId),
+        )
 
     return {
         "status": "success",

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "include": [
+    "/*"
+  ],
+  "exclude": [
+    "/assets/*",
+    "/admin/assets/*",
+    "/landlord/assets/*",
+    "/t/assets/*",
+    "/*.js",
+    "/*.css",
+    "/*.png",
+    "/*.jpg",
+    "/*.jpeg",
+    "/*.gif",
+    "/*.svg",
+    "/*.ico",
+    "/*.woff2",
+    "/*.woff",
+    "/*.eot",
+    "/*.ttf",
+    "/favicon.ico"
+  ]
+}
