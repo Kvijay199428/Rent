@@ -30,6 +30,8 @@ export function useNotifications(landlordUuid: string | null) {
           (n) => !sessionStorage.getItem(dismissedKey(landlordUuid, n.slug))
         )
       );
+    } catch {
+      console.error("Failed to refresh landlord notifications");
     } finally {
       setLoaded(true);
     }
