@@ -39,6 +39,8 @@ jobs:
         run: |
           cd frontend
           bash build.sh
+        env:
+          VITE_API_BASE_URL: https://endomorphic-semiprotectively-jamaal.ngrok-free.dev
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4

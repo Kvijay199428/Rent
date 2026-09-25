@@ -431,65 +431,15 @@ def provision_frontend_env(env_source):
     print(f"  Provisioned frontend/.env (Google client id set: {bool(client_id)}, API base: '{api_base or '(same-origin)'}')")
 
 
-def build_dev_dists():
-    """Build the dev frontend dists (dist-dev) pointed at the dev API.
-
-    Dev deploys build each app into <app>/dist-dev so the dev router
-    (frontend.py) serves a bundle that calls the DEV API (ngrok tunnel) instead
-    of the prod origin — permanently separating dev calls from prod. Prod
-    dist/ and build-output/ are never touched.
-    """
-    # Read the dev API base from the root .env.development source of truth.
-    dev_env = _load_barsep_env(os.path.join(LOCAL_DIR, ".env.development"))
-    url = (
-        (dev_env.get("VITE_API_BASE_URL") or "").strip()
-        or (dev_env.get("PUBLIC_APP_URL") or "").strip()
-    )
-    if not url:
-        friendly_fail(
-            "Dev frontend build: VITE_API_BASE_URL not found in .env.development.",
-            ["Add VITE_API_BASE_URL (or PUBLIC_APP_URL) to the root .env.development."],
-            EXIT_BUILD,
-        )
-    url = url.rstrip("/")
-
-    print(f"Building dev frontend dists (dist-dev -> dev API: {url})...")
-    check_node_version()
-    for rel_dir in FRONTEND_DIRS:
-        app_dir = os.path.join(LOCAL_DIR, *rel_dir.split("/"))
-        if not os.path.exists(app_dir):
-            print(f"  Skipping {rel_dir} (not found)")
-            continue
-        print(f"  Building {rel_dir} (dev)...")
-        build_env = dict(os.environ)
-        # Explicit process.env var takes highest priority in Vite and overrides
-        # .env.production; outDir goes to dist-dev so prod dist/ is untouched.
-        build_env["VITE_API_BASE_URL"] = url
-        result = subprocess.run(
-            "npm install && npx vite build --outDir dist-dev",
-            cwd=app_dir,
-            shell=True,
-            env=build_env,
-        )
-        if result.returncode != 0:
-            if args.debug:
-                traceback.print_exc()
-            friendly_fail(
-                f"Dev frontend build failed for {rel_dir}.",
-                ["Fix the build error shown above, then re-run."],
-                EXIT_BUILD,
-            )
-
-
 def build_frontends():
+    if env != ENV_PROD:
+        print("Skipping frontend builds (dev frontend is hosted on Cloudflare Pages).")
+        return
     if args.no_build:
         print("Skipping frontend builds (--no-build).")
         return
     if scope not in ("all", "frontend"):
         print(f"Skipping frontend builds (scope: {scope}).")
-        return
-    if env == ENV_DEV:
-        build_dev_dists()
         return
     check_node_version()
     print("Building frontend applications...")

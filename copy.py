@@ -20,7 +20,7 @@ SOURCE_FILES = ["**"]
 
 # Files that are never embedded regardless of type. Matched with fnmatch
 # against the repo-relative path and the basename.
-#  - Secrets: env files (except *.example), keys, cookies, ngrok auth.
+#  - Secrets: env files (except *.example), keys, cookies.
 #  - Generated artifacts: logs, lockfiles, TS build info, empty markers.
 #  - rent.md (self) and update.zip (the deploy bundle) avoid recursion/dupes.
 EXCLUDE_FILES = [
@@ -29,7 +29,6 @@ EXCLUDE_FILES = [
     "*.pem",
     "*.key",
     "cookies.txt",
-    "ngrok.auth.yml",
     "*.log",
     "package-lock.json",
     "*.tsbuildinfo",

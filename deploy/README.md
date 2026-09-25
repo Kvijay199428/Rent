@@ -39,10 +39,11 @@ Canonical ports are single-sourced in `deploy/ports.py` and regenerated into
 | Storage    | 28003 → 28003 (expose)  | 28012 → 28012 (expose only)|
 | Database   | 28004 → 28004 (expose)  | 28013 → 28013 (expose only)|
 | Edge       | 28005 → 28005 (dev nginx) | 28014 → 28014 (nginx_gateway) |
-| ngrok dash | 28006 → 4040 (profile)  | —                          |
 
 PostgreSQL and storage are expose-only (never published to the host); only the
-edge (and backend in dev) get host-published ports.
+edge (and backend in dev) get host-published ports. The dev ngrok tunnel has no
+compose service or reserved host port — it is the account's reserved URL served
+by the systemd-hosted agent on the server (see "What `--dev` runs" below).
 
 ## Required Docker network
 
@@ -66,8 +67,11 @@ cp .env.development.example .env.development
   `RENT_PG*`/`POSTGRES_*` for PostgreSQL (`propaura_database_prod`).
 - `.env.development` — `APP_ENV=development`, `SERVE_FRONTEND=false` (both envs
   are API-only by default), `ENABLE_SWAGGER=true`, separate secrets, same
-  `RENT_PG*`/`POSTGRES_*` against `propaura_database_dev`, plus the ngrok auth
-  token and `NGROK_API_BASE_URL`.
+  `RENT_PG*`/`POSTGRES_*` against `propaura_database_dev`. Dev differs only in
+  `PUBLIC_APP_URL=https://dev.rent-8rf.pages.dev` (frontend origin for
+  share/WhatsApp/QR links) and `VITE_API_BASE_URL` = the server's reserved ngrok
+  URL (the dev API origin). The ngrok agent itself runs as a systemd service on
+  the server — no `NGROK_*` vars are needed in the env file.
 
 **Never** share JWT/pin-vault secrets between the two files. Generate unique ones:
 
@@ -112,8 +116,9 @@ Notes for the audit:
   (`origin_mismatch`). Required origins today:
   - `https://app.vijaykrsha.online` (release landlord/admin SPA)
   - `https://rent.vijaykrsha.online` (public frontend)
-  - `https://endomorphic-semiprotectively-jamaal.ngrok-free.dev` (dev ngrok
-    tunnel; must be re-added if the tunnel domain ever changes)
+  - `https://dev.rent-8rf.pages.dev` (dev frontend, Cloudflare Pages `dev`
+    branch; the ngrok URL serves only the API, never a page, so it is not a
+    JS origin)
   - http://localhost:3000 / other local Vite origins for local development
 - **`VITE_GOOGLE_CLIENT_ID` is not a secret** and is committed in
   `frontend/landlord-app/.env.example`; `GOOGLE_CLIENT_SECRET` is gitignored
@@ -211,21 +216,15 @@ no page router, so the dev edge nginx returns a strict `404` for every page path
 (`/t/`, `/tenant/...`, `/landlord/...`, `/admin/`, `/`) and only proxies
 API/health/static/tenant-portal-API paths to `propaura_backend_dev`.
 
-The dev ngrok tunnel on the server is the **systemd-hosted** agent
+The dev ngrok tunnel is the **systemd-hosted** agent on the server
 (`ngrok.service`, `/home/vega/.config/ngrok/ngrok.yml`) — it owns the account's
 reserved URL and is repointed to `http://localhost:28005` (the dev edge nginx,
-not the backend directly — the edge routes API vs 404 for pages). The docker
-`ngrok` service is behind the `ngrok` compose profile (avoids a
-port/URL clash):
+not the backend directly — the edge routes API vs 404 for pages). No compose
+`ngrok` service exists; the tunnel is purely infrastructure on the server.
 
-```bash
-# only where no host ngrok exists (e.g. a laptop):
-docker compose --env-file .env.development -f compose.dev.yml --profile ngrok up -d
-# dashboard: http://localhost:28006
-```
-
-Copy the tunnel URL into `NGROK_API_BASE_URL` and `VITE_API_BASE_URL` in
-`.env.development` and redeploy to apply.
+Copy the tunnel URL into `VITE_API_BASE_URL` (and it's the same value the server
+env uses as the external dev API origin) in `.env.development` and redeploy to
+apply.
 
 ### What `--prod` runs
 
