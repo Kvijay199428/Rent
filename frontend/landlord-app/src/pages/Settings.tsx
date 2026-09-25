@@ -56,7 +56,7 @@ import {
 } from 'lucide-react';
 
 export default function Settings() {
-  const { landlordUuid, hasTotp, totpEnabled, refreshMe } = useAuth();
+  const { landlordUuid, totpEnabled, refreshMe } = useAuth();
   const whatsappTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [whatsappEditMode, setWhatsappEditMode] = useState(false);
   const uiShouldSaveRef = useRef(false);
@@ -76,6 +76,10 @@ export default function Settings() {
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrData, setQrData] = useState<{ secret: string, qr_code_base64: string } | null>(null);
   const [qrLoading, setQrLoading] = useState(false);
+  const [totpSetupMode, setTotpSetupMode] = useState(false);
+  const [verifyCode, setVerifyCode] = useState('');
+  const [verifyError, setVerifyError] = useState('');
+  const [verifying, setVerifying] = useState(false);
   const [props, setProps] = useState<Property[]>([]);
   const [propsSaving, setPropsSaving] = useState(false);
   const [propsAddr, setPropsAddr] = useState<Record<string, StructuredAddress>>({});
@@ -324,6 +328,7 @@ export default function Settings() {
       const data = await api.getTotpQr(landlordUuid!);
       setQrData(data.totp);
       if (data.totp) {
+        setTotpSetupMode(false);
         setQrModalOpen(true);
       } else {
         toast.error('TOTP secret not found. Please contact your administrator.');
@@ -332,6 +337,29 @@ export default function Settings() {
       toast.error('Failed to load TOTP QR code');
     } finally {
       setQrLoading(false);
+    }
+  };
+
+  const handleVerifyTotp = async () => {
+    if (!landlordUuid) return;
+    if (!verifyCode.trim() || verifyCode.trim().length !== 6) {
+      setVerifyError('Enter the 6-digit code from your authenticator app.');
+      return;
+    }
+    setVerifying(true);
+    setVerifyError('');
+    try {
+      await api.verifyTotpEnable(landlordUuid, verifyCode.trim());
+      await refreshMe();
+      setQrModalOpen(false);
+      setQrData(null);
+      setTotpSetupMode(false);
+      setVerifyCode('');
+      toast.success('TOTP enabled successfully');
+    } catch {
+      setVerifyError('Invalid TOTP code. Please try again.');
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -969,9 +997,7 @@ export default function Settings() {
                   <p className="text-sm text-muted-foreground">
                     {totpEnabled
                       ? "TOTP is active. You must enter a verification code after your password to login."
-                      : hasTotp
-                        ? "Enable TOTP to require a verification code after your password for login."
-                        : "Contact your platform administrator to configure TOTP for your account."}
+                      : "Enable TOTP to require a verification code after your password for login."}
                   </p>
                 </div>
                 <div className="flex items-center gap-4">
@@ -979,7 +1005,7 @@ export default function Settings() {
                     variant="outline"
                     size="sm"
                     onClick={handleShowTotpQr}
-                    disabled={qrLoading || !totpEnabled || !hasTotp}
+                    disabled={qrLoading || !totpEnabled}
                     title={!totpEnabled ? "Enable TOTP first to view QR code." : ""}
                   >
                     <QrCode className="h-4 w-4 mr-2" />
@@ -988,7 +1014,6 @@ export default function Settings() {
                   <Switch
                     id="admin-totp-required"
                     checked={totpEnabled}
-                    disabled={!hasTotp}
                     onCheckedChange={async (v) => {
                       if (!landlordUuid) return;
                       try {
@@ -996,15 +1021,19 @@ export default function Settings() {
                           const result = await api.enableTotp(landlordUuid);
                           if (result.totp) {
                             setQrData(result.totp);
+                            setVerifyCode('');
+                            setVerifyError('');
+                            setTotpSetupMode(true);
                             setQrModalOpen(true);
                           }
                         } else {
                           await api.disableTotp(landlordUuid);
                           setQrData(null);
+                          setTotpSetupMode(false);
                         }
                         await refreshMe();
                       } catch {
-                        toast.error(v ? 'Failed to enable TOTP' : 'Failed to disable TOTP');
+                        toast.error(v ? 'Failed to prepare TOTP setup' : 'Failed to disable TOTP');
                       }
                     }}
                   />
@@ -1139,9 +1168,11 @@ export default function Settings() {
       <Dialog open={qrModalOpen} onOpenChange={setQrModalOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Admin TOTP Settings</DialogTitle>
+            <DialogTitle>Two-Factor Authentication (TOTP)</DialogTitle>
             <DialogDescription>
-              Scan this QR code with your authenticator app (like Google Authenticator or Authy).
+              {totpSetupMode
+                ? "Scan this QR code with your authenticator app (like Google Authenticator or Authy), then enter the 6-digit code to activate TOTP."
+                : "Scan this QR code with your authenticator app (like Google Authenticator or Authy)."}
             </DialogDescription>
           </DialogHeader>
           {qrData ? (
@@ -1158,18 +1189,50 @@ export default function Settings() {
                   If you cannot scan the QR code, manually enter this secret key into your app.
                 </p>
               </div>
+              {totpSetupMode && (
+                <div className="w-full space-y-2">
+                  <Label htmlFor="totp-verify-code">Verification Code</Label>
+                  <Input
+                    id="totp-verify-code"
+                    value={verifyCode}
+                    onChange={(e) => {
+                      setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6));
+                      setVerifyError('');
+                    }}
+                    placeholder="Enter 6-digit code"
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoComplete="one-time-code"
+                  />
+                  {verifyError && (
+                    <p className="text-sm text-destructive">{verifyError}</p>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8 space-y-3">
               <QrCode className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
               <p className="text-muted-foreground font-medium">TOTP is not configured</p>
-              <p className="text-sm text-muted-foreground">
-                Contact your platform administrator to enable two-factor authentication for your account.
-              </p>
             </div>
           )}
           <DialogFooter>
-            <Button onClick={() => setQrModalOpen(false)}>Close</Button>
+            {totpSetupMode ? (
+              <div className="flex w-full gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => { setQrModalOpen(false); setTotpSetupMode(false); setQrData(null); }}
+                >
+                  Cancel
+                </Button>
+                <Button className="flex-1" onClick={handleVerifyTotp} disabled={verifying}>
+                  {verifying ? 'Activating...' : 'Activate TOTP'}
+                </Button>
+              </div>
+            ) : (
+              <Button onClick={() => setQrModalOpen(false)}>Close</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

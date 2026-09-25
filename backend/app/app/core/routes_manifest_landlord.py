@@ -50,6 +50,7 @@ class LandlordRoutes:
     LANDLORDAPITOTPQR = "/landlord/{landlordUuid}/api/totp/qr"
     LANDLORDAPITOTPREGENERATE = "/landlord/{landlordUuid}/api/totp/regenerate"
     LANDLORDAPITOTPENABLE = "/landlord/{landlordUuid}/api/totp/enable"
+    LANDLORDAPITOTPVERIFY = "/landlord/{landlordUuid}/api/totp/verify"
     LANDLORDAPITOTPDISABLE = "/landlord/{landlordUuid}/api/totp/disable"
 
     # Landlord API: Audit Logs
@@ -308,6 +309,7 @@ class LandlordNames:
     LANDLORDTOTPQR = "landlord_totp_qr"
     LANDLORDTOTPREGENERATE = "landlord_totp_regenerate"
     LANDLORDTOTPENABLE = "landlord_totp_enable"
+    LANDLORDTOTPVERIFY = "landlord_totp_verify"
     LANDLORDTOTPDISABLE = "landlord_totp_disable"
     LANDLORDAUDITLOGS = "landlord_audit_logs"
     LANDLORDAUDITLOGSACTIONS = "landlord_audit_logs_actions"

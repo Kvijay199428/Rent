@@ -382,6 +382,7 @@ export const ROUTES = {
     LANDLORDAPITOTPQR(landlordUuid: string) { return api("landlord", "totp", "qr", { landlordUuid }); },
     LANDLORDAPITOTPREGENERATE(landlordUuid: string) { return api("landlord", "totp", "regenerate", { landlordUuid }); },
     LANDLORDAPITOTPENABLE(landlordUuid: string) { return api("landlord", "totp", "enable", { landlordUuid }); },
+    LANDLORDAPITOTPVERIFY(landlordUuid: string) { return api("landlord", "totp", "verify", { landlordUuid }); },
     LANDLORDAPITOTPDISABLE(landlordUuid: string) { return api("landlord", "totp", "disable", { landlordUuid }); },
 
     // Landlord API: Audit Logs

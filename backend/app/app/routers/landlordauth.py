@@ -1398,30 +1398,69 @@ async def landlord_totp_enable(
     principal=Depends(get_current_landlord_api),
 ):
     """
-    Enable TOTP for the authenticated landlord.
-    Generates a TOTP secret if one doesn't exist.
-    Returns QR code and secret for the landlord to scan.
+    Prepare TOTP for the authenticated landlord.
+    Generates a TOTP secret if one doesn't exist and returns the QR code.
+    TOTP is not activated until the landlord verifies a 6-digit code.
     """
     landlord = get_landlord_by_uuid(landlordUuid)
     if not landlord:
         raise HTTPException(status_code=404, detail="Landlord not found.")
-
-    now = datetime.utcnow().isoformat()
 
     if not landlord["totpSecret"]:
         new_secret = regenerate_landlord_totp_secret(landlord["id"])
     else:
         new_secret = landlord["totpSecret"]
 
+    landlord = get_landlord_by_uuid(landlordUuid)
+    qr_base64 = generate_totp_qr_base64(landlord["username"], new_secret)
+
+    return {
+        "status": "success",
+        "message": "Scan the QR code, then enter the 6-digit code to enable TOTP.",
+        "totp": {
+            "secret": new_secret,
+            "qr_code_base64": qr_base64,
+            "provisioning_uri": get_totp_uri(landlord["username"], new_secret),
+        },
+    }
+
+
+@router.post(Routes.LANDLORDAPITOTPVERIFY, name=Names.LANDLORDTOTPVERIFY)
+async def landlord_totp_verify(
+    landlordUuid: str,
+    request: Request,
+    principal=Depends(get_current_landlord_api),
+):
+    """
+    Verify the 6-digit TOTP code and activate TOTP for the landlord.
+    """
+    landlord = get_landlord_by_uuid(landlordUuid)
+    if not landlord:
+        raise HTTPException(status_code=404, detail="Landlord not found.")
+
+    if not landlord["totpSecret"]:
+        raise HTTPException(status_code=400, detail="TOTP setup is required. Enable TOTP to generate a QR code first.")
+
+    body: dict = await request.json()
+    code = str((body or {}).get("code", "")).strip()
+    if not code:
+        raise HTTPException(status_code=400, detail="TOTP code is required.")
+
+    if not verify_totp(landlord["totpSecret"], code):
+        create_landlord_audit_log(
+            landlord["id"],
+            "totp_verify_failed",
+            ip_address=None,
+        )
+        raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
+
+    now = datetime.utcnow().isoformat()
     with get_conn() as conn:
         conn.execute(
             "UPDATE \"landlordAccounts\" SET \"totpEnabled\" = 1, \"updatedAt\" = %s WHERE id = %s",
             (now, landlord["id"]),
         )
         conn.commit()
-
-    landlord = get_landlord_by_uuid(landlordUuid)
-    qr_base64 = generate_totp_qr_base64(landlord["username"], new_secret)
 
     # Broadcast TOTP state change
     try:
@@ -1440,11 +1479,6 @@ async def landlord_totp_enable(
     return {
         "status": "success",
         "message": "TOTP enabled successfully.",
-        "totp": {
-            "secret": new_secret,
-            "qr_code_base64": qr_base64,
-            "provisioning_uri": get_totp_uri(landlord["username"], new_secret),
-        },
     }
 
 

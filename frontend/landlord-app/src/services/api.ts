@@ -413,6 +413,16 @@ export const api = {
     return res.json();
   },
 
+  verifyTotpEnable: async (landlordUuid: string, code: string): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPITOTPVERIFY(landlordUuid), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    if (!res.ok) throw new Error('Failed to verify TOTP code');
+    return res.json();
+  },
+
   disableTotp: async (landlordUuid: string): Promise<{ status: string }> => {
     const res = await fetchWithAuth(ROUTES.LANDLORDAPITOTPDISABLE(landlordUuid), { method: "POST" });
     if (!res.ok) throw new Error('Failed to disable TOTP');

@@ -283,6 +283,7 @@
         "qr": "/landlord/{landlordUuid}/api/totp/qr",
         "regenerate": "/landlord/{landlordUuid}/api/totp/regenerate",
         "enable": "/landlord/{landlordUuid}/api/totp/enable",
+        "verify": "/landlord/{landlordUuid}/api/totp/verify",
         "disable": "/landlord/{landlordUuid}/api/totp/disable"
       },
       "audit": {
