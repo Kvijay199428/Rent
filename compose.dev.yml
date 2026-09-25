@@ -6,6 +6,11 @@
 #   propaura_ngrok_dev          tunnels to propaura_nginx_gateway_dev:28005,
 #                               dashboard on host 28006 (profile: ngrok)
 #
+# The backend is API-only (SERVE_FRONTEND=false) — no page router, no frontend
+# mounts. The dev edge nginx returns strict 404 for every page path and only
+# proxies API/health/static paths to backend_dev. The dev frontend is hosted on
+# the Cloudflare Pages `dev` branch (dev.rent-8rf.pages.dev).
+#
 # Canonical ports are the single source of truth in deploy/ports.py
 # (regenerated into deploy/ports.env by deploy.py). Host published ports use the
 # same values by default here; override via the *_DEV_PORT vars from the env file.

@@ -3,24 +3,29 @@
 Two fully isolated environments. `production` is production; `dev` is development.
 
 ```
-RELEASE (production, api.vijaykrsha.online)        DEVELOPMENT (ngrok)
-──────────────────────────────────────────        ─────────────────────────
-cloudflared / DNS  →  propaura_nginx_gateway_prod  ngrok tunnel  →  propaura_nginx_gateway_dev (28005)
-                      (host 28014 → cont 28014)                           │
-                          │                                                ├─ API → propaura_backend_dev (28002)
-                          ├─ /health, /api, /ws → propaura_backend_prod    └─ all pages → backend_dev frontend
-                          │  (cont 28011, expose only)                          router (from mounted dist)
-                          └─ /* SPA from frontend/build-output
-                             (no frontend container)
-   data: PostgreSQL pgdata_prod (28013) │ storage/release (28012)          data: pgdata_dev (28004) │ storage/dev (28003)
+RELEASE (production)                                        DEVELOPMENT (ngrok)
+──────────────────────────────────────────────              ─────────────────────────
+cloudflared / DNS ─► rent.vijaykrsha.online                 ngrok tunnel ─► propaura_nginx_gateway_dev (28005)
+                        ▲ (Cloudflare Pages)                                    │
+                        │                                                       ├─ /health, API → propaura_backend_dev (28002)
+api.vijaykrsha.online ─► propaura_nginx_gateway_prod                            └─ every page path → 404
+                        (host 28014 → cont 28014)                                     (API-only backend, no page router)
+                            │
+                            └─ /health, /api, /ws → propaura_backend_prod (28011, expose only)
+   data: PostgreSQL pgdata_prod (28013) │ storage/release (28012)           data: pgdata_dev (28004) │ storage/dev (28003)
 ```
 
 A single release backend container runs at a time; application data lives in
 PostgreSQL (`pgdata_prod` named volume) plus the shared `storage/release` tree
 for keys/uploads/backups — SQLite is retired. The edge nginx points at the
-backend via `gateway/nginx/upstream/active.conf` and serves the SPA directly
-from `frontend/build-output`. A deploy rebuilds and force-recreates that one
-backend container (brief restart), then reloads the edge.
+backend via `gateway/nginx/upstream/active.conf` and proxies API paths only:
+every frontend page path on `api.vijaykrsha.online` / `app.vijaykrsha.online`
+(and on the dev ngrok host) is a strict `404` with no redirect. All frontends —
+public (`rent.vijaykrsha.online`), landlord/admin (`app.vijaykrsha.online`, via
+the same SPA), and dev (`dev.rent-8rf.pages.dev`) — are served ONLY by Cloudflare
+Pages from the `production` / `dev` branches. A deploy rebuilds and
+force-recreates that one backend container (brief restart), then reloads the
+edge.
 
 Canonical ports are single-sourced in `deploy/ports.py` and regenerated into
 `deploy/ports.env` by `deploy.py` — never hand-edit either file's values.
@@ -29,7 +34,7 @@ Canonical ports are single-sourced in `deploy/ports.py` and regenerated into
 
 | Service    | Dev                     | Release                    |
 |------------|-------------------------|----------------------------|
-| Frontend   | — (SPA from backend_dev dist; dev frontend builds on Cloudflare Pages `dev` branch) | — (SPA served by the edge) |
+| Frontend   | — (Cloudflare Pages `dev` branch → dev.rent-8rf.pages.dev) | — (Cloudflare Pages `production` branch → rent.vijaykrsha.online) |
 | Backend    | 28002 → 28002 (exposed) | 28011 → 28011 (expose only)|
 | Storage    | 28003 → 28003 (expose)  | 28012 → 28012 (expose only)|
 | Database   | 28004 → 28004 (expose)  | 28013 → 28013 (expose only)|
@@ -59,9 +64,10 @@ cp .env.development.example .env.development
 - `.env.release` — `APP_ENV=release`, `SERVE_FRONTEND=false`, `ENABLE_SWAGGER=false`,
   separate secrets, `CORS_ALLOW_ORIGINS=https://rent.vijaykrsha.online,...`,
   `RENT_PG*`/`POSTGRES_*` for PostgreSQL (`propaura_database_prod`).
-- `.env.development` — `APP_ENV=development`, `SERVE_FRONTEND=true`,
-  `ENABLE_SWAGGER=true`, separate secrets, same `RENT_PG*`/`POSTGRES_*` against
-  `propaura_database_dev`, plus the ngrok auth token and `NGROK_API_BASE_URL`.
+- `.env.development` — `APP_ENV=development`, `SERVE_FRONTEND=false` (both envs
+  are API-only by default), `ENABLE_SWAGGER=true`, separate secrets, same
+  `RENT_PG*`/`POSTGRES_*` against `propaura_database_dev`, plus the ngrok auth
+  token and `NGROK_API_BASE_URL`.
 
 **Never** share JWT/pin-vault secrets between the two files. Generate unique ones:
 
@@ -195,19 +201,21 @@ python3 deploy.py --prod --sshPublic
 
 ### What `--dev` runs
 
-Uploads the repo (no npm builds — the dev frontend is built on Cloudflare
-Pages' `dev` branch, `dev.rent-8rf.pages.dev`), then on the server:
+Uploads the repo (no npm builds — the frontend is built and hosted on Cloudflare
+Pages: `dev` branch → `dev.rent-8rf.pages.dev`, `production` branch →
+`rent.vijaykrsha.online`), then on the server:
 `docker compose --env-file .env.development -f compose.dev.yml build && up -d`.
 Backend on container port 28002 (hot reload, host-published), edge dev nginx on
-host 28005. The old tenant-app Vite container (`propaura_frontend_dev`, host
-28001) has been retired from the dev stack; all dev pages/assets are served by
-backend_dev's frontend router from the mounted dist.
+host 28005. The dev backend is API-only (`SERVE_FRONTEND=false`): it registers
+no page router, so the dev edge nginx returns a strict `404` for every page path
+(`/t/`, `/tenant/...`, `/landlord/...`, `/admin/`, `/`) and only proxies
+API/health/static/tenant-portal-API paths to `propaura_backend_dev`.
 
 The dev ngrok tunnel on the server is the **systemd-hosted** agent
 (`ngrok.service`, `/home/vega/.config/ngrok/ngrok.yml`) — it owns the account's
 reserved URL and is repointed to `http://localhost:28005` (the dev edge nginx,
-not the backend directly — the edge routes API vs frontend pages). The
-docker `ngrok` service is behind the `ngrok` compose profile (avoids a
+not the backend directly — the edge routes API vs 404 for pages). The docker
+`ngrok` service is behind the `ngrok` compose profile (avoids a
 port/URL clash):
 
 ```bash
@@ -221,11 +229,11 @@ Copy the tunnel URL into `NGROK_API_BASE_URL` and `VITE_API_BASE_URL` in
 
 ### What `--prod` runs
 
-Uploads the repo (building the frontend to `frontend/build-output` unless
-`--no-build`), then on the server runs `./deploy/deploy-release.sh`: builds the
+Uploads the repo, then on the server runs `./deploy/deploy-release.sh`: builds the
 backend image, force-recreates `propaura_backend_prod`, waits for `/health`,
-reloads the edge nginx, and smoke-tests. Requires `.env.release` on the server
-(shipped inside the upload).
+reloads the edge nginx, and smoke-tests. The frontend is NOT built by a deploy —
+it is deployed separately to Cloudflare Pages (`production` branch). Requires
+`.env.release` on the server (shipped inside the upload).
 
 ```bash
 # First deploy
@@ -237,8 +245,8 @@ The script:
 1. Builds `propaura_backend_prod` (image `propaura-backend-release`).
 2. Starts/force-recreates the backend container.
 3. Waits for `/health` (30 × 3s) inside the container.
-4. Brings up `propaura_nginx_gateway_prod` if needed (SPA is served by the edge
-   from `frontend/build-output` — there is no frontend container).
+4. Brings up `propaura_nginx_gateway_prod` if needed (API-only edge; no frontend
+   is mounted or served).
 5. Reloads the edge nginx and smoke-tests `/health` through the edge
    (`127.0.0.1:28014`).
 
@@ -365,17 +373,17 @@ In the Cloudflare dashboard (Workers & Pages → your `rent` project → Setting
 Builds & deployments), set **Production branch = `production`**. The
 `deploy-cloudflare-pages.yml` workflow deploys with `--branch=production`.
 
-## API + static-SPA release backend
+## API-only release backend + Pages-hosted frontends
 
-The release backend sets `SERVE_FRONTEND=false`:
+The release backend sets `SERVE_FRONTEND=false` (the default): the landing page,
+tenant/landlord SPA routers and the frontend static mounts are **not registered**
+(`backend/app/app/core/router_registry.py`, `backend/app/app/core/startup.py`);
+swagger/docs are disabled (`ENABLE_SWAGGER=false`); CORS is read from
+`CORS_ALLOW_ORIGINS`.
 
-- Landing page, tenant/landlord SPA routers and the frontend static mounts are
-  **not registered** (`backend/app/app/core/router_registry.py`,
-  `backend/app/app/core/startup.py`).
-- Swagger/docs are disabled (`ENABLE_SWAGGER=false`).
-- CORS is read from `CORS_ALLOW_ORIGINS`.
-
-All page serving is done by the edge nginx from `frontend/build-output`
-(no separate frontend container; `rent.vijaykrsha.online` remains Cloudflare
-Pages). The edge routes `/*` and tenant deep links to the static SPA;
-everything else (API, `/static/uploads`, WebSockets) goes to the backend slot.
+All page serving happens ONLY on Cloudflare Pages: `production` branch →
+`rent.vijaykrsha.online` (public + landlord/admin SPA). The edge nginx
+(`api.vijaykrsha.online`, `app.vijaykrsha.online`) is API-only — it proxies
+`/health`, API, `/static/uploads` and WebSockets to the backend slot and returns
+a strict `404` (no redirect) for every page path. No frontend build is mounted
+into the gateway or built by backend deploys.

@@ -10,10 +10,13 @@ def app_env() -> str:
 def serve_frontend() -> bool:
     """Whether this backend instance serves frontend pages (dev only).
 
-    Release backends are API-only — page routers and frontend static
-    mounts are skipped so no HTML is ever served on the API host.
+    Defaults to False: backends are API-only — page routers and frontend
+    static mounts are skipped so no HTML is ever served by the backend.
+    Serving frontend requires an explicit opt-in (SERVE_FRONTEND=true),
+    guarding against a misconfigured/missing env value resurrecting the
+    dev-only frontend router.
     """
-    value = os.environ.get("SERVE_FRONTEND", "true").strip().lower()
+    value = os.environ.get("SERVE_FRONTEND", "false").strip().lower()
     return value not in ("0", "false", "no")
 
 
@@ -34,8 +37,8 @@ def cors_origins() -> list[str]:
 def public_app_url() -> str:
     """Public frontend origin used for share/WhatsApp/QR links.
 
-    The API host is API-only in release (SERVE_FRONTEND=false) so routes
-    like `serve_tenant_app` are never registered — links must point at the
+    Backends are API-only by default (SERVE_FRONTEND=false) so routes like
+    `serve_tenant_app` are never registered — links must point at the
     Cloudflare Pages frontend instead. Override with PUBLIC_APP_URL.
     """
     return os.environ.get("PUBLIC_APP_URL", "https://rent.vijaykrsha.online").rstrip("/")

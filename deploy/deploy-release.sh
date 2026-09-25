@@ -4,11 +4,14 @@
 # Strategy: the backend image is built, the existing propaura_backend_prod
 # container is force-recreated (brief restart), waited on via /health, then the
 # edge nginx is reloaded and smoke-tested. Data lives in PostgreSQL (pgdata_prod);
-# SQLite is retired. The edge nginx serves the SPA directly from
-# frontend/build-output (no separate frontend container).
+# SQLite is retired.
+#
+# The backend is API-only and the edge nginx serves no frontend (no
+# frontend/build-output mount); the production frontend is deployed separately
+# to Cloudflare Pages (production branch, rent.vijaykrsha.online).
 #
 # Usage:
-#   ./deploy/deploy-release.sh [--no-frontend] [--no-build]
+#   ./deploy/deploy-release.sh [--no-build]
 #
 # Env:
 #   REPO_DIR  repo path on the server (default: repo root of this script)
@@ -27,11 +30,9 @@ BACKEND="propaura_backend_prod"
 EDGE_NGINX="propaura_nginx_gateway_prod"
 BACKEND_PORT=28011
 
-WITH_FRONTEND=1
 WITH_BUILD=1
 for arg in "$@"; do
   case "$arg" in
-    --no-frontend) WITH_FRONTEND=0 ;;
     --no-build) WITH_BUILD=0 ;;
     *) echo "Unknown option: $arg" >&2; exit 2 ;;
   esac
@@ -79,21 +80,6 @@ smoke_test() {
   return 0
 }
 
-build_frontend() {
-  if ! command -v node >/dev/null 2>&1; then
-    warn "node not found on server — skipping frontend build"
-    warn "$EDGE_NGINX serves frontend/build-output directly via its bind mount;"
-    warn "build it locally and scp it, or install node on the server and rerun the deploy"
-    return 0
-  fi
-  log "building frontend (VITE_API_BASE_URL=$VITE_API_BASE_URL)"
-  (cd frontend && bash build.sh)
-}
-
-frontend_missing() {
-  [ ! -f "frontend/build-output/index.html" ]
-}
-
 main() {
   # ── Lock: prevent overlapping runs ─────────────────────────────────────
   # The systemd timer fires every 2 min; an image build can take longer, so
@@ -111,16 +97,7 @@ main() {
   [ -f "$ENV_FILE" ] || { fail "$ENV_FILE missing — copy .env.release.example and fill in secrets"; exit 1; }
   [ -f "$COMPOSE" ] || { fail "$COMPOSE missing"; exit 1; }
 
-  export VITE_API_BASE_URL
-  VITE_API_BASE_URL="$(grep -E '^VITE_API_BASE_URL=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"')"
-  VITE_API_BASE_URL="${VITE_API_BASE_URL:-https://api.vijaykrsha.online}"
-
   docker network create propaura-network 2>/dev/null || true
-
-  if [ "$WITH_FRONTEND" -eq 1 ] && frontend_missing; then
-    warn "frontend/build-output missing — building (release build mounted into the gateway)"
-    build_frontend
-  fi
 
   if [ "$WITH_BUILD" -eq 1 ]; then
     log "building backend image"
