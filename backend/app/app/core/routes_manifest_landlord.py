@@ -77,6 +77,24 @@ class LandlordRoutes:
     LANDLORDAPICONFIGTHEMEGET = "/landlord/{landlordUuid}/api/ui/theme"
     LANDLORDAPICONFIGTHEME = "/landlord/{landlordUuid}/api/ui/theme"
 
+    # Landlord API: Account Profile (Settings -> Profile, feature-gated)
+    LANDLORDAPIPROFILE_GET = "/landlord/{landlordUuid}/api/profile"
+    LANDLORDAPIPROFILE_UPDATE = "/landlord/{landlordUuid}/api/profile"
+
+    # Landlord API: Account Sessions (Settings -> Security, feature-gated)
+    LANDLORDAPISESSIONS = "/landlord/{landlordUuid}/api/sessions"
+    LANDLORDAPISESSIONSREVOKE = "/landlord/{landlordUuid}/api/sessions/{sessionId}"
+
+    # Landlord API: Google Connect (Settings -> Security, feature-gated)
+    LANDLORDAPIGOOGLECONNECT = "/landlord/{landlordUuid}/api/auth/google/connect"
+    LANDLORDAPIGOOGLEDISCONNECT = "/landlord/{landlordUuid}/api/auth/google/disconnect"
+
+    # Landlord API: Recovery Codes (Settings -> Security, feature-gated)
+    LANDLORDAPIRECOVERYCODES = "/landlord/{landlordUuid}/api/security/recovery-codes"
+
+    # Landlord API: Data Export (Settings -> Data, feature-gated)
+    LANDLORDAPIDATAEXPORT = "/landlord/{landlordUuid}/api/data/export"
+
     # Landlord API: Billing
     LANDLORDAPIBILLINGFILTER = "/landlord/{landlordUuid}/api/receipts/filter"
     LANDLORDAPIBILLINGMONTHS = "/landlord/{landlordUuid}/api/receipts/months"
@@ -222,6 +240,14 @@ class LandlordNames:
     APIDELETESIGNATURE = "api_delete_signature"
     UPDATECONFIG = "update_config"
     UPDATETHEME = "update_theme"
+    LANDLORDAPIPROFILEGET = "landlord_api_profile_get"
+    LANDLORDAPIPROFILEUPDATE = "landlord_api_profile_update"
+    LANDLORDAPISESSIONS = "landlord_api_sessions"
+    LANDLORDAPISESSIONSREVOKE = "landlord_api_sessions_revoke"
+    LANDLORDAPIGOOGLECONNECT = "landlord_api_google_connect"
+    LANDLORDAPIGOOGLEDISCONNECT = "landlord_api_google_disconnect"
+    LANDLORDAPIRECOVERYCODES = "landlord_api_recovery_codes"
+    LANDLORDAPIDATAEXPORT = "landlord_api_data_export"
 
     # API - Sync
     EXPORTRECEIPTSCSV = "export_receipts_csv"

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 <!-- Creator: CorelDRAW 2021 (64-Bit) -->
-<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="3300px" height="3300px" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
-viewBox="0 0 1993.96 1993.96"
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="7.5in" height="7.5in" version="1.1" style="shape-rendering:geometricPrecision; text-rendering:geometricPrecision; image-rendering:optimizeQuality; fill-rule:evenodd; clip-rule:evenodd"
+viewBox="0 0 5066.44 5066.44"
  xmlns:xlink="http://www.w3.org/1999/xlink"
  xmlns:xodm="http://www.corel.com/coreldraw/odm/2003">
  <defs>
-  <font id="FontID0" horiz-adv-x="752" font-variant="normal" style="fill-rule:nonzero" font-weight="400">
+  <font id="FontID0" horiz-adv-x="751" font-variant="normal" style="fill-rule:nonzero" font-style="normal" font-weight="400">
 	<font-face 
 		font-family="Nevan RUS">
 		<font-face-src>
@@ -14,28 +14,28 @@ viewBox="0 0 1993.96 1993.96"
 		</font-face-src>
 	</font-face>
    <missing-glyph><path d="M0 0z"/></missing-glyph>
-   <glyph unicode="." horiz-adv-x="267" d="M133.001 -10.9998c23.3333,0 42.833,8.00048 58.5006,24.0001 15.6662,15.9996 23.4993,34.9999 23.4993,56.9995 0,23.3333 -7.8331,42.8344 -23.4993,58.5006 -15.6676,15.6662 -35.1673,23.5007 -58.5006,23.5007 -22.001,0 -40.9999,-7.83445 -57.0009,-23.5007 -15.9996,-15.6662 -24.0001,-35.1673 -24.0001,-58.5006 0,-21.9996 8.00048,-40.9999 24.0001,-56.9995 16.001,-15.9996 34.9999,-24.0001 57.0009,-24.0001z"/>
-   <glyph unicode="A" horiz-adv-x="752" d="M746.002 0l-156.999 0 -214.002 558.002 -218 -558.002 -151.001 0 288.001 700.002 114 0c33.3329,0 57.9998,-16.6664 73.9994,-50.0006l264.001 -650.002z"/>
-   <glyph unicode="P" horiz-adv-x="718" d="M229.001 0l-145.001 0 0 384.001 338.002 0c29.3333,0.666819 53.4994,9.16674 72.4997,25.4998 19.0003,16.333 28.5004,39.5003 28.5004,69.5004 0,30.0001 -9.50015,53.3334 -28.5004,69.9998 -19.0003,16.6678 -43.1664,25.3337 -72.4997,26.0006l-288.001 0c-14.0005,0 -25.8345,4.83376 -35.5007,14.4999 -9.66618,9.66618 -14.4999,21.5002 -14.4999,35.5007l0 74.9996 351.001 0c68.0007,0 124.167,-20.3339 168.501,-61.0005 44.3327,-40.6665 66.4997,-93.6665 66.4997,-159 0,-62.6675 -21.9996,-114.334 -66.0003,-155 -44.0006,-40.6665 -100.333,-61.0005 -169.001,-61.0005l-206 0 0 -264.001z"/>
+   <glyph unicode="." horiz-adv-x="267" d="M133 -11.0004c-21.9996,0 -40.9997,8.00097 -56.9992,24.0004 -16.0007,15.9995 -24.0004,34.9996 -24.0004,57.0004 0,23.3335 7.99973,42.8323 24.0004,58.5001 15.9995,15.6666 34.9996,23.4993 56.9992,23.4993 23.3335,0 42.8335,-7.83268 58.5001,-23.4993 15.6666,-15.6678 23.5005,-35.1667 23.5005,-58.5001 0,-22.0008 -7.83392,-41.001 -23.5005,-57.0004 -15.6666,-15.9995 -35.1667,-24.0004 -58.5001,-24.0004z"/>
+   <glyph unicode="A" horiz-adv-x="751" d="M746 0l-264 650c-15.9995,33.3328 -40.6669,49.9993 -73.9997,49.9993l-114 0 -288 -700 151 0 218 558 214.001 -558 156.999 0z"/>
+   <glyph unicode="P" horiz-adv-x="717" d="M229 0l0 264 206 0c68.6665,0 125,20.334 169,60.9997 44.0004,40.6669 66,92.3341 66,155.001 0,65.333 -22.1666,118.333 -66.4999,159 -44.3332,40.6669 -100.501,60.9997 -168.5,60.9997l-351 0 0 -74.9995c0,-13.9998 4.83325,-25.833 14.4997,-35.4995 9.6665,-9.66774 21.4997,-14.501 35.4995,-14.501l288 0c29.3336,-0.665716 53.4998,-9.3324 72.5,-26.0001 19.0001,-16.6664 28.5008,-39.9999 28.5008,-69.9992 0,-30.0005 -9.50069,-53.167 -28.5008,-69.5005 -19.0001,-16.3336 -43.1664,-24.8332 -72.5,-25.5002l-338 0 0 -384 145 0z"/>
   </font>
   <style type="text/css">
    <![CDATA[
-    @font-face { font-family:"Nevan RUS";font-variant:normal;font-weight:normal;src:url("#FontID0") format(svg)}
+    @font-face { font-family:"Nevan RUS";font-variant:normal;font-style:normal;font-weight:normal;src:url("#FontID0") format(svg)}
     .fil2 {fill:none}
     .fil1 {fill:#151B54}
     .fil0 {fill:#E5611B}
-    .fnt0 {font-weight:normal;font-size:1057.4px;font-family:'Nevan RUS'}
+    .fnt0 {font-weight:normal;font-size:2149.32px;font-family:'Nevan RUS'}
    ]]>
   </style>
  </defs>
  <g id="Layer_x0020_1">
   <metadata id="CorelCorpID_0Corel-Layer"/>
-  <g id="_2814477173552">
-   <path class="fil0" d="M996.98 996.98l0 996.98c-550.62,0 -996.98,-446.36 -996.98,-996.98 0,-550.62 446.36,-996.98 996.98,-996.98l0 996.98z"/>
-   <path class="fil1" d="M996.98 996.98l0 -996.98c550.62,0 996.98,446.36 996.98,996.98 0,550.62 -446.36,996.98 -996.98,996.98l0 -996.98z"/>
-   <text x="51.66" y="1367.07"  class="fil1 fnt0">P</text>
-   <text x="810.88" y="1367.07"  class="fil2 fnt0">.</text>
-   <text x="1093.2" y="1367.07"  class="fil0 fnt0">A</text>
+  <g id="_1723933515424">
+   <path class="fil0" d="M2533.22 2533.22l0 2533.22c-1399.06,0 -2533.22,-1134.16 -2533.22,-2533.22 0,-1399.06 1134.16,-2533.22 2533.22,-2533.22l0 2533.22z"/>
+   <path class="fil1" d="M2533.22 2533.22l0 -2533.22c1399.06,0 2533.22,1134.16 2533.22,2533.22 0,1399.06 -1134.16,2533.22 -2533.22,2533.22l0 -2533.22z"/>
+   <text x="611.66" y="3285.51"  class="fil1 fnt0">P</text>
+   <text x="2154.87" y="3285.51"  class="fil2 fnt0">.</text>
+   <text x="2728.73" y="3285.51"  class="fil0 fnt0">A</text>
   </g>
  </g>
 </svg>

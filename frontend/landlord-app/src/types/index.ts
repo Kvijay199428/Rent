@@ -148,6 +148,9 @@ export interface ConfigUpdate {
   billing: Record<string, unknown>;
   whatsapp?: Record<string, unknown>;
   backup?: Record<string, unknown>;
+  ui?: Record<string, unknown>;
+  notifications?: Record<string, unknown>;
+  system?: Record<string, unknown>;
 }
 
 export interface BackupMetadata {
@@ -404,13 +407,45 @@ export interface WhatsappConfig {
   country_code: string;
 }
 
+export interface UiPreferences {
+  language: string;
+  locale: string;
+  currency: string;
+  dateFormat: string;
+  timeFormat: string;
+  weekStartsOn: string;
+  reduceMotion: boolean;
+  highContrast: boolean;
+  compactMode: boolean;
+}
+
+export interface NotificationEventConfig {
+  enabled?: boolean;
+  channel?: string[];
+  emailTemplate?: string;
+  smsTemplate?: string;
+  daysBeforeDue?: number[];
+}
+
 export interface AppConfig {
   landlord: LandlordConfig;
   billing: BillingConfig;
-  ui: { theme: string };
+  ui: { theme?: string; preferences?: Partial<UiPreferences>; menu?: unknown[] };
   backup: Record<string, unknown>;
   whatsapp: WhatsappConfig;
+  notifications?: Record<string, unknown>;
   system?: any;
+}
+
+export interface LandlordProfile {
+  landlordUuid: string;
+  username: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  avatarUrl: string;
+  googleSub?: string;
+  authProvider?: string;
 }
 
 export interface Backup {

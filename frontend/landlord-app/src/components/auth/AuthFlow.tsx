@@ -32,6 +32,7 @@ export function AuthFlow({
   socialProviders = [],
   onLogin,
   onSignup,
+  onForgotPassword,
   termsContent,
   privacyContent,
   error,
@@ -96,7 +97,7 @@ export function AuthFlow({
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
             {tab === "login" ? (
-              <LoginForm onSubmit={onLogin} socialProviders={socialProviders} />
+              <LoginForm onSubmit={onLogin} socialProviders={socialProviders} onForgot={onForgotPassword} />
             ) : (
               <SignupForm
                 onSubmit={onSignup}

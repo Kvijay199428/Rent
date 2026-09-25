@@ -15,6 +15,7 @@ import type { LoginValues, SocialProvider } from "./types";
 interface LoginFormProps {
   onSubmit?: (values: LoginValues) => void | Promise<void>;
   socialProviders: SocialProvider[];
+  onForgot?: () => void;
 }
 
 const fieldMotion = {
@@ -26,7 +27,7 @@ const fieldMotion = {
   }),
 };
 
-export function LoginForm({ onSubmit, socialProviders }: LoginFormProps) {
+export function LoginForm({ onSubmit, socialProviders, onForgot }: LoginFormProps) {
   const capsLockOn = useCapsLock();
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -81,7 +82,7 @@ export function LoginForm({ onSubmit, socialProviders }: LoginFormProps) {
           <Checkbox checked={remember} onCheckedChange={(v) => setRemember(v === true)} />
           Remember me
         </label>
-        <button type="button" className="text-primary hover:underline">
+        <button type="button" onClick={onForgot} className="text-primary hover:underline">
           Forgot password?
         </button>
       </motion.div>

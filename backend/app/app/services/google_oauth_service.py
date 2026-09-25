@@ -217,3 +217,78 @@ def _unique_username(base: str, max_length: int = 40) -> str:
         if not username_exists(candidate):
             return candidate
     return f"{base[:20]}{uuid.uuid4().hex[:8]}"
+
+
+def google_connect(landlord_id: int, code: str, request):
+    """Link an authenticated landlord account to a Google account (Settings -> Security)."""
+    credential = _exchange_code_for_id_token(code)
+    info = verify_google_token(credential)
+    if info is None:
+        raise ValueError("Invalid Google credential")
+
+    google_sub = info["sub"]
+    email = info.get("email", "").strip().lower()
+    avatar_url = info.get("picture", "")
+
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM \"landlordAccounts\" WHERE id = %s", (landlord_id,)
+        ).fetchone()
+        if not row:
+            raise ValueError("Landlord account not found")
+        conflict = conn.execute(
+            "SELECT id FROM \"landlordAccounts\" WHERE \"googleSub\" = %s AND id <> %s",
+            (google_sub, landlord_id),
+        ).fetchone()
+        if conflict:
+            raise ValueError("This Google account is already linked to another account.")
+
+        now = datetime.utcnow().isoformat()
+        if row["avatarUrl"] or not avatar_url:
+            conn.execute(
+                "UPDATE \"landlordAccounts\" SET \"googleSub\" = %s, \"authProvider\" = %s, \"updatedAt\" = %s WHERE id = %s",
+                (google_sub, "google", now, landlord_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE \"landlordAccounts\" SET \"googleSub\" = %s, \"authProvider\" = %s, \"avatarUrl\" = %s, \"updatedAt\" = %s WHERE id = %s",
+                (google_sub, "google", avatar_url, now, landlord_id),
+            )
+        conn.commit()
+
+    create_landlord_audit_log(
+        landlord_id,
+        "google_connected",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"google_sub": google_sub, "email": email}),
+    )
+    return {"status": "success", "authProvider": "google"}
+
+
+def google_disconnect(landlord_id: int, request):
+    """Unlink Google from a landlord account (Settings -> Security)."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT \"googleSub\", \"authProvider\", \"requiresPasswordChange\" FROM \"landlordAccounts\" WHERE id = %s",
+            (landlord_id,),
+        ).fetchone()
+        if not row:
+            raise ValueError("Landlord account not found")
+        if not row["googleSub"]:
+            raise ValueError("No Google account is linked.")
+        if bool(row["requiresPasswordChange"]):
+            raise ValueError("Set a password before disconnecting Google.")
+
+        conn.execute(
+            "UPDATE \"landlordAccounts\" SET \"googleSub\" = NULL, \"authProvider\" = %s, \"updatedAt\" = %s WHERE id = %s",
+            ("email", datetime.utcnow().isoformat(), landlord_id),
+        )
+        conn.commit()
+
+    create_landlord_audit_log(
+        landlord_id,
+        "google_disconnected",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({}),
+    )
+    return {"status": "success", "authProvider": "email"}

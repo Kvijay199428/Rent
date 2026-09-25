@@ -37,6 +37,8 @@ export interface AuthFlowProps {
   socialProviders?: SocialProvider[];
   onLogin?: (values: LoginValues) => void | Promise<void>;
   onSignup?: (values: SignupValues) => void | Promise<void>;
+  /** Called when the "Forgot password?" link is clicked on the login form. */
+  onForgotPassword?: () => void;
   termsContent?: ReactNode;
   privacyContent?: ReactNode;
   /** Inline destructive alert shown at the top of the card (server/auth errors). */

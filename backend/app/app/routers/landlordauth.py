@@ -31,6 +31,8 @@ from app.authentication.landlord.middleware import get_current_landlord_api
 from app.authentication.landlord.sessions import (
     create_landlord_session,
     get_landlord_session_db,
+    list_landlord_sessions,
+    revoke_landlord_session_by_id,
     revoke_landlord_session_db,
 )
 from app.services.phone_service import normalize_phone
@@ -53,11 +55,18 @@ from app.database.landlord_repository import (
     reset_landlord_failed_attempts,
     record_privacy_consent,
     record_terms_consent,
+    update_landlord_profile,
+    consume_landlord_recovery_code,
+    issue_landlord_recovery_codes,
 )
 from app.models.landlord import (
+    LandlordForgotPasswordResetRequest,
+    LandlordForgotPasswordVerifyRequest,
+    LandlordGoogleConnectRequest,
     LandlordGoogleRequest,
     LandlordLoginRequest,
     LandlordLoginWithTotpRequest,
+    LandlordProfileUpdateRequest,
     LandlordPrivacyConsentRequest,
     LandlordSignupRequest,
     LandlordTermsConsentRequest,
@@ -65,6 +74,7 @@ from app.models.landlord import (
 from app.core.config_service import config
 from app.core.db import get_conn
 from app.core.paths import STATIC_DIR
+from app.services.landlord_export_service import export_landlord_data
 from app.core.privacy import (
     PRIVACY_CONSENT_REQUIRED_HEADER,
     PRIVACY_POLICY_EFFECTIVE_DATE,
@@ -629,7 +639,8 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
     """
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT \"totpSecret\", \"totpEnabled\", \"requiresPasswordChange\", "
+            "SELECT phone, \"avatarUrl\", \"googleSub\", \"authProvider\", "
+            "\"totpSecret\", \"totpEnabled\", \"requiresPasswordChange\", "
             "\"privacyConsented\", \"privacyVersion\", "
             "\"termsConsented\", \"termsVersion\", "
             "\"setupCompleted\", \"setupSkipped\" "
@@ -645,6 +656,10 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "username": principal.username,
             "fullName": principal.fullname,
             "email": principal.email,
+            "phone": row["phone"] if row and row["phone"] else "",
+            "avatarUrl": row["avatarUrl"] if row and row["avatarUrl"] else "",
+            "googleSub": row["googleSub"] if row else None,
+            "authProvider": row["authProvider"] if row else None,
             "hasTotp": bool(row and row["totpSecret"]),
             "totpEnabled": bool(row and row["totpEnabled"]),
             "requiresPasswordChange": bool(row and row["requiresPasswordChange"]),
@@ -656,6 +671,251 @@ async def landlord_me(principal=Depends(get_current_landlord_api)):
             "setupSkipped": bool(row and row["setupSkipped"]),
         },
     }
+
+
+def require_feature(feature_key: str, description: str) -> None:
+    """Raise 403 when an optional Settings feature is disabled in config."""
+    if not config.get(f"system.features.{feature_key}", False):
+        raise HTTPException(
+            status_code=403,
+            detail=f"{description} is disabled.",
+        )
+
+
+# ─── Account Profile (feature-gated: system.features.profile_settings) ────────
+
+@router.get(Routes.LANDLORDAPIPROFILE_GET, name=Names.LANDLORDAPIPROFILEGET)
+async def landlord_profile_get(principal=Depends(get_current_landlord_api)):
+    """Return the editable account profile for the authenticated landlord."""
+    require_feature("profile_settings", "Profile settings")
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT \"landlordUuid\", username, \"fullName\", email, phone, "
+            "\"avatarUrl\", \"googleSub\", \"authProvider\" "
+            "FROM \"landlordAccounts\" WHERE id = %s",
+            (principal.landlord_id,),
+        ).fetchone()
+    if not row:
+        raise HTTPException(status_code=404, detail="Landlord not found")
+    return {
+        "status": "success",
+        "profile": {
+            "landlordUuid": row["landlordUuid"],
+            "username": row["username"],
+            "fullName": row["fullName"],
+            "email": row["email"],
+            "phone": row["phone"] or "",
+            "avatarUrl": row["avatarUrl"] or "",
+            "googleSub": row["googleSub"],
+            "authProvider": row["authProvider"],
+        },
+    }
+
+
+@router.put(Routes.LANDLORDAPIPROFILE_UPDATE, name=Names.LANDLORDAPIPROFILEUPDATE)
+async def landlord_profile_update(
+    request: Request,
+    payload: LandlordProfileUpdateRequest,
+    principal=Depends(get_current_landlord_api),
+):
+    """Update editable account profile fields for the authenticated landlord.
+
+    Only fields explicitly provided are written. Phone is normalized to E.164;
+    an explicitly-empty phone clears the value. Google-linked fields
+    (googleSub, authProvider) are managed by the Google connect/disconnect
+    endpoints.
+    """
+    require_feature("profile_settings", "Profile settings")
+
+    full_name = payload.fullName.strip() if payload.fullName else None
+    email = None
+    if payload.email is not None:
+        email = payload.email.strip().lower()
+        if "@" not in email or "." not in email.split("@")[-1]:
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        if len(email) > 254:
+            raise HTTPException(status_code=400, detail="Email is too long")
+        existing = get_landlord_by_email(email)
+        if existing and existing["id"] != principal.landlord_id:
+            raise HTTPException(status_code=409, detail="Email already in use")
+        if not email:
+            email = None
+    phone = None
+    if payload.phone is not None:
+        phone = normalize_phone(payload.phone) or ""
+    avatar_url = payload.avatarUrl.strip() if payload.avatarUrl is not None else None
+
+    if full_name is not None and len(full_name) < 2:
+        raise HTTPException(status_code=400, detail="Full name must be at least 2 characters")
+
+    fields = []
+    if full_name is not None:
+        fields.append("fullName")
+    if payload.email is not None:
+        fields.append("email")
+    if payload.phone is not None:
+        fields.append("phone")
+    if payload.avatarUrl is not None:
+        fields.append("avatarUrl")
+
+    if fields:
+        update_landlord_profile(
+            principal.landlord_id,
+            full_name=full_name,
+            email=email,
+            phone=phone,
+            avatar_url=avatar_url,
+        )
+        create_landlord_audit_log(
+            principal.landlord_id,
+            "profile_updated",
+            ip_address=request.client.host if request.client else None,
+            meta_json=json.dumps({"fields": fields}),
+        )
+
+    return {"status": "success"}
+
+
+# ─── Account Sessions (Settings -> Security, feature-gated) ───────
+
+@router.get(Routes.LANDLORDAPISESSIONS, name=Names.LANDLORDAPISESSIONS)
+async def landlord_sessions(principal=Depends(get_current_landlord_api)):
+    """List all sessions for the authenticated landlord."""
+    require_feature("sessions_management", "Sessions management")
+    rows = list_landlord_sessions(principal.landlord_id)
+    current = principal.session_id
+    sessions = [
+        {
+            "sessionId": s["sessionId"],
+            "deviceName": s["deviceName"],
+            "browser": s["browser"],
+            "os": s["os"],
+            "ipAddress": s["ipAddress"] or "",
+            "createdAt": s["createdAt"],
+            "lastActivity": s["lastActivity"],
+            "expiresAt": s["expiresAt"],
+            "rememberMe": bool(s["rememberMe"]),
+            "status": s["status"],
+            "current": s["sessionId"] == current,
+        }
+        for s in rows
+    ]
+    return {"status": "success", "sessions": sessions}
+
+
+@router.delete(Routes.LANDLORDAPISESSIONSREVOKE, name=Names.LANDLORDAPISESSIONSREVOKE)
+async def landlord_session_revoke(
+    request: Request,
+    sessionId: str,
+    principal=Depends(get_current_landlord_api),
+):
+    """Revoke a single active session belonging to the authenticated landlord."""
+    require_feature("sessions_management", "Sessions management")
+    revoked = revoke_landlord_session_by_id(principal.landlord_id, sessionId)
+    if not revoked:
+        raise HTTPException(status_code=404, detail="Session not found or already revoked")
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "session_revoked",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"sessionId": sessionId, "current": sessionId == principal.session_id}),
+    )
+    return {"status": "success", "revoked": sessionId}
+
+
+# ─── Google Connect (Settings -> Security, feature-gated) ─────────────────
+# Reuse the Google OAuth code flow to link (or unlink) the authenticated
+# landlord's account with their Google account.
+
+
+@router.post(Routes.LANDLORDAPIGOOGLECONNECT, name=Names.LANDLORDAPIGOOGLECONNECT)
+async def landlord_google_connect(
+    request: Request,
+    payload: LandlordGoogleConnectRequest,
+    principal=Depends(get_current_landlord_api),
+):
+    """Link the authenticated landlord's account to a Google account."""
+    require_feature("google_connect", "Google account connection")
+    from app.services.google_oauth_service import google_connect
+
+    try:
+        return google_connect(principal.landlord_id, payload.code, request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google connect failed: {str(e)}")
+
+
+@router.post(Routes.LANDLORDAPIGOOGLEDISCONNECT, name=Names.LANDLORDAPIGOOGLEDISCONNECT)
+async def landlord_google_disconnect(
+    request: Request,
+    principal=Depends(get_current_landlord_api),
+):
+    """Unlink Google from the authenticated landlord's account."""
+    require_feature("google_connect", "Google account connection")
+    from app.services.google_oauth_service import google_disconnect
+
+    try:
+        return google_disconnect(principal.landlord_id, request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Google disconnect failed: {str(e)}")
+
+
+# ─── Recovery Codes (Settings -> Security, feature-gated) ────────────────
+# Single-use backup codes for TOTP login. A fresh batch invalidates any
+# previously issued unused codes; plaintext codes are returned exactly once.
+
+
+@router.post(Routes.LANDLORDAPIRECOVERYCODES, name=Names.LANDLORDAPIRECOVERYCODES)
+async def landlord_recovery_codes_generate(
+    request: Request,
+    principal=Depends(get_current_landlord_api),
+):
+    """Generate a fresh batch of single-use recovery codes for the landlord."""
+    require_feature("recovery_codes", "Recovery codes")
+    if not get_landlord_totp_secret(principal.landlord_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Enable two-factor authentication before generating recovery codes.",
+        )
+    codes = issue_landlord_recovery_codes(principal.landlord_id)
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "recovery_codes_issued",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"count": len(codes)}),
+    )
+    return {"status": "success", "codes": codes, "count": len(codes)}
+
+
+# ─── Data Export (Settings -> Data, feature-gated) ──────────────────────────
+# Read-only snapshot of the landlord's scoped data. Credential columns and
+# regenerable receipt PDFs are stripped by the export service.
+
+
+@router.post(Routes.LANDLORDAPIDATAEXPORT, name=Names.LANDLORDAPIDATAEXPORT)
+async def landlord_data_export(
+    request: Request,
+    principal=Depends(get_current_landlord_api),
+):
+    """Export the authenticated landlord's data as a JSON payload."""
+    require_feature("data_export", "Data export")
+    data = export_landlord_data(principal.landlord_id)
+    create_landlord_audit_log(
+        principal.landlord_id,
+        "data_exported",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"counts": {
+            "tenants": len(data["tenants"]),
+            "receipts": len(data["receipts"]),
+            "paymentEntries": len(data["paymentEntries"]),
+            "occupants": len(data["occupants"]),
+            "auditLogs": len(data["auditLogs"]),
+        }}),
+    )
+    return {"status": "success", "export": data}
 
 
 # ─── TOTP Login ────────────────────────────────────────────────────
@@ -697,14 +957,22 @@ async def landlord_login_with_totp(
         raise HTTPException(status_code=400, detail="TOTP not configured for this account.")
 
     if not verify_totp(landlord["totpSecret"], payload.totpToken):
-        record_landlord_failed_attempt(landlord["id"])
+        # TOTP failed — try a single-use recovery code instead.
+        if not consume_landlord_recovery_code(landlord["id"], payload.totpToken):
+            record_landlord_failed_attempt(landlord["id"])
+            create_landlord_audit_log(
+                landlord["id"],
+                "totp_failed",
+                ip_address=request.client.host if request.client else None,
+                meta_json=json.dumps({"username": username}),
+            )
+            raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
         create_landlord_audit_log(
             landlord["id"],
-            "totp_failed",
+            "recovery_code_used",
             ip_address=request.client.host if request.client else None,
             meta_json=json.dumps({"username": username}),
         )
-        raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
 
     reset_landlord_failed_attempts(landlord["id"])
 
@@ -799,12 +1067,14 @@ async def landlord_change_password(
             current_password = decrypted.get("currentPassword", "")
             new_password = decrypted.get("newPassword", "")
             confirm_password = decrypted.get("confirmPassword", "")
+            totp_token = decrypted.get("totpToken", "")
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid encrypted payload")
     else:
         current_password = payload.get("currentPassword", "")
         new_password = payload.get("newPassword", "")
         confirm_password = payload.get("confirmPassword", "")
+        totp_token = payload.get("totpToken", "")
 
     if not new_password or not confirm_password:
         raise HTTPException(status_code=400, detail="All fields are required.")
@@ -824,11 +1094,18 @@ async def landlord_change_password(
 
     with get_conn() as conn:
         landlord = conn.execute(
-            "SELECT id, \"landlordUuid\", username, \"passwordHash\", \"requiresPasswordChange\" FROM \"landlordAccounts\" WHERE id = %s",
+            "SELECT id, \"landlordUuid\", username, \"passwordHash\", \"requiresPasswordChange\", \"totpSecret\", \"totpEnabled\" FROM \"landlordAccounts\" WHERE id = %s",
             (landlord_id,),
         ).fetchone()
         if not landlord:
             raise HTTPException(status_code=404, detail="Landlord not found.")
+
+    # When TOTP is enabled, require a valid code before applying the change.
+    if landlord["totpEnabled"]:
+        if not totp_token:
+            raise HTTPException(status_code=400, detail="TOTP code is required.")
+        if not verify_totp(landlord["totpSecret"], totp_token):
+            raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
 
     # When a password change is required (Google signup / admin reset), the user
     # does not know the current (placeholder/temporary) password, so skip it.
@@ -901,6 +1178,157 @@ async def landlord_change_password(
     return {"status": "success", "message": "Password updated successfully."}
 
 
+# ─── Forgot Password (TOTP-based, public) ──────────────────────────
+# Landlord password reset requires a configured TOTP authenticator; there is
+# no email/SMS delivery channel for one-time codes on the user portal. When
+# TOTP is not configured the endpoints report `no_totp` so the frontend can
+# direct the user to sign in and change the password from Settings.
+
+@router.post(Routes.LANDLORDAPIPASSWORDFORGOTVERIFY, name=Names.LANDLORDFORGOTVERIFY)
+async def landlord_forgot_password_verify(payload: LandlordForgotPasswordVerifyRequest):
+    """Verify a landlord's username + TOTP code before a password reset."""
+    username = payload.username.strip()
+    totp_token = payload.totpToken.strip()
+
+    if not username or not totp_token:
+        raise HTTPException(status_code=400, detail="Username and TOTP code are required.")
+
+    landlord = get_landlord_by_username(username)
+    if not landlord:
+        # Do not reveal whether an account exists; mirror the no-TOTP outcome.
+        return {
+            "status": "no_totp",
+            "message": "Password reset requires a TOTP authenticator. Sign in and change your password from Settings.",
+        }
+
+    if is_landlord_locked_out(landlord):
+        create_landlord_audit_log(landlord["id"], "forgot_verify_locked_out", ip_address=None)
+        raise HTTPException(
+            status_code=429,
+            detail="Account temporarily locked due to too many failed attempts. Try again later.",
+        )
+
+    if not landlord["totpSecret"] or not landlord["totpEnabled"]:
+        return {
+            "status": "no_totp",
+            "message": "Password reset requires a TOTP authenticator. Sign in and change your password from Settings.",
+        }
+
+    if not verify_totp(landlord["totpSecret"], totp_token):
+        record_landlord_failed_attempt(landlord["id"])
+        create_landlord_audit_log(landlord["id"], "forgot_verify_failed", ip_address=None)
+        raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
+
+    reset_landlord_failed_attempts(landlord["id"])
+
+    return {
+        "status": "success",
+        "message": "TOTP verified. You may now reset your password.",
+        "username": username,
+    }
+
+
+@router.post(Routes.LANDLORDAPIPASSWORDFORGOTRESET, name=Names.LANDLORDFORGOTRESET)
+async def landlord_forgot_password_reset(
+    request: Request,
+    payload: LandlordForgotPasswordResetRequest,
+):
+    """Reset a landlord password after TOTP verification."""
+    from app.authentication.common.pin_vault import encrypt_admin_view_pin
+
+    username = payload.username.strip()
+    totp_token = payload.totpToken.strip()
+    new_password = payload.newPassword
+    confirm_password = payload.confirmPassword
+
+    if not username or not totp_token:
+        raise HTTPException(status_code=400, detail="Username and TOTP code are required.")
+    if not new_password or not confirm_password:
+        raise HTTPException(status_code=400, detail="All fields are required.")
+    if new_password != confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match.")
+    if len(new_password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+
+    landlord = get_landlord_by_username(username)
+    if not landlord:
+        # Do not reveal whether an account exists; mirror the no-TOTP outcome.
+        return {
+            "status": "no_totp",
+            "message": "Password reset requires a TOTP authenticator. Sign in and change your password from Settings.",
+        }
+
+    if is_landlord_locked_out(landlord):
+        create_landlord_audit_log(landlord["id"], "forgot_reset_locked_out", ip_address=None)
+        raise HTTPException(
+            status_code=429,
+            detail="Account temporarily locked due to too many failed attempts. Try again later.",
+        )
+
+    if not landlord["totpSecret"] or not landlord["totpEnabled"]:
+        return {
+            "status": "no_totp",
+            "message": "Password reset requires a TOTP authenticator. Sign in and change your password from Settings.",
+        }
+
+    # Re-verify TOTP to prevent token reuse / replay.
+    if not verify_totp(landlord["totpSecret"], totp_token):
+        record_landlord_failed_attempt(landlord["id"])
+        create_landlord_audit_log(landlord["id"], "forgot_reset_failed", ip_address=None)
+        raise HTTPException(status_code=401, detail="Invalid TOTP code. Please try again.")
+
+    reset_landlord_failed_attempts(landlord["id"])
+
+    new_hash = hash_pin(new_password)
+    encrypted_pw = encrypt_admin_view_pin(new_password)
+    now = datetime.utcnow().isoformat()
+    landlord_id = landlord["id"]
+
+    with get_conn() as conn:
+        conn.execute(
+            """UPDATE "landlordAccounts"
+               SET "passwordHash" = %s,
+                   "requiresPasswordChange" = 0,
+                   "tempPasswordCreatedAt" = NULL,
+                   "tempPasswordConsumed" = 0,
+                   "updatedAt" = %s
+               WHERE id = %s""",
+            (new_hash, now, landlord_id),
+        )
+        conn.execute(
+            """INSERT INTO "landlordPasswordAdminStore"
+               ("landlordId", "encryptedPassword", "updatedAt") VALUES (%s, %s, %s)
+               ON CONFLICT ("landlordId") DO UPDATE SET "encryptedPassword" = excluded."encryptedPassword", "updatedAt" = excluded."updatedAt" """,
+            (landlord_id, encrypted_pw, now),
+        )
+        conn.commit()
+
+    create_landlord_audit_log(
+        landlord_id,
+        "password_reset",
+        ip_address=request.client.host if request.client else None,
+        meta_json=json.dumps({"method": "totp_forgot_password"}),
+    )
+
+    try:
+        from app.core.websocket_manager import sync_manager
+        await sync_manager.broadcast(
+            f"landlord:{landlord['landlordUuid']}",
+            {"type": "PASSWORD_RESET", "role": "landlord", "id": landlord_id},
+        )
+        await sync_manager.broadcast(
+            "platform_admin",
+            {"type": "PASSWORD_RESET", "role": "landlord", "id": landlord_id},
+        )
+    except Exception:
+        pass
+
+    return {
+        "status": "success",
+        "message": "Password reset successfully. Please login with your new password.",
+    }
+
+
 @router.get(Routes.LANDLORDAPITOTPQR, name=Names.LANDLORDTOTPQR)
 async def landlord_totp_qr(
     landlordUuid: str,
@@ -932,6 +1360,7 @@ async def landlord_totp_qr(
 
 @router.post(Routes.LANDLORDAPITOTPREGENERATE, name=Names.LANDLORDTOTPREGENERATE)
 async def landlord_totp_regenerate(
+    request: Request,
     landlordUuid: str,
     principal=Depends(get_current_landlord_api),
 ):

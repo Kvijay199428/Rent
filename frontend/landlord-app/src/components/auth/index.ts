@@ -3,6 +3,7 @@ export { AuthFlow } from "./AuthFlow";
 export { AuthPage } from "./AuthPage";
 export { LoginForm } from "./LoginForm";
 export { SignupForm } from "./SignupForm";
+export { ForgotPassword } from "./ForgotPassword";
 export { PasswordField } from "./PasswordField";
 export { SocialButtons } from "./SocialButtons";
 export { PolicyModal } from "./PolicyModal";

@@ -43,6 +43,11 @@ interface RouteManifest {
             auth: Record<string, string>;
             dashboard: Record<string, string>;
             config: Record<string, string>;
+            profile: Record<string, string>;
+            sessions: Record<string, string>;
+            google: Record<string, string>;
+            recoveryCodes: Record<string, string>;
+            dataExport: Record<string, string>;
             billing: Record<string, string>;
             tenants: Record<string, string>;
             occupants: Record<string, string>;
@@ -268,6 +273,8 @@ export const ROUTES = {
     get LANDLORDAPIAUTHLOGOUT() { return api("landlord", "auth", "logout"); },
     get LANDLORDAPIAUTHME() { return api("landlord", "auth", "me"); },
     get LANDLORDAPIAUTHCHANGEPASSWORD() { return api("landlord", "auth", "changePassword"); },
+    get LANDLORDAPIPASSWORDFORGOTVERIFY() { return api("landlord", "auth", "forgotVerify"); },
+    get LANDLORDAPIPASSWORDFORGOTRESET() { return api("landlord", "auth", "forgotReset"); },
     get LANDLORDAPIPRIVACYPOLICY() { return api("landlord", "auth", "privacyPolicy"); },
     get LANDLORDAPIAUTHPRIVACYCONSENT() { return api("landlord", "auth", "privacyConsent"); },
     get LANDLORDAPITERMS() { return api("landlord", "auth", "terms"); },
@@ -281,6 +288,24 @@ export const ROUTES = {
     LANDLORDAPICONFIGUPDATE(landlordUuid: string) { return api("landlord", "config", "update", { landlordUuid }); },
     LANDLORDAPICONFIGTHEMEGET(landlordUuid: string) { return api("landlord", "config", "themeGet", { landlordUuid }); },
     LANDLORDAPICONFIGTHEME(landlordUuid: string) { return api("landlord", "config", "theme", { landlordUuid }); },
+
+    // Landlord API: Profile
+    LANDLORDAPIPROFILEGET(landlordUuid: string) { return api("landlord", "profile", "get", { landlordUuid }); },
+    LANDLORDAPIPROFILEUPDATE(landlordUuid: string) { return api("landlord", "profile", "update", { landlordUuid }); },
+
+    // Landlord API: Sessions
+    LANDLORDAPISESSIONS(landlordUuid: string) { return api("landlord", "sessions", "list", { landlordUuid }); },
+    LANDLORDAPISESSIONSREVOKE(landlordUuid: string, sessionId: string) { return api("landlord", "sessions", "revoke", { landlordUuid, sessionId }); },
+
+    // Landlord API: Google Connect
+    LANDLORDAPIGOOGLECONNECT(landlordUuid: string) { return api("landlord", "google", "connect", { landlordUuid }); },
+    LANDLORDAPIGOOGLEDISCONNECT(landlordUuid: string) { return api("landlord", "google", "disconnect", { landlordUuid }); },
+
+    // Landlord API: Recovery Codes
+    LANDLORDAPIRECOVERYCODES(landlordUuid: string) { return api("landlord", "recoveryCodes", "generate", { landlordUuid }); },
+
+    // Landlord API: Data Export
+    LANDLORDAPIDATAEXPORT(landlordUuid: string) { return api("landlord", "dataExport", "export", { landlordUuid }); },
 
     // Landlord API: Billing
     LANDLORDAPIBILLINGFILTER(landlordUuid: string) { return api("landlord", "billing", "filter", { landlordUuid }); },

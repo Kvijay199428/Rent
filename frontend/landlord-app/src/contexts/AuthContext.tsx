@@ -24,6 +24,9 @@ interface AuthContextType {
   landlordUuid: string | null;
   username: string | null;
   fullName: string | null;
+  email: string | null;
+  phone: string | null;
+  avatarUrl: string | null;
   hasTotp: boolean;
   totpEnabled: boolean;
   requiresPasswordChange: boolean;
@@ -50,7 +53,8 @@ interface AuthContextType {
   changePassword: (
     currentPassword: string,
     newPassword: string,
-    confirmPassword: string
+    confirmPassword: string,
+    totpToken?: string
   ) => Promise<{ status: string; message?: string; next_step?: string; totp?: any }>;
   refreshMe: () => Promise<void>;
   setSetupState: (completed: boolean, skipped: boolean) => void;
@@ -64,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [landlordUuid, setLandlordUuid] = useState<string | null>(null);
   const [username, setUsername] = useState<string | null>(null);
   const [fullName, setFullName] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [hasTotp, setHasTotp] = useState(false);
   const [totpEnabled, setTotpEnabled] = useState(false);
   const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
@@ -83,6 +90,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLandlordUuid(uuid);
     setUsername(data?.landlord?.username ?? null);
     setFullName(data?.landlord?.fullName ?? null);
+    setEmail(data?.landlord?.email ?? null);
+    setPhone(data?.landlord?.phone ?? null);
+    setAvatarUrl(data?.landlord?.avatarUrl ?? null);
     setHasTotp(data?.landlord?.hasTotp ?? false);
     setTotpEnabled(data?.landlord?.totpEnabled ?? false);
     setRequiresPasswordChange(data?.landlord?.requiresPasswordChange ?? false);
@@ -98,6 +108,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLandlordUuid(null);
     setUsername(null);
     setFullName(null);
+    setEmail(null);
+    setPhone(null);
+    setAvatarUrl(null);
     setHasTotp(false);
     setTotpEnabled(false);
     setRequiresPasswordChange(false);
@@ -333,13 +346,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (
       currentPassword: string,
       newPassword: string,
-      confirmPassword: string
+      confirmPassword: string,
+      totpToken?: string
     ): Promise<{ status: string; message?: string; next_step?: string; totp?: any }> => {
       try {
         const data = await apiPost(ROUTES.LANDLORDAPIAUTHCHANGEPASSWORD, {
           currentPassword,
           newPassword,
           confirmPassword,
+          totpToken,
         });
 
         // Refresh auth state after successful password change
@@ -402,7 +417,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, hasTotp, totpEnabled, requiresPasswordChange, privacyConsented, termsConsented, setupCompleted, setupSkipped, login, googleLogin, verifyTotp, logout, changePassword, refreshMe, setSetupState }}
+      value={{ isAuthenticated, isLoading, landlordUuid, username, fullName, email, phone, avatarUrl, hasTotp, totpEnabled, requiresPasswordChange, privacyConsented, termsConsented, setupCompleted, setupSkipped, login, googleLogin, verifyTotp, logout, changePassword, refreshMe, setSetupState }}
     >
       {children}
     </AuthContext.Provider>

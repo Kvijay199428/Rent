@@ -16,15 +16,17 @@ import { api } from '@/services/api';
 import { ROUTES } from '@/lib/routes';
 import { silentRefresh } from '@/lib/auth';
 import { useToast } from '@/hooks/useToast';
-import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { BrandWave } from '@shared/loading/BrandWave';
 import PhoneInputField from '@shared/phone/PhoneInput';
-import type { AppConfig, Property } from '@/types';
+import type { AppConfig, Property, UiPreferences } from '@/types';
 import ImportPreviewModal from '../components/modals/ImportPreviewModal';
 import ExportPreviewModal from '../components/modals/ExportPreviewModal';
 import SchemaMismatchDialog, { type SchemaMismatchInfo } from '../components/modals/SchemaMismatchDialog';
 import { importPreview, downloadImportTemplateV2, isSchemaMismatchError } from '../components/modals/importService';
+import AppearanceTab from '../components/settings/AppearanceTab';
+import NotificationsTab from '../components/settings/NotificationsTab';
+import ProfileTab from '../components/settings/ProfileTab';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,11 +37,9 @@ import {
 import {
   Receipt,
   UserCircle,
+  User,
   Palette,
   Save,
-  Sun,
-  Moon,
-  Laptop,
   Upload,
   FileSpreadsheet,
   Database,
@@ -59,6 +59,9 @@ export default function Settings() {
   const { landlordUuid, hasTotp, totpEnabled, refreshMe } = useAuth();
   const whatsappTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [whatsappEditMode, setWhatsappEditMode] = useState(false);
+  const uiShouldSaveRef = useRef(false);
+  const notificationsShouldSaveRef = useRef(false);
+  const systemShouldSaveRef = useRef(false);
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [configError, setConfigError] = useState(false);
@@ -77,7 +80,6 @@ export default function Settings() {
   const [propsSaving, setPropsSaving] = useState(false);
   const [propsAddr, setPropsAddr] = useState<Record<string, StructuredAddress>>({});
   const toast = useToast();
-  const { theme, resolvedTheme, setTheme } = useTheme();
   const [landlordAddr, setLandlordAddr] = useState<StructuredAddress>({});
   const [country, setCountry] = useState('');
 
@@ -333,17 +335,55 @@ export default function Settings() {
     }
   };
 
+  const updateUiPreferences = (patch: Partial<UiPreferences>) => {
+    if (!config) return;
+    uiShouldSaveRef.current = true;
+    setConfig({
+      ...config,
+      ui: {
+        ...config.ui,
+        preferences: { ...(config.ui.preferences || {}), ...patch },
+      },
+    });
+  };
+
+  const updateNotifications = (patch: Record<string, unknown>) => {
+    if (!config) return;
+    notificationsShouldSaveRef.current = true;
+    setConfig({
+      ...config,
+      notifications: { ...(config.notifications || {}), ...patch },
+    });
+  };
+
+  const updateWhatsappEnabled = (enabled: boolean) => {
+    if (!config) return;
+    setConfig({ ...config, whatsapp: { ...config.whatsapp, enabled } });
+  };
+
   const handleSave = async () => {
     if (!config) return;
     setSaving(true);
     try {
-      await api.saveConfig(landlordUuid!, {
+      const payload: Partial<AppConfig> = {
         landlord: config.landlord,
         billing: config.billing,
         whatsapp: config.whatsapp,
         backup: config.backup,
-        system: config.system,
-      });
+      };
+      if (uiShouldSaveRef.current) {
+        payload.ui = { ...config.ui };
+        uiShouldSaveRef.current = false;
+      }
+      if (notificationsShouldSaveRef.current && config.notifications) {
+        payload.notifications = config.notifications;
+        notificationsShouldSaveRef.current = false;
+      }
+      if (systemShouldSaveRef.current && config.system) {
+        payload.system = config.system;
+        systemShouldSaveRef.current = false;
+      }
+      await api.saveConfig(landlordUuid!, payload);
       await uploadSignature();
       toast.success('Settings saved successfully');
       setSignatureFile(null);
@@ -395,7 +435,11 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="data" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4 lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-6 gap-1 lg:w-[576px]">
+          <TabsTrigger value="profile" className="gap-1">
+            <User className="h-4 w-4" />
+            Profile
+          </TabsTrigger>
           <TabsTrigger value="data" className="gap-1">
             <Database className="h-4 w-4" />
             Data
@@ -403,6 +447,10 @@ export default function Settings() {
           <TabsTrigger value="general" className="gap-1">
             <Settings2 className="h-4 w-4" />
             General
+          </TabsTrigger>
+          <TabsTrigger value="appearance" className="gap-1">
+            <Palette className="h-4 w-4" />
+            Appearance
           </TabsTrigger>
           <TabsTrigger value="notifications" className="gap-1">
             <Bell className="h-4 w-4" />
@@ -413,6 +461,11 @@ export default function Settings() {
             Security
           </TabsTrigger>
         </TabsList>
+
+        {/* ─── PROFILE TAB ─── */}
+        <TabsContent value="profile" className="space-y-4">
+          <ProfileTab />
+        </TabsContent>
 
         {/* ─── DATA TAB: Import / Export ─── */}
         <TabsContent value="data" className="space-y-4">
@@ -813,61 +866,6 @@ export default function Settings() {
             </CardContent>
           </Card>
 
-          {/* Appearance */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Palette className="h-5 w-5 text-primary" />
-                Appearance
-              </CardTitle>
-              <CardDescription>
-                Choose how the app should look across all pages.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { value: 'light' as const, label: 'Light', desc: 'Bright interface for daytime use.', icon: Sun },
-                  { value: 'dark' as const, label: 'Dark', desc: 'Low-glare interface for night use.', icon: Moon },
-                  { value: 'system' as const, label: 'System', desc: 'Automatically follows your device preference.', icon: Laptop },
-                ].map((option) => (
-                  <button
-                    key={option.value}
-                    onClick={() => setTheme(option.value)}
-                    className={`p-4 rounded-xl border-2 text-left transition-all ${theme === option.value
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50'
-                      }`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${option.value === 'light' ? 'bg-amber-100 text-amber-600' :
-                        option.value === 'dark' ? 'bg-indigo-100 text-indigo-600' :
-                          'bg-gray-100 text-gray-600'
-                        }`}>
-                        <option.icon className="h-4 w-4" />
-                      </div>
-                      {theme === option.value && (
-                        <span className="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded-full">Active</span>
-                      )}
-                    </div>
-                    <div className="font-bold text-sm">{option.label}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{option.desc}</div>
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-6 mt-4 text-sm">
-                <div>
-                  <span className="text-xs text-muted-foreground uppercase font-semibold">Selected</span>
-                  <div className="font-medium capitalize">{theme}</div>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground uppercase font-semibold">Applied now</span>
-                  <div className="font-medium capitalize">{resolvedTheme}</div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Properties */}
           <Card>
             <CardHeader>
@@ -934,39 +932,22 @@ export default function Settings() {
           </Card>
         </TabsContent>
 
+        {/* ─── APPEARANCE TAB ─── */}
+        <TabsContent value="appearance" className="space-y-4">
+          <AppearanceTab
+            preferences={config.ui?.preferences}
+            onChange={updateUiPreferences}
+          />
+        </TabsContent>
+
         {/* ─── NOTIFICATIONS TAB ─── */}
         <TabsContent value="notifications" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="h-5 w-5 text-primary" />
-                Notification Preferences
-              </CardTitle>
-              <CardDescription>
-                Configure how and when you receive alerts.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>WhatsApp Notifications</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Send receipts and reminders via WhatsApp
-                  </p>
-                </div>
-                <Switch
-                  checked={config.whatsapp?.enabled ?? true}
-                  onCheckedChange={(v) => {
-                    if (!config) return;
-                    setConfig({
-                      ...config,
-                      whatsapp: { ...config.whatsapp, enabled: v }
-                    });
-                  }}
-                />
-              </div>
-            </CardContent>
-          </Card>
+          <NotificationsTab
+            notifications={config.notifications}
+            whatsappEnabled={config.whatsapp?.enabled ?? true}
+            onWhatsappEnabledChange={updateWhatsappEnabled}
+            onChange={updateNotifications}
+          />
         </TabsContent>
 
         {/* ─── SECURITY TAB ─── */}

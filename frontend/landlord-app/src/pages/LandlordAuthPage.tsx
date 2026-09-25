@@ -4,7 +4,7 @@ import { useGoogleLogin } from "@react-oauth/google";
 import { ArrowLeft, KeyRound, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthLayout from "@/components/layout/AuthLayout";
-import { AuthFlow } from "@/components/auth";
+import { AuthFlow, ForgotPassword } from "@/components/auth";
 import type { LoginValues, SignupValues } from "@/components/auth";
 import { PrivacyPolicyBody, TermsConditionsBody } from "@/components/auth/PolicyContents";
 import { Logo } from "@shared/brand/Logo";
@@ -30,7 +30,7 @@ interface Conflict {
   suggestions?: string[];
 }
 
-type Step = "auth" | "totp";
+type Step = "auth" | "totp" | "forgot";
 
 interface PendingCreds {
   username: string;
@@ -220,10 +220,22 @@ export default function LandlordAuthPage({ defaultTab = "login" }: LandlordAuthP
     setError("");
   };
 
+  const showForgot = () => {
+    setError("");
+    setStep("forgot");
+  };
+
+  const handleForgotDone = () => {
+    setStep("auth");
+    toast.success("Password reset successfully!", { description: "Sign in with your new password." });
+  };
+
   return (
     <>
       <AuthLayout>
-        {step === "totp" && pendingCreds ? (
+        {step === "forgot" ? (
+          <ForgotPassword onCancel={backToAuth} onDone={handleForgotDone} />
+        ) : step === "totp" && pendingCreds ? (
           <Card className="w-full max-w-md shadow-xl">
             <CardHeader className="space-y-1">
               <div className="flex items-center justify-center mb-4">
@@ -285,6 +297,7 @@ export default function LandlordAuthPage({ defaultTab = "login" }: LandlordAuthP
             socialProviders={[{ id: "google", label: "Google", onClick: () => googleSignIn() }]}
             onLogin={handleLogin}
             onSignup={handleSignup}
+            onForgotPassword={showForgot}
             termsContent={<TermsConditionsBody />}
             privacyContent={<PrivacyPolicyBody />}
           />

@@ -53,6 +53,17 @@ DEFAULT_CONFIGS = {
     },
     "ui": {
         "theme": "system",
+        "preferences": {
+            "language": "en",
+            "locale": "en-US",
+            "currency": "INR",
+            "dateFormat": "YYYY-MM-DD",
+            "timeFormat": "24h",
+            "weekStartsOn": "monday",
+            "reduceMotion": False,
+            "highContrast": False,
+            "compactMode": False
+        },
         "menu": [
             {"name": "Dashboard", "icon": "bi-speedometer2", "type": "internal",
             "route": "home_page"},
@@ -69,6 +80,35 @@ DEFAULT_CONFIGS = {
             {"name": "Settings", "icon": "bi-gear", "type": "internal",
             "route": "settings_page"}
         ]
+    },
+    "notifications": {
+        "rent_reminders": {
+            "enabled": True,
+            "daysBeforeDue": [3, 1],
+            "channel": ["email", "sms"],
+            "emailTemplate": "rent_reminder",
+            "smsTemplate": "rent_reminder"
+        },
+        "payment_received": {
+            "enabled": True,
+            "channel": ["email", "sms"],
+            "emailTemplate": "payment_received",
+            "smsTemplate": "payment_received"
+        },
+        "tenant_signup": {
+            "enabled": True,
+            "channel": ["email"],
+            "emailTemplate": "tenant_signup"
+        },
+        "login_alerts": {
+            "enabled": False,
+            "channel": ["email"]
+        },
+        "channelDefaults": {
+            "email": True,
+            "sms": False,
+            "push": False
+        }
     },
     "schema": {
         "tenant_schema": 2,
@@ -121,7 +161,12 @@ DEFAULT_CONFIGS = {
             "country_code": "91"
         },
         "features": {
-            "whatsapp_sync": True
+            "whatsapp_sync": True,
+            "profile_settings": True,
+            "sessions_management": False,
+            "recovery_codes": False,
+            "google_connect": False,
+            "data_export": False
         }
     },
     "TENANTPROFILE": {},

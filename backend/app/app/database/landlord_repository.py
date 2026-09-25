@@ -6,7 +6,9 @@ and landlord_audit_logs tables.  No business logic lives here — callers
 are responsible for validation, hashing, and UUID generation.
 """
 import base64
+import hashlib
 import io
+import secrets
 from datetime import datetime
 
 import pyotp
@@ -227,6 +229,42 @@ def update_landlord_totp_secret(landlord_id: int, secret: str):
         conn.commit()
 
 
+def update_landlord_profile(
+    landlord_id: int,
+    full_name: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+    avatar_url: str | None = None,
+) -> None:
+    """Update editable profile fields on landlord_accounts.
+
+    Only non-None fields are written; caller is responsible for validation
+    (email uniqueness) and phone normalization.
+    """
+    now = datetime.utcnow().isoformat()
+    assignments = ['"updatedAt" = %s']
+    params = [now]
+    if full_name is not None:
+        assignments.append('"fullName" = %s')
+        params.append(full_name)
+    if email is not None:
+        assignments.append("email = %s")
+        params.append(email)
+    if phone is not None:
+        assignments.append("phone = %s")
+        params.append(phone)
+    if avatar_url is not None:
+        assignments.append('"avatarUrl" = %s')
+        params.append(avatar_url)
+    params.append(landlord_id)
+    with get_conn() as conn:
+        conn.execute(
+            f'UPDATE "landlordAccounts" SET {", ".join(assignments)} WHERE id = %s',
+            tuple(params),
+        )
+        conn.commit()
+
+
 def get_totp_uri(username: str, totp_secret: str, issuer: str = "PROPAURA") -> str:
     """Generate TOTP provisioning URI for QR code."""
     return pyotp.totp.TOTP(totp_secret).provisioning_uri(
@@ -258,6 +296,71 @@ def regenerate_landlord_totp_secret(landlord_id: int) -> str:
     new_secret = pyotp.random_base32()
     update_landlord_totp_secret(landlord_id, new_secret)
     return new_secret
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Landlord recovery (backup) codes — SHA-256 hashed, single-use
+# ──────────────────────────────────────────────────────────────────────────────
+
+RECOVERY_CODE_COUNT = 10
+RECOVERY_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+
+
+def _normalize_recovery_code(code: str) -> str:
+    """Strip everything outside the code alphabet and uppercase."""
+    return "".join(ch for ch in code.upper() if ch in RECOVERY_CODE_ALPHABET)
+
+
+def _hash_recovery_code(code: str) -> str:
+    return hashlib.sha256(_normalize_recovery_code(code).encode("utf-8")).hexdigest()
+
+
+def issue_landlord_recovery_codes(landlord_id: int, count: int = RECOVERY_CODE_COUNT) -> list:
+    """Replace the landlord's unused recovery codes with a fresh batch.
+
+    Returns the plaintext codes (shown exactly once to the caller); only the
+    SHA-256 hashes are persisted.
+    """
+    now = datetime.utcnow().isoformat()
+    codes = []
+    for _ in range(count):
+        raw = "".join(secrets.choice(RECOVERY_CODE_ALPHABET) for _ in range(8))
+        codes.append(f"{raw[:4]}-{raw[4:]}")
+    with get_conn() as conn:
+        conn.execute(
+            "DELETE FROM \"landlordRecoveryCodes\" WHERE \"landlordId\" = %s",
+            (landlord_id,),
+        )
+        for code in codes:
+            conn.execute(
+                "INSERT INTO \"landlordRecoveryCodes\" (\"landlordId\", \"codeHash\", \"createdAt\") VALUES (%s, %s, %s)",
+                (landlord_id, _hash_recovery_code(code), now),
+            )
+        conn.commit()
+    return codes
+
+
+def consume_landlord_recovery_code(landlord_id: int, code: str) -> bool:
+    """Consume a single unused recovery code for *landlord_id*.
+
+    Returns True when the code matched and was marked used; False otherwise.
+    """
+    now = datetime.utcnow().isoformat()
+    code_hash = _hash_recovery_code(code)
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM \"landlordRecoveryCodes\" "
+            "WHERE \"landlordId\" = %s AND \"codeHash\" = %s AND used = 0",
+            (landlord_id, code_hash),
+        ).fetchone()
+        if not row:
+            return False
+        conn.execute(
+            "UPDATE \"landlordRecoveryCodes\" SET used = 1, \"usedAt\" = %s WHERE id = %s",
+            (now, row["id"]),
+        )
+        conn.commit()
+    return True
 
 
 # ──────────────────────────────────────────────────────────────────────────────

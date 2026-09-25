@@ -25,6 +25,7 @@ async def api_get_config(landlordUuid: str, principal=Depends(get_current_landlo
         "ui": config.get("ui", {}),
         "backup": config.get("backup", {}),
         "whatsapp": config.get("whatsapp", {}),
+        "notifications": config.get("notifications", {}),
         "system": config.get("system", {}),
         "broadcast": config.get("broadcast", {"enabled": False, "message": "", "type": "info", "dismissible": True})
     }
@@ -65,6 +66,8 @@ class ConfigUpdateModel(BaseModel):
     whatsapp: dict = {}
     backup: dict = {}
     system: dict | None = None
+    ui: dict | None = None
+    notifications: dict | None = None
 
 @router.post(Routes.LANDLORDAPICONFIGUPDATE, name=Names.UPDATECONFIG)
 async def update_config(landlordUuid: str, data: ConfigUpdateModel, request: Request, background_tasks: BackgroundTasks, principal=Depends(get_current_landlord_api)):
@@ -85,11 +88,22 @@ async def update_config(landlordUuid: str, data: ConfigUpdateModel, request: Req
     if data.system:
         config.save("system", data.system)
 
+    if data.ui:
+        config.save("ui", data.ui)
+
+    if data.notifications:
+        config.save("notifications", data.notifications)
+
     create_landlord_audit_log(
         principal.landlord_id,
         "settings_updated",
         ip_address=request.client.host if request.client else None,
-        meta_json=json.dumps({"sections": ["landlord", "billing"] + (["whatsapp"] if data.whatsapp else []) + (["backup"] if data.backup else []) + (["system"] if data.system else [])}),
+        meta_json=json.dumps({"sections": ["landlord", "billing"]
+                              + (["whatsapp"] if data.whatsapp else [])
+                              + (["backup"] if data.backup else [])
+                              + (["system"] if data.system else [])
+                              + (["ui"] if data.ui else [])
+                              + (["notifications"] if data.notifications else [])}),
     )
 
     return {"status": "success"}

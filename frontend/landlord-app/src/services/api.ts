@@ -1,4 +1,4 @@
-import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, PaymentState, PaymentEntryCreate, PaymentEntryUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig } from "@/types";
+import type { Tenant, Receipt, DashboardStats, AppConfig, Backup, PaymentStatusUpdate, PaymentState, PaymentEntryCreate, PaymentEntryUpdate, Occupant, TenantRecoverySnapshot, SnapshotRestorePreview, PermanentDeleteResult, Property, PropertyConfig, LandlordProfile } from "@/types";
 import { ROUTES } from "@/lib/routes";
 import { silentRefresh } from "@/lib/auth";
 
@@ -366,6 +366,25 @@ export const api = {
     const query = new URLSearchParams(params as Record<string, string>).toString();
     const res = await fetchWithAuth(`${ROUTES.LANDLORDAPIBILLINGPREVIEW(landlordUuid)}?${query}`);
     if (!res.ok) throw new Error("Failed to preview billing");
+    return res.json();
+  },
+
+  // Profile
+  getProfile: async (landlordUuid: string): Promise<{ status: string, profile: LandlordProfile }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROFILEGET(landlordUuid));
+    if (!res.ok) throw new Error('Failed to fetch profile');
+    return res.json();
+  },
+
+  updateProfile: async (landlordUuid: string, updates: Partial<Pick<LandlordProfile, 'fullName' | 'email' | 'phone' | 'avatarUrl'>>): Promise<{ status: string }> => {
+    const res = await fetchWithAuth(ROUTES.LANDLORDAPIPROFILEUPDATE(landlordUuid), {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.detail || 'Failed to update profile');
+    }
     return res.json();
   },
 
