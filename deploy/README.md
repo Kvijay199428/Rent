@@ -8,8 +8,8 @@ RELEASE (production, api.vijaykrsha.online)        DEVELOPMENT (ngrok)
 cloudflared / DNS  →  propaura_nginx_gateway_prod  ngrok tunnel  →  propaura_nginx_gateway_dev (28005)
                       (host 28014 → cont 28014)                           │
                           │                                                ├─ API → propaura_backend_dev (28002)
-                          ├─ /health, /api, /ws → propaura_backend_prod    └─ tenant pages → propaura_frontend_dev
-                          │  (cont 28011, expose only)                        (Vite, host 28001)
+                          ├─ /health, /api, /ws → propaura_backend_prod    └─ all pages → backend_dev frontend
+                          │  (cont 28011, expose only)                          router (from mounted dist)
                           └─ /* SPA from frontend/build-output
                              (no frontend container)
    data: PostgreSQL pgdata_prod (28013) │ storage/release (28012)          data: pgdata_dev (28004) │ storage/dev (28003)
@@ -29,7 +29,7 @@ Canonical ports are single-sourced in `deploy/ports.py` and regenerated into
 
 | Service    | Dev                     | Release                    |
 |------------|-------------------------|----------------------------|
-| Frontend   | 28001 → 28001 (Vite)    | — (SPA served by the edge) |
+| Frontend   | — (SPA from backend_dev dist; dev frontend builds on Cloudflare Pages `dev` branch) | — (SPA served by the edge) |
 | Backend    | 28002 → 28002 (exposed) | 28011 → 28011 (expose only)|
 | Storage    | 28003 → 28003 (expose)  | 28012 → 28012 (expose only)|
 | Database   | 28004 → 28004 (expose)  | 28013 → 28013 (expose only)|
@@ -37,7 +37,7 @@ Canonical ports are single-sourced in `deploy/ports.py` and regenerated into
 | ngrok dash | 28006 → 4040 (profile)  | —                          |
 
 PostgreSQL and storage are expose-only (never published to the host); only the
-edge (and Vite/backend in dev) get host-published ports.
+edge (and backend in dev) get host-published ports.
 
 ## Required Docker network
 
@@ -161,7 +161,7 @@ components you actually changed. Default is `--all` (the whole repo).
 | Scope       | Ships | Dev compose step |
 |-------------|-------|------------------|
 | `--all`     | entire repo (default) | `build` + `up -d` all services |
-| `--frontend`| `frontend/` + root infra | `build`/`up` `propaura_frontend_dev` |
+| `--frontend`| `frontend/` + root infra | sync + reload nginx (no container; dev frontend builds on Cloudflare Pages `dev` branch) |
 | `--backend` | `backend/` + root infra | `build`/`up` `propaura_backend_dev` |
 | `--storage` | `storage/` incl. config + backups (dev) | `restart propaura_backend_dev` (reloads config) |
 | `--database`| `backend/app/app/database/`, `core/db.py` + root infra | `build`/`up` `propaura_backend_dev` (runs `init_db`) |
@@ -195,15 +195,18 @@ python3 deploy.py --prod --sshPublic
 
 ### What `--dev` runs
 
-Uploads the repo (no npm builds — Vite runs live), then on the server:
+Uploads the repo (no npm builds — the dev frontend is built on Cloudflare
+Pages' `dev` branch, `dev.rent-8rf.pages.dev`), then on the server:
 `docker compose --env-file .env.development -f compose.dev.yml build && up -d`.
-Backend on container port 28002 (hot reload, host-published), tenant-app Vite on
-host 28001, edge dev nginx on host 28005.
+Backend on container port 28002 (hot reload, host-published), edge dev nginx on
+host 28005. The old tenant-app Vite container (`propaura_frontend_dev`, host
+28001) has been retired from the dev stack; all dev pages/assets are served by
+backend_dev's frontend router from the mounted dist.
 
 The dev ngrok tunnel on the server is the **systemd-hosted** agent
 (`ngrok.service`, `/home/vega/.config/ngrok/ngrok.yml`) — it owns the account's
 reserved URL and is repointed to `http://localhost:28005` (the dev edge nginx,
-not the backend directly — the edge splits API vs tenant/Vite traffic). The
+not the backend directly — the edge routes API vs frontend pages). The
 docker `ngrok` service is behind the `ngrok` compose profile (avoids a
 port/URL clash):
 

@@ -185,9 +185,11 @@ SCOPE_INFRA_FILES = {
 SCOPE_INFRA_ENV_PREFIXES = (".env",)
 
 # Dev compose service targeted by each scope (backend restarts pick up schema
-# init_db() and config reload). `all` keeps the existing full build+up.
+# init_db() and config reload). `all` keeps the existing full build+up. The
+# `frontend` scope has no service: the dev tenant-app Vite container was retired
+# (dev frontend lives on the Cloudflare Pages `dev` branch), so it just syncs
+# the frontend/ tree for backend_dev to serve.
 SCOPE_SERVICES = {
-    "frontend": "propaura_frontend_dev",
     "backend": "propaura_backend_dev",
     "storage": "propaura_backend_dev",
     "database": "propaura_backend_dev",
@@ -668,6 +670,14 @@ def get_deploy_commands():
             f"cd {REMOTE_DIR} && {base} up -d --force-recreate",
             NGINX_RELOAD_CMD,
         ]
+    elif scope == "frontend":
+        # Dev frontend is no longer a container: tenant-app Vite (was
+        # propaura_frontend_dev, port 28001) has been retired from the dev
+        # stack. The dev frontend is hosted on the Cloudflare Pages `dev`
+        # branch instead. The `frontend` scope still syncs the frontend/ tree
+        # (so backend_dev can serve the mounted dist), then reloads nginx.
+        cmds = extract_zip_cmds()
+        cmds.append(NGINX_RELOAD_CMD)
     elif scope == "all" or svc is None:
         cmds = extract_zip_cmds()
         cmds.extend([
@@ -675,14 +685,6 @@ def get_deploy_commands():
             f"cd {REMOTE_DIR} && {base} up -d",
             NGINX_RELOAD_CMD,
         ])
-    elif scope == "frontend":
-        # Dev frontend is a live bind-mounted Vite container (image-only, no
-        # build context). Target the exact container with a docker restart so the
-        # newly synced frontend/ tree is picked up; avoids `no such service`
-        # that would come from passing a container_name to a compose command.
-        cmds = extract_zip_cmds()
-        cmds.append("docker restart propaura_frontend_dev")
-        cmds.append(NGINX_RELOAD_CMD)
     else:
         # Unified path for backend/storage/database dev scopes. The dev backend
         # is a bind-mounted image with uvicorn --reload, so code and config
@@ -864,15 +866,18 @@ def main():
                     f"cd {LOCAL_DIR} && {base} up -d --force-recreate",
                     NGINX_RELOAD_CMD,
                 ])
+            elif scope == "frontend":
+                # Dev frontend container retired (was propaura_frontend_dev,
+                # port 28001); dev frontend now lives on the Cloudflare Pages
+                # `dev` branch. Scope still syncs the frontend/ tree so
+                # backend_dev serves the mounted dist; no container to restart.
+                commands.append(NGINX_RELOAD_CMD)
             elif scope == "all" or svc is None:
                 commands.extend([
                     f"cd {LOCAL_DIR} && {base} build",
                     f"cd {LOCAL_DIR} && {base} up -d",
                     NGINX_RELOAD_CMD,
                 ])
-            elif scope == "frontend":
-                commands.append("docker restart propaura_frontend_dev")
-                commands.append(NGINX_RELOAD_CMD)
             else:
                 # Unified path for backend/storage/database dev scopes. The dev
                 # backend is a bind-mounted image with uvicorn --reload. Target

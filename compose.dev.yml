@@ -1,5 +1,4 @@
 # Development stack — isolated from production.
-#   propaura_frontend_dev       Vite dev server for tenant-app, port 28001 (host published)
 #   propaura_backend_dev        API on container port 28002 (hot reload), host published
 #   propaura_storage_dev        shared storage tree, port 28003 (expose only)
 #   propaura_database_dev       PostgreSQL, port 28004 (expose only; runs on -p 28004)
@@ -27,27 +26,6 @@
 name: propaura-dev
 
 services:
-  frontend_dev:
-    image: node:22-alpine
-    container_name: propaura_frontend_dev
-    restart: unless-stopped
-    # Mount the whole frontend/ tree so tenant-app's `@shared` alias
-    # (../shared) resolves inside the container, mirroring local dev layout.
-    working_dir: /app/tenant-app
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 28001"
-    environment:
-      - VITE_API_BASE_URL=${VITE_API_BASE_URL}
-      - VITE_APP_BASE_PATH=${VITE_APP_BASE_PATH}
-      - VITE_GOOGLE_CLIENT_ID=${VITE_GOOGLE_CLIENT_ID}
-    ports:
-      - "${FRONTEND_DEV_PORT:-28001}:28001"
-    volumes:
-      - ./frontend:/app
-    networks:
-      - dev-net
-    depends_on:
-      - backend_dev
-
   backend_dev:
     build:
       context: ./backend
