@@ -1,28 +1,42 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import MainLayout from './components/layout/MainLayout';
 import { Toaster } from '@/components/ui/sonner';
+import BrandWave from '@shared/loading/BrandWave';
 
-// Pages
-import Dashboard from './pages/Dashboard';
-import Tenants from './pages/Tenants';
-import Billing from './pages/Billing';
-import Settings from './pages/Settings';
-import History from './pages/History';
-import Backups from './pages/Backups';
-import Archive from './pages/Archive';
-import SecuritySettingsPage from './pages/SecuritySettingsPage';
-import ChangePasswordPage from './pages/ChangePasswordPage';
-import ActivityPage from './pages/ActivityPage';
-import LandlordAuthPage from './pages/LandlordAuthPage';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
-import PrivacyConsentPage from './pages/PrivacyConsentPage';
-import TermsConditionsPage from './pages/TermsConditionsPage';
-import Login from './pages/Login';
-import AdminSetupPage from './pages/AdminSetupPage';
-import SetupPage from './pages/SetupPage';
+// Pages (lazy-loaded for route-level code splitting)
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Tenants = lazy(() => import('./pages/Tenants'));
+const Billing = lazy(() => import('./pages/Billing'));
+const Settings = lazy(() => import('./pages/Settings'));
+const History = lazy(() => import('./pages/History'));
+const Backups = lazy(() => import('./pages/Backups'));
+const Archive = lazy(() => import('./pages/Archive'));
+const SecuritySettingsPage = lazy(() => import('./pages/SecuritySettingsPage'));
+const ChangePasswordPage = lazy(() => import('./pages/ChangePasswordPage'));
+const ActivityPage = lazy(() => import('./pages/ActivityPage'));
+const LandlordAuthPage = lazy(() => import('./pages/LandlordAuthPage'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage'));
+const PrivacyConsentPage = lazy(() => import('./pages/PrivacyConsentPage'));
+const TermsConditionsPage = lazy(() => import('./pages/TermsConditionsPage'));
+const Login = lazy(() => import('./pages/Login'));
+const AdminSetupPage = lazy(() => import('./pages/AdminSetupPage'));
+const SetupPage = lazy(() => import('./pages/SetupPage'));
 import { APP_BASE } from './lib/runtime';
+
+function FullPageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <BrandWave size="lg" stacked label="PropAura" />
+    </div>
+  );
+}
+
+function suspensed(node: React.ReactNode) {
+  return <Suspense fallback={<FullPageLoader />}>{node}</Suspense>;
+}
 
 function RequirePrivacyConsent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, privacyConsented, termsConsented } = useAuth();
@@ -47,6 +61,14 @@ function RequireSetup({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function guarded(page: React.ReactNode) {
+  return suspensed(
+    <RequirePrivacyConsent>
+      <RequireSetup>{page}</RequireSetup>
+    </RequirePrivacyConsent>,
+  );
+}
+
 function App() {
   const basename = APP_BASE === "/" ? "/" : APP_BASE.replace(/\/+$/, "");
 
@@ -56,45 +78,45 @@ function App() {
         <BrowserRouter basename={basename}>
           <Routes>
             {/* Public/Auth Routes */}
-            <Route path="/login" element={<LandlordAuthPage defaultTab="login" />} />
-            <Route path="/signup" element={<LandlordAuthPage defaultTab="signup" />} />
-            <Route path="/change-password" element={<ChangePasswordPage />} />
-            <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-            <Route path="/privacy-consent" element={<PrivacyConsentPage />} />
-            <Route path="/terms" element={<TermsConditionsPage />} />
-            <Route path="/admin/login" element={<Login />} />
-            <Route path="/admin/setup" element={<AdminSetupPage />} />
-            
+            <Route path="/login" element={suspensed(<LandlordAuthPage defaultTab="login" />)} />
+            <Route path="/signup" element={suspensed(<LandlordAuthPage defaultTab="signup" />)} />
+            <Route path="/change-password" element={suspensed(<ChangePasswordPage />)} />
+            <Route path="/privacy-policy" element={suspensed(<PrivacyPolicyPage />)} />
+            <Route path="/privacy-consent" element={suspensed(<PrivacyConsentPage />)} />
+            <Route path="/terms" element={suspensed(<TermsConditionsPage />)} />
+            <Route path="/admin/login" element={suspensed(<Login />)} />
+            <Route path="/admin/setup" element={suspensed(<AdminSetupPage />)} />
+
             {/* Protected Routes inside MainLayout — no UUID prefix */}
             <Route element={<MainLayout />}>
-              <Route path="/" element={<RequirePrivacyConsent><RequireSetup><Dashboard /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="/dashboard" element={<RequirePrivacyConsent><RequireSetup><Dashboard /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="/tenants" element={<RequirePrivacyConsent><RequireSetup><Tenants /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="/billing" element={<RequirePrivacyConsent><RequireSetup><Billing /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="/settings" element={<RequirePrivacyConsent><RequireSetup><Settings /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="/history" element={<RequirePrivacyConsent><RequireSetup><History /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="/backups" element={<RequirePrivacyConsent><RequireSetup><Backups /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="/archive" element={<RequirePrivacyConsent><RequireSetup><Archive /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="/security" element={<RequirePrivacyConsent><RequireSetup><SecuritySettingsPage /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="/activity" element={<RequirePrivacyConsent><RequireSetup><ActivityPage /></RequireSetup></RequirePrivacyConsent>} />
+              <Route path="/" element={guarded(<Dashboard />)} />
+              <Route path="/dashboard" element={guarded(<Dashboard />)} />
+              <Route path="/tenants" element={guarded(<Tenants />)} />
+              <Route path="/billing" element={guarded(<Billing />)} />
+              <Route path="/settings" element={guarded(<Settings />)} />
+              <Route path="/history" element={guarded(<History />)} />
+              <Route path="/backups" element={guarded(<Backups />)} />
+              <Route path="/archive" element={guarded(<Archive />)} />
+              <Route path="/security" element={guarded(<SecuritySettingsPage />)} />
+              <Route path="/activity" element={guarded(<ActivityPage />)} />
             </Route>
 
             {/* Initial setup wizard — standalone (RequireSetup redirects here) */}
-            <Route path="/setup" element={<SetupPage />} />
-            <Route path="/:uuid/setup" element={<SetupPage />} />
+            <Route path="/setup" element={suspensed(<SetupPage />)} />
+            <Route path="/:uuid/setup" element={suspensed(<SetupPage />)} />
 
             {/* Protected Routes with UUID prefix — for when basename doesn't include UUID */}
             <Route path="/:uuid" element={<MainLayout />}>
-              <Route index element={<RequirePrivacyConsent><RequireSetup><Dashboard /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="dashboard" element={<RequirePrivacyConsent><RequireSetup><Dashboard /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="tenants" element={<RequirePrivacyConsent><RequireSetup><Tenants /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="billing" element={<RequirePrivacyConsent><RequireSetup><Billing /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="settings" element={<RequirePrivacyConsent><RequireSetup><Settings /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="history" element={<RequirePrivacyConsent><RequireSetup><History /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="backups" element={<RequirePrivacyConsent><RequireSetup><Backups /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="archive" element={<RequirePrivacyConsent><RequireSetup><Archive /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="security" element={<RequirePrivacyConsent><RequireSetup><SecuritySettingsPage /></RequireSetup></RequirePrivacyConsent>} />
-              <Route path="activity" element={<RequirePrivacyConsent><RequireSetup><ActivityPage /></RequireSetup></RequirePrivacyConsent>} />
+              <Route index element={guarded(<Dashboard />)} />
+              <Route path="dashboard" element={guarded(<Dashboard />)} />
+              <Route path="tenants" element={guarded(<Tenants />)} />
+              <Route path="billing" element={guarded(<Billing />)} />
+              <Route path="settings" element={guarded(<Settings />)} />
+              <Route path="history" element={guarded(<History />)} />
+              <Route path="backups" element={guarded(<Backups />)} />
+              <Route path="archive" element={guarded(<Archive />)} />
+              <Route path="security" element={guarded(<SecuritySettingsPage />)} />
+              <Route path="activity" element={guarded(<ActivityPage />)} />
             </Route>
 
             {/* Fallback */}

@@ -238,9 +238,9 @@ export default function Settings() {
   }
 
   async function handlePreviewImport(files: File[]) {
-    const validFiles = files.filter(f => f.name.endsWith('.xlsx') || f.name.endsWith('.zip'));
+    const validFiles = files.filter(f => f.name.endsWith('.xlsx') || f.name.endsWith('.csv') || f.name.endsWith('.zip'));
     if (!validFiles.length) {
-      toast.error("Please select only .xlsx or .zip files.");
+      toast.error("Please select only .xlsx, .csv, or .zip files.");
       return;
     }
     setImportFiles(validFiles);
@@ -505,7 +505,7 @@ export default function Settings() {
                 Import Data
               </CardTitle>
               <CardDescription>
-                Import tenant profiles and rent receipts from Excel spreadsheets or ZIP archives.
+                Import tenant profiles and rent receipts from Excel spreadsheets, CSV files, or ZIP archives.
                 Download the template below to ensure correct formatting.
               </CardDescription>
             </CardHeader>
@@ -525,14 +525,14 @@ export default function Settings() {
                   <Upload className="h-8 w-8 mx-auto mb-2 text-primary" />
                   <h6 className="font-bold">
                     <label htmlFor="import-file" className="cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                      {importFiles.length > 0 ? `${importFiles.length} file(s) selected` : "Drag & Drop .xlsx / .zip Files or Click"}
+                      {importFiles.length > 0 ? `${importFiles.length} file(s) selected` : "Drag & Drop Excel, CSV, or ZIP Files or Click"}
                     </label>
                   </h6>
-                  <p className="text-xs text-muted-foreground mt-1">Select one or more .xlsx files or a .zip.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Select one or more .xlsx/.csv files or a .zip archive.</p>
                   <input
                     id="import-file"
                     type="file"
-                    accept=".xlsx,.zip"
+                    accept=".xlsx,.csv,.zip"
                     multiple
                     className="hidden"
                     onChange={(e) => {
@@ -627,11 +627,14 @@ export default function Settings() {
                 </h4>
                 <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
                   <li>
-                    <strong>.xlsx</strong> — Single Excel file with{" "}
-                    <code>Tenant_Profile</code> and <code>Rent_Receipts</code> sheets
+                    <strong>.xlsx</strong> — Single Excel workbook with{" "}
+                    <code>Tenant_Profile</code>, <code>Rent_Receipts</code>, and <code>Payment_Entries</code> sheets
                   </li>
                   <li>
-                    <strong>.zip</strong> — Archive containing multiple .xlsx files
+                    <strong>.csv</strong> — Flat file matching the exported 40-column layout
+                  </li>
+                  <li>
+                    <strong>.zip</strong> — Archive containing multiple .xlsx/.csv files
                   </li>
                   <li>
                     Required columns: tenantId, tenantName, Phone, Rent, Water, electricityRate

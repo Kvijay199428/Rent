@@ -47,6 +47,27 @@ export default defineConfig({
               id.includes('node_modules/tailwind-merge')) {
             return 'ui-primitives';
           }
+          if (id.includes('node_modules/framer-motion')) {
+            return 'motion';
+          }
+          if (id.includes('node_modules/react-phone-number-input') ||
+              id.includes('node_modules/libphonenumber-js') ||
+              id.includes('node_modules/country-flag-icons')) {
+            return 'phone';
+          }
+          if (id.includes('node_modules/react-hook-form') ||
+              id.includes('node_modules/@hookform') ||
+              id.includes('node_modules/zod')) {
+            return 'forms';
+          }
+          if (id.includes('node_modules/cmdk') ||
+              id.includes('node_modules/vaul') ||
+              id.includes('node_modules/sonner') ||
+              id.includes('node_modules/embla-carousel-react') ||
+              id.includes('node_modules/react-day-picker') ||
+              id.includes('node_modules/@react-oauth')) {
+            return 'overlays';
+          }
         },
         entryFileNames: 'assets/[name]-[hash].js',
         chunkFileNames: 'assets/[name]-[hash].js',
@@ -61,7 +82,7 @@ export default defineConfig({
     include: [
       'react',
       'react-dom',
-      'react-router-dom',
+      'react-router',
       'recharts',
       'lucide-react',
     ],
