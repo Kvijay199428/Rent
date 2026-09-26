@@ -182,13 +182,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const urlUuid = extractLandlordUuid();
     const storedUuid = localStorage.getItem("landlordUuid");
     const initialUuid = urlUuid || storedUuid;
+
     if (initialUuid) {
       // UUID is only a routing/data hint — authentication is established by
       // /api/auth/me (applyMeData) so pages never render as pre-authenticated.
       setLandlordUuid(initialUuid);
     }
 
-    refreshMe().finally(() => setIsLoading(false));
+    // Fresh/public visit with no session hint — skip /auth/me → /auth/refresh
+    // on a cookie-less load to avoid the transient 401-after-login pair.
+    (initialUuid ? refreshMe() : Promise.resolve()).finally(() =>
+      setIsLoading(false)
+    );
   }, [refreshMe]);
 
   const login = useCallback(
@@ -228,7 +233,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUsername(data?.landlord?.username ?? null);
           setFullName(data?.landlord?.fullName ?? null);
           localStorage.setItem("landlordUuid", uuid);
-          await refreshMe();
           return { status: "success", landlordUuid: uuid };
         }
 
@@ -239,7 +243,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    [refreshMe]
+    []
   );
 
   const googleLogin = useCallback(
@@ -277,7 +281,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUsername(data?.landlord?.username ?? null);
           setFullName(data?.landlord?.fullName ?? null);
           localStorage.setItem("landlordUuid", uuid);
-          await refreshMe();
           return { status: "success", landlordUuid: uuid };
         }
 
@@ -291,7 +294,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    [refreshMe]
+    []
   );
 
   const verifyTotp = useCallback(
@@ -331,7 +334,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUsername(data?.landlord?.username ?? null);
         setFullName(data?.landlord?.fullName ?? null);
         localStorage.setItem("landlordUuid", uuid);
-        await refreshMe();
         return { status: "success", landlordUuid: uuid };
       } catch {
         return false;
@@ -339,7 +341,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    [refreshMe]
+    []
   );
 
   const changePassword = useCallback(
