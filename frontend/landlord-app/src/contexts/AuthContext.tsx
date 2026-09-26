@@ -233,6 +233,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUsername(data?.landlord?.username ?? null);
           setFullName(data?.landlord?.fullName ?? null);
           localStorage.setItem("landlordUuid", uuid);
+          await refreshMe();
           return { status: "success", landlordUuid: uuid };
         }
 
@@ -243,7 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    []
+    [refreshMe]
   );
 
   const googleLogin = useCallback(
@@ -281,6 +282,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUsername(data?.landlord?.username ?? null);
           setFullName(data?.landlord?.fullName ?? null);
           localStorage.setItem("landlordUuid", uuid);
+          await refreshMe();
           return { status: "success", landlordUuid: uuid };
         }
 
@@ -294,7 +296,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    []
+    [refreshMe]
   );
 
   const verifyTotp = useCallback(
@@ -334,6 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUsername(data?.landlord?.username ?? null);
         setFullName(data?.landlord?.fullName ?? null);
         localStorage.setItem("landlordUuid", uuid);
+        await refreshMe();
         return { status: "success", landlordUuid: uuid };
       } catch {
         return false;
@@ -341,7 +344,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setIsLoading(false);
       }
     },
-    []
+    [refreshMe]
   );
 
   const changePassword = useCallback(

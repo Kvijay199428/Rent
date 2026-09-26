@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { Navigate, useNavigate } from "react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +48,7 @@ const STEPS = [
 
 export default function SetupPage() {
   const navigate = useNavigate();
-  const { landlordUuid, setupCompleted, refreshMe, setSetupState } = useAuth();
+  const { landlordUuid, setupCompleted, setupSkipped, refreshMe, setSetupState } = useAuth();
 
   const [step, setStep] = useState(0);
   const [profile, setProfile] = useState<LandlordProfile>({
@@ -91,8 +91,8 @@ export default function SetupPage() {
     };
   }, [landlordUuid]);
 
-  if (setupCompleted) {
-    return null;
+  if (setupCompleted || setupSkipped) {
+    return <Navigate to={destinations.home} replace />;
   }
 
   const defaultName = (index: number) => `Property ${index + 1}`;
